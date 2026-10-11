@@ -4,12 +4,13 @@
 //
 // Pure data and helpers only: no React, no storage. The panel owns the array.
 
-export type TabKind = 'overview' | 'tx' | 'address' | 'block' | 'xpub';
+export type TabKind = 'overview' | 'tx' | 'address' | 'block' | 'xpub' | 'vtxo';
 
 export type Tab = {
   id: string;
   kind: TabKind;
-  /** The subject being explored: txid, address, block height/hash, xpub. Absent for overview. */
+  /** The subject being explored: txid, address, block height/hash, xpub, or a
+   *  Bark VTXO (its "txid:vout" id, or its hex export). Absent for overview. */
   query?: string;
   /** Short text shown on the tab. */
   label: string;
@@ -30,6 +31,13 @@ function newId(): string {
 export function shortLabel(kind: TabKind, query?: string): string {
   if (!query) return 'Home';
   if (kind === 'block') return /^\d+$/.test(query) ? `Block ${query}` : `Block ${query.slice(0, 8)}...`;
+  if (kind === 'vtxo') {
+    const id = /^([0-9a-f]{64}):(\d+)$/i.exec(query);
+    if (id) return `${id[1].slice(0, 6)}...${id[1].slice(-4)}:${id[2]}`;
+    // A Spark leaf, named by a UUID.
+    if (/^[0-9a-f]{8}-/i.test(query)) return `Leaf ${query.slice(0, 8)}`;
+    return 'VTXO export';
+  }
   if (query.length <= 14) return query;
   return `${query.slice(0, 6)}...${query.slice(-4)}`;
 }

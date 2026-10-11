@@ -201,6 +201,20 @@ describe('the payment-host alert door', () => {
   });
 });
 
+describe('the explorer anchors door', () => {
+  it('answers publicly and cacheable, empty without the entity database', async () => {
+    const res = await worker.fetch(new Request('https://proxy.test/explorer/anchors', { method: 'GET' }), ENV);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('Cache-Control') ?? '', /public/);
+    assert.deepEqual(await res.json(), {});
+  });
+
+  it('is GET-only', async () => {
+    const res = await worker.fetch(new Request('https://proxy.test/explorer/anchors', { method: 'POST' }), ENV);
+    assert.equal(res.status, 404);
+  });
+});
+
 describe('the released version door', () => {
   it('answers publicly, cacheable, with the release constant', async () => {
     const res = await worker.fetch(new Request('https://proxy.test/app-version', { method: 'GET' }), ENV);

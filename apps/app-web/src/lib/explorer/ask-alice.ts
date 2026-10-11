@@ -108,6 +108,10 @@ function identifiedLabel(text: string): string {
   if (addr) return `Address ...${addr[1].slice(-5)}`;
   const block = first.match(/^Block (\d+)/);
   if (block) return `Block ${block[1]}`;
+  // The off-chain pages open their description with the layer and the kind
+  // of subject (see layer-context.ts), e.g. "Spark leaf 01a117a8-…".
+  const layer = first.match(/^(Spark|Arkade|Bark) (address|transfer|leaf|VTXO|token transaction) (\S+)/);
+  if (layer) return `${layer[1]} ${layer[2]} ...${layer[3].slice(-5)}`;
   return 'On-chain context';
 }
 

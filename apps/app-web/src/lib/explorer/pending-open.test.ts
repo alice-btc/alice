@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
+import { localVault } from '../local-vault.ts';
+
+// Under Node the vault has no cipher: a plain window onto the fake storage.
+localVault.configure(() => null);
 
 // The one-shot deep-link channel carries a subject from another surface (a
 // Learn anchor, a Playground transaction) into the Explorer workspace. It is

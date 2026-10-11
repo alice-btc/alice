@@ -47,6 +47,8 @@ export const HELP_ICON = settingsGlyph('M5 2h10v2h2v6h-2v2h-4v2H9v-4h6V4H5v3H3V4
 export const CLOCK_ICON = settingsGlyph('M4 2h12v2h2v12h-2v2H4v-2H2V4h2zm0 2v12h12V4zm5 2h2v5h3v2H9z');
 export const NETWORK_ICON = settingsGlyph('M7 1h6v6H7zm2 2v2h2V3zM9 8h2v2h6v3h-2v-1H5v1H3v-3h6zM1 14h6v5H1zm2 2v1h2v-1zm10-2h6v5h-6zm2 2v1h2v-1z');
 export const CHART_ICON = settingsGlyph('M2 2h2v14h14v2H2zm4 9h2v3H6zm4-4h2v7h-2zm4-4h2v11h-2z');
+// Two arrows, one each way: swapping the sides of a row.
+export const SWAP_ICON = settingsGlyph('M6 5h12v2H6zM4 3h2v2H4zM2 5h2v2H2zM4 7h2v2H4zM2 13h12v2H2zM14 11h2v2h-2zM16 13h2v2h-2zM14 15h2v2h-2z');
 export const RECEIVE_ICON = settingsGlyph('M9 2h2v9h3V9h3v2h-2v2h-2v2h-2v2H9v-2H7v-2H5v-2H3V9h3v2h3z');
 
 // GitHub mark from Primer Octicons (MIT), preserved rather than pixel-redrawn.

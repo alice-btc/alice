@@ -15,7 +15,7 @@ test('the production RAG bridge forwards response language and quotes Learn sepa
   });
   const context = await runtime.buildRagTurnContext('What is Bitcoin?', undefined, { maxChunks: 1, targetLanguage: 'fr' });
   assert.equal(context.learnContext, 'Les bases\nUn réseau monétaire sans autorité centrale.');
-  assert.equal(context.diagnostics[0]?.id, 'bitcoin-basics');
+  assert.equal(context.diagnostics[0]?.conceptId, 'bitcoin-network-vs-asset');
   const history = runtime.composeGenerationHistory([{ role: 'user', content: 'What is Bitcoin?' }], context, '');
   assert.equal(history.at(-1).content, 'What is Bitcoin?');
   assert.ok(history.some((m: { role: string; content: string }) => m.role === 'system' && m.content.includes('Les bases')));
@@ -56,7 +56,7 @@ test('the actual RAG + Learn bridge shares a hard text budget and reports only e
     export { getAllChunks } from './packages/alice-ai/src/knowledge-packs.ts';
   `);
   const full = await runtime.buildRagTurnContext('What is Bitcoin?', undefined, {maxChunks:1});
-  const content = runtime.getAllChunks().find((c: {id:string}) => c.id === 'bitcoin-basics').content;
+  const content = runtime.getAllChunks().find((c: {id:string}) => c.id === 'curated-bitcoin-network-vs-asset').content;
   runtime.registerLearnContextProvider(async () => ({label:'Course', excerpt:content}));
   const duplicate = await runtime.buildRagTurnContext('What is Bitcoin?', undefined, {maxChunks:1});
   assert.equal(duplicate.learnContext, null);

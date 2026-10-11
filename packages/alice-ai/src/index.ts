@@ -160,6 +160,17 @@ export {
 export { type SensitiveInputBlock, detectSensitiveInput } from './ai-sensitive-input';
 export { type ChatMsg, type MessageVariant, ChatProvider, useChat } from './chat-context';
 export {
+  type LocalCipher,
+  type LocalKeyStore,
+  LOCAL_CIPHER_VERSION,
+  isLocalCipherValue,
+  getLocalCipher,
+  createTauriLocalCipher,
+  createWebCryptoLocalCipher,
+  indexedDbKeyStore,
+  resetLocalCipherForTests,
+} from './local-cipher';
+export {
   MAX_CHAT_SESSIONS,
   type ChatSession,
   type ChatCleanupMode,

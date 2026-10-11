@@ -4,10 +4,11 @@
 // failure just falls back to a fresh single Home tab.
 
 import { DEFAULT_NETWORK_ID, getNetwork } from './networks.ts';
-import { overviewTab, shortLabel, type Tab, type TabKind } from './tabs.ts';
+import { overviewTab, type Tab, type TabKind } from './tabs.ts';
+import { localVault } from '../local-vault.ts';
 
 const KEY = 'explorer.tabs.v1';
-const KINDS: TabKind[] = ['overview', 'tx', 'address', 'block', 'xpub'];
+const KINDS: TabKind[] = ['overview', 'tx', 'address', 'block', 'xpub', 'vtxo'];
 
 function isValidTab(value: unknown): value is Tab {
   if (typeof value !== 'object' || value === null) return false;
@@ -28,7 +29,7 @@ function isValidTab(value: unknown): value is Tab {
 export function loadTabs(): { tabs: Tab[]; activeId: string } | null {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = localVault.getItem(KEY);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== 'object' || parsed === null) return null;
@@ -54,7 +55,7 @@ export function loadTabs(): { tabs: Tab[]; activeId: string } | null {
 export function saveTabs(tabs: Tab[], activeId: string): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify({ tabs, activeId }));
+    localVault.setItem(KEY, JSON.stringify({ tabs, activeId }));
   } catch {
     // Storage full or unavailable: persistence is a nicety, not essential.
   }
@@ -65,7 +66,7 @@ export function saveTabs(tabs: Tab[], activeId: string): void {
 // workspace consumes it on mount. Kept separate from the tab list itself so it
 // never races the panel's own persistence.
 const PENDING_KEY = 'explorer.pending-open.v1';
-const OPENABLE: TabKind[] = ['tx', 'address', 'block', 'xpub'];
+const OPENABLE: TabKind[] = ['tx', 'address', 'block', 'xpub', 'vtxo'];
 
 // What a URL may hand the Explorer for each subject. The value then goes
 // into an upstream request path, so it is shape-checked here rather than
@@ -76,6 +77,8 @@ const URL_SUBJECT_SHAPE: Record<Exclude<TabKind, 'overview'>, RegExp> = {
   block: /^(?:[0-9a-f]{64}|\d{1,9})$/i,
   address: /^[a-z0-9]{14,120}$/i,
   xpub: /^[a-z0-9]{60,160}$/i,
+  // A Bark coin by id only: an export is far too long for a URL.
+  vtxo: /^[0-9a-f]{64}:\d{1,10}$/i,
 };
 
 /** Strips only the keys the Explorer consumed, keeping any other parameter. */
@@ -103,7 +106,7 @@ export function requestPendingOpen(
 ): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(PENDING_KEY, JSON.stringify({ kind, query, note, networkId }));
+    localVault.setItem(PENDING_KEY, JSON.stringify({ kind, query, note, networkId }));
   } catch {
     // Best-effort; the Explorer just opens on Home.
   }
@@ -129,10 +132,11 @@ export function pendingOpenFromUrl(search: string): {
     if (!URL_SUBJECT_SHAPE[kind as Exclude<TabKind, 'overview'>].test(query)) return null;
     const network = params.get('network') ?? undefined;
     const networkId = network && getNetwork(network).id === network ? network : undefined;
+    // No arrival banner for a URL: the tab that opens is the whole message,
+    // and a link can as well have been typed or shared by hand.
     return {
       kind: kind as Exclude<TabKind, 'overview'>,
       query,
-      note: { label: shortLabel(kind, query), origin: 'Alice Wallet' },
       networkId,
     };
   }
@@ -147,9 +151,9 @@ export function consumePendingOpen(): {
 } | null {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = window.localStorage.getItem(PENDING_KEY);
+    const raw = localVault.getItem(PENDING_KEY);
     if (!raw) return null;
-    window.localStorage.removeItem(PENDING_KEY);
+    localVault.removeItem(PENDING_KEY);
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== 'object' || parsed === null) return null;
     const p = parsed as Record<string, unknown>;

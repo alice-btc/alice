@@ -10,6 +10,7 @@
 //   - serve as a plaintext relay (missing E2EE headers are rejected outright)
 
 import { APP_RELEASE_VERSION } from './app-release.ts';
+import { ANCHOR_CRON, readAnchors, refreshAnchors } from './explorer-anchors.ts';
 import { checkAndAlert, handleTunnelAlert } from './ops-alert.ts';
 import {
   AccountHttpError,
@@ -450,7 +451,7 @@ export function missingE2EEHeaders(request: Request): string[] {
  * Technical telemetry only. Deliberately takes primitives, never the body or
  * the headers, so there is no path by which content could be logged.
  */
-function logTechnical(fields: { route: string; status: number; durationMs: number; model: string; approxBytes: number }): void {
+function logTechnical(fields: { route: string; status: number; durationMs: number; model: string; approxBytes: number; detail?: string }): void {
   console.log(JSON.stringify({ ...fields, at: new Date().toISOString() }));
 }
 
@@ -973,6 +974,18 @@ export default {
       return json(await lookupEntities(request, env), 200, cors);
     }
 
+    // Explorer settlement anchors: the newest Arkade commitment the Worker's
+    // own walk of the operator's wallet has reached, and the newest Bark round
+    // the server reported (explorer-anchors.ts), so a browser starts from the
+    // present instead of a months-old seed. Public data about public wallets,
+    // the same answer for everyone: no auth, no body, cacheable.
+    if (url.pathname === '/explorer/anchors' && request.method === 'GET') {
+      return json(await readAnchors(env), 200, {
+        ...cors,
+        'Cache-Control': 'public, max-age=60',
+      });
+    }
+
     // BTCPay's callback. It carries no session and no CORS origin: it is
     // authenticated by the HMAC signature BTCPay puts on the body, and by
     // nothing else. Placed before the account block so it never inherits the
@@ -1134,10 +1147,34 @@ export default {
     return json({ error: 'Not found' }, 404, cors);
   },
   async scheduled(
-    _controller: ScheduledController,
+    controller: ScheduledController,
     env: Env,
     ctx: ExecutionContext,
   ): Promise<void> {
+    // Two schedules share this entry point. The ten-minute one only refreshes
+    // the Explorer's settlement anchor; everything below stays hourly, the
+    // satoshi price in particular, which may move once an hour and no more.
+    if (controller.cron === ANCHOR_CRON) {
+      // Awaited rather than handed to waitUntil: a scheduled invocation lives
+      // as long as its handler, and the Arkade walk can take a couple of
+      // minutes on a first run. One technical line per network afterwards:
+      // whether the run reached its servers (a failed lookup reads as 503),
+      // the height it stands on and the hops it walked. No user is involved
+      // in this work; nothing else is logged.
+      const started = Date.now();
+      const reports = await refreshAnchors(env);
+      for (const [network, r] of Object.entries(reports)) {
+        logTechnical({
+          route: `anchors/${network}`,
+          status: r.interrupted ? 503 : r.anchor ? 200 : 204,
+          durationMs: Date.now() - started,
+          model: '',
+          approxBytes: r.hops,
+          detail: [r.anchor ? `height ${r.anchor.height}, found ${r.found}` : `found ${r.found}`, r.failure ? `failed: ${r.failure}` : ''].filter(Boolean).join('; '),
+        });
+      }
+      return;
+    }
     ctx.waitUntil(cleanupExpiredAccountData(env));
     ctx.waitUntil(cleanupBillingData(env));
     // Bitcoin cannot direct-debit, so an expiring plan is a decision the user

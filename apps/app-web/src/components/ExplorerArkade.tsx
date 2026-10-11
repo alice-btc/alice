@@ -2,24 +2,32 @@
 
 // The Arkade-specific pieces of the Explorer. Arkade settles on Bitcoin
 // mainnet, so the network reuses the whole Bitcoin explorer (ribbon, block,
-// transaction and address views on the ASP's Esplora mirror); what is Arkade's
-// own is rendered by the sections here: the live settlements feed, the ASP
-// parameters, the commitment-round overlay a settlement transaction gets, and
+// transaction and address views on the operator's Esplora mirror); what is
+// Arkade's own is rendered by the sections here: the live feed of commitment
+// transactions, the operator's parameters, the overlay a commitment
+// transaction gets, and the address view. The copy uses Arkade's own words
+// (docs.arkadeos.com): operator, commitment transaction, batch, VTXO tree,
+// Ark transaction, preconfirmed, settled, unilateral exit. "Settlement" in
+// identifiers is Alice's older name for a commitment transaction.
 // the VTXO view an ark1… address opens. Everything comes from the public,
 // CORS-open ASP gateway, straight from the browser.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  ArkadeError, getArkadeAddressVtxos, getArkadeInfo, subscribeSettlements,
+  ArkadeError, formatArkadeExitDelay, getArkadeAddressVtxos, getArkadeInfo, subscribeSettlements,
   type ArkadeAddressInfo, type ArkadeCommitment, type ArkadeInfo, type ArkadeVirtualTx, type ArkadeVtxo,
 } from '@/lib/explorer/arkade';
-import { noteSeenSettlement, settlementRegistry, type KnownSettlement } from '@/lib/explorer/arkade-onchain';
+import { HISTORY_PAGE, noteSeenSettlement, settlementRegistry, type KnownSettlement } from '@/lib/explorer/arkade-onchain';
+import type { SettlementSync } from '@/lib/explorer/use-settlement-sync';
 import { buildArkadeBalanceSeries, buildArkadeTxHistory, virtualTxOutspends, virtualTxToNormalized } from '@/lib/explorer/arkade-insights';
 import { averageUtxoAge } from '@/lib/explorer/address-insights';
+import { arkadeAddressContext } from '@/lib/explorer/layer-context';
+import type { PrivacySignal } from '@/lib/explorer/signals';
+import type { FullContext } from '@/lib/explorer/ask-alice';
 import { getNetwork } from '@/lib/explorer/networks';
 import { formatDateTime } from '@/lib/explorer/blocks';
 import { Amount } from '@/components/AmountDisplay';
-import { Analyzing, Badge, EmptyState, Metric, SectionPanel, Skeleton, SkeletonLines } from '@/components/ExplorerUI';
+import { Analyzing, Badge, EmptyState, ExplorerCopy, FieldLabel, Metric, SectionPanel, Skeleton, SkeletonLines } from '@/components/ExplorerUI';
 import { ExplorerTxGraph } from '@/components/ExplorerTxGraph';
 import { ExplorerBalanceChart } from '@/components/ExplorerBalanceChart';
 import { ExplorerUtxoBubbles } from '@/components/ExplorerUtxoBubbles';
@@ -58,10 +66,10 @@ function fmtTime(sec?: number): string {
   return new Date(sec * 1000).toISOString().replace('T', ' ').slice(0, 19);
 }
 
-/** The settlement marker, identical wherever a commitment is pointed at.
+/** The commitment-transaction marker, identical wherever one is pointed at.
  *  White text always: the fill is the deep Arkade violet in both themes, and
  *  any theme token here could land dark-on-dark. */
-export function SettlementBadge({ children = 'ARKADE TX SETTLEMENT' }: { children?: React.ReactNode }) {
+export function SettlementBadge({ children = 'ARKADE COMMITMENT TX' }: { children?: React.ReactNode }) {
   return (
     <span
       className="font-pixel tracking-widest inline-flex items-center shrink-0"
@@ -76,7 +84,7 @@ export function SettlementBadge({ children = 'ARKADE TX SETTLEMENT' }: { childre
   );
 }
 
-function VtxoRow({ v, onOpenTx }: { v: ArkadeVtxo; onOpenTx?: (txid: string) => void }) {
+function VtxoRow({ v, onOpenTx, onOpenVtxo }: { v: ArkadeVtxo; onOpenTx?: (txid: string) => void; onOpenVtxo?: (id: string) => void }) {
   const spent = v.isSpent || v.isSwept;
   const anchor = v.commitmentTxids[0];
   return (
@@ -96,7 +104,7 @@ function VtxoRow({ v, onOpenTx }: { v: ArkadeVtxo; onOpenTx?: (txid: string) => 
               onClick={() => { noteSeenSettlement(anchor); onOpenTx(anchor); }}
               className="alice-control alice-control--quiet font-numbers text-left cursor-pointer bg-transparent p-0"
               style={{ fontSize: 13, color: 'var(--alice-primary)' }}
-              title="Open the on-chain settlement anchoring this VTXO"
+              title="Open the commitment transaction anchoring this VTXO"
             >
               anchored in {shortHex(anchor, 8, 6)}
             </button>
@@ -106,6 +114,17 @@ function VtxoRow({ v, onOpenTx }: { v: ArkadeVtxo; onOpenTx?: (txid: string) => 
         )}
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        {onOpenVtxo && (
+          <button
+            type="button"
+            onClick={() => onOpenVtxo(`${v.txid}:${v.vout}`)}
+            className="alice-control alice-control--quiet font-numbers cursor-pointer bg-transparent"
+            style={{ fontSize: 11, padding: '3px 8px', borderRadius: 3, color: 'var(--alice-primary)' }}
+            title="Open this VTXO: its exit tree, from the commitment transaction down to the coin"
+          >
+            exit tree
+          </button>
+        )}
         {v.isSwept ? <Badge tone="neutral">SWEPT</Badge> : v.isSpent ? <Badge tone="neutral">SPENT</Badge> : null}
         <Amount sats={v.amountSats} style={{ fontSize: 12, color: spent ? 'var(--alice-muted)' : 'var(--alice-text)' }} />
       </div>
@@ -113,7 +132,7 @@ function VtxoRow({ v, onOpenTx }: { v: ArkadeVtxo; onOpenTx?: (txid: string) => 
   );
 }
 
-function AddressCard({ info, onOpenTx }: { info: ArkadeAddressInfo; onOpenTx?: (txid: string) => void }) {
+function AddressCard({ info, onOpenTx, onOpenVtxo }: { info: ArkadeAddressInfo; onOpenTx?: (txid: string) => void; onOpenVtxo?: (id: string) => void }) {
   // The lists open short and page out on demand, like the on-chain view.
   const [txLimit, setTxLimit] = useState(FEED_INITIAL);
   const [vtxoLimit, setVtxoLimit] = useState(FEED_INITIAL);
@@ -126,10 +145,14 @@ function AddressCard({ info, onOpenTx }: { info: ArkadeAddressInfo; onOpenTx?: (
   const age = averageUtxoAge(spendable.map(v => ({ valueSats: v.amountSats, blockTime: v.createdAt })), nowSec);
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3, backgroundColor: 'transparent' }}>
+      <div className="flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderLeft: `3px solid ${ARKADE_ACCENT}`, borderRadius: 3, backgroundColor: 'transparent' }}>
         <div className="flex items-center gap-2 flex-wrap">
-          <Badge tone="primary">ARKADE ADDRESS</Badge>
-          <span className="font-numbers break-all" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{info.address}</span>
+          <SettlementBadge>ARKADE ADDRESS</SettlementBadge>
+          <span className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>off-chain, from the operator&rsquo;s indexer</span>
+        </div>
+        <div className="flex items-start gap-2">
+          <p className="font-numbers m-0 break-all min-w-0 flex-1" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{info.address}</p>
+          <ExplorerCopy value={info.address} label="address" />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
           <Metric label="SPENDABLE" value={<Amount sats={info.spendableSats} style={{ fontSize: 14, color: 'var(--alice-text)' }} />} />
@@ -213,7 +236,7 @@ function AddressCard({ info, onOpenTx }: { info: ArkadeAddressInfo; onOpenTx?: (
               {Math.min(vtxoLimit, info.vtxos.length).toLocaleString('en-US')} of {info.vtxos.length.toLocaleString('en-US')}
             </span>
           </div>
-          {info.vtxos.slice(0, vtxoLimit).map(v => <VtxoRow key={`${v.txid}:${v.vout}`} v={v} onOpenTx={onOpenTx} />)}
+          {info.vtxos.slice(0, vtxoLimit).map(v => <VtxoRow key={`${v.txid}:${v.vout}`} v={v} onOpenTx={onOpenTx} onOpenVtxo={onOpenVtxo} />)}
           {vtxoLimit < info.vtxos.length && (
             <button
               type="button"
@@ -228,14 +251,14 @@ function AddressCard({ info, onOpenTx }: { info: ArkadeAddressInfo; onOpenTx?: (
           )}
         </div>
       ) : (
-        <EmptyState title="No VTXOs on this address" hint="This Arkade address holds no off-chain coins that the ASP knows about." />
+        <EmptyState title="No VTXOs on this address" hint="This Arkade address holds no off-chain coins that the operator knows about." />
       )}
     </div>
   );
 }
 
-/** The commitment-round card, shown by the settlement overlay and anywhere a
- *  round is inspected. `onOpenTx` renders the txid as a link; omit it on the
+/** The commitment-transaction card, shown as the overlay of that transaction
+ *  and anywhere a commitment is inspected. `onOpenTx` renders the txid as a link; omit it on the
  *  transaction's own page. */
 export function CommitmentCard({ c, onOpenTx }: { c: ArkadeCommitment; onOpenTx?: (txid: string) => void }) {
   const window = c.startedAt && c.endedAt ? c.endedAt - c.startedAt : undefined;
@@ -246,7 +269,7 @@ export function CommitmentCard({ c, onOpenTx }: { c: ArkadeCommitment; onOpenTx?
         style={{ borderTop: '1px solid var(--alice-border)', borderLeft: `3px solid ${ARKADE_ACCENT}`, borderRadius: 3, backgroundColor: 'transparent' }}
       >
         <div className="flex items-center gap-2 flex-wrap">
-          <SettlementBadge>ARKADE COMMITMENT ROUND</SettlementBadge>
+          <SettlementBadge>ARKADE COMMITMENT TRANSACTION</SettlementBadge>
           {onOpenTx ? (
             <button
               type="button"
@@ -310,9 +333,11 @@ function byNewest(a: KnownSettlement, b: KnownSettlement): number {
  * The settlements panel of the Arkade overview: the on-chain settlement
  * history this browser has identified (the chain walker fills it), extended in
  * real time by the ASP stream. Each row opens the settlement's on-chain
- * transaction tab, where the round's detail overlays the raw view.
+ * transaction tab, where the round's detail overlays the raw view. `sync`
+ * says whether the walk has reached the tip (a ring heads the list until it
+ * has) and serves the older pages on request.
  */
-export function ArkadeLiveSettlements({ apiBaseUrl, onOpenTx }: { apiBaseUrl: string; onOpenTx: (txid: string) => void }) {
+export function ArkadeLiveSettlements({ apiBaseUrl, sync, onOpenTx }: { apiBaseUrl: string; sync?: SettlementSync; onOpenTx: (txid: string) => void }) {
   const [known, setKnown] = useState<KnownSettlement[]>(() => [...settlementRegistry.all()].sort(byNewest));
   const [live, setLive] = useState(false);
   const [limit, setLimit] = useState(FEED_INITIAL);
@@ -345,18 +370,42 @@ export function ArkadeLiveSettlements({ apiBaseUrl, onOpenTx }: { apiBaseUrl: st
   }, [apiBaseUrl]);
 
   const shown = known.slice(0, limit);
+  const catchingUp = sync?.catchingUp ?? false;
+  // Fetch a page of older settlements and widen the window so they show.
+  function loadOlder() {
+    if (!sync) return;
+    setLimit(l => Math.max(l, known.length) + HISTORY_PAGE);
+    void sync.loadOlder();
+  }
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>ON-CHAIN SETTLEMENTS</span>
+        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>COMMITMENT TRANSACTIONS</span>
         <span className="flex items-center gap-1.5">
+          {sync && !catchingUp && sync.tipHeight !== null && (
+            <span
+              className="font-pixel tracking-widest"
+              style={{ fontSize: 10, color: 'var(--alice-muted)' }}
+              title="The walk of the operator's wallet has reached the live tip: the newest commitment shown is the newest there is."
+            >
+              UP TO DATE · BLOCK {sync.tipHeight.toLocaleString('en-US')} ·
+            </span>
+          )}
           <span style={{ width: 7, height: 7, borderRadius: 7, backgroundColor: live ? 'var(--alice-success)' : 'var(--alice-muted)' }} />
           <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{live ? 'LIVE' : 'CONNECTING'}</span>
         </span>
       </div>
       <div className="flex flex-col" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3 }}>
+        {catchingUp && (
+          <div className="flex items-center gap-2 px-3 py-2" style={{ color: 'var(--alice-muted)' }} role="status">
+            <span className="rh-spinner shrink-0" aria-hidden="true" />
+            <span className="font-numbers" style={{ fontSize: 12, lineHeight: '16px' }}>
+              Downloading the latest commitment transactions from the Bitcoin chain. The newest shown may not be the newest yet.
+            </span>
+          </div>
+        )}
         {shown.length === 0 ? (
-          <Analyzing label="identifying settlements on the Bitcoin chain…" />
+          !catchingUp && <Analyzing label="identifying commitment transactions on the Bitcoin chain…" />
         ) : (
           shown.map((s, i) => (
             <button
@@ -364,7 +413,7 @@ export function ArkadeLiveSettlements({ apiBaseUrl, onOpenTx }: { apiBaseUrl: st
               type="button"
               onClick={() => onOpenTx(s.txid)}
               className="alice-control alice-control--quiet flex items-center justify-between gap-3 w-full text-left cursor-pointer bg-transparent px-3 py-2"
-              style={{ borderTop: i > 0 ? '1px solid var(--alice-border)' : undefined, justifyContent: 'space-between' }}
+              style={{ borderTop: i > 0 || catchingUp ? '1px solid var(--alice-border)' : undefined, justifyContent: 'space-between' }}
             >
               <div className="flex flex-col min-w-0">
                 <span className="font-numbers truncate" style={{ fontSize: 12, color: 'var(--alice-primary)' }} title={s.txid}>{shortHex(s.txid, 12, 8)}</span>
@@ -378,7 +427,7 @@ export function ArkadeLiveSettlements({ apiBaseUrl, onOpenTx }: { apiBaseUrl: st
           ))
         )}
       </div>
-      {known.length > shown.length && (
+      {known.length > shown.length ? (
         <button
           type="button"
           onClick={() => setLimit(l => l + FEED_STEP)}
@@ -389,7 +438,25 @@ export function ArkadeLiveSettlements({ apiBaseUrl, onOpenTx }: { apiBaseUrl: st
         >
           SHOW {Math.min(FEED_STEP, known.length - shown.length)} MORE
         </button>
-      )}
+      ) : sync && known.length > 0 && !catchingUp && sync.exhausted === null ? (
+        <button
+          type="button"
+          onClick={loadOlder}
+          disabled={sync.loadingOlder}
+          className="alice-control alice-control--quiet font-numbers self-center cursor-pointer disabled:cursor-not-allowed flex items-center gap-2"
+          style={{ fontSize: 13, padding: '8px 16px', borderRadius: 3, color: 'var(--alice-primary)' }}
+          title="Walk the operator's wallet further back on Bitcoin, one page of commitment transactions at a time"
+        >
+          {sync.loadingOlder && <span className="rh-spinner" aria-hidden="true" />}
+          {sync.loadingOlder ? 'LOADING OLDER…' : `LOAD ${HISTORY_PAGE} OLDER`}
+        </button>
+      ) : sync?.exhausted ? (
+        <span className="font-numbers self-center text-center" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
+          {sync.exhausted === 'origin'
+            ? 'Back to the first transaction of the operator’s wallet: nothing older.'
+            : 'Nothing older found: this funding line ends in wallet transactions the walk cannot cross.'}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -407,38 +474,38 @@ export function ArkadeAspInfo({ apiBaseUrl }: { apiBaseUrl: string }) {
       .catch(e => {
         // A cancelled fetch (re-render/unmount) is not an error to show.
         if (e instanceof DOMException && e.name === 'AbortError') return;
-        setInfoErr(e instanceof ArkadeError ? e.message : 'Could not reach the ASP.');
+        setInfoErr(e instanceof ArkadeError ? e.message : 'Could not reach the operator.');
       });
     return () => controller.abort();
   }, [apiBaseUrl]);
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>SERVICE PROVIDER</span>
+      <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>OPERATOR</span>
       {infoErr ? (
         <div className="flex flex-col gap-1 px-4 py-3" style={{ border: '1px solid var(--alice-danger)', borderRadius: 3 }}>
-          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>ASP UNREACHABLE</span>
+          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>OPERATOR UNREACHABLE</span>
           <p className="font-numbers m-0" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{infoErr}</p>
         </div>
       ) : info ? (
-        <div className="flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3, backgroundColor: 'transparent' }}>
+        <div className="flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderLeft: `3px solid ${ARKADE_ACCENT}`, borderRadius: 3, backgroundColor: 'transparent' }}>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
-            <Metric label="ROUND EVERY" value={fmtDuration(info.sessionDurationSec)} />
+            <Metric label="BATCH EVERY" value={fmtDuration(info.sessionDurationSec)} title="How often the operator runs a batch session and commits it to Bitcoin." />
             <Metric label="DUST" value={<Amount sats={info.dustSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
             <Metric label="VTXO MIN" value={<Amount sats={info.vtxoMinSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
             <Metric label="VTXO MAX" value={<Amount sats={info.vtxoMaxSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
-            <Metric label="EXIT DELAY" value={`${info.unilateralExitDelay.toLocaleString('en-US')} blocks`} />
+            <Metric label="EXIT DELAY" value={formatArkadeExitDelay(info.unilateralExitDelay)} title="The wait after a unilateral exit before the coin can be spent on-chain." />
             <Metric label="MAX TX WEIGHT" value={info.maxTxWeight.toLocaleString('en-US')} />
             <Metric label="VERSION" value={info.version || '-'} />
             <Metric label="SETTLES ON" value={info.network || '-'} />
           </div>
           <div className="flex flex-col gap-1">
-            <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>SIGNER PUBKEY</span>
+            <FieldLabel>SIGNER PUBKEY</FieldLabel>
             <span className="font-numbers break-all" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{info.signerPubkey || '-'}</span>
           </div>
           {info.forfeitAddress && (
             <div className="flex flex-col gap-1">
-              <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>FORFEIT ADDRESS</span>
+              <FieldLabel>FORFEIT ADDRESS</FieldLabel>
               <span className="font-numbers break-all" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{info.forfeitAddress}</span>
             </div>
           )}
@@ -452,13 +519,40 @@ export function ArkadeAspInfo({ apiBaseUrl }: { apiBaseUrl: string }) {
   );
 }
 
+/** The Arkade address an input spends from or an output pays, shortened,
+ *  opening the address view when the card can. */
+function ArkadeAddressLine({ address, onOpenAddress }: { address?: string; onOpenAddress?: (address: string) => void }) {
+  if (!address) return null;
+  const short = `${address.slice(0, 14)}…${address.slice(-8)}`;
+  return onOpenAddress ? (
+    <button
+      type="button"
+      onClick={() => onOpenAddress(address)}
+      className="alice-control alice-control--quiet font-numbers truncate text-left cursor-pointer bg-transparent p-0 self-start"
+      style={{ fontSize: 11, color: 'var(--alice-primary)' }}
+      title={`Open ${address}`}
+    >
+      {short}
+    </button>
+  ) : (
+    <span className="font-numbers truncate" style={{ fontSize: 11, color: 'var(--alice-muted)' }} title={address}>{short}</span>
+  );
+}
+
 /**
  * The view a VIRTUAL (off-chain) Arkade transaction gets: the txid exists in
  * the ASP's indexer but not on Bitcoin, so instead of Esplora's "not found"
  * the tab shows the decoded transaction, what it spent, what it created, and
  * where each output stands (preconfirmed, settled, spent, its expiry).
  */
-export function ArkadeVirtualTxCard({ vtx, onOpenTx }: { vtx: ArkadeVirtualTx; onOpenTx?: (txid: string) => void }) {
+export function ArkadeVirtualTxCard({ vtx, onOpenTx, onOpenAddress }: {
+  vtx: ArkadeVirtualTx;
+  onOpenTx?: (txid: string) => void;
+  onOpenAddress?: (address: string) => void;
+}) {
+  // The commitment transactions anchoring this transaction's outputs on
+  // Bitcoin, as the indexer reports them per VTXO (one batch, usually).
+  const commitments = [...new Set(vtx.outputs.flatMap(o => o.vtxo?.commitmentTxids ?? []))];
   return (
     <div className="flex flex-col gap-4">
       <div
@@ -469,9 +563,27 @@ export function ArkadeVirtualTxCard({ vtx, onOpenTx }: { vtx: ArkadeVirtualTx; o
           <SettlementBadge>ARKADE VIRTUAL TX</SettlementBadge>
           <span className="font-numbers break-all" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{vtx.txid}</span>
         </div>
+        {onOpenTx && commitments.length > 0 && (
+          // The way back to the chain, on its own line under the id so it
+          // sits at the same place on every width; sized like the badge, under
+          // the 40px floor the controls get elsewhere.
+          <div className="flex">
+            <button
+              type="button"
+              onClick={() => { noteSeenSettlement(commitments[0]); onOpenTx(commitments[0]); }}
+              className="alice-control alice-control--quiet font-pixel tracking-widest cursor-pointer"
+              style={{ fontSize: 10, lineHeight: 1, minHeight: 0, padding: '5px 8px', borderRadius: 3, color: 'var(--alice-primary)' }}
+              title={commitments.length === 1
+                ? `Open the commitment transaction anchoring this transaction's outputs on Bitcoin: ${commitments[0]}`
+                : `Open the first of the ${commitments.length} commitment transactions anchoring this transaction's outputs on Bitcoin`}
+            >
+              OPEN COMMITMENT TX
+            </button>
+          </div>
+        )}
         <p className="font-numbers m-0" style={{ fontSize: 12.5, lineHeight: '18px', color: 'var(--alice-muted)' }}>
-          This transaction lives off-chain, held by the Arkade service provider: it is not recorded
-          on Bitcoin. Its outputs are VTXOs, each anchored on-chain by a settlement transaction.
+          An Ark transaction: it lives off-chain, held by the Arkade operator, and is not recorded
+          on Bitcoin. Its outputs are VTXOs, each anchored on-chain by a commitment transaction.
         </p>
       </div>
 
@@ -481,6 +593,7 @@ export function ArkadeVirtualTxCard({ vtx, onOpenTx }: { vtx: ArkadeVirtualTx; o
         tx={virtualTxToNormalized(vtx, 'arkade')}
         outspends={virtualTxOutspends(vtx)}
         onOpenTx={onOpenTx}
+        onOpenAddress={onOpenAddress}
       />
 
       <div className="flex flex-col md:flex-row gap-4">
@@ -490,19 +603,27 @@ export function ArkadeVirtualTxCard({ vtx, onOpenTx }: { vtx: ArkadeVirtualTx; o
           </div>
           {vtx.inputs.map((inp, i) => (
             <div key={`${inp.txid}:${inp.vout}:${i}`} className="flex items-center justify-between gap-3 px-3 py-2" style={{ borderTop: '1px solid var(--alice-border)' }}>
-              {onOpenTx && inp.txid ? (
-                <button
-                  type="button"
-                  onClick={() => onOpenTx(inp.txid)}
-                  className="alice-control alice-control--quiet font-numbers truncate text-left cursor-pointer bg-transparent p-0"
-                  style={{ fontSize: 12, color: 'var(--alice-primary)' }}
-                  title={`${inp.txid}:${inp.vout}`}
-                >
-                  {shortHex(inp.txid, 12, 6)}:{inp.vout}
-                </button>
-              ) : (
-                <span className="font-numbers truncate" style={{ fontSize: 12, color: 'var(--alice-text)' }} title={`${inp.txid}:${inp.vout}`}>{shortHex(inp.txid, 12, 6)}:{inp.vout}</span>
-              )}
+              <div className="flex flex-col min-w-0">
+                {onOpenTx && inp.txid ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenTx(inp.txid)}
+                    className="alice-control alice-control--quiet font-numbers truncate text-left cursor-pointer bg-transparent p-0"
+                    style={{ fontSize: 12, color: 'var(--alice-primary)' }}
+                    title={`${inp.txid}:${inp.vout}`}
+                  >
+                    {shortHex(inp.txid, 12, 6)}:{inp.vout}
+                  </button>
+                ) : (
+                  <span className="font-numbers truncate" style={{ fontSize: 12, color: 'var(--alice-text)' }} title={`${inp.txid}:${inp.vout}`}>{shortHex(inp.txid, 12, 6)}:{inp.vout}</span>
+                )}
+                <ArkadeAddressLine address={inp.address} onOpenAddress={onOpenAddress} />
+                {inp.viaCheckpoint && (
+                  <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }} title="The input is a checkpoint transaction's output; the address is the coin's, one transaction up.">
+                    through a checkpoint
+                  </span>
+                )}
+              </div>
               {inp.amountSats !== undefined && <Amount sats={inp.amountSats} style={{ fontSize: 12, color: 'var(--alice-text)' }} />}
             </div>
           ))}
@@ -518,6 +639,7 @@ export function ArkadeVirtualTxCard({ vtx, onOpenTx }: { vtx: ArkadeVirtualTx; o
                 <span className="font-numbers truncate" style={{ fontSize: 12, color: 'var(--alice-text)' }} title={o.scriptHex}>
                   #{o.index}{o.isAnchor ? ' · anchor' : ''}
                 </span>
+                <ArkadeAddressLine address={o.address} onOpenAddress={onOpenAddress} />
                 {o.vtxo && (
                   <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
                     {o.vtxo.isSwept ? 'swept' : o.vtxo.isSpent ? 'spent' : o.vtxo.isPreconfirmed ? 'preconfirmed' : 'settled'}
@@ -531,7 +653,7 @@ export function ArkadeVirtualTxCard({ vtx, onOpenTx }: { vtx: ArkadeVirtualTx; o
                       onClick={() => { noteSeenSettlement(o.vtxo!.commitmentTxids[0]); onOpenTx(o.vtxo!.commitmentTxids[0]); }}
                       className="alice-control alice-control--quiet font-numbers text-left cursor-pointer bg-transparent p-0"
                       style={{ fontSize: 13, color: 'var(--alice-primary)' }}
-                      title="Open the on-chain settlement anchoring this VTXO"
+                      title="Open the commitment transaction anchoring this VTXO"
                     >
                       anchored in {shortHex(o.vtxo.commitmentTxids[0], 8, 6)}
                     </button>
@@ -559,13 +681,27 @@ type AddressTabState =
  * indexer, in the place an on-chain address tab would occupy. Off-chain coins,
  * not on-chain outputs; each VTXO links to the settlement anchoring it.
  */
-export function ExplorerArkadeAddressTab({ apiBaseUrl, address, onOpenTx }: {
+export function ExplorerArkadeAddressTab({ apiBaseUrl, address, onOpenTx, onOpenVtxo, onSignals }: {
   apiBaseUrl: string;
   address: string;
   onOpenTx?: (txid: string) => void;
+  /** Opens a VTXO's own tab (its exit tree), by "txid:vout". */
+  onOpenVtxo?: (id: string) => void;
+  /** Hands the page's context to the Ask Alice dock: a LAYER_CONTEXT signal
+      (shape only, de-identified) and the full description for identified mode. */
+  onSignals?: (signals: PrivacySignal[], full?: FullContext) => void;
 }) {
   const [state, setState] = useState<AddressTabState>({ kind: 'loading' });
   const [retryToken, setRetryToken] = useState(0);
+  // The page's context for Ask Alice, once the address is on screen.
+  const onSignalsRef = useRef(onSignals);
+  onSignalsRef.current = onSignals;
+  const loadedInfo = state.kind === 'loaded' ? state.info : null;
+  useEffect(() => {
+    if (!loadedInfo) return;
+    const ctx = arkadeAddressContext(loadedInfo);
+    onSignalsRef.current?.([ctx.signal], ctx.full);
+  }, [loadedInfo]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -574,7 +710,17 @@ export function ExplorerArkadeAddressTab({ apiBaseUrl, address, onOpenTx }: {
       .then(info => setState({ kind: 'loaded', info }))
       .catch(e => {
         if (e instanceof DOMException && e.name === 'AbortError') return;
-        setState({ kind: 'error', message: e instanceof ArkadeError ? e.message : 'Could not load this Arkade address.' });
+        // The Arkade tools load on demand: when that load itself fails (the
+        // page's server was down or restarting), say so rather than blaming
+        // the address.
+        const chunkFailed = e instanceof Error && !(e instanceof ArkadeError)
+          && /chunk|dynamically imported module|import\(/i.test(`${e.name} ${e.message}`);
+        setState({
+          kind: 'error',
+          message: e instanceof ArkadeError ? e.message
+            : chunkFailed ? 'The Arkade tools could not be loaded. Reload the page, then try again.'
+              : 'Could not load this Arkade address. Retry, or reload the page if it keeps failing.',
+        });
       });
     return () => controller.abort();
   }, [apiBaseUrl, address, retryToken]);
@@ -603,7 +749,7 @@ export function ExplorerArkadeAddressTab({ apiBaseUrl, address, onOpenTx }: {
             <Skeleton width={26} height={26} style={{ borderRadius: '50%' }} />
           </div>
         </SectionPanel>
-        <SectionPanel title="TRANSACTIONS"><Analyzing label="reading VTXOs from the Arkade service provider…" /></SectionPanel>
+        <SectionPanel title="TRANSACTIONS"><Analyzing label="reading VTXOs from the Arkade operator…" /></SectionPanel>
         <SectionPanel title="VTXOS"><div className="px-3 py-3"><SkeletonLines lines={5} /></div></SectionPanel>
       </div>
     );
@@ -626,5 +772,5 @@ export function ExplorerArkadeAddressTab({ apiBaseUrl, address, onOpenTx }: {
       </div>
     );
   }
-  return <div className="rh-fade-in"><AddressCard info={state.info} onOpenTx={onOpenTx} /></div>;
+  return <div className="rh-fade-in"><AddressCard info={state.info} onOpenTx={onOpenTx} onOpenVtxo={onOpenVtxo} /></div>;
 }

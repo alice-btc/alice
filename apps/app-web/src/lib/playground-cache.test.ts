@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
+import { localVault } from './local-vault.ts';
+
+// Under Node the vault has no cipher: a plain window onto the fake storage.
+localVault.configure(() => null);
 
 // The cache lets the wallet paint instantly on open. It is read before any
 // network call, so a malformed or half-written entry must never reach the UI

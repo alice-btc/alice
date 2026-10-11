@@ -15,18 +15,18 @@ async function ids(query: string, maxChunks = 2) {
 }
 
 test('technical comparisons retain detailed evidence instead of an unrelated beginner match', async () => {
-  assert.ok((await ids("What's the difference between a full node and a pruned node?")).includes('node-types'));
-  assert.ok((await ids('Pourquoi la plupart des mineurs rejoignent-ils des pools plutôt que de miner seuls ?')).includes('mining-pools'));
+  assert.ok((await ids("What's the difference between a full node and a pruned node?")).includes('pruned-node'));
+  assert.ok((await ids('Pourquoi la plupart des mineurs rejoignent-ils des pools plutôt que de miner seuls ?')).includes('mining-pool'));
 });
 
 test('French technical phrases tolerate articles and ligatures without increasing the context budget', async () => {
-  assert.equal((await ids('Pourquoi l’ajustement de la difficulté se fait toutes les deux semaines environ ?', 1))[0], 'difficulty-adjustment');
+  assert.ok(['difficulty-adjustment', 'mining-difficulty-details'].includes((await ids('Pourquoi l’ajustement de la difficulté se fait toutes les deux semaines environ ?', 1))[0]));
   const query = 'Quelle est la différence entre un nœud complet et un nœud élagué ?';
   assert.deepEqual(await ids(query), await ids(query.replaceAll('œ', 'oe')));
 });
 
 function registerSynthetic(chunks: object[]) {
-  runtime.registerPack({ id: 'ranking-test', version: '1', language: 'fr', source: 'bundled', chunks });
+  runtime.registerPack({ id: 'ranking-test', version: '1', language: 'fr', source: 'downloaded', chunks: chunks.map(chunk => ({ ...chunk, tier: 'primary', status: 'reviewed' })) });
 }
 
 const evidence = { id: 'ranking-evidence', title: 'Evidence', level: 'intermediate', keywords: ['quartz'], content: 'Quartz zephyr.' };

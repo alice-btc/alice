@@ -20,12 +20,30 @@ const CHAT_KEYRING_USER: &str = "chat-storage-v1";
 const CHAT_VALUE_VERSION: &str = "v1:";
 const MAX_CHAT_PLAINTEXT_BYTES: usize = 16 * 1024 * 1024;
 
+// The storage keys the keychain key may encrypt: the conversations and the
+// profiles (exact keys), and the Explorer's and the Playground's own stores
+// (by prefix; see apps/app-web/src/lib/local-vault.ts for the list). A
+// context is the storage key the value is bound to, so a value cannot be
+// moved from one key to another.
+const LOCAL_STORE_CONTEXT_PREFIXES: [&str; 7] = [
+    "explorer.",
+    "alice_explorer_",
+    "alice_arkade_",
+    "alice_bark_",
+    "alice_spark_",
+    "alice.ask-alice.",
+    "alice.test-wallet.",
+];
+
 fn validate_chat_storage_context(context: &str) -> Result<(), String> {
     if context == "alice_chat_sessions"
         || context == "alice_pedagogical_profile_v2"
         || context == "alice_learning_profile_v3"
         || context == "alice_personal_memory_v1"
         || context.starts_with("alice_chat_session_")
+        || LOCAL_STORE_CONTEXT_PREFIXES
+            .iter()
+            .any(|prefix| context.starts_with(prefix))
     {
         Ok(())
     } else {
@@ -532,6 +550,31 @@ mod chat_storage_tests {
         let tampered = String::from_utf8(tampered).unwrap();
 
         assert!(decrypt_chat_value_with_key(&key, &tampered, "alice_chat_sessions").is_err());
+    }
+
+    #[test]
+    fn explorer_and_playground_stores_use_the_same_envelope_bound_to_their_key() {
+        let key = [3u8; 32];
+        for context in [
+            "explorer.tabs.v1",
+            "alice_explorer_wallets",
+            "alice_explorer_node_mainnet",
+            "alice_arkade_settlements_v1",
+            "alice_bark_rounds_v2",
+            "alice_spark_onchain_v2",
+            "alice.ask-alice.questions",
+            "alice.test-wallet.mnemonic",
+        ] {
+            let plaintext = r#"[{"input":"xpub6example"}]"#;
+            let encrypted = encrypt_chat_value_with_key(&key, plaintext, context).unwrap();
+            assert!(!encrypted.contains("xpub6example"));
+            assert_eq!(decrypt_chat_value_with_key(&key, &encrypted, context).unwrap(), plaintext);
+            // Bound to its own key: the same value under another store's key fails.
+            assert!(decrypt_chat_value_with_key(&key, &encrypted, "explorer.session-tabs.v1").is_err());
+        }
+        // Anything outside the known stores is refused before any key is touched.
+        assert!(encrypt_chat_value_with_key(&key, "x", "alice_theme_mode").is_err());
+        assert!(encrypt_chat_value_with_key(&key, "x", "random_key").is_err());
     }
 
     #[test]

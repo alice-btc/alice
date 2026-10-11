@@ -61,12 +61,50 @@ describe('classifySearch', () => {
     assert.equal(classifySearch('1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2', { liquidAddresses: true }).kind, 'address');
   });
 
+  it('reads an outpoint as a VTXO id on Bark, and as its transaction elsewhere', () => {
+    const txid = '705CAAC74EB6BB7A8D8C0C6032B90B21E40F5FBEC300F819CB23BBA0F93AC3B7';
+    assert.deepEqual(classifySearch(`${txid}:0`, { vtxoIds: true }), { kind: 'vtxo', value: `${txid.toLowerCase()}:0` });
+    assert.deepEqual(classifySearch(` ${txid}:007 `, { vtxoIds: true }), { kind: 'vtxo', value: `${txid.toLowerCase()}:7` });
+    assert.deepEqual(classifySearch(`${txid}:1`), { kind: 'tx', value: txid.toLowerCase() });
+    assert.equal(classifySearch(`${txid}:`, { vtxoIds: true }).kind, 'unknown');
+    assert.equal(classifySearch(`${txid.slice(1)}:0`, { vtxoIds: true }).kind, 'unknown');
+  });
+
+  it('reads a long hex blob as a VTXO export on Bark only', () => {
+    const blob = '02AB'.repeat(80);
+    assert.deepEqual(classifySearch(`0x${blob.slice(0, 160)}\n${blob.slice(160)}`, { vtxoIds: true }), { kind: 'vtxo', value: blob.toLowerCase() });
+    assert.equal(classifySearch(blob).kind, 'unknown');
+    // Too short for a coin, odd length, or not hex: not an export.
+    assert.equal(classifySearch('ab'.repeat(50), { vtxoIds: true }).kind, 'unknown');
+    assert.equal(classifySearch(`${blob}a`, { vtxoIds: true }).kind, 'unknown');
+    assert.equal(classifySearch(`${blob}zz`, { vtxoIds: true }).kind, 'unknown');
+  });
+
   it('recognises ark1 addresses only when the caller opts in', () => {
     const ark = 'ark1qzpq904am6clw3pgqwyh4p02708fy4xs0hcpwt7rwfdttuxsjameezgu4rz4mh977mt5zc2gquwfdy94npcvgfg865k8dt077z5a70aykxu669';
     assert.equal(classifySearch(ark).kind, 'unknown');
     assert.deepEqual(classifySearch(ark, { arkAddresses: true }), { kind: 'address', value: ark });
     assert.equal(classifySearch('tark1qf00zar234567', { arkAddresses: true }).kind, 'address');
+    // Bark addresses share the prefix (version "p" instead of "q").
+    const bark = 'ark1pwh9vsmezqqpharv69q4z8m6x364d5m5prnmcalcalq9pdmzw0y7mpveck4pcfhezqypczkrrj3lkx5ue4qrf4jc7ztpt9htdttmh2judhqnu7aue8p0y9mqkr4cf5';
+    assert.deepEqual(classifySearch(bark, { arkAddresses: true }), { kind: 'address', value: bark });
     // The opt-in never bends the other formats.
     assert.equal(classifySearch('800000', { arkAddresses: true }).kind, 'block');
+  });
+
+  it('recognises Spark addresses and ids only when the caller opts in', () => {
+    const spark = 'spark1pgss8awwxk3flsh95sd0uasdd3c5urmkmlqj6q84cq0w7nvvrclt8l9t2g404q';
+    const legacy = 'sp1pgssxate4m5p3y0u8g5vhea38et9qvw5vfytgg8m88wtxzze3arjk3gnx42kxc';
+    const id = '01a1259e-4ea0-720a-9e1d-456db56839d2';
+    assert.equal(classifySearch(spark).kind, 'unknown');
+    assert.equal(classifySearch(id).kind, 'unknown');
+    assert.deepEqual(classifySearch(spark, { sparkAddresses: true }), { kind: 'address', value: spark });
+    assert.deepEqual(classifySearch(legacy.toUpperCase(), { sparkAddresses: true }), { kind: 'address', value: legacy });
+    // A transfer or a leaf: opened as a transaction, the Spark view decides.
+    assert.deepEqual(classifySearch(id.toUpperCase(), { sparkIds: true }), { kind: 'tx', value: id });
+    // The opt-in never bends the other formats.
+    assert.equal(classifySearch('800000', { sparkAddresses: true, sparkIds: true }).kind, 'block');
+    assert.equal(classifySearch('a'.repeat(64), { sparkIds: true }).kind, 'tx');
+    assert.equal(classifySearch('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4', { sparkAddresses: true }).kind, 'address');
   });
 });

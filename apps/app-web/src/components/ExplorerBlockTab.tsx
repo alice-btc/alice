@@ -2,7 +2,8 @@
 
 import { ExplorerCopy } from '@/components/ExplorerUI';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { ChainDataProvider } from '@/lib/explorer/provider';
 import { ChainDataError } from '@/lib/explorer/provider';
 import type { NormalizedBlock, NormalizedTransaction } from '@/lib/explorer/types';
@@ -10,7 +11,6 @@ import { buildBlockContext, buildFullBlockDescription, type PrivacySignal } from
 import type { FullContext } from '@/lib/explorer/ask-alice';
 import { feeColor, formatBlockAge, formatBytes, formatDateTime, formatFeeRange } from '@/lib/explorer/blocks';
 import { ExplorerBlockTreemap } from '@/components/ExplorerBlockTreemap';
-import { ARKADE_ACCENT, ARKADE_ACCENT_SOFT, SettlementBadge } from '@/components/ExplorerArkade';
 import { SectionPanel, Skeleton, SkeletonLines } from '@/components/ExplorerUI';
 import { Amount } from '@/components/AmountDisplay';
 
@@ -20,6 +20,28 @@ type State =
   | { kind: 'loaded'; block: NormalizedBlock };
 
 const PAGE = 25;
+
+/** One kind of transaction to mark in a block (Arkade settlements, Bark
+ *  rounds): which txids, which block carries which, and how to show it. */
+export type BlockMark = {
+  txids: ReadonlySet<string>;
+  /** Block height -> marked txid, for the header badge and the pinned row. */
+  byHeight: ReadonlyMap<number, string>;
+  color: string;
+  /** Legible on the hover card, where the fill colour could vanish. */
+  textColor: string;
+  /** The hover label in the block map. */
+  label: string;
+  /** The row badge (one for all, or one per transaction), and the header
+   *  badge of a block carrying one; a mark with no heights has no header. */
+  badge: ReactNode | ((txid: string) => ReactNode);
+  headerBadge: ReactNode;
+};
+
+function rowBadge(mark: BlockMark | undefined, txid: string): ReactNode {
+  if (!mark) return undefined;
+  return typeof mark.badge === 'function' ? mark.badge(txid) : mark.badge;
+}
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
@@ -44,7 +66,7 @@ function hasConfidentialOutputs(tx: NormalizedTransaction): boolean {
   return tx.outputs.some(o => o.amountKnown === false);
 }
 
-function TxRow({ tx, settlement, onOpen, selected, onSelect }: { tx: NormalizedTransaction; settlement?: boolean; onOpen: () => void; selected?: boolean; onSelect?: () => void }) {
+function TxRow({ tx, badge, onOpen, selected, onSelect }: { tx: NormalizedTransaction; badge?: ReactNode; onOpen: () => void; selected?: boolean; onSelect?: () => void }) {
   return (
     <button
       type="button"
@@ -65,7 +87,7 @@ function TxRow({ tx, settlement, onOpen, selected, onSelect }: { tx: NormalizedT
         </span>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        {settlement && <SettlementBadge />}
+        {badge}
         {hasConfidentialOutputs(tx) ? (
           <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>unknown</span>
         ) : (
@@ -81,8 +103,7 @@ export function ExplorerBlockTab({
   provider,
   onOpenTx,
   onSignals,
-  settlementTxids,
-  settlementsByHeight,
+  marks,
 }: {
   height: string;
   provider: ChainDataProvider;
@@ -90,24 +111,26 @@ export function ExplorerBlockTab({
   /** Report the block-context signal once loaded, plus its full description,
       for the Ask-Alice sidebar. */
   onSignals?: (signals: PrivacySignal[], full?: FullContext) => void;
-  /** On Arkade: the known settlement txids, so the rows carrying one are
-   *  badged in the transaction list. */
-  settlementTxids?: ReadonlySet<string>;
-  /** On Arkade: block height -> settlement txid, so a block carrying a
-   *  commitment says so in its header and pins that transaction on top. */
-  settlementsByHeight?: ReadonlyMap<number, string>;
+  /** The transactions to mark on this chain (Arkade settlements, Bark
+   *  rounds): their rows are badged, a block carrying one says so in its
+   *  header and pins that transaction on top. Memoised by the caller. */
+  marks?: ReadonlyArray<BlockMark>;
 }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [selectedTxid, setSelectedTxid] = useState<string | null>(null);
   const [txs, setTxs] = useState<NormalizedTransaction[]>([]);
-  // The block's commitment transaction, fetched on its own so it shows pinned
-  // even when it sits deep in the (paginated) transaction list.
-  const [pinnedTx, setPinnedTx] = useState<NormalizedTransaction | null>(null);
+  // The block's marked transactions (a settlement, a round), fetched on their
+  // own so they show pinned even when deep in the (paginated) list.
+  const [pinned, setPinned] = useState<Array<{ tx: NormalizedTransaction; mark: BlockMark }>>([]);
   const [loadingMore, setLoadingMore] = useState(false);
   // Bumped by the RETRY button: re-runs the fetch effect after a failure
   // (typically the public endpoint rate-limiting), without a full reload.
   const [retryToken, setRetryToken] = useState(0);
   const now = Math.floor(Date.now() / 1000);
+  const highlights = useMemo(
+    () => marks?.filter(m => m.txids.size > 0).map(m => ({ txids: m.txids, color: m.color, label: m.label, textColor: m.textColor })),
+    [marks],
+  );
 
   // Kept in a ref so reporting signals never forces the fetch effect to re-run.
   const onSignalsRef = useRef(onSignals);
@@ -118,7 +141,7 @@ export function ExplorerBlockTab({
     const controller = new AbortController();
     setState({ kind: 'loading' });
     setTxs([]);
-    setPinnedTx(null);
+    setPinned([]);
     if (typeof provider.getBlock !== 'function') {
       setState({ kind: 'error', message: 'This data source cannot load a block.' });
       return;
@@ -148,19 +171,24 @@ export function ExplorerBlockTab({
     return () => { cancelled = true; controller.abort(); };
   }, [height, provider, retryToken]);
 
-  // On Arkade, a block carrying a commitment pins that transaction at the top
-  // of its list. Its own effect, because the settlement map fills in as the
-  // background chain walk progresses, possibly after the block loaded.
+  // A block carrying a marked transaction pins it at the top of its list. Its
+  // own effect, because the marks fill in as the background chain walks
+  // progress, possibly after the block loaded.
   useEffect(() => {
-    if (state.kind !== 'loaded') return;
-    const txid = settlementsByHeight?.get(state.block.height);
-    if (!txid || pinnedTx?.txid === txid) return;
+    if (state.kind !== 'loaded' || !marks) return;
+    const height = state.block.height;
+    const wanted = marks
+      .flatMap(mark => { const txid = mark.byHeight.get(height); return txid ? [{ txid, mark }] : []; })
+      .filter(w => !pinned.some(p => p.tx.txid === w.txid));
+    if (wanted.length === 0) return;
     let cancelled = false;
-    provider.getTransaction(txid)
-      .then(tx => { if (!cancelled) setPinnedTx(tx); })
-      .catch(() => { /* the list still stands without the pin */ });
+    for (const { txid, mark } of wanted) {
+      provider.getTransaction(txid)
+        .then(tx => { if (!cancelled) setPinned(prev => prev.some(p => p.tx.txid === tx.txid) ? prev : [...prev, { tx, mark }]); })
+        .catch(() => { /* the list still stands without the pin */ });
+    }
     return () => { cancelled = true; };
-  }, [state, settlementsByHeight, provider, pinnedTx]);
+  }, [state, marks, provider, pinned]);
 
   const loadMore = useCallback(async () => {
     if (state.kind !== 'loaded' || typeof provider.getBlockTxs !== 'function' || loadingMore) return;
@@ -224,9 +252,7 @@ export function ExplorerBlockTab({
             onSelectTx={setSelectedTxid}
             provider={provider}
             onOpenTx={onOpenTx}
-            highlight={settlementTxids && settlementTxids.size > 0
-              ? { txids: settlementTxids, color: ARKADE_ACCENT, label: 'Arkade tx settlement', textColor: ARKADE_ACCENT_SOFT }
-              : undefined}
+            highlights={highlights}
           />
         </div>
 
@@ -239,9 +265,9 @@ export function ExplorerBlockTab({
             <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
               {formatBlockAge(b.timestamp, now)} · {formatDateTime(b.timestamp)}
             </span>
-            {settlementsByHeight?.has(b.height) && (
-              <span className="rh-fade-in"><SettlementBadge>BLOCK CONFIRMING THE ARKADE COMMITMENT TRANSACTION</SettlementBadge></span>
-            )}
+            {marks?.filter(m => m.byHeight.has(b.height)).map((m, i) => (
+              <span key={i} className="rh-fade-in">{m.headerBadge}</span>
+            ))}
           </div>
           {b.poolName && (
             <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>Mined by {b.poolName}</span>
@@ -270,21 +296,22 @@ export function ExplorerBlockTab({
         {txs.length === 0 ? (
           <div className="px-3 py-3"><SkeletonLines lines={5} /></div>
         ) : (
-          // The commitment transaction is pinned right below the coinbase,
-          // framed in the Arkade accent, and removed from its natural spot in
-          // the paged list so it never shows twice.
+          // A marked transaction (a settlement, a round) is pinned right below
+          // the coinbase, framed in its accent, and removed from its natural
+          // spot in the paged list so it never shows twice.
           (() => {
-            const rows = pinnedTx ? txs.filter(tx => tx.txid !== pinnedTx.txid) : txs;
-            const pinAt = pinnedTx ? (rows[0]?.isCoinbase ? 1 : 0) : -1;
+            const pinnedIds = new Set(pinned.map(p => p.tx.txid));
+            const rows = pinned.length > 0 ? txs.filter(tx => !pinnedIds.has(tx.txid)) : txs;
+            const pinAt = pinned.length > 0 ? (rows[0]?.isCoinbase ? 1 : 0) : -1;
             const nodes: React.ReactNode[] = rows.map(tx => (
-              <TxRow key={tx.txid} tx={tx} selected={selectedTxid === tx.txid} onSelect={() => setSelectedTxid(tx.txid)} settlement={settlementTxids?.has(tx.txid)} onOpen={() => onOpenTx(tx.txid)} />
+              <TxRow key={tx.txid} tx={tx} selected={selectedTxid === tx.txid} onSelect={() => setSelectedTxid(tx.txid)} badge={rowBadge(marks?.find(m => m.txids.has(tx.txid)), tx.txid)} onOpen={() => onOpenTx(tx.txid)} />
             ));
-            if (pinnedTx && pinAt >= 0) {
-              nodes.splice(pinAt, 0, (
-                <div key={pinnedTx.txid} className="rh-fade-in" style={{ border: `1px solid ${ARKADE_ACCENT}`, borderLeft: `3px solid ${ARKADE_ACCENT}`, borderRadius: 3, margin: 4 }}>
-                  <TxRow tx={pinnedTx} selected={selectedTxid === pinnedTx.txid} onSelect={() => setSelectedTxid(pinnedTx.txid)} settlement onOpen={() => onOpenTx(pinnedTx.txid)} />
+            if (pinAt >= 0) {
+              nodes.splice(pinAt, 0, ...pinned.map(p => (
+                <div key={p.tx.txid} className="rh-fade-in" style={{ border: `1px solid ${p.mark.color}`, borderLeft: `3px solid ${p.mark.color}`, borderRadius: 3, margin: 4 }}>
+                  <TxRow tx={p.tx} selected={selectedTxid === p.tx.txid} onSelect={() => setSelectedTxid(p.tx.txid)} badge={rowBadge(p.mark, p.tx.txid)} onOpen={() => onOpenTx(p.tx.txid)} />
                 </div>
-              ));
+              )));
             }
             return nodes;
           })()

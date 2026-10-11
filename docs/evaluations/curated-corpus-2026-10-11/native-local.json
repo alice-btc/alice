@@ -1,0 +1,748 @@
+{
+  "fixture": "scripts/data/rag-query-eval/curated-routing-cases-2026-10-11.json",
+  "fixtureSha256": "e522fbfd5e6c8db4849d350d4ef3e1401c06a1ba1aadb5ebfff28d1ae1956f11",
+  "runtimeSha256": {
+    "packages/alice-ai/src/rag.ts": "de84f175d91a410f4f0742548a45b791fef58b0c2b8f3cd2cad940df6e5f236e",
+    "packages/alice-ai/src/curated-retrieval.ts": "a46ef1a22bdf22637b37eb365fd125135b4a093e914038f14abc1ab6aa2406f6",
+    "packages/alice-ai/src/turn-knowledge.ts": "6b545f5ea654a4508bcef08c124f4af5b98c3844923bf5500795e3e37d76ccf3",
+    "packages/alice-ai/src/rag-query-policy.ts": "fb91c0fc982023dfeae26f03dfe171cee200f1ad9181ba6266375fb644513b44",
+    "packages/alice-ai/src/knowledge-context-budget.ts": "679c288cf08295b7944221a0e7e0e886a46d5c942356a3a200442cbcad6f1fc9",
+    "packages/alice-ai/src/generated/curated-rag.ts": "ec23a8513e96ef44a28f763bef740dd150cb1d4ef610c0c29d90abb89e89f48b"
+  },
+  "evaluation": "real retrieval runtime; no generated answers or external inference",
+  "semanticMode": "native",
+  "budget": "local",
+  "semanticIndexHash": "77214f6c3d76248791538323d6004b14f046fdae2704a855f1445093808bde99",
+  "semanticCalls": 27,
+  "semanticSuccesses": 27,
+  "semanticErrors": [],
+  "corpusLoadMs": 4.569958999999997,
+  "caseCount": 27,
+  "passed": 27,
+  "failed": 0,
+  "counts": [
+    {
+      "id": "alice-curated",
+      "chunks": 403
+    }
+  ],
+  "rows": [
+    {
+      "id": "case-01",
+      "question": "C’est quoi un UTXO ?",
+      "kind": "general",
+      "maxChunks": 1,
+      "maxContextChars": 6000,
+      "found": [
+        "bitcoin-utxo"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-bitcoin-utxo",
+          "conceptId": "bitcoin-utxo",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 40.446
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 65.63858400000001
+    },
+    {
+      "id": "case-02",
+      "question": "Explique davantage le choix des entrées et son effet sur la confidentialité.",
+      "kind": "followup",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "coin-selection-tradeoffs"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-coin-selection-tradeoffs",
+          "conceptId": "coin-selection-tradeoffs",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-explicit-topic",
+          "retrievalScore": 13.81
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 20.222874999999988
+    },
+    {
+      "id": "case-03",
+      "question": "Comment identifier la monnaie rendue à partir du type de sortie ?",
+      "kind": "specific-first-turn",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "change-privacy-linking"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-change-privacy-linking",
+          "conceptId": "change-privacy-linking",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-explicit-topic",
+          "retrievalScore": 57.698
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 19.688082999999978
+    },
+    {
+      "id": "case-04",
+      "question": "À quoi sert un nœud si je ne mine pas ?",
+      "kind": "general",
+      "maxChunks": 1,
+      "maxContextChars": 6000,
+      "found": [
+        "bitcoin-node"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-bitcoin-node",
+          "conceptId": "bitcoin-node",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 44.686
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 14.70637499999998
+    },
+    {
+      "id": "case-05",
+      "question": "Un nœud élagué peut-il me fournir un vieux bloc supprimé ?",
+      "kind": "specific-first-turn",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "pruned-node-history"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-pruned-node-history",
+          "conceptId": "pruned-node-history",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-explicit-topic",
+          "retrievalScore": 21.597
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 17.20875000000001
+    },
+    {
+      "id": "case-06",
+      "question": "Pourquoi la première synchronisation reste-t-elle longue avec élagage ?",
+      "kind": "specific-first-turn",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "node-initial-sync"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-node-initial-sync",
+          "conceptId": "node-initial-sync",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-explicit-topic",
+          "retrievalScore": 109.55
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 16.557625
+    },
+    {
+      "id": "case-07",
+      "question": "À quoi sert le minage ?",
+      "kind": "general",
+      "maxChunks": 1,
+      "maxContextChars": 6000,
+      "found": [
+        "bitcoin-mining"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-bitcoin-mining",
+          "conceptId": "bitcoin-mining",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 32.049
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 6.662499999999994
+    },
+    {
+      "id": "case-08",
+      "question": "La difficulté réagit-elle immédiatement à une chute de hashrate ?",
+      "kind": "specific-first-turn",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "difficulty-adjustment",
+        "mining-difficulty-details"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-difficulty-adjustment",
+          "conceptId": "difficulty-adjustment",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 1
+        },
+        {
+          "id": "curated-mining-difficulty-details",
+          "conceptId": "mining-difficulty-details",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-parent-detail",
+          "retrievalScore": 1
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 7.588875000000002
+    },
+    {
+      "id": "case-09",
+      "question": "Pourquoi mon paiement Lightning échoue-t-il malgré mon solde ?",
+      "kind": "specific-first-turn",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "lightning-liquidity-path"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-lightning-liquidity-path",
+          "conceptId": "lightning-liquidity-path",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-parent-detail",
+          "retrievalScore": 21.764
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 17.227207999999962
+    },
+    {
+      "id": "case-10",
+      "question": "À quoi sert le playground ?",
+      "kind": "general",
+      "maxChunks": 1,
+      "maxContextChars": 6000,
+      "found": [
+        "alice-playground"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-alice-playground",
+          "conceptId": "alice-playground",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 34.335
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 6.956250000000011
+    },
+    {
+      "id": "case-11",
+      "question": "Un paiement réussi dans le playground garantit-il le même résultat sur mainnet ?",
+      "kind": "specific-first-turn",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "playground-testnet-limits"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-playground-testnet-limits",
+          "conceptId": "playground-testnet-limits",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-parent-detail",
+          "retrievalScore": 27.224
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 21.38062500000001
+    },
+    {
+      "id": "case-12",
+      "question": "Quel est le solde actuel de mon portefeuille personnel ?",
+      "kind": "unsupported-live-data",
+      "maxChunks": 1,
+      "maxContextChars": 6000,
+      "found": [],
+      "diagnostics": [],
+      "passed": true,
+      "errors": [],
+      "durationMs": 11.981583
+    },
+    {
+      "id": "case-13",
+      "question": "Comment ajouter des fonds à mon canal sans le fermer ?",
+      "kind": "specific-first-turn",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "lightning-channel",
+        "lightning-splicing"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-lightning-channel",
+          "conceptId": "lightning-channel",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 27.486
+        },
+        {
+          "id": "curated-lightning-splicing",
+          "conceptId": "lightning-splicing",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-parent-detail",
+          "retrievalScore": 38.359
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 22.025874999999985
+    },
+    {
+      "id": "case-14",
+      "question": "J’ai reçu des bitcoins on-chain, la capacité de mon canal augmente-t-elle automatiquement ?",
+      "kind": "followup",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "lightning-splicing"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-lightning-splicing",
+          "conceptId": "lightning-splicing",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-parent-detail",
+          "retrievalScore": 38.983
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 23.78354200000001
+    },
+    {
+      "id": "case-15",
+      "question": "Pourquoi les adresses Bitcoin n’ont-elles pas toutes le même début ?",
+      "kind": "general",
+      "maxChunks": 1,
+      "maxContextChars": 6000,
+      "found": [
+        "legacy-address"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-legacy-address",
+          "conceptId": "legacy-address",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 48.981
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 16.667750000000012
+    },
+    {
+      "id": "case-16",
+      "question": "Une adresse en 3 peut-elle utiliser SegWit, et que révèle son script ?",
+      "kind": "specific-first-turn",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "bitcoin-address-scripts"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-bitcoin-address-scripts",
+          "conceptId": "bitcoin-address-scripts",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-explicit-topic",
+          "retrievalScore": 35.122
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 17.801333
+    },
+    {
+      "id": "energy-general",
+      "question": "Le minage peut-il être utile à la transition énergétique ?",
+      "kind": "general",
+      "maxChunks": 1,
+      "maxContextChars": 6000,
+      "found": [
+        "bitcoin-energy-debate"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-bitcoin-energy-debate",
+          "conceptId": "bitcoin-energy-debate",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 69.305
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 16.279750000000035
+    },
+    {
+      "id": "energy-surplus",
+      "question": "Les mineurs prennent-ils de l’électricité qui aurait pu alimenter des habitants ?",
+      "kind": "specific-first-turn",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "mining-curtailed-energy"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-mining-curtailed-energy",
+          "conceptId": "mining-curtailed-energy",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-parent-detail",
+          "retrievalScore": 20.273
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 17.563500000000033
+    },
+    {
+      "id": "energy-methane",
+      "question": "Miner avec du méthane réduit-il toujours les émissions ?",
+      "kind": "specific-first-turn",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "mining-methane-mitigation"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-mining-methane-mitigation",
+          "conceptId": "mining-methane-mitigation",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-parent-detail",
+          "retrievalScore": 34.746
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 15.658165999999994
+    },
+    {
+      "id": "energy-heat",
+      "question": "Un ASIC chauffe-t-il plus efficacement qu’une pompe à chaleur ?",
+      "kind": "specific-first-turn",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "mining-heat-reuse-details"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-mining-heat-reuse-details",
+          "conceptId": "mining-heat-reuse-details",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-parent-detail",
+          "retrievalScore": 82.891
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 16.168292000000008
+    },
+    {
+      "id": "energy-renewables",
+      "question": "Le minage peut-il financer une nouvelle centrale renouvelable ?",
+      "kind": "specific-first-turn",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "mining-renewable-projects"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-mining-renewable-projects",
+          "conceptId": "mining-renewable-projects",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-parent-detail",
+          "retrievalScore": 83.167
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 15.941833000000031
+    },
+    {
+      "id": "inflation-general",
+      "question": "C’est quoi l’inflation ?",
+      "kind": "general",
+      "maxChunks": 1,
+      "maxContextChars": 6000,
+      "found": [
+        "inflation"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-inflation",
+          "conceptId": "inflation",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 50.34
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 5.913250000000005
+    },
+    {
+      "id": "inflation-perspectives",
+      "question": "Pourquoi les premiers receveurs de monnaie peuvent-ils être avantagés ?",
+      "kind": "specific-first-turn",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "secondary-economics-cantillon-effect",
+        "inflation-monetary-perspectives"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-secondary-economics-cantillon-effect",
+          "conceptId": "secondary-economics-cantillon-effect",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-parent-detail",
+          "retrievalScore": 12.085
+        },
+        {
+          "id": "curated-inflation-monetary-perspectives",
+          "conceptId": "inflation-monetary-perspectives",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-parent-detail",
+          "retrievalScore": 10.893
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 15.285082999999986
+    },
+    {
+      "id": "case-24",
+      "question": "Quelle différence entre Spark, Bark et Arkade ?",
+      "kind": "specific-first-turn",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "ark-implementations-bark-arkade",
+        "spark-trust-and-exits"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-ark-implementations-bark-arkade",
+          "conceptId": "ark-implementations-bark-arkade",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-explicit-topic",
+          "retrievalScore": 78.191
+        },
+        {
+          "id": "curated-spark-trust-and-exits",
+          "conceptId": "spark-trust-and-exits",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-explicit-topic",
+          "retrievalScore": 36.815
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 11.668332999999961
+    },
+    {
+      "id": "case-25",
+      "question": "Fedimint me permet-il de récupérer seul mes bitcoins si les gardiens disparaissent ?",
+      "kind": "specific-first-turn",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "fedimint-custody-and-privacy"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-fedimint-custody-and-privacy",
+          "conceptId": "fedimint-custody-and-privacy",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "secondary",
+          "retrievalReason": "secondary-explicit-topic",
+          "retrievalScore": 36.587
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 41.74425000000002
+    },
+    {
+      "id": "case-26",
+      "question": "Puis-je utiliser toutes les fonctions Alice sans connexion ?",
+      "kind": "specific-first-turn",
+      "maxChunks": 1,
+      "maxContextChars": 6000,
+      "found": [
+        "alice-offline-limits"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-alice-offline-limits",
+          "conceptId": "alice-offline-limits",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 19.121
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 15.333042000000091
+    },
+    {
+      "id": "case-27",
+      "question": "Mon ordinateur et mon hardware wallet affichent des adresses différentes, laquelle vérifier ?",
+      "kind": "specific-first-turn",
+      "maxChunks": 2,
+      "maxContextChars": 6000,
+      "found": [
+        "hardware-wallet",
+        "bitcoin-address"
+      ],
+      "diagnostics": [
+        {
+          "id": "curated-hardware-wallet",
+          "conceptId": "hardware-wallet",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 20.865
+        },
+        {
+          "id": "curated-bitcoin-address",
+          "conceptId": "bitcoin-address",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 35.944
+        }
+      ],
+      "passed": true,
+      "errors": [],
+      "durationMs": 14.283665999999926
+    }
+  ]
+}

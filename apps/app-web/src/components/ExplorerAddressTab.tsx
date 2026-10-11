@@ -3,6 +3,7 @@
 import { ExplorerCopy } from '@/components/ExplorerUI';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { ChainDataProvider, RequestOptions } from '@/lib/explorer/provider';
 import { ChainDataError } from '@/lib/explorer/provider';
 import type { NormalizedTransaction } from '@/lib/explorer/types';
@@ -84,7 +85,7 @@ function shortDate(sec?: number): string {
   return sec ? new Date(sec * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
 }
 
-function TxRow({ tx, onOpen }: { tx: NormalizedTransaction; onOpen: () => void }) {
+function TxRow({ tx, badge, onOpen }: { tx: NormalizedTransaction; badge?: ReactNode; onOpen: () => void }) {
   const outTotal = tx.outputs.reduce((s, o) => s + o.valueSats, 0);
   return (
     <button
@@ -101,7 +102,10 @@ function TxRow({ tx, onOpen }: { tx: NormalizedTransaction; onOpen: () => void }
           {' - '}{tx.inputs.length} in / {tx.outputs.length} out
         </span>
       </div>
-      <Amount sats={outTotal} style={{ fontSize: 12, color: 'var(--alice-text)', flexShrink: 0 }} />
+      <div className="flex items-center gap-2 shrink-0">
+        {badge}
+        <Amount sats={outTotal} style={{ fontSize: 12, color: 'var(--alice-text)', flexShrink: 0 }} />
+      </div>
     </button>
   );
 }
@@ -114,6 +118,7 @@ export function ExplorerAddressTab({
   onSignals,
   confidentialAmounts = false,
   remoteEntities = false,
+  txBadge,
 }: {
   address: string;
   provider: ChainDataProvider;
@@ -122,6 +127,8 @@ export function ExplorerAddressTab({
   /** Report the privacy signals once analysed, plus the identified-mode full
       description, for the Ask-Alice sidebar. */
   onSignals?: (signals: PrivacySignal[], full?: FullContext) => void;
+  /** A badge for a history row: what a transaction is known to be (a Spark deposit or exit). */
+  txBadge?: (txid: string) => ReactNode;
   /** True on Liquid: amounts are blinded, so balances are shown as "unknown"
       and the amount-based views (received bar, balance chart) are dropped. */
   confidentialAmounts?: boolean;
@@ -504,7 +511,7 @@ export function ExplorerAddressTab({
           )
         ) : (
           <div className="rh-fade-in">
-            {txs.slice(0, visible).map(tx => <TxRow key={tx.txid} tx={tx} onOpen={() => onOpenTx(tx.txid)} />)}
+            {txs.slice(0, visible).map(tx => <TxRow key={tx.txid} tx={tx} badge={txBadge?.(tx.txid)} onOpen={() => onOpenTx(tx.txid)} />)}
           </div>
         )}
       </SectionPanel>

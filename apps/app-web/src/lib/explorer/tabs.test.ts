@@ -11,6 +11,11 @@ describe('shortLabel', () => {
     assert.equal(shortLabel('block', '800000'), 'Block 800000');
     assert.equal(shortLabel('address', 'bc1short'), 'bc1short');
   });
+  it('names a Spark leaf by the start of its UUID, next to the Bark coin ids', () => {
+    assert.equal(shortLabel('vtxo', '01a117a8-cb94-78cb-b740-28d01aeab9b9'), 'Leaf 01a117a8');
+    assert.equal(shortLabel('vtxo', `${'a'.repeat(64)}:1`), 'aaaaaa...aaaa:1');
+    assert.equal(shortLabel('vtxo', 'ff'.repeat(120)), 'VTXO export');
+  });
 });
 
 describe('addTab', () => {

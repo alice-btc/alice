@@ -17,7 +17,8 @@ async function nativeRuntime(
 ) {
   const metadata = JSON.parse(await readFile('apps/wallet-mobile/assets/core-embeddings/index.json', 'utf8'));
   const bytes = await readFile('apps/wallet-mobile/assets/core-embeddings/embeddings.f32');
-  const row = metadata.ids.indexOf('node-types');
+  const row = metadata.ids.indexOf('curated-spv-node');
+  assert.ok(row >= 0, 'Native index must contain the selected SPV fiche');
   const matrix = new Float32Array(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
   const queryVector = [...matrix.slice(row * metadata.dim, (row + 1) * metadata.dim)];
   change(metadata);
@@ -70,22 +71,22 @@ async function prepared(runtime: any) {
   return runtime.getSemanticSearchState().status;
 }
 
-test('native preloading accepts the full shipped core and docs before any RAG turn', async () => {
+test('native preloading accepts the full selected primary and secondary corpus before any RAG turn', async () => {
   const runtime = await nativeRuntime();
   runtime.registerPack({ id: 'downloaded-test', source: 'downloaded', language: 'en', version: '1', chunks: [{id:'extra',title:'Extra',content:'Extra',keywords:[],level:'beginner'}] });
   runtime.registerPack({ id: 'optional-test', source: 'bundled', enabledByDefault: false, language: 'en', version: '1', chunks: [{id:'optional',title:'Optional',content:'Optional',keywords:[],level:'beginner'}] });
   try {
     assert.equal(await prepared(runtime), 'ready');
     assert.equal(runtime.isSemanticSearchReady(), true);
-    const matches = await runtime.getSemanticMatches('node types', 2);
-    assert.equal(matches?.[0]?.id, 'node-types');
+    const matches = await runtime.getSemanticMatches('SPV client validation', 2);
+    assert.equal(matches?.[0]?.id, 'curated-spv-node');
   } finally { await runtime.releaseSemanticSearchContext(); }
 });
 
 test('native loading rejects stale content even when row IDs and vector sizes match', async () => {
   const runtime = await nativeRuntime(meta => { meta.corpusHash = '0'.repeat(64); });
   assert.equal(await prepared(runtime), 'failed');
-  assert.equal(await runtime.getSemanticMatches('node types', 2), null);
+  assert.equal(await runtime.getSemanticMatches('SPV client validation', 2), null);
 });
 
 test('native loading rejects reordered rows and invalid dimensions', async () => {
@@ -101,7 +102,7 @@ test('native loading rejects reordered rows and invalid dimensions', async () =>
 test('native loading rejects an outdated model id embedded in the index, regardless of row count', async () => {
   const runtime = await nativeRuntime(meta => { meta.model = 'keisuke-miyako/multilingual-e5-small-gguf-q8_0'; });
   assert.equal(await prepared(runtime), 'failed');
-  assert.equal(await runtime.getSemanticMatches('node types', 2), null);
+  assert.equal(await runtime.getSemanticMatches('SPV client validation', 2), null);
 });
 
 test('a context whose tokenizer does not match the reference probe is released and fails closed without embedding', async () => {
@@ -110,7 +111,7 @@ test('a context whose tokenizer does not match the reference probe is released a
   const runtime = await nativeRuntime(() => {}, { tokens: [1, 2, 3] });
   try {
     assert.equal(await prepared(runtime), 'ready');
-    const matches = await runtime.getSemanticMatches('node types', 2);
+    const matches = await runtime.getSemanticMatches('SPV client validation', 2);
     assert.equal(matches, null);
     const calls = runtime.testCalls;
     assert.equal(runtime.getSemanticSearchState().status, 'failed');
@@ -124,7 +125,7 @@ test('a context whose tokenizer does not match the reference probe is released a
 test('disabling semantic search during a rejected probe keeps it off', async () => {
   const runtime = await nativeRuntime(() => {}, { tokens: [1, 2, 3], deferProbe: true });
   assert.equal(await prepared(runtime), 'ready');
-  const query = runtime.getSemanticMatches('node types', 2);
+  const query = runtime.getSemanticMatches('SPV client validation', 2);
   const deadline = Date.now() + 3000;
   while (!runtime.testCalls.probing && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 5));
   assert.equal(runtime.testCalls.probing, true);

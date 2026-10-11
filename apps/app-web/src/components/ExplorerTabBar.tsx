@@ -1,7 +1,7 @@
 'use client';
 
 import { SvgIcon } from '@/components/SvgIcon';
-import { EXPLORE_ICON, NETWORK_ICON, WALLET_ICON, DATA_ICON, CLOSE_ICON, CHEVRON_DOWN_ICON, CHECK_ICON } from '@/lib/atelier-icons';
+import { EXPLORE_ICON, NETWORK_ICON, WALLET_ICON, DATA_ICON, LINK_ICON, CLOSE_ICON, CHEVRON_DOWN_ICON, CHECK_ICON } from '@/lib/atelier-icons';
 
 import { Fragment, useEffect, useRef, useState } from 'react';
 import type { Tab, TabKind } from '@/lib/explorer/tabs';
@@ -10,7 +10,7 @@ import { NETWORKS, getNetwork } from '@/lib/explorer/networks';
 // A glyph per tab kind, so a tab's type is legible at a glance and not carried
 // by colour alone (item 11 / item 5).
 const TAB_GLYPH: Record<TabKind, string> = {
-  overview: EXPLORE_ICON, tx: NETWORK_ICON, address: WALLET_ICON, block: DATA_ICON, xpub: WALLET_ICON,
+  overview: EXPLORE_ICON, tx: NETWORK_ICON, address: WALLET_ICON, block: DATA_ICON, xpub: WALLET_ICON, vtxo: LINK_ICON,
 };
 
 // Standalone network button: it only opens the explorer dropdown, it is not a

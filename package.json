@@ -1,6 +1,6 @@
 {
   "name": "alice-wallet",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "license": "AGPL-3.0-or-later",
   "private": true,
   "engines": {
@@ -11,11 +11,12 @@
     "packages/*"
   ],
   "scripts": {
-    "build:obsidian-rag": "node scripts/build-obsidian-rag.js",
     "test": "bash scripts/run-tests.sh",
     "check:types": "tsc --noEmit --incremental false -p apps/app-web/tsconfig.json && tsc --noEmit --incremental false -p apps/site/tsconfig.json && tsc --noEmit --incremental false -p apps/wallet-mobile/tsconfig.json && npm run typecheck --workspace @alice-wallet/venice-proxy-worker",
     "check:release-version": "node scripts/check-release-version.mjs",
-    "check:npm-audit": "node scripts/check-npm-audit.mjs"
+    "check:npm-audit": "node scripts/check-npm-audit.mjs",
+    "build:curated-rag": "node scripts/build-curated-rag.mjs",
+    "check:curated-rag": "node scripts/build-curated-rag.mjs --check"
   },
   "overrides": {
     "@expo/cli": {

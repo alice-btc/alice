@@ -16,7 +16,13 @@ export type RuleId =
   | 'ADDRESS_REUSE' | 'ENTITY_LINK' | 'QUANTUM_EXPOSURE'
   | 'CHANGE_DETECTION' | 'WALLET_FINGERPRINT' | 'SCRIPT_TYPE_MIX' | 'ROUND_AMOUNT' | 'CONSOLIDATION' | 'COINJOIN'
   | 'CIOH' | 'PEEL_CHAIN' | 'DUST_OUTPUT' | 'DUST_SPENDING' | 'ANONYMITY_SET' | 'ENTROPY' | 'POSTMIX' | 'PREMIX'
-  | 'TX_CONTEXT' | 'ADDRESS_CONTEXT' | 'BLOCK_CONTEXT';
+  | 'TX_CONTEXT' | 'ADDRESS_CONTEXT' | 'BLOCK_CONTEXT'
+  // An Ark round settled on-chain (an Arkade commitment, a Bark round): not a
+  // payment between two people, so the payment heuristics do not apply.
+  | 'ARK_SETTLEMENT'
+  // The shape of an off-chain page (a Spark address, leaf or transfer, an
+  // Arkade or Bark address or VTXO), so Alice knows what the user looks at.
+  | 'LAYER_CONTEXT';
 
 export type PrivacySignal = {
   /** Stable within a session: ruleId plus its subjects. */

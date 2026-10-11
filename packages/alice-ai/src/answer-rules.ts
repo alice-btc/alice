@@ -25,7 +25,13 @@ import type { SupportedLanguage } from './language-policy.ts';
 type Localized = Record<SupportedLanguage, string>;
 
 export type AnswerRule = {
+  /** Stable rule identity retained for existing diagnostics and saved contexts. */
   noteId: string;
+  sourceConceptId: string;
+  /** Prior titles only support saved contexts; they never import retired prose. */
+  legacyTitles?: readonly string[];
+  /** Additional selected fiches carrying the same safety conditions. */
+  additionalSourceTitles?: readonly string[];
   /** The title the retrieval formats as "Topic: <title>" (rag.ts). */
   title: string;
   mustState: Record<SupportedLanguage, readonly string[]>;
@@ -69,32 +75,32 @@ export const ANSWER_RULES_MAX_CHARS = 1700;
 // Sentences shared by two notes are the same string, so a turn that retrieves
 // both notes states them once.
 const EXIT_WITHOUT_OPERATOR: Localized = {
-  en: 'A vTXO holder can start a unilateral exit without the operator, from the exit data the wallet keeps; the operator cannot block, refuse or confiscate it.',
-  fr: "Le détenteur d'un vTXO peut lancer une sortie unilatérale sans l'opérateur, à partir des données de sortie que le portefeuille conserve ; l'opérateur ne peut ni la bloquer, ni la refuser, ni confisquer les fonds.",
+  en: "A holder with valid exit data can start a unilateral exit without the operator, while sufficient time remains to fully confirm it before expiry; the operator has no approval step in that exit.",
+  fr: "Un détenteur ayant les données de sortie valides peut lancer une sortie unilatérale sans accord de l’opérateur, si le temps suffit à la confirmer entièrement avant expiration.",
 };
 const EXIT_MECHANICS: Localized = {
-  en: 'The exit publishes on-chain transactions, pays fees and waits for confirmations and timelocks before the coins are spendable; it is slower and costlier than a cooperative exit, not impossible.',
-  fr: "La sortie publie des transactions sur la chaîne, paie des frais et attend les confirmations et les délais (timelocks) avant que les bitcoins soient dépensables ; elle est plus lente et plus coûteuse qu'une sortie coopérative, pas impossible.",
+  en: "The exit publishes on-chain transactions, pays fees and waits for confirmations and timelocks. Starting before expiry is insufficient: the exit must complete in time under the implementation’s rules.",
+  fr: "La sortie publie des transactions, paie des frais et attend confirmations et timelocks. La lancer avant expiration ne suffit pas : elle doit aboutir à temps selon l’implémentation.",
 };
 const EXPIRY_RULE: Localized = {
-  en: 'A vTXO must be refreshed or exited before its expiry; past that deadline its value returns to the operator. Exact rules and timings depend on the wallet and server version, so point to the wallet rather than to a universal rule.',
-  fr: "Un vTXO doit être rafraîchi ou sorti avant son expiration ; passé ce délai, sa valeur revient à l'opérateur. Les règles et délais exacts dépendent du portefeuille et de la version du serveur : renvoie au portefeuille plutôt qu'à une règle universelle.",
+  en: "A vTXO must be refreshed or exited before its expiry. After expiry, unilateral recovery is no longer available: recovery depends on the operator’s cooperation and funds can be lost. Check the wallet and server rules.",
+  fr: "Un vTXO doit être renouvelé ou sorti avant expiration. Après cette échéance, la récupération unilatérale disparaît : elle dépend de la coopération de l’opérateur et les fonds peuvent être perdus. Vérifie les règles du wallet et du serveur.",
 };
 const OPERATOR_POWERS: Localized = {
-  en: 'The operator cannot move funds without the user\'s signature; what it can do is stop cooperating, which slows exits and makes them costlier, and see the activity it coordinates.',
-  fr: "L'opérateur ne peut pas déplacer les fonds sans la signature de l'utilisateur ; ce qu'il peut faire, c'est cesser de coopérer, ce qui ralentit et renchérit les sorties, et voir l'activité qu'il coordonne.",
+  en: "The operator coordinates normal payments and can stop cooperating. Guarantees depend on the VTXO type; arkoor transfers add a temporary non-collusion assumption involving former senders and the server.",
+  fr: "L’opérateur coordonne les paiements et peut cesser de coopérer. Les garanties dépendent du type de VTXO ; un transfert arkoor ajoute une hypothèse temporaire de non-collusion entre anciens émetteurs et serveur.",
 };
 const NO_OPERATOR_BLOCK: Localized = {
-  en: 'that the operator can block, refuse, lock or delay a unilateral exit, or that the user is stuck when it disappears',
-  fr: "que l'opérateur peut bloquer, refuser, verrouiller ou retarder une sortie unilatérale, ou que l'utilisateur reste coincé s'il disparaît",
+  en: "that operator permission is needed for a valid unilateral exit completed before expiry",
+  fr: "que l’accord de l’opérateur est requis pour une sortie unilatérale valide achevée avant expiration",
 };
 const NO_FUNDS_LOST: Localized = {
-  en: 'that the funds are lost or confiscated when the operator disappears',
-  fr: "que les fonds sont perdus ou confisqués quand l'opérateur disparaît",
+  en: "that disappearance alone necessarily loses funds despite valid exit data and enough time, or that funds can never be lost",
+  fr: "que la disparition seule fait nécessairement perdre les fonds malgré les données et le temps suffisants, ou que toute perte est impossible",
 };
 const NO_EXPIRY_INVERSION: Localized = {
-  en: 'that a vTXO becomes recoverable or spendable after its expiry',
-  fr: "qu'un vTXO devient récupérable ou dépensable après son expiration",
+  en: "that expiry unlocks unilateral recovery without the operator",
+  fr: "que l’expiration débloque une récupération unilatérale sans opérateur",
 };
 const NO_INSTANT_EXIT: Localized = {
   en: 'that exits are instant, free or identical across implementations',
@@ -102,8 +108,8 @@ const NO_INSTANT_EXIT: Localized = {
 };
 
 const CONFIRMED_IS_FINAL: Localized = {
-  en: 'A confirmed payment cannot be undone or replaced; treat it as final.',
-  fr: 'Un paiement confirmé ne peut être ni annulé ni remplacé ; considère-le comme définitif.',
+  en: "A confirmed payment cannot be cancelled by the wallet or replaced with RBF. Confirmations reduce the risk of a chain reorganization; they do not prove absolute irreversibility.",
+  fr: "Un paiement confirmé ne peut être annulé par le wallet ni remplacé par RBF. Les confirmations réduisent le risque de réorganisation de chaîne sans prouver une irréversibilité absolue.",
 };
 const REPLACEMENT_CONDITIONS: Localized = {
   en: 'While unconfirmed, a replacement that spends the same inputs and pays a higher fee may be possible, if the wallet supports it and node policies accept it; it is never guaranteed.',
@@ -133,7 +139,10 @@ const NO_REVERSAL: Localized = {
 export const ANSWER_RULES: readonly AnswerRule[] = [
   {
     noteId: 'ark-rounds-exits',
-    title: 'Ark rounds and exits',
+    sourceConceptId: 'ark-boarding-offboarding-and-exits',
+    title: 'Entrer et sortir d’Ark',
+    legacyTitles: ['Ark rounds and exits'],
+    additionalSourceTitles: ['Les sorties virtuelles d’Ark'],
     mustState: {
       en: [EXIT_WITHOUT_OPERATOR.en, EXIT_MECHANICS.en, EXPIRY_RULE.en],
       fr: [EXIT_WITHOUT_OPERATOR.fr, EXIT_MECHANICS.fr, EXPIRY_RULE.fr],
@@ -145,7 +154,10 @@ export const ANSWER_RULES: readonly AnswerRule[] = [
   },
   {
     noteId: 'asp-operator',
-    title: 'Ark operator / ASP',
+    sourceConceptId: 'ark-security-model',
+    title: 'Les hypothèses de sécurité d’Ark',
+    legacyTitles: ['Ark operator / ASP'],
+    additionalSourceTitles: ['Les paiements avec Ark', 'Ark, Bark et Arkade, comprendre les différences'],
     mustState: {
       en: [OPERATOR_POWERS.en, EXIT_WITHOUT_OPERATOR.en, EXIT_MECHANICS.en, EXPIRY_RULE.en],
       fr: [OPERATOR_POWERS.fr, EXIT_WITHOUT_OPERATOR.fr, EXIT_MECHANICS.fr, EXPIRY_RULE.fr],
@@ -157,7 +169,9 @@ export const ANSWER_RULES: readonly AnswerRule[] = [
   },
   {
     noteId: 'multisig',
-    title: 'Bitcoin multisig',
+    sourceConceptId: 'multisig',
+    title: 'La signature multiple',
+    legacyTitles: ['Bitcoin multisig'],
     mustState: {
       en: [
         'An m-of-n wallet signs with any m of its n keys: a 2-of-3 wallet spends with any two of its three keys. Keep the threshold the user states and never assume a higher one.',
@@ -189,7 +203,9 @@ export const ANSWER_RULES: readonly AnswerRule[] = [
   },
   {
     noteId: 'replace-by-fee',
-    title: 'Replace-by-fee',
+    sourceConceptId: 'replace-by-fee',
+    title: 'Augmenter les frais avec RBF',
+    legacyTitles: ['Replace-by-fee'],
     mustState: {
       en: [CONFIRMED_IS_FINAL.en, REPLACEMENT_CONDITIONS.en, FULL_RBF.en, NO_SECOND_PAYMENT.en],
       fr: [CONFIRMED_IS_FINAL.fr, REPLACEMENT_CONDITIONS.fr, FULL_RBF.fr, NO_SECOND_PAYMENT.fr],
@@ -201,7 +217,9 @@ export const ANSWER_RULES: readonly AnswerRule[] = [
   },
   {
     noteId: 'transaction-finality',
-    title: 'Bitcoin finality',
+    sourceConceptId: 'bitcoin-finality',
+    title: 'La finalité progressive',
+    legacyTitles: ['Bitcoin finality'],
     mustState: {
       en: [CONFIRMED_IS_FINAL.en, REPLACEMENT_CONDITIONS.en, FULL_RBF.en, NO_SECOND_PAYMENT.en],
       fr: [CONFIRMED_IS_FINAL.fr, REPLACEMENT_CONDITIONS.fr, FULL_RBF.fr, NO_SECOND_PAYMENT.fr],
@@ -217,12 +235,12 @@ const ARK_NOTES = ['ark-rounds-exits', 'asp-operator'] as const;
 const RBF_NOTES = ['replace-by-fee', 'transaction-finality'] as const;
 
 const ARK_EXIT_CORRECTION: Localized = {
-  en: 'Correction: the operator cannot block, refuse or delay a unilateral exit, and your funds are not lost if it disappears. Every vTXO is backed by pre-signed exit transactions kept by your wallet: you can publish them on-chain yourself, pay the fees and wait for confirmations and timelocks before the coins are spendable, without any permission from the operator. What the operator can do is stop cooperating, which makes an exit slower and costlier, not impossible. Check the exit and expiry rules of your wallet and server version.',
-  fr: "Correction : l'opérateur ne peut ni bloquer, ni refuser, ni retarder une sortie unilatérale, et tes fonds ne sont pas perdus s'il disparaît. Chaque vTXO est adossé à des transactions de sortie pré-signées que ton portefeuille conserve : tu peux les publier toi-même sur la chaîne, payer les frais et attendre les confirmations et les délais (timelocks) avant de pouvoir dépenser les bitcoins, sans aucune permission de l'opérateur. Ce qu'il peut faire, c'est cesser de coopérer, ce qui rend la sortie plus lente et plus coûteuse, pas impossible. Vérifie les règles de sortie et d'expiration de ton portefeuille et de la version du serveur.",
+  en: "Correction: with valid exit data and enough time to complete the exit before expiry, a unilateral exit requires no operator approval. The wallet must publish the required transactions and allow for fees, confirmations and timelocks. The operator stopping cooperation alone does not remove this path. After expiry, or without the necessary data or time, recovery is not guaranteed and may depend on the operator. VTXO type and implementation matter, including the temporary non-collusion assumption for arkoor transfers.",
+  fr: "Correction : avec les données valides et assez de temps pour achever la sortie avant expiration, une sortie unilatérale ne demande pas l’accord de l’opérateur. Le wallet doit publier les transactions et prévoir frais, confirmations et timelocks. Le seul arrêt de coopération ne supprime pas ce chemin. Après expiration, ou sans les données ou le temps nécessaires, la récupération n’est pas garantie et peut dépendre de l’opérateur. Le type de VTXO et l’implémentation comptent, notamment l’hypothèse temporaire de non-collusion pour les transferts arkoor.",
 };
 const ARK_EXPIRY_CORRECTION: Localized = {
-  en: 'Correction: a vTXO does not become recoverable after its expiry. It must be refreshed or exited before that deadline; past it, its value returns to the operator. The exact expiry rules and timings depend on your wallet and server version, so check them in your wallet rather than assuming a universal rule.',
-  fr: "Correction : un vTXO ne devient pas récupérable après son expiration. Il doit être rafraîchi ou sorti avant cette échéance ; passé ce délai, sa valeur revient à l'opérateur. Les règles et délais d'expiration exacts dépendent de ton portefeuille et de la version du serveur : vérifie-les dans ton portefeuille plutôt que de supposer une règle universelle.",
+  en: "Correction: expiry does not unlock unilateral recovery. The vTXO must be renewed, or its exit fully confirmed, before the applicable deadline. After expiry recovery depends on the operator’s cooperation; without it, funds can be lost. Check the wallet and server version for exact timings.",
+  fr: "Correction : l’expiration ne débloque pas une récupération unilatérale. Le VTXO doit être renouvelé, ou sa sortie entièrement confirmée, avant l’échéance applicable. Après expiration, la récupération dépend de la coopération de l’opérateur ; sans elle, les fonds peuvent être perdus. Vérifie les délais exacts du wallet et de la version du serveur.",
 };
 const MULTISIG_QUORUM_CORRECTION: Localized = {
   en: 'Correction: a multisig wallet spends with its threshold of keys, not with all of them: a 2-of-3 wallet signs with any two of its three keys, and a third signature or seed is not required. Do not assume a higher threshold than the one your wallet was set up with. Two seeds alone may still not rebuild the wallet without its complete configuration or descriptor (all cosigner public keys, threshold, script policy and derivation paths), so check that backup and test the recovery safely, without sending seeds or keys to anyone.',
@@ -255,6 +273,11 @@ const ANY_N = String.raw`(?:\d+|three|trois|four|quatre|five|cinq|six|seven|sept
 const N_ABOVE_THREE = String.raw`(?:[4-9]|\d{2,}|four|quatre|five|cinq|six|seven|sept|eight|huit|nine|neuf)`;
 const NEGATION = String.raw`(?:not|never|no|n't|cannot|can ?not|nor can|unable|without being able|ne|n'|jamais|aucun|aucune|ni|pas|non)`;
 
+
+const ARK_EXIT_LIMITATION = /\b(?:(?:after|past) (?:its |the |a |vtxo )*(?:expiry|expiration|deadline)|apres (?:son |leur |l'|la |une )?(?:expiration|echeance)|(?:missing|lost|without) (?:the |valid )?(?:exit data|backup)|sans (?:les |des )?donnees de sortie|(?:insufficient|not enough) time|temps insuffisant|(?:before|avant)[^.!?]{0,45}(?:cannot|can't|ne peut pas|impossible)[^.!?]{0,45}(?:confirm|confirmer)|collusion)\b/;
+const ARK_LIMITED_SENTENCE = new RegExp(`${REFUTATION.source}|${ARK_EXIT_LIMITATION.source}`);
+const COOPERATIVE_EXPIRY_RECOVERY = /\b(?:with (?:the )?operator(?:'s)? cooperation|depends? on (?:the )?operator|requires? (?:the )?operator|avec (?:la cooperation|l'aide|l'accord) de l'operateur|depend de (?:la cooperation|l'operateur)|necessite (?:la cooperation|l'accord) de l'operateur)\b/;
+
 export const NEVER_CLAIM_CHECKS: readonly NeverClaimCheck[] = [
   {
     id: 'ark-operator-blocks-exit',
@@ -267,7 +290,7 @@ export const NEVER_CLAIM_CHECKS: readonly NeverClaimCheck[] = [
     ],
     unless: new RegExp(String.raw`\b${NEGATION}\b`),
     unlessScope: 'span',
-    unlessSentence: REFUTATION,
+    unlessSentence: ARK_LIMITED_SENTENCE,
     correction: ARK_EXIT_CORRECTION,
   },
   {
@@ -279,7 +302,7 @@ export const NEVER_CLAIM_CHECKS: readonly NeverClaimCheck[] = [
     ],
     unless: new RegExp(String.raw`\b${NEGATION}\b|\b(?:exit data|backup|seed|donnees de sortie|sauvegarde)\b`),
     unlessScope: 'span',
-    unlessSentence: REFUTATION,
+    unlessSentence: ARK_LIMITED_SENTENCE,
     correction: ARK_EXIT_CORRECTION,
   },
   {
@@ -288,9 +311,9 @@ export const NEVER_CLAIM_CHECKS: readonly NeverClaimCheck[] = [
     patterns: [
       { test: /\b(?:at|after|upon|once|when|past|a l'|apres|une fois|lorsque|quand|passe)\b[^.!?]{0,50}\b(?:expiry|expiration|expires|expired|expire|expirent|deadline|arrive a terme|arrive a expiration|echeance)\b[^.!?]{0,80}\b(?:becomes?|remains?|stays?|is|are|can be|can still be|recoverable|redeemable|claimable|spendable|reclaim(?:ed)?|claim(?:ed)?|recover(?:ed)?|redeem(?:ed)?|devient|deviennent|redevient|redeviennent|reste|restent|est|sont|peut etre|peuvent etre|recuperable|recuperables|recuperer|depensable|depensables|disponible|disponibles|utilisable|utilisables|publier|reclamer|claim)\b/ },
     ],
-    unless: /\b(?:before|prior to|until|revert|reverts|returns? to the operator|goes back to the operator|lost|forfeit|forfeited|refresh|refreshed|no longer|not|cannot|can't|avant|jusqu'a|revient|retourne|reviennent|perd|perdu|perdue|rafraichi|rafraichir|rafraichis|ne|n')\b/,
+    unless: /\b(?:before|prior to|until|revert|reverts|returns? to the operator|goes back to the operator|lost|forfeit|forfeited|refresh|refreshed|no longer|not|cannot|can't|avant|jusqu'a|revient|retourne|reviennent|perd|perdu|perdue|perdus|perdues|rafraichi|rafraichir|rafraichis|ne|n')\b/,
     unlessScope: 'span',
-    unlessSentence: REFUTATION,
+    unlessSentence: new RegExp(`${REFUTATION.source}|${COOPERATIVE_EXPIRY_RECOVERY.source}`),
     correction: ARK_EXPIRY_CORRECTION,
   },
   {
@@ -381,8 +404,12 @@ export function answerRuleNoteIdsIn(text: string): string[] {
   if (!text) return [];
   const found: { index: number; noteId: string }[] = [];
   for (const rule of ANSWER_RULES) {
-    const match = new RegExp(`^Topic: ${escapeRegExp(rule.title)}$`, 'm').exec(text);
-    if (match) found.push({ index: match.index, noteId: rule.noteId });
+    const matches = [rule.title, ...(rule.legacyTitles ?? []), ...(rule.additionalSourceTitles ?? [])]
+      .flatMap(title => {
+        const match = new RegExp(`^Topic: ${escapeRegExp(title)}$`, 'm').exec(text);
+        return match ? [match.index] : [];
+      });
+    if (matches.length) found.push({ index: Math.min(...matches), noteId: rule.noteId });
   }
   return found.sort((a, b) => a.index - b.index).map(entry => entry.noteId);
 }

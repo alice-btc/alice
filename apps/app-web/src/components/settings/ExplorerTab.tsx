@@ -14,6 +14,7 @@ import {
   SectionLabel,
   sectionStyle,
 } from './ui';
+import { localVault } from '@/lib/local-vault';
 
 function NetworkDot({ color }: { color: string }) {
   return (
@@ -33,11 +34,13 @@ export function ExplorerTab() {
   const [confirmClearWallets, setConfirmClearWallets] = useState(false);
 
   useEffect(() => {
-    setNodeDrafts(
-      Object.fromEntries(configurableNetworks().map(n => [n.id, getNodeOverride(n.id)])),
-    );
+    localVault.whenReady(() => {
+      setNodeDrafts(
+        Object.fromEntries(configurableNetworks().map(n => [n.id, getNodeOverride(n.id)])),
+      );
+      setWallets(loadWallets());
+    });
     setDefaultNetwork(getDefaultNetworkId());
-    setWallets(loadWallets());
   }, []);
 
   const handleSaveNode = (networkId: string) => {

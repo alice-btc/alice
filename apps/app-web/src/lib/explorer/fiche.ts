@@ -79,6 +79,9 @@ export interface Fiche {
   sources: FicheSource[];
   supersedes?: FicheId;
   stability: 'stable' | 'volatile'; // 'volatile' = review every quarter
+  /** The knowledge theme the projected chunk is filed under; 'privacy' when
+   *  unset (the original corpus), 'layers' for the off-chain protocol fiches. */
+  theme?: string;
 }
 
 // The disclaimer a Fiche must carry, derived from its legalPosture, so the same
@@ -184,7 +187,7 @@ export function ficheToKnowledgeChunk(fiche: Fiche): KnowledgeChunk {
     keywords,
     level: KIND_TO_LEVEL[fiche.kind],
     content: `${fiche.summary}\n\n${fiche.body}`,
-    theme: 'privacy',
+    theme: fiche.theme ?? 'privacy',
     locale: fiche.locale,
     sourceLocale: fiche.locale,
     translationStatus: 'source',
@@ -219,7 +222,7 @@ export function ficheTranslationToChunk(fiche: Fiche, tr: FicheTranslation): Kno
     keywords,
     level: KIND_TO_LEVEL[fiche.kind],
     content: `${tr.summary}\n\n${tr.body}`,
-    theme: 'privacy',
+    theme: fiche.theme ?? 'privacy',
     locale: tr.locale,
     sourceLocale: fiche.locale,
     translationStatus: 'reviewed',

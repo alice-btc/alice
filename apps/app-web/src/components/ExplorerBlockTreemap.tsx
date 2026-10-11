@@ -23,23 +23,32 @@ type View = 'actual' | 'expected';
 // area from vsize, colour from fee rate, packed densely with no gaps. Capped in
 // size. A toggle switches between the mined block and the block the mempool
 // expected, when the audit is available.
+/** A canvas needs a real colour: a theme token (`var(--x)`) is read off the
+ *  document, since fillStyle cannot resolve it. */
+function resolveCssColor(color: string): string {
+  const token = /^var\((--[\w-]+)\)$/.exec(color.trim());
+  if (!token || typeof window === 'undefined') return color;
+  return getComputedStyle(document.documentElement).getPropertyValue(token[1]).trim() || color;
+}
+
 export function ExplorerBlockTreemap({
   hash,
   provider,
   onOpenTx,
   selectedTxid,
   onSelectTx,
-  highlight,
+  highlights,
 }: {
   hash: string;
   provider: ChainDataProvider;
   onOpenTx: (txid: string) => void;
   selectedTxid: string | null;
   onSelectTx: (txid: string) => void;
-  /** Transactions to spotlight in the map (the Arkade settlement): their
-   *  square is filled with `color` instead of the fee colour, and the hover
-   *  card names them with `label` (in `textColor`, legible on the tooltip). */
-  highlight?: { txids: ReadonlySet<string>; color: string; label?: string; textColor?: string };
+  /** Transactions to spotlight in the map (an Arkade settlement, a Bark
+   *  round), one set per kind: their square is filled with `color` instead of
+   *  the fee colour, and the hover card names them with `label` (in
+   *  `textColor`, legible on the tooltip). Memoised by the caller. */
+  highlights?: ReadonlyArray<{ txids: ReadonlySet<string>; color: string; label?: string; textColor?: string }>;
 }) {
   const [actual, setActual] = useState<BlockTxSummary[] | null>(null);
   const [audit, setAudit] = useState<BlockAudit | null>(null);
@@ -112,17 +121,17 @@ export function ExplorerBlockTreemap({
       // Flip Y so the first-placed (largest) squares settle at the bottom.
       const py = pxH - (sq.y + sq.s) * cell;
       const side = Math.max(1, sq.s * cell - 1);
-      // A highlighted transaction (the Arkade settlement) keeps its exact
+      // A highlighted transaction (a settlement, a round) keeps its exact
       // square, just filled with the accent instead of the fee colour.
-      const marked = highlight?.txids.has(tx.txid);
-      ctx.fillStyle = marked ? highlight!.color : feeColorHex(tx.rate);
+      const mark = highlights?.find(h => h.txids.has(tx.txid));
+      ctx.fillStyle = mark ? resolveCssColor(mark.color) : feeColorHex(tx.rate);
       ctx.fillRect(px, py, side, side);
       placed.push({ px, py, pside: side, tx });
     }
     placedRef.current = placed;
     baseRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
     setHover(null);
-  }, [txs, grid, boxSize, highlight?.txids, highlight?.color]);
+  }, [txs, grid, boxSize, highlights]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -136,7 +145,7 @@ export function ExplorerBlockTreemap({
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
     ctx.strokeRect(selected.px, selected.py, selected.pside, selected.pside);
-  }, [selectedTxid, txs, grid, boxSize, highlight?.txids, highlight?.color, hover]);
+  }, [selectedTxid, txs, grid, boxSize, highlights, hover]);
 
   function squareAt(clientX: number, clientY: number): Placed | null {
     const canvas = canvasRef.current;
@@ -238,11 +247,14 @@ export function ExplorerBlockTreemap({
               <div className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-text)' }}>
                 {hover.tx.txid.slice(0, 10)}...{hover.tx.txid.slice(-6)}
               </div>
-              {highlight?.label && highlight.txids.has(hover.tx.txid) && (
-                <div className="font-numbers" style={{ fontSize: 11, color: highlight.textColor ?? highlight.color }}>
-                  {highlight.label}
-                </div>
-              )}
+              {(() => {
+                const mark = highlights?.find(h => h.txids.has(hover.tx.txid));
+                return mark?.label ? (
+                  <div className="font-numbers" style={{ fontSize: 11, color: mark.textColor ?? mark.color }}>
+                    {mark.label}
+                  </div>
+                ) : null;
+              })()}
               <div className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>
                 {Math.round(hover.tx.rate)} sat/vB - {Math.round(hover.tx.vsize)} vB
               </div>

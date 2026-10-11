@@ -28,6 +28,7 @@ import {
   type PracticeTxReview,
   type PracticeUtxo,
 } from '@alice-wallet/practice-wallet';
+import { localVault } from './local-vault.ts';
 
 // Pre-rename prefix, kept so practice wallets created before the Playground
 // rename keep working. Do not change without a data migration.
@@ -37,20 +38,24 @@ const MNEMONIC_KEY = `${STORAGE_PREFIX}mnemonic`;
 // Bounds the address scan if state ever grows unchecked.
 const MAX_ADDRESSES_PER_CHAIN = 50;
 
+// The practice wallet's words and state rest in the local vault: encrypted
+// on disk like everything else of this device, with the keychain key on
+// Alice Desktop and a non-extractable browser key on the web.
 function browserBackend(): PracticeStorageBackend {
-  const storage = () => {
+  const storage = async () => {
     if (typeof window === 'undefined') {
       throw new Error('The Playground is only available in the browser.');
     }
-    return window.localStorage;
+    await localVault.ready();
+    return localVault;
   };
   return {
-    getSecret: async () => storage().getItem(MNEMONIC_KEY),
-    setSecret: async (value) => storage().setItem(MNEMONIC_KEY, value),
-    removeSecret: async () => storage().removeItem(MNEMONIC_KEY),
-    getValue: async (key) => storage().getItem(`${STORAGE_PREFIX}${key}`),
-    setValue: async (key, value) => storage().setItem(`${STORAGE_PREFIX}${key}`, value),
-    removeValue: async (key) => storage().removeItem(`${STORAGE_PREFIX}${key}`),
+    getSecret: async () => (await storage()).getItem(MNEMONIC_KEY),
+    setSecret: async (value) => (await storage()).setItem(MNEMONIC_KEY, value),
+    removeSecret: async () => (await storage()).removeItem(MNEMONIC_KEY),
+    getValue: async (key) => (await storage()).getItem(`${STORAGE_PREFIX}${key}`),
+    setValue: async (key, value) => (await storage()).setItem(`${STORAGE_PREFIX}${key}`, value),
+    removeValue: async (key) => (await storage()).removeItem(`${STORAGE_PREFIX}${key}`),
   };
 }
 
@@ -79,9 +84,10 @@ export async function createPlaygroundIfNeeded(): Promise<{ created: boolean }> 
 export async function deletePlayground(): Promise<void> {
   await getStore().clear();
   if (typeof window !== 'undefined') {
-    window.localStorage.removeItem(`${STORAGE_PREFIX}backed-up`);
-    window.localStorage.removeItem(`${STORAGE_PREFIX}faucet-claimed`);
-    window.localStorage.removeItem(`${STORAGE_PREFIX}snapshot.v1`);
+    await localVault.ready();
+    localVault.removeItem(`${STORAGE_PREFIX}backed-up`);
+    localVault.removeItem(`${STORAGE_PREFIX}faucet-claimed`);
+    localVault.removeItem(`${STORAGE_PREFIX}snapshot.v1`);
   }
 }
 
@@ -98,11 +104,13 @@ const BACKED_UP_KEY = `${STORAGE_PREFIX}backed-up`;
 
 export async function isPlaygroundBackedUp(): Promise<boolean> {
   if (typeof window === 'undefined') return false;
-  return window.localStorage.getItem(BACKED_UP_KEY) === 'true';
+  await localVault.ready();
+  return localVault.getItem(BACKED_UP_KEY) === 'true';
 }
 
 export async function markPlaygroundBackedUp(): Promise<void> {
-  window.localStorage.setItem(BACKED_UP_KEY, 'true');
+  await localVault.ready();
+  localVault.setItem(BACKED_UP_KEY, 'true');
 }
 
 /**
@@ -152,7 +160,7 @@ const SNAPSHOT_KEY = `${STORAGE_PREFIX}snapshot.v1`;
 export function readCachedPlaygroundSnapshot(): PlaygroundSnapshot | null {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = window.localStorage.getItem(SNAPSHOT_KEY);
+    const raw = localVault.getItem(SNAPSHOT_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<PlaygroundSnapshot>;
     if (
@@ -171,7 +179,7 @@ export function readCachedPlaygroundSnapshot(): PlaygroundSnapshot | null {
 function cachePlaygroundSnapshot(snapshot: PlaygroundSnapshot): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
+    localVault.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
   } catch {
     // A full quota only costs the instant-open shortcut.
   }
@@ -283,7 +291,8 @@ const FAUCET_CLAIMED_KEY = `${STORAGE_PREFIX}faucet-claimed`;
 
 export async function hasClaimedPlaygroundFaucet(): Promise<boolean> {
   if (typeof window === 'undefined') return false;
-  return window.localStorage.getItem(FAUCET_CLAIMED_KEY) === 'true';
+  await localVault.ready();
+  return localVault.getItem(FAUCET_CLAIMED_KEY) === 'true';
 }
 
 export type PlaygroundFaucetClaim =
@@ -292,9 +301,9 @@ export type PlaygroundFaucetClaim =
   | { kind: 'manual'; address: string; faucetUrl: string };
 
 /**
- * One-click faucet claim through Alice's relay (the Mutinynet faucet blocks
- * browser origins, so the Worker forwards the claim with a small fixed
- * amount and daily caps). Without a configured relay, or when the relay
+ * One-click test-sat distribution from Alice's funded wallet, served by the
+ * Worker with per-installation and daily limits. This does not forward a
+ * claim to the public Mutinynet faucet. Without a configured relay, or when it
  * cannot serve, the flow degrades to the manual faucet page.
  */
 export async function claimPlaygroundFaucet(): Promise<PlaygroundFaucetClaim> {
@@ -323,14 +332,14 @@ export async function claimPlaygroundFaucet(): Promise<PlaygroundFaucetClaim> {
       | { txid?: unknown; sats?: unknown; error?: { code?: unknown; message?: unknown } }
       | null;
     if (response.ok && payload && typeof payload.txid === 'string') {
-      window.localStorage.setItem(FAUCET_CLAIMED_KEY, 'true');
+      localVault.setItem(FAUCET_CLAIMED_KEY, 'true');
       return { kind: 'sent', txid: payload.txid, sats: Number(payload.sats) || 0 };
     }
     // Already claimed is not a failure: it is the answer. Record it so the
     // button stops offering something this learner cannot have, even on a
     // device whose local flag was lost.
     if (payload?.error?.code === 'already_claimed') {
-      window.localStorage.setItem(FAUCET_CLAIMED_KEY, 'true');
+      localVault.setItem(FAUCET_CLAIMED_KEY, 'true');
     }
     const message =
       payload && typeof payload.error?.message === 'string'

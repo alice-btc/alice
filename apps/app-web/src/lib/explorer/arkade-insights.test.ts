@@ -36,6 +36,17 @@ describe('virtualTxToNormalized', () => {
     assert.equal(n.status.confirmed, false);
   });
 
+  it('carries the Arkade addresses through to the graph', () => {
+    const n = virtualTxToNormalized({
+      ...vtx,
+      inputs: [{ ...vtx.inputs[0], address: 'ark1qin' }],
+      outputs: vtx.outputs.map(o => ({ ...o, address: o.isAnchor ? undefined : 'ark1qout' })),
+    }, 'arkade');
+    assert.equal(n.inputs[0].address, 'ark1qin');
+    assert.equal(n.outputs[0].address, 'ark1qout');
+    assert.equal(n.outputs[2].address, undefined);
+  });
+
   it('reports no fee when an input amount is unknown', () => {
     const n = virtualTxToNormalized({ ...vtx, inputs: [{ txid: id('1'), vout: 0 }] }, 'arkade');
     assert.equal(n.feeSats, null);

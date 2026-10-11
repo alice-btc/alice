@@ -86,6 +86,8 @@ const RULE_VERSIONS: Record<RuleId, number> = {
   TX_CONTEXT: 2,
   ADDRESS_CONTEXT: 1,
   BLOCK_CONTEXT: 2,
+  ARK_SETTLEMENT: 1,
+  LAYER_CONTEXT: 1,
 };
 
 // The category vocabulary, as a runtime list, so a projected category can be
@@ -205,6 +207,43 @@ const projectBlockContext: RuleProjector = (signal) => ({
     : {}),
   redactionProfile: REDACTION_PROFILE,
 });
+
+// LAYER_CONTEXT: the shape of an off-chain page. The layer and the page kind
+// are category labels validated against closed lists (an unknown label is
+// dropped, never copied), the rest is counts, a magnitude bucket of the
+// amount in view, an age bucket, and structural booleans from a fixed list.
+// Nothing else in the evidence crosses: no id, no address, no key, no height.
+const LAYER_NAMES = ['spark', 'arkade', 'bark'] as const;
+const LAYER_PAGES = ['address', 'transfer', 'leaf', 'vtxo', 'token'] as const;
+const LAYER_FLAG_KEYS = [
+  'private', 'pending', 'completed', 'settled', 'preconfirmed', 'spent', 'swept', 'exited', 'expired',
+  'lightning', 'exit', 'tokens', 'partial', 'multi', 'served',
+] as const;
+const projectLayerContext: RuleProjector = (signal) => {
+  const flags: Record<string, boolean> = {};
+  const layer = String(signal.evidence.layer ?? '');
+  if ((LAYER_NAMES as readonly string[]).includes(layer)) flags[layer] = true;
+  const page = String(signal.evidence.page ?? '');
+  if ((LAYER_PAGES as readonly string[]).includes(page)) flags[page] = true;
+  for (const k of LAYER_FLAG_KEYS) if (signal.evidence[k] === true) flags[k] = true;
+  return {
+    ruleId: signal.ruleId,
+    ruleVersion: RULE_VERSIONS[signal.ruleId],
+    severity: signal.severity,
+    confidence: signal.confidence,
+    shape: {
+      addresses: num(signal.evidence.addressCount),
+      txs: num(signal.evidence.txCount),
+      utxos: num(signal.evidence.coinCount),
+      inputCount: typeof signal.evidence.inputCount === 'number' ? signal.evidence.inputCount : undefined,
+      outputCount: typeof signal.evidence.outputCount === 'number' ? signal.evidence.outputCount : undefined,
+    },
+    flags,
+    ...(typeof signal.evidence.amountSats === 'number' ? { magnitudes: [magnitudeBucket(num(signal.evidence.amountSats))] } : {}),
+    ...(typeof signal.evidence.elapsedSeconds === 'number' ? { ages: [ageBucket(num(signal.evidence.elapsedSeconds))] } : {}),
+    redactionProfile: REDACTION_PROFILE,
+  };
+};
 
 // The registry is intentionally Partial: a ruleId with no entry has declared no
 // projection, so toAbstractSignal returns null for it. This is the fail-closed
@@ -328,6 +367,7 @@ const RULE_PROJECTORS: Partial<Record<RuleId, RuleProjector>> = {
   TX_CONTEXT: projectTxContext,
   ADDRESS_CONTEXT: projectAddressContext,
   BLOCK_CONTEXT: projectBlockContext,
+  LAYER_CONTEXT: projectLayerContext,
 };
 
 /**
@@ -399,6 +439,8 @@ const RULE_LABEL: Record<RuleId, string> = {
   TX_CONTEXT: 'transaction shape',
   ADDRESS_CONTEXT: 'address activity',
   BLOCK_CONTEXT: 'block contents',
+  ARK_SETTLEMENT: 'Ark round settled on-chain',
+  LAYER_CONTEXT: 'off-chain page',
 };
 
 /**

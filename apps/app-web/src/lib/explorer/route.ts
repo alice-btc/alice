@@ -15,7 +15,9 @@ import type { AbstractSignal } from './audit-core.ts';
 export type BackendClass = 'A' | 'B' | 'C' | 'D';
 export type AllowedBackend = 'local' | 'cloud_attested';
 
-export type RawSubjectKind = 'address' | 'txid' | 'outpoint' | 'xpub' | 'vtxo';
+// 'address' covers on-chain, Ark (ark1…) and Spark (spark1…) addresses alike;
+// 'spark-id' is the UUID that names a Spark transfer or leaf.
+export type RawSubjectKind = 'address' | 'txid' | 'outpoint' | 'xpub' | 'vtxo' | 'spark-id';
 export interface RawSubject {
   kind: RawSubjectKind;
   value: string;
@@ -77,6 +79,11 @@ const HEX64_RE = /\b[0-9a-f]{64}\b/gi;
 const XPUB_RE = /\b(?:xpub|ypub|zpub|tpub|upub|vpub)[1-9A-HJ-NP-Za-km-z]{90,140}\b/gi;
 const BECH32_RE = /\b(?:bc1|tb1|bcrt1)[0-9ac-hj-np-z]{20,87}\b/gi;
 const BASE58_RE = /\b[13mn2][a-km-zA-HJ-NP-Z1-9]{24,33}\b/g;
+// Off-chain identifiers: Ark and Spark addresses (the older sp1… spelling
+// included, which also covers silent-payment addresses), and the UUIDs that
+// name Spark transfers and leaves. Any UUID counts: over-detection is safe.
+const LAYER_ADDR_RE = /\b(?:ark|tark|spark|sparkt|sparkrt|sparks|sparkl|sp|spt|sprt|sps|spl)1[0-9ac-hj-np-z]{20,}\b/gi;
+const UUID_RE = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
 
 /**
  * Find raw on-chain identifiers pasted into free text. A 64-hex value with a long
@@ -109,6 +116,8 @@ export function findRawIdentifiersInText(text: string): RawSubject[] {
   for (const m of text.matchAll(XPUB_RE)) add('xpub', m[0]);
   for (const m of text.matchAll(BECH32_RE)) add('address', m[0]);
   for (const m of text.matchAll(BASE58_RE)) add('address', m[0]);
+  for (const m of text.matchAll(LAYER_ADDR_RE)) add('address', m[0]);
+  for (const m of text.matchAll(UUID_RE)) add('spark-id', m[0].toLowerCase());
 
   return found;
 }

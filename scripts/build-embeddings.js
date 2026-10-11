@@ -1,7 +1,7 @@
-// Precomputes one embedding vector per knowledge chunk (the bundled 'core'
+// Precomputes one embedding vector per knowledge chunk (the bundled curated
 // pack) using the same multilingual model the client will use for queries,
 // so query and passage vectors live in the same space. Run this after
-// build-obsidian-rag.js whenever the corpus changes.
+// build-curated-rag.mjs whenever the selected corpus changes.
 //
 // Output: apps/app-web/public/core-embeddings/index.json (chunk ids, dim,
 // model id) + embeddings.f32 (row-major Float32Array, L2-normalized rows).
@@ -34,7 +34,9 @@ function normalize(values) {
 
 async function createEmbedder(target) {
   if (TARGET === 'web') {
-    const { pipeline } = await import('@huggingface/transformers');
+    const { pipeline, env } = await import('@huggingface/transformers');
+    if (process.env.ALICE_EMBEDDING_MODEL_CACHE) env.cacheDir = process.env.ALICE_EMBEDDING_MODEL_CACHE;
+    if (process.env.ALICE_EMBEDDING_OFFLINE === '1') env.allowRemoteModels = false;
     const extractor = await pipeline('feature-extraction', target.modelId);
     return async texts => {
       const output = await extractor(texts, { pooling: 'mean', normalize: true });
@@ -46,10 +48,26 @@ async function createEmbedder(target) {
   }
 
   return async texts => {
+    // This E5 conversion advertises 511 tokens. Bound the embedding input,
+    // retaining EOS, just as the ONNX tokenizer bounds long passages. The
+    // complete fiche remains available to lexical search and answer context.
+    const tokenizerUrl = new URL('/tokenize', target.endpoint);
+    const input = await Promise.all(texts.map(async text => {
+      const tokenResponse = await fetch(tokenizerUrl, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: text, add_special: true }),
+      });
+      if (!tokenResponse.ok) throw new Error(`Native tokenizer returned HTTP ${tokenResponse.status}.`);
+      const { tokens } = await tokenResponse.json();
+      if (!Array.isArray(tokens) || !tokens.length || tokens.some(token => !Number.isInteger(token))) {
+        throw new Error('Native tokenizer returned invalid token IDs.');
+      }
+      return tokens.length > 511 ? [...tokens.slice(0, 510), tokens.at(-1)] : tokens;
+    }));
     const response = await fetch(target.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input: texts, model: target.modelId }),
+      body: JSON.stringify({ input, model: target.modelId }),
     });
     if (!response.ok) {
       throw new Error(`Native embedding server returned HTTP ${response.status}.`);

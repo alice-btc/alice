@@ -33,7 +33,7 @@ test('the instruction block states the mandatory points of the notes in context,
   assert.match(en, /unilateral exit without the operator/);
   assert.match(en, /refreshed or exited before its expiry/);
   // Shared sentences of the two Ark notes appear a single time.
-  assert.equal(en.split('from the exit data the wallet keeps').length, 2);
+  assert.equal(en.split('valid exit data can start').length, 2);
   const fr = answerRulesBlock(['replace-by-fee', 'transaction-finality'], 'fr');
   assert.match(fr, /^À dire :$/m);
   assert.match(fr, /full-RBF, comportement par défaut de Bitcoin Core depuis la version 28\.0/);
@@ -199,11 +199,16 @@ test('every rule names a note of the shipped corpus by its exact title, and a re
     export { getAllChunks } from './packages/alice-ai/src/knowledge-packs.ts';
   `);
   await runtime.loadRagCorpus();
-  const chunks: { id: string; title: string }[] = runtime.getAllChunks();
+  const chunks: { id: string; conceptId?: string; title: string }[] = runtime.getAllChunks();
   for (const rule of ANSWER_RULES) {
-    const chunk = chunks.find(candidate => candidate.id === rule.noteId);
+    const chunk = chunks.find(candidate => candidate.conceptId === rule.sourceConceptId);
     assert.ok(chunk, rule.noteId);
     assert.equal(chunk.title, rule.title, rule.noteId);
+    assert.ok(answerRuleNoteIdsIn(retrievedText(chunk.title)).includes(rule.noteId));
+    for (const title of rule.additionalSourceTitles ?? []) {
+      assert.ok(chunks.some(candidate => candidate.title === title), title);
+      assert.ok(answerRuleNoteIdsIn(retrievedText(title)).includes(rule.noteId));
+    }
   }
   const context: string | null = runtime.retrieveContext('Que peut faire un opérateur Ark avec mon argent, et que ne peut-il pas faire ?', { targetLanguage: 'fr', maxChunks: 2 });
   assert.ok(context);
@@ -237,4 +242,23 @@ test('review probes: another quorum, refutations, questions, quotes and wallet l
   // The morning's claims still fire next to these probes.
   assert.deepEqual(withAnswerRuleCorrections('Replacement works only if the RBF option was enabled when you sent it.', 'en', RBF).applied, ['rbf-opt-in-precondition']);
   assert.deepEqual(withAnswerRuleCorrections('If the operator stops cooperating, it may refuse to process new transactions, effectively locking your ability to exit the network.', 'en', ARK).applied, ['ark-operator-blocks-exit']);
+});
+
+
+test('Ark guards preserve expiry, recovery-data and non-collusion limits', () => {
+  for (const [language, sentence] of [
+    ['en', 'After expiry, funds are lost if the operator refuses to cooperate.'],
+    ['fr', "Après expiration, les fonds sont perdus si l’opérateur refuse de coopérer."],
+    ['en', 'After expiry, the user depends on the operator to recover funds.'],
+    ['en', 'After expiry, recovery requires the operator’s cooperation.'],
+    ['fr', "Après expiration, la récupération nécessite la coopération de l’opérateur."],
+    ['en', 'Without exit data, your funds are lost when the operator disappears.'],
+    ['fr', "Sans les données de sortie, les fonds sont perdus si l’opérateur disparaît."],
+  ] as const) assert.deepEqual(withAnswerRuleCorrections(sentence, language, ARK).applied, [], sentence);
+  for (const language of ['en', 'fr'] as const) {
+    const rule = ANSWER_RULES.find(rule => rule.noteId === 'ark-rounds-exits')!;
+    assert.match(rule.mustState[language].join(' '), language === 'en' ? /fully confirm.*before expiry|complete.*before expiry/ : /confirmer entièrement avant expiration/);
+    const correction = NEVER_CLAIM_CHECKS.find(check => check.id === 'ark-funds-lost')!.correction[language];
+    assert.match(correction, language === 'en' ? /recovery is not guaranteed/ : /récupération n’est pas garantie/);
+  }
 });
