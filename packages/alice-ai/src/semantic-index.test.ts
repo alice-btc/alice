@@ -12,7 +12,8 @@ await runtime.loadRagCorpus();
 
 test('both shipped indexes satisfy the full corpus contract', async () => {
   const chunks = runtime.getBundledKnowledgeChunks();
-  assert.ok(chunks.some((chunk: {id: string}) => chunk.id.startsWith('docs-')));
+  assert.ok(chunks.some((chunk: {id: string}) => chunk.id === 'curated-alice-app-overview'));
+  assert.ok(chunks.every((chunk: {id: string}) => chunk.id.startsWith('curated-')));
   for (const path of ['apps/app-web/public', 'apps/wallet-mobile/assets']) {
     const metadata = JSON.parse(await readFile(`${path}/core-embeddings/index.json`, 'utf8'));
     assert.equal(runtime.validateSemanticIndexMetadata(metadata, metadata.model, chunks), metadata);

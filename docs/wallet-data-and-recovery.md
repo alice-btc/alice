@@ -12,7 +12,7 @@ Pending or refundable swaps are different. Their local records can include preim
 
 ## Alice discussions
 
-Alice discussions stay on the device and are not synchronized by Alice. Alice Desktop encrypts its local conversations and session index with a random key held by the operating system keychain. This desktop protection must not be presented as already available on every browser or mobile backend.
+Alice discussions stay on the device and are not synchronized by Alice. Alice Desktop encrypts its local conversations and session index with a random key held by the operating system keychain; the web app encrypts them with a non-extractable key the browser keeps in IndexedDB (see `docs/security/local-chat-encryption.md`). The mobile wallet has its own secure store for the memory; its conversations are not covered by this design yet.
 
 - Alice keeps up to 50 conversations.
 - Saving a 51st conversation removes the oldest one.

@@ -12,6 +12,8 @@
 // it cross-origin), so this runs straight from the browser, no proxy. Every
 // numeric field crosses the gRPC-gateway as a string; we parse defensively.
 
+import { bech32m } from '@scure/base';
+
 /** Parse a gateway numeric string ("330", "60") to a number, 0 on garbage. */
 function num(v: unknown): number {
   const n = Number(v);
@@ -167,6 +169,32 @@ function bytesToHex(b: Uint8Array): string {
   return s;
 }
 
+function hexToBytes(hex: string): Uint8Array {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+
+/**
+ * The Arkade address of a VTXO script. An Arkade address is bech32m of a
+ * version byte (0), the operator's x-only signer key and the taproot output
+ * key the VTXO script pays to, exactly what the SDK's ArkAddress encodes; so
+ * any P2TR script the operator serves (a VTXO's, a virtual transaction's
+ * output) reads back as the address that holds it. Null when the script is
+ * not P2TR or the signer key is malformed. "ark" on mainnet, "tark" elsewhere.
+ */
+export function arkadeAddressOf(scriptHex: string, signerPubkeyHex: string, network = 'bitcoin'): string | null {
+  const script = /^5120([0-9a-f]{64})$/i.exec(scriptHex.trim());
+  const signer = /^(?:0[23])?([0-9a-f]{64})$/i.exec(signerPubkeyHex.trim());
+  if (!script || !signer) return null;
+  const data = new Uint8Array(65);
+  data[0] = 0;
+  data.set(hexToBytes(signer[1]), 1);
+  data.set(hexToBytes(script[1]), 33);
+  // Longer than bech32's usual 90 characters, like the SDK's own encoder.
+  return bech32m.encode(network === 'bitcoin' ? 'ark' : 'tark', bech32m.toWords(data), false);
+}
+
 /** One VTXO (off-chain coin) held under an Arkade address. */
 export type ArkadeVtxo = {
   txid: string;
@@ -183,6 +211,8 @@ export type ArkadeVtxo = {
   spentBy?: string;
   /** The Arkade transaction behind that spend, when spent. */
   arkTxid?: string;
+  /** The taproot script the coin sits on, hex, when the indexer gives it. */
+  scriptHex?: string;
 };
 
 /** An Arkade address and the off-chain coins (VTXOs) it holds. */
@@ -196,9 +226,11 @@ export type ArkadeAddressInfo = {
   vtxos: ArkadeVtxo[];
 };
 
-/** Cheap prefilter so the UI can route input without loading the SDK. */
+/** Cheap prefilter so the UI can route input without loading the SDK. Bark
+ *  addresses share the ark1 prefix; Arkade's carry version 0 ("q") right
+ *  after it, Bark's version 1 ("p"). */
 export function looksLikeArkadeAddress(s: string): boolean {
-  return /^(ark|tark)1[0-9a-z]+$/i.test(s.trim());
+  return /^(ark|tark)1q[0-9a-z]+$/i.test(s.trim());
 }
 
 /**
@@ -237,6 +269,7 @@ export function normalizeVtxo(v: Record<string, unknown>): ArkadeVtxo {
     commitmentTxids: commitments.map(String),
     spentBy,
     arkTxid,
+    scriptHex: typeof v.script === 'string' && /^[0-9a-f]+$/i.test(v.script) ? v.script.toLowerCase() : undefined,
   };
 }
 
@@ -282,6 +315,11 @@ export type ArkadeVirtualTxInput = {
   txid: string;
   vout: number;
   amountSats?: number;
+  /** The Arkade address the spent coin sat on, when the indexer knows it. */
+  address?: string;
+  /** True when the input is a checkpoint transaction's output: the address
+   *  is then the coin's, one transaction up. */
+  viaCheckpoint?: boolean;
 };
 
 /** One output of a virtual Arkade transaction, enriched with its VTXO state
@@ -292,6 +330,8 @@ export type ArkadeVirtualTxOutput = {
   scriptHex: string;
   /** The zero-value P2A anchor output every virtual transaction carries. */
   isAnchor: boolean;
+  /** The Arkade address this output pays, derived from its script. */
+  address?: string;
   vtxo?: ArkadeVtxo;
 };
 
@@ -313,9 +353,67 @@ const ANCHOR_SCRIPT_HEX = '51024e73';
  */
 export async function getArkadeVirtualTx(base: string, txid: string, opts: { signal?: AbortSignal } = {}): Promise<ArkadeVirtualTx | null> {
   const clean = txid.trim().toLowerCase();
+  const vtx = await fetchVirtualTx(base, clean, opts.signal);
+  if (!vtx) return null;
+  const { inputs, outputs } = vtx;
+
+  // Enrich the non-anchor outputs with their VTXO state (spent, expiry, the
+  // settlement anchoring them). Decorative: a miss leaves the plain outputs.
+  try {
+    const query = outputs.filter(o => !o.isAnchor)
+      .map(o => `outpoints=${clean}:${o.index}`).join('&');
+    if (query) {
+      const res = await getJson(base, `/v1/indexer/vtxos?${query}`, opts.signal) as { vtxos?: unknown };
+      for (const v of Array.isArray(res.vtxos) ? res.vtxos : []) {
+        const vtxo = normalizeVtxo(v as Record<string, unknown>);
+        const target = outputs.find(o => o.index === vtxo.vout);
+        if (target) target.vtxo = vtxo;
+      }
+    }
+  } catch { /* keep the decoded outputs */ }
+
+  // The addresses: a VTXO script is P2TR of its owner's taproot key, and the
+  // Arkade address is that key with the operator's, so every output reads
+  // back as the address it pays. An input is usually a checkpoint
+  // transaction's output, which is no VTXO and no address of anyone (its key
+  // is the checkpoint's); the checkpoint's own input is the coin spent, so
+  // the address is read one transaction up. Decorative as well.
+  try {
+    const info = await cachedArkadeInfo(base, opts.signal);
+    const addressOf = (scriptHex: string) => arkadeAddressOf(scriptHex, info.signerPubkey, info.network) ?? undefined;
+    for (const o of outputs) {
+      if (!o.isAnchor) o.address = addressOf(o.scriptHex);
+    }
+    const coinScript = async (outpoint: { txid: string; vout: number }): Promise<ArkadeVtxo | null> => {
+      const res = await getJson(base, `/v1/indexer/vtxos?outpoints=${outpoint.txid}:${outpoint.vout}`, opts.signal) as { vtxos?: unknown };
+      const v = Array.isArray(res.vtxos) ? res.vtxos[0] : undefined;
+      return v ? normalizeVtxo(v as Record<string, unknown>) : null;
+    };
+    for (const i of inputs) {
+      if (!i.txid) continue;
+      const direct = await coinScript(i);
+      if (direct?.scriptHex) {
+        i.address = addressOf(direct.scriptHex);
+        if (i.amountSats === undefined && direct.amountSats > 0) i.amountSats = direct.amountSats;
+        continue;
+      }
+      // Not a VTXO: a checkpoint, when it has one input and one real output.
+      const parent = await fetchVirtualTx(base, i.txid, opts.signal);
+      if (!parent || parent.inputs.length !== 1 || parent.outputs.filter(o => !o.isAnchor).length !== 1) continue;
+      const coin = await coinScript(parent.inputs[0]);
+      if (coin?.scriptHex) { i.address = addressOf(coin.scriptHex); i.viaCheckpoint = true; }
+    }
+  } catch { /* keep the plain inputs and outputs */ }
+
+  return { txid: clean, inputs, outputs };
+}
+
+/** Fetch a virtual transaction's PSBT and decode its inputs and outputs;
+ *  null when the indexer does not know the txid. */
+async function fetchVirtualTx(base: string, txid: string, signal?: AbortSignal): Promise<ArkadeVirtualTx | null> {
   let j: unknown;
   try {
-    j = await getJson(base, `/v1/indexer/virtualTx/${encodeURIComponent(clean)}`, opts.signal);
+    j = await getJson(base, `/v1/indexer/virtualTx/${encodeURIComponent(txid)}`, signal);
   } catch (err) {
     if (err instanceof ArkadeError && /not found/i.test(err.message)) return null;
     throw err;
@@ -354,23 +452,39 @@ export async function getArkadeVirtualTx(base: string, txid: string, opts: { sig
       isAnchor: scriptHex === ANCHOR_SCRIPT_HEX,
     });
   }
+  return { txid, inputs, outputs };
+}
 
-  // Enrich the non-anchor outputs with their VTXO state (spent, expiry, the
-  // settlement anchoring them). Decorative: a miss leaves the plain outputs.
-  try {
-    const query = outputs.filter(o => !o.isAnchor)
-      .map(o => `outpoints=${clean}:${o.index}`).join('&');
-    if (query) {
-      const res = await getJson(base, `/v1/indexer/vtxos?${query}`, opts.signal) as { vtxos?: unknown };
-      for (const v of Array.isArray(res.vtxos) ? res.vtxos : []) {
-        const vtxo = normalizeVtxo(v as Record<string, unknown>);
-        const target = outputs.find(o => o.index === vtxo.vout);
-        if (target) target.vtxo = vtxo;
-      }
-    }
-  } catch { /* keep the decoded outputs */ }
+// The operator's parameters change rarely: one fetch per gateway per session
+// serves every address derivation.
+const infoCache = new Map<string, ArkadeInfo>();
 
-  return { txid: clean, inputs, outputs };
+async function cachedArkadeInfo(base: string, signal?: AbortSignal): Promise<ArkadeInfo> {
+  const hit = infoCache.get(base);
+  if (hit) return hit;
+  const info = await getArkadeInfo(base, { signal });
+  infoCache.set(base, info);
+  return info;
+}
+
+/** Arkade's unilateral exit delay is a relative timelock: in seconds (BIP68
+ *  time units of 512 s) on mainnet, in blocks on some test setups. */
+export function formatArkadeExitDelay(delay: number): string {
+  if (delay >= 512 && delay % 512 === 0) {
+    const days = delay / 86_400;
+    const blocks = Math.round(delay / 600);
+    return `${days % 1 === 0 ? days : days.toFixed(1)} day${days === 1 ? '' : 's'} (~${blocks.toLocaleString('en-US')} blocks)`;
+  }
+  return `${delay.toLocaleString('en-US')} blocks`;
+}
+
+/** One VTXO by its outpoint, from the indexer; null when it knows none. */
+export async function getArkadeVtxo(base: string, txid: string, vout: number, opts: { signal?: AbortSignal } = {}): Promise<ArkadeVtxo | null> {
+  const clean = txid.trim().toLowerCase();
+  const res = await getJson(base, `/v1/indexer/vtxos?outpoints=${encodeURIComponent(`${clean}:${vout}`)}`, opts.signal) as { vtxos?: unknown };
+  const raw = Array.isArray(res.vtxos) ? res.vtxos : [];
+  const found = raw.map(v => normalizeVtxo(v as Record<string, unknown>)).find(v => v.txid === clean && v.vout === vout);
+  return found ?? null;
 }
 
 /** A settlement (commitment round) seen on the live stream. */

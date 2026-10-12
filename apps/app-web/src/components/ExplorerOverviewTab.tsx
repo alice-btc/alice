@@ -8,9 +8,14 @@ import type { ReactNode } from 'react';
 import { classifySearch } from '@/lib/explorer/search';
 import { getNetwork } from '@/lib/explorer/networks';
 import { remoteEntitiesConfigured } from '@/lib/explorer/entity-remote';
+import { anchorsConfigured } from '@/lib/explorer/anchors';
 import type { ChainDataProvider } from '@/lib/explorer/provider';
 import { ExplorerWalletCards } from '@/components/ExplorerWalletCards';
 import { ArkadeAspInfo, ArkadeLiveSettlements } from '@/components/ExplorerArkade';
+import { BarkLiveRounds, BarkServerInfo } from '@/components/ExplorerBark';
+import { SparkLiveFeed, SparkOperatorsInfo } from '@/components/ExplorerSpark';
+import type { KnownSettlement } from '@/lib/explorer/arkade-onchain';
+import type { SettlementSync } from '@/lib/explorer/use-settlement-sync';
 import { EXPLORE_ADDRESSES, EXPLORE_BLOCKS, EXPLORE_TXS, type ExploreExample } from '@/lib/explorer/explore-examples';
 
 // Overview / home tab: the universal search (transaction, address, block or
@@ -88,11 +93,12 @@ function FeatureCard({ glyph, title, text }: { glyph: ReactNode; title: string; 
   );
 }
 
-const KIND_LABEL: Record<'tx' | 'block' | 'address' | 'xpub', string> = {
+const KIND_LABEL: Record<'tx' | 'block' | 'address' | 'xpub' | 'vtxo', string> = {
   tx: 'TX',
   block: 'BLOCK',
   address: 'ADDRESS',
   xpub: 'WALLET',
+  vtxo: 'VTXO',
 };
 
 // One clickable chip per curated chain item (see explore-examples.ts).
@@ -146,7 +152,10 @@ export function ExplorerOverviewTab({
   onOpenBlock,
   onOpenAddress,
   onOpenXpub,
+  onOpenVtxo,
   arkade,
+  bark,
+  spark,
 }: {
   activeNetworkId: string;
   getProvider: (networkId: string) => ChainDataProvider;
@@ -154,32 +163,54 @@ export function ExplorerOverviewTab({
   onOpenBlock: (heightOrHash: string, networkId?: string) => void;
   onOpenAddress: (address: string, networkId?: string) => void;
   onOpenXpub: (input: string, label?: string, networkId?: string) => void;
+  /** Opens a Bark coin: its id ("txid:vout") or its hex export. */
+  onOpenVtxo: (query: string) => void;
   /** Set on the Arkade network: the search also recognises ark1… addresses,
    *  and the curated Bitcoin history gives way to the live settlements feed
    *  and the ASP's parameters. */
-  arkade?: { apiBaseUrl: string };
+  arkade?: { apiBaseUrl: string; sync: SettlementSync };
+  /** Set on the Bark network: ark1… addresses and VTXOs are recognised too,
+   *  and the server's rounds (the ones identified so far) and parameters
+   *  replace the curated history. */
+  bark?: { serverUrl: string; rounds: ReadonlyMap<string, KnownSettlement>; sync: SettlementSync };
+  /** Set on the Spark network: spark1… addresses and Spark ids (transfers,
+   *  leaves) are recognised, and the network's live feed and the operators'
+   *  parameters replace the curated history. */
+  spark?: boolean;
 }) {
   const [raw, setRaw] = useState('');
   // Mirrors exactly what triggers the remote entity lookup (see ExplorerPanel's
   // remoteEntities prop), so the disclosure below never claims a request the
   // build does not actually make.
   const showsRemoteEntities = activeNetworkId === 'mainnet' && remoteEntitiesConfigured();
+  // The settlement anchor is one more request, to Alice's own server, made
+  // only on these two networks and only with a proxy configured; the
+  // disclosure names it exactly when the build makes it.
+  const anchorsNote = (arkade || bark) && anchorsConfigured()
+    ? ' Alice\u2019s own server is also asked, when the view opens, for the newest settlement it has found on that chain: a request that carries nothing about you or what you look up.'
+    : '';
   const inputRef = useRef<HTMLInputElement>(null);
   // Focus without scrolling, so the hero above the field stays in view on load.
   useEffect(() => { inputRef.current?.focus({ preventScroll: true }); }, []);
   const trimmed = raw.trim();
   const result = classifySearch(trimmed, {
-    arkAddresses: !!arkade,
+    arkAddresses: !!arkade || !!bark,
     liquidAddresses: getNetwork(activeNetworkId).kind === 'liquid',
+    vtxoIds: !!bark || !!arkade,
+    sparkAddresses: !!spark,
+    sparkIds: !!spark,
   });
   // A pasted xpub now opens the wallet view; unknown is a plain format error.
-  const routable = result.kind === 'tx' || result.kind === 'block' || result.kind === 'address' || result.kind === 'xpub';
+  const routable = result.kind !== 'unknown';
   const showError = trimmed.length > 0 && !routable;
 
   function errorMessage(): string {
-    return arkade
-      ? 'Not recognised as a transaction id, address (bc1… or ark1…), block or extended key.'
-      : 'Not recognised as a transaction id, address, block or extended key.';
+    if (spark) return 'Not recognised as a Spark address (spark1…), a Spark transfer or leaf id, a transaction id, address, block or extended key.';
+    return bark
+      ? 'Not recognised as a transaction id, VTXO id (txid:vout) or export, address (bc1… or ark1…), block or extended key.'
+      : arkade
+        ? 'Not recognised as a transaction id, VTXO id (txid:vout), address (bc1… or ark1…), block or extended key.'
+        : 'Not recognised as a transaction id, address, block or extended key.';
   }
 
   function open(
@@ -195,7 +226,8 @@ export function ExplorerOverviewTab({
 
   function submit() {
     if (result.kind === 'unknown') return;
-    open(result.kind, result.value);
+    if (result.kind === 'vtxo') onOpenVtxo(result.value);
+    else open(result.kind, result.value);
     setRaw('');
   }
 
@@ -220,7 +252,11 @@ export function ExplorerOverviewTab({
             autoComplete="off"
             onChange={(e) => setRaw(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
-            placeholder={arkade ? 'Search a transaction, block, or address (bc1… or ark1…)' : 'Search a transaction, address or block'}
+            placeholder={spark
+              ? 'Search a Spark address (spark1…), a transfer or leaf id, or a Bitcoin transaction, block or address'
+              : bark
+                ? 'Search a transaction, block, address (bc1… or ark1…) or VTXO id (txid:vout)'
+                : arkade ? 'Search a transaction, block, address (bc1… or ark1…) or VTXO id (txid:vout)' : 'Search a transaction, address or block'}
             className="alice-field w-full font-numbers "
             style={{
               height: 46,
@@ -234,7 +270,7 @@ export function ExplorerOverviewTab({
             }}
           />
           {/* Live badge: what the pasted string was recognised as. */}
-          {(result.kind === 'tx' || result.kind === 'block' || result.kind === 'address' || result.kind === 'xpub') && (
+          {result.kind !== 'unknown' && (
             <span
               className="font-pixel tracking-widest absolute"
               style={{
@@ -292,12 +328,28 @@ export function ExplorerOverviewTab({
         onOpenAddress={onOpenAddress}
       />
 
-      {arkade ? (
+      {spark ? (
+        // Spark's own live layer: the network's newest transactions (from
+        // Sparkscan) and the operators' parameters. A wallet, a transfer or
+        // a leaf is reached through the search above.
+        <>
+          <SparkLiveFeed onOpenTx={id => onOpenTx(id, activeNetworkId)} />
+          <SparkOperatorsInfo />
+        </>
+      ) : arkade ? (
         // Arkade's own live layer: the settlements feed (each round opening its
         // on-chain transaction) and the service provider's parameters.
         <>
-          <ArkadeLiveSettlements apiBaseUrl={arkade.apiBaseUrl} onOpenTx={onOpenTx} />
+          <ArkadeLiveSettlements apiBaseUrl={arkade.apiBaseUrl} sync={arkade.sync} onOpenTx={onOpenTx} />
           <ArkadeAspInfo apiBaseUrl={arkade.apiBaseUrl} />
+        </>
+      ) : bark ? (
+        // Bark's own live layer: the rounds identified so far and as they
+        // happen (each opening its on-chain transaction), and the server's
+        // parameters. A coin is reached through the search above.
+        <>
+          <BarkLiveRounds serverUrl={bark.serverUrl} rounds={bark.rounds} sync={bark.sync} onOpenTx={onOpenTx} />
+          <BarkServerInfo serverUrl={bark.serverUrl} />
         </>
       ) : (
         // Curated history: famous transactions, milestone blocks and notorious
@@ -355,9 +407,13 @@ export function ExplorerOverviewTab({
           DATA SOURCE
         </span>
         <p className="font-numbers m-0" style={{ fontSize: 12.5, lineHeight: '18px', color: 'var(--alice-muted)' }}>
-          {arkade
-            ? 'Arkade settles on Bitcoin mainnet, so on-chain data comes from the same source as the Bitcoin view (mempool.space); off-chain VTXO data comes from the public Arkade gateway. Both servers can see which item is looked up and the network address it is requested from.'
-            : 'Blockchain data is fetched from mempool.space. That server can see which transaction is looked up and the network address it is requested from. Connecting a personal node is planned for a later version.'}
+          {spark
+            ? 'Spark settles on Bitcoin mainnet, so on-chain data (deposits, exits) comes from the same source as the Bitcoin view (mempool.space). Off-chain data (balances, leaves, transfers) is read from the Spark operators themselves (Lightspark, Breez, Flashnet), which answer about any wallet whose owner has not turned privacy on; the network feed and the token lines come from Sparkscan. Each of these servers can see which item is looked up and the network address it is requested from.'
+            : arkade
+            ? `Arkade settles on Bitcoin mainnet, so on-chain data comes from the same source as the Bitcoin view (mempool.space); off-chain VTXO data comes from the public Arkade gateway. Both servers can see which item is looked up and the network address it is requested from.${anchorsNote}`
+            : bark
+              ? `Bark settles on Bitcoin mainnet, so on-chain data comes from the same source as the Bitcoin view (mempool.space); the round events and parameters come from Second\u2019s public Bark server, which is also asked whether a transaction is a round. Both servers can see which item is looked up and the network address it is requested from. A Bark address is decoded on your device and never sent; your own coins open from the search, by VTXO id (looked up on the server) or by export (decoded on your device).${anchorsNote}`
+              : 'Blockchain data is fetched from mempool.space. That server can see which transaction is looked up and the network address it is requested from. Connecting a personal node is planned for a later version.'}
         </p>
         {/* The entity lookup is a second server, so it gets its own sentence: the
             bundled dataset alone never leaves the device, but the giant packs are

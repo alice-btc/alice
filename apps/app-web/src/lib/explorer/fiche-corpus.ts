@@ -6,6 +6,8 @@
 import type { KnowledgePack } from '@alice-wallet/alice-ai';
 import { disclaimerFor, ficheToKnowledgeChunk, ficheTranslationToChunk, type Fiche } from './fiche.ts';
 import { FICHE_FR } from './fiche-corpus.fr.ts';
+import { LAYER_FICHES } from './fiche-corpus-layers.ts';
+import { LAYER_FICHE_FR } from './fiche-corpus-layers.fr.ts';
 
 const CHECKED = '2026-08-13';
 
@@ -940,6 +942,8 @@ export const EXPLORER_FICHES: Fiche[] = [
   FICHE_2FA,
   FICHE_DISK_ENCRYPTION,
   FICHE_PHISHING,
+  // The off-chain layers (Spark, Arkade, Bark): what their Explorer pages show.
+  ...LAYER_FICHES,
 ];
 
 /** Look a Fiche up by id, for citation and guard evaluation. A retrieved chunk
@@ -964,14 +968,15 @@ export const EXPLORER_PACK_ID = 'explorer-privacy';
 export function buildExplorerKnowledgePack(): KnowledgePack {
   const chunks = EXPLORER_FICHES.flatMap(fiche => {
     const source = ficheToKnowledgeChunk(fiche);
-    const fr = FICHE_FR[fiche.id];
+    const fr = FICHE_FR[fiche.id] ?? LAYER_FICHE_FR[fiche.id];
     return fr
       ? [source, ficheTranslationToChunk(fiche, { locale: 'fr', ...fr })]
       : [source];
   });
   return {
     id: EXPLORER_PACK_ID,
-    version: '2',
+    // v3: the off-chain layer fiches joined the privacy corpus.
+    version: '3',
     language: 'multi',
     source: 'bundled',
     enabledByDefault: true,

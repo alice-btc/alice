@@ -1,9 +1,9 @@
 // The networks Explorer can explore. Bitcoin networks share the Esplora API,
 // so they only differ by base URL. Liquid (confidential amounts, multi-asset)
-// and Arkade (off-chain VTXOs via an ASP) need different data models, so they
-// are listed but not wired yet.
+// has its own Esplora; Arkade and Bark (off-chain VTXOs held with an Ark
+// server) settle on Bitcoin mainnet and add their own layer on top of it.
 
-export type NetworkKind = 'bitcoin' | 'liquid' | 'arkade';
+export type NetworkKind = 'bitcoin' | 'liquid' | 'arkade' | 'bark' | 'spark';
 
 export type Network = {
   id: string;
@@ -14,6 +14,9 @@ export type Network = {
   /** Arkade ASP (arkd) REST gateway base, for the off-chain commitment/VTXO
    *  data. Present only for the Arkade network, which has no block sequence. */
   arkApiUrl?: string;
+  /** Bark Ark server (captaind) base, answering gRPC-web. Present only for the
+   *  Bark network, which publishes parameters and live rounds, no index. */
+  barkServerUrl?: string;
   /** False until its provider exists; shown in the picker but not selectable. */
   available: boolean;
   /** One-line note for the unavailable ones. */
@@ -52,6 +55,25 @@ export const NETWORKS: Network[] = [
   {
     id: 'arkade', label: 'Arkade', kind: 'arkade', available: true, color: '#3d1ba5',
     arkApiUrl: 'https://arkade.computer',
+  },
+  // Bark is Second's Ark implementation, also settling on Bitcoin mainnet and
+  // reusing its provider like Arkade. Its server keeps no public index (no
+  // address lookup, no history), so the layer is thinner: the server's
+  // parameters, its live rounds, and Bark addresses decoded on the device.
+  {
+    id: 'bark', label: 'Bark', kind: 'bark', available: true,
+    // Bark's mark is the text colour itself: white on the dark themes, black on
+    // a light one, where every other network keeps a hue of its own.
+    color: 'var(--alice-text)',
+    barkServerUrl: 'https://ark.second.tech',
+  },
+  // Spark (Lightspark's statechain layer) settles on Bitcoin mainnet too and
+  // reuses its provider for the deposits and exits. Its off-chain side is
+  // read from the operators themselves (see lib/explorer/spark.ts), which
+  // answer anyone about any wallet not set to private, and the network feed
+  // from Sparkscan. The accent is Spark's own yellow.
+  {
+    id: 'spark', label: 'Spark', kind: 'spark', available: true, color: '#ffb300',
   },
   // Test networks, grouped apart from the production chains in the picker.
   { id: 'testnet4', label: 'Testnet4', kind: 'bitcoin', baseUrl: 'https://mempool.space/testnet4/api', available: true, color: '#3fa46a', isTest: true },

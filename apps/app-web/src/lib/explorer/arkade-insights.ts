@@ -29,6 +29,7 @@ export function virtualTxToNormalized(vtx: ArkadeVirtualTx, sourceBase: string):
       prevTxid: i.txid,
       prevVout: i.vout,
       valueSats: i.amountSats,
+      address: i.address,
       scriptType: 'p2tr',
       sequence: 0xffffffff,
       isCoinbase: false,
@@ -36,6 +37,7 @@ export function virtualTxToNormalized(vtx: ArkadeVirtualTx, sourceBase: string):
     outputs: vtx.outputs.map(o => ({
       index: o.index,
       valueSats: o.amountSats,
+      address: o.address,
       scriptType: o.isAnchor ? undefined : 'p2tr',
       spent: o.vtxo ? o.vtxo.isSpent || o.vtxo.isSwept : undefined,
     })),

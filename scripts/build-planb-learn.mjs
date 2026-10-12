@@ -4,8 +4,8 @@ import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
-// The PlanB corpus clone is maintainer-local and never ships with the repo,
-// same model as the Obsidian vault for build-obsidian-rag.js. Point
+// The PlanB corpus clone is maintainer-local and never ships with the repo.
+// Point
 // PLANB_CONTENT_ROOT at a clone of PlanB-Network/bitcoin-educational-content
 // (a sparse text-only clone is enough; media assets are never read).
 const CONTENT_ROOT = process.env.PLANB_CONTENT_ROOT;

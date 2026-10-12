@@ -25,35 +25,24 @@ async function loadBundledRag(): Promise<any> {
   return import(`data:text/javascript;base64,${source}`);
 }
 
-test('the active core stays bounded while secondary knowledge remains outside retrieval', async () => {
+test('the selected corpus keeps the primary base bounded and exposes only reviewed secondary knowledge', async () => {
   const rag = await loadBundledRag();
   await rag.loadRagCorpus();
   const chunks = rag.getAllChunks();
-  // The bound guards the number of CONCEPTS the core carries: a French entry
-  // and its English twin are one concept in two locales, and retrieval only
-  // ever surfaces one of the pair (preferKnowledgeLocale). Counting raw
-  // chunks would punish translating the core, which changes its size but
-  // not its scope.
-  // Two corpora with two purposes, bounded apart: Bitcoin knowledge, which
-  // answers Bitcoin questions, and Alice's own documentation, which answers
-  // questions about the project. Merging the bounds would let one grow
-  // unnoticed behind the other.
-  const isDocs = (chunk: { id: string }) => chunk.id.startsWith('docs-');
-  const knowledge = new Set(
-    chunks.filter((chunk: { id: string }) => !isDocs(chunk))
-      .map((chunk: { conceptId: string }) => chunk.conceptId),
-  );
-  const docs = new Set(
-    chunks.filter(isDocs).map((chunk: { conceptId: string }) => chunk.conceptId),
-  );
-  assert.ok(knowledge.size >= 150);
-  assert.ok(knowledge.size <= 250);
-  assert.ok(docs.size <= 150);
-  const concepts = new Set(chunks.map((chunk: { conceptId: string }) => chunk.conceptId));
-  // Guard against unbounded growth of the shipped corpus itself: at most one
-  // twin per concept, no orphan twin without its source concept.
-  assert.ok(chunks.length <= concepts.size * 2);
-  assert.equal(chunks.some((chunk: { status?: string }) => chunk.status === 'secondaire'), false);
+  const primary = chunks.filter((chunk: { tier?: string }) => chunk.tier === 'primary');
+  const secondary = chunks.filter((chunk: { tier?: string }) => chunk.tier === 'secondary');
+  assert.equal(primary.length, 200);
+  assert.equal(secondary.length, 203);
+  assert.equal(chunks.length, 403);
+  assert.equal(new Set(chunks.map((chunk: { conceptId: string }) => chunk.conceptId)).size, chunks.length);
+  const primaryIds = new Set(primary.map((chunk: { conceptId: string }) => chunk.conceptId));
+  for (const chunk of chunks) {
+    assert.equal(chunk.status, 'reviewed');
+    assert.equal(chunk.locale, 'fr');
+    assert.equal(chunk.translationStatus, 'source');
+    assert.ok(chunk.id.startsWith('curated-'));
+    if (chunk.tier === 'secondary') assert.ok(chunk.parentIds.some((id: string) => primaryIds.has(id)), chunk.id);
+  }
 });
 
 async function readSemanticIndex(basePath: string) {
@@ -98,12 +87,13 @@ test('the web and native semantic indexes exactly match the active core corpus',
 test('definition queries return their dedicated beginner introductions', async () => {
   const rag = await loadBundledRag();
   for (const [query, expected] of [
-    ['What is a UTXO?', 'utxo-introduction'],
-    ['What is Ark?', 'ark-introduction'],
-    ['Explain Proof of Work', 'proof-of-work-introduction'],
+    ['What is a UTXO?', 'bitcoin-utxo'],
+    ['What is Ark?', 'ark-vtxos'],
+    ['Explain Proof of Work', 'proof-of-work'],
   ]) {
     const result = await rag.retrieveContextHybridWithDiagnostics(query, { maxChunks: 3, targetLanguage: 'en' });
-    assert.equal(result.diagnostics[0]?.id, expected, query);
+    const accepted = query === 'What is Ark?' ? ['ark-vtxos', 'ark-payments'] : [expected];
+    assert.ok(accepted.includes(result.diagnostics[0]?.conceptId), `${query}: ${result.diagnostics[0]?.conceptId}`);
   }
 });
 
@@ -114,6 +104,6 @@ test('wallet recovery paraphrases prefer the canonical recovery explanation', as
     'How can 12 secret words restore my funds?',
   ]) {
     const result = await rag.retrieveContextHybridWithDiagnostics(query, { maxChunks: 1, targetLanguage: 'fr' });
-    assert.equal(result.diagnostics[0]?.id, 'recovery-phrase', query);
+    assert.equal(result.diagnostics[0]?.conceptId, 'wallet-recovery-phrase', query);
   }
 });

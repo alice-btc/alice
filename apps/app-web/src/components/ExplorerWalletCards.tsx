@@ -19,6 +19,7 @@ import {
 import { getPlaygroundAccountXpub } from '@/lib/playground';
 import { ExplorerQrScanner, decodeQrFromFile, qrDecodingSupported } from '@/components/ExplorerQrScanner';
 import { Analyzing, Badge, EmptyState, Skeleton } from '@/components/ExplorerUI';
+import { localVault } from '@/lib/local-vault';
 
 // Auto-name an unlabelled item "Wallet 1", "Wallet 2" (or "Address N"), one past
 // the highest number already used for that kind, so a new import is never just
@@ -206,7 +207,7 @@ export function ExplorerWalletCards({
   }, []);
 
   useEffect(() => {
-    setWallets(loadWallets());
+    localVault.whenReady(() => setWallets(loadWallets()));
     // The practice wallet's own card: reconciled on every visit, so it
     // appears when the wallet exists and leaves when it is deleted.
     void getPlaygroundAccountXpub()

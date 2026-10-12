@@ -3,7 +3,7 @@
 import { SvgIcon } from '@/components/SvgIcon';
 import { BACK_ICON, CLOSE_ICON } from '@/lib/atelier-icons';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { registerPack, useChat } from '@alice-wallet/alice-ai';
 import { buildExplorerKnowledgePack } from '@/lib/explorer/fiche-corpus';
 import { WorkspaceShell } from '@/components/WorkspaceShell';
@@ -13,7 +13,14 @@ import { ExplorerTxTab } from '@/components/ExplorerTxTab';
 import { ExplorerBlockTab } from '@/components/ExplorerBlockTab';
 import { ExplorerAddressTab } from '@/components/ExplorerAddressTab';
 import { ExplorerXpubTab } from '@/components/ExplorerXpubTab';
-import { ARKADE_ACCENT_SOFT, ExplorerArkadeAddressTab } from '@/components/ExplorerArkade';
+import { ARKADE_ACCENT, ARKADE_ACCENT_SOFT, ExplorerArkadeAddressTab, SettlementBadge } from '@/components/ExplorerArkade';
+import { BARK_ACCENT, BarkRoundBadge, ExplorerBarkAddressTab } from '@/components/ExplorerBark';
+import { ExplorerBarkVtxoTab } from '@/components/ExplorerBarkVtxo';
+import { ExplorerArkadeVtxoTab } from '@/components/ExplorerArkadeVtxo';
+import { ExplorerSparkAddressTab, SPARK_ACCENT, SparkTxBadge } from '@/components/ExplorerSpark';
+import { ExplorerSparkTxTab } from '@/components/ExplorerSparkTx';
+import { ExplorerSparkLeafTab } from '@/components/ExplorerSparkLeaf';
+import type { BlockMark } from '@/components/ExplorerBlockTab';
 import { ExplorerBlocks } from '@/components/ExplorerBlocks';
 import { ExplorerIntroModal, wasIntroDismissed } from '@/components/ExplorerIntroModal';
 import { AskAliceDock } from '@/components/AskAliceDock';
@@ -32,10 +39,17 @@ import { getSessionTabs, saveSessionTabs } from '@/lib/explorer/session-links';
 import { DEFAULT_NETWORK_ID, getNetwork } from '@/lib/explorer/networks';
 import { getDefaultNetworkId } from '@/lib/explorer/prefs';
 import { ASK_WIDTH_DEFAULT, clampAskWidth, loadAskWidth, saveAskWidth } from '@/lib/ask-width';
+import { askContextLabel, explorerPageNote } from '@/lib/explorer/ask-context';
 import { looksLikeArkadeAddress } from '@/lib/explorer/arkade';
+import { looksLikeSparkAddress } from '@/lib/explorer/spark';
+import { arkAddressFlavor } from '@/lib/explorer/bark';
 import { settlementRegistry } from '@/lib/explorer/arkade-onchain';
 import { useArkadeSettlements } from '@/lib/explorer/use-arkade-settlements';
+import { useBarkRounds } from '@/lib/explorer/use-bark-rounds';
+import { useSparkOnchain } from '@/lib/explorer/use-spark-onchain';
+import { sparkOnchainRegistry } from '@/lib/explorer/spark-onchain';
 import type { RibbonFocus } from '@/lib/explorer/types';
+import { localVault } from '@/lib/local-vault';
 
 const ASK_OPEN_KEY = 'alice.explorer.ask-open';
 
@@ -61,6 +75,9 @@ function ExplorerWorkspace() {
   // Arrival note from a Learn anchor: a dismissible strip naming what the
   // visitor is looking at and where they come from, with a way back.
   const [arrival, setArrival] = useState<{ label: string; origin: string } | null>(null);
+  // The vault's readiness, for the effects that read a store at mount.
+  const [vaultReady, setVaultReady] = useState(() => localVault.isReady);
+  useEffect(() => { localVault.whenReady(() => setVaultReady(true)); }, []);
   // The welcome dialog shows on every mount of the section until the user asks
   // not to see it again; decided after hydration since it reads localStorage.
   const [showIntro, setShowIntro] = useState(false);
@@ -90,6 +107,10 @@ function ExplorerWorkspace() {
     // opened.
     if (hydrated.current) return;
     ensureFichePack();
+    // The tabs rest encrypted: the vault decrypts them first.
+    let cancelled = false;
+    void localVault.ready().then(() => {
+    if (cancelled || hydrated.current) return;
     const stored = loadTabs();
     // A deep link from another surface (a Learn anchor, a Playground
     // transaction) opens its subject on top of whatever was restored.
@@ -127,6 +148,8 @@ function ExplorerWorkspace() {
     setShowIntro(!wasIntroDismissed());
     try { setAskOpen(window.localStorage.getItem(ASK_OPEN_KEY) === 'true'); } catch { /* default closed */ }
     setAskWidth(loadAskWidth());
+    });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -180,6 +203,7 @@ function ExplorerWorkspace() {
       return;
     }
     pendingRecordRef.current = false;
+    if (!vaultReady) return;
     const snap = getSessionTabs(activeSessionId);
     if (snap) {
       recordingRef.current = true;
@@ -189,7 +213,7 @@ function ExplorerWorkspace() {
     } else {
       recordingRef.current = false;
     }
-  }, [activeSessionId, tabs, active.id]);
+  }, [activeSessionId, tabs, active.id, vaultReady]);
 
   // While a linked session is active, keep its snapshot in step with the tabs.
   useEffect(() => {
@@ -211,8 +235,10 @@ function ExplorerWorkspace() {
   // (ribbon, blocks, transactions, addresses) comes from the very same
   // provider and caches as the Bitcoin network, so the two views can never
   // drift apart; switching networks only adds or removes the Arkade layer.
+  // Bark and Spark settle on Bitcoin mainnet the same way.
   function dataNetworkId(id: string): string {
-    return getNetwork(id).kind === 'arkade' ? DEFAULT_NETWORK_ID : id;
+    const kind = getNetwork(id).kind;
+    return kind === 'arkade' || kind === 'bark' || kind === 'spark' ? DEFAULT_NETWORK_ID : id;
   }
 
   // One provider per data network, cached, so switching back and forth is free.
@@ -269,9 +295,12 @@ function ExplorerWorkspace() {
   // Mutinynet, and the same wrong answer on every other test network. A
   // subject that knows its chain names it; everything else keeps following
   // the selector.
+  // Bark has no off-chain transaction to look up, so every transaction and
+  // block opened from its view is a Bitcoin one, and opens as such.
   function openTx(txid: string, onNetworkId?: string) {
+    const activeKind = getNetwork(activeNetworkId).kind;
     const networkId = onNetworkId
-      ?? (getNetwork(activeNetworkId).kind === 'arkade' && settlementRegistry.has(txid)
+      ?? ((activeKind === 'arkade' && settlementRegistry.has(txid)) || activeKind === 'bark'
         ? DEFAULT_NETWORK_ID
         : activeNetworkId);
     freshAskConversation('tx', txid);
@@ -282,14 +311,32 @@ function ExplorerWorkspace() {
 
   function openBlock(heightOrHash: string, onNetworkId?: string) {
     freshAskConversation('block', heightOrHash);
-    const tab = makeTab('block', heightOrHash, onNetworkId ?? activeNetworkId);
+    const tab = makeTab('block', heightOrHash, onNetworkId
+      ?? (getNetwork(activeNetworkId).kind === 'bark' ? DEFAULT_NETWORK_ID : activeNetworkId));
     setTabs(prev => addTab(prev, tab, activeId));
     setActiveId(tab.id);
   }
 
+  // An ark1… address belongs to the implementation its version names, whatever
+  // Ark network it was searched from; a spark1… address to Spark; an on-chain
+  // address searched from Bark is a Bitcoin subject.
   function openAddress(address: string, onNetworkId?: string) {
     freshAskConversation('address', address);
-    const tab = makeTab('address', address, onNetworkId ?? activeNetworkId);
+    const flavor = arkAddressFlavor(address) ?? (looksLikeSparkAddress(address) ? 'spark' : null);
+    const networkId = onNetworkId
+      ?? (flavor ?? (getNetwork(activeNetworkId).kind === 'bark' ? DEFAULT_NETWORK_ID : activeNetworkId));
+    const tab = makeTab('address', address, networkId);
+    setTabs(prev => addTab(prev, tab, activeId));
+    setActiveId(tab.id);
+  }
+
+  // A VTXO tab belongs to the network it was opened from (Bark by id or
+  // export, Arkade by id, Spark by leaf id); its label is derived in makeTab.
+  function openVtxo(query: string, onNetworkId?: string) {
+    freshAskConversation('vtxo', query);
+    const offChain = onNetworkId ? getNetwork(onNetworkId).kind : undefined;
+    const networkId = onNetworkId && (offChain === 'arkade' || offChain === 'spark') ? onNetworkId : 'bark';
+    const tab = makeTab('vtxo', query, networkId);
     setTabs(prev => addTab(prev, tab, activeId));
     setActiveId(tab.id);
   }
@@ -371,6 +418,9 @@ function ExplorerWorkspace() {
   // carrying a settlement highlighted in the network's accent.
   const activeNetwork = getNetwork(activeNetworkId);
   const isArkade = activeNetwork.kind === 'arkade';
+  const isBark = activeNetwork.kind === 'bark';
+  const isSpark = activeNetwork.kind === 'spark';
+  const barkServerUrl = getNetwork('bark').barkServerUrl;
 
   // Arkade settles on Bitcoin mainnet, so its settlements are mainnet facts:
   // the Bitcoin view marks them too (block header, pinned row, block map).
@@ -385,14 +435,20 @@ function ExplorerWorkspace() {
   // the active network sees that chain; the registry persists across sessions.
   const arkSettlements = useArkadeSettlements(onArkChain(activeNetworkId) ? provider : null, arkApiUrl);
 
-  // Settlements land every hour or two, so the chain tip alone rarely shows
-  // one: ask the ribbon to keep the window deep enough to cover the last few
-  // settlement blocks (the auto-paging is bounded on the ribbon side).
-  const arkEnsureHeight = useMemo(() => {
-    if (!isArkade) return undefined;
-    const sorted = [...arkSettlements.heights].sort((a, b) => b - a);
-    return sorted.length > 0 ? sorted[Math.min(2, sorted.length - 1)] : undefined;
-  }, [isArkade, arkSettlements.heights]);
+  // Bark rounds settle on mainnet the same way. The on-chain walk runs while
+  // the Bark network is explored; the Bitcoin view marks what the registry
+  // already knows, without a request per transaction.
+  const barkRounds = useBarkRounds(isBark ? provider : null, barkServerUrl);
+  function onBarkChain(id: string): boolean {
+    return getNetwork(id).kind === 'bark' || id === DEFAULT_NETWORK_ID;
+  }
+  const barkRoundsByHeight = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const s of barkRounds.byTxid.values()) {
+      if (s.height !== undefined) m.set(s.height, s.txid);
+    }
+    return m;
+  }, [barkRounds.byTxid]);
 
   // A transaction tab living on the Arkade network whose txid turns out to be
   // an on-chain settlement is re-homed to the Bitcoin network: the subject IS
@@ -422,6 +478,48 @@ function ExplorerWorkspace() {
     return m;
   }, [arkSettlements.byTxid]);
 
+  // The Spark deposits and exits this browser knows: a badge on their rows,
+  // in a block's list and an address's history, and nothing on the block or
+  // the ribbon. Deposits can sit in any block, so a block mark would say
+  // nothing; and no list of them is complete, so the badge reads "known".
+  const sparkOnchain = useSparkOnchain();
+  const sparkTxBadge = useCallback((txid: string) => {
+    const known = sparkOnchainRegistry.get(txid);
+    return known ? <SparkTxBadge kind={known.kind} /> : undefined;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the version is the registry's change counter
+  }, [sparkOnchain.version]);
+
+  // What the block view marks on the active tab's chain. Arkade settlements
+  // and Bark rounds both land on mainnet, so the Bitcoin view carries both;
+  // each Ark network carries its own.
+  const blockMarks = useMemo<BlockMark[]>(() => {
+    const kind = getNetwork(active.networkId).kind;
+    const onMainnet = active.networkId === DEFAULT_NETWORK_ID;
+    const marks: BlockMark[] = [];
+    if (kind === 'arkade' || onMainnet) {
+      marks.push({
+        txids: new Set(arkSettlements.byTxid.keys()), byHeight: arkSettlementsByHeight,
+        color: ARKADE_ACCENT, textColor: ARKADE_ACCENT_SOFT, label: 'Arkade commitment transaction',
+        badge: <SettlementBadge />, headerBadge: <SettlementBadge>BLOCK CONFIRMING THE ARKADE COMMITMENT TRANSACTION</SettlementBadge>,
+      });
+    }
+    if (kind === 'bark' || onMainnet) {
+      marks.push({
+        txids: new Set(barkRounds.byTxid.keys()), byHeight: barkRoundsByHeight,
+        color: BARK_ACCENT, textColor: BARK_ACCENT, label: 'Bark round',
+        badge: <BarkRoundBadge />, headerBadge: <BarkRoundBadge>BLOCK CONFIRMING A BARK ROUND</BarkRoundBadge>,
+      });
+    }
+    if (kind === 'spark' || onMainnet) {
+      marks.push({
+        txids: sparkOnchain.txids, byHeight: new Map(),
+        color: SPARK_ACCENT, textColor: SPARK_ACCENT, label: 'Spark deposit or exit',
+        badge: sparkTxBadge, headerBadge: null,
+      });
+    }
+    return marks;
+  }, [active.networkId, arkSettlements.byTxid, arkSettlementsByHeight, barkRounds.byTxid, barkRoundsByHeight, sparkOnchain.txids, sparkTxBadge]);
+
   // Every tab kind renders inside one shared scroll container, so a freshly
   // opened (or switched-to) tab must start at the top, not wherever the
   // previous tab left the scroll.
@@ -449,8 +547,17 @@ function ExplorerWorkspace() {
           highlight={isArkade ? {
             heights: arkSettlements.heights,
             color: activeNetwork.color,
-            textColor: ARKADE_ACCENT_SOFT,
-            ensureHeight: arkEnsureHeight,
+            onColor: '#ffffff',
+            name: 'Arkade',
+            subject: 'an Arkade commitment transaction',
+            busy: arkSettlements.sync.catchingUp,
+          } : isBark ? {
+            heights: barkRounds.heights,
+            color: activeNetwork.color,
+            onColor: 'var(--alice-bg)',
+            name: 'Bark',
+            subject: 'a Bark round',
+            busy: barkRounds.sync.catchingUp,
           } : undefined}
         />
       </div>
@@ -522,22 +629,43 @@ function ExplorerWorkspace() {
               onOpenBlock={openBlock}
               onOpenAddress={openAddress}
               onOpenXpub={openXpub}
-              arkade={isArkade && activeNetwork.arkApiUrl ? { apiBaseUrl: activeNetwork.arkApiUrl } : undefined}
+              onOpenVtxo={query => openVtxo(query, activeNetworkId)}
+              arkade={isArkade && activeNetwork.arkApiUrl ? { apiBaseUrl: activeNetwork.arkApiUrl, sync: arkSettlements.sync } : undefined}
+              bark={isBark && barkServerUrl ? { serverUrl: barkServerUrl, rounds: barkRounds.byTxid, sync: barkRounds.sync } : undefined}
+              spark={isSpark}
             />
           </div>
         )}
         {active.kind === 'tx' && active.query && (
           <div className="max-w-3xl mx-auto flex flex-col gap-6 px-5 pt-6 pb-8">
-            <ExplorerTxTab
-              txid={active.query}
-              provider={provider}
-              onOpenTx={openTx}
-              onOpenAddress={openAddress}
-              onFocus={(f) => setFocusByTab(m => ({ ...m, [active.id]: f }))}
-              onSignals={publishTabContext}
-              arkadeApiUrl={onArkChain(active.networkId) ? arkApiUrl : undefined}
-              arkadeProbeKnownOnly={getNetwork(active.networkId).kind !== 'arkade'}
-            />
+            {/* On Spark, a transaction id is a transfer or a leaf (a UUID) read
+                from the operators, or a token transaction read from Sparkscan;
+                a Bitcoin txid is offered to the Bitcoin network. */}
+            {getNetwork(active.networkId).kind === 'spark' ? (
+              <ExplorerSparkTxTab
+                id={active.query}
+                provider={provider}
+                onOpenTx={openTx}
+                onOpenAddress={openAddress}
+                onOpenLeaf={id => openVtxo(id, active.networkId)}
+                onSignals={publishTabContext}
+              />
+            ) : (
+              <ExplorerTxTab
+                txid={active.query}
+                provider={provider}
+                onOpenTx={openTx}
+                onOpenAddress={openAddress}
+                onFocus={(f) => setFocusByTab(m => ({ ...m, [active.id]: f }))}
+                onSignals={publishTabContext}
+                arkadeApiUrl={onArkChain(active.networkId) ? arkApiUrl : undefined}
+                arkadeProbeKnownOnly={getNetwork(active.networkId).kind !== 'arkade'}
+                bark={onBarkChain(active.networkId) && barkServerUrl
+                  ? { serverUrl: barkServerUrl, probeKnownOnly: getNetwork(active.networkId).kind !== 'bark' }
+                  : undefined}
+                onOpenVtxo={openVtxo}
+              />
+            )}
           </div>
         )}
         {active.kind === 'block' && active.query && (
@@ -547,20 +675,36 @@ function ExplorerWorkspace() {
               provider={provider}
               onOpenTx={openTx}
               onSignals={publishTabContext}
-              settlementTxids={onArkChain(active.networkId) ? new Set(arkSettlements.byTxid.keys()) : undefined}
-              settlementsByHeight={onArkChain(active.networkId) ? arkSettlementsByHeight : undefined}
+              marks={blockMarks}
             />
           </div>
         )}
         {active.kind === 'address' && active.query && (
           <div className="max-w-3xl mx-auto flex flex-col gap-6 px-5 pt-6 pb-8">
-            {/* An ark1… address is an off-chain (VTXO) subject: it opens the
-                Arkade address view; any on-chain address gets the regular tab. */}
-            {looksLikeArkadeAddress(active.query) && getNetwork(active.networkId).arkApiUrl ? (
+            {/* An ark1… address is an off-chain (VTXO) subject: a Bark one opens
+                the Bark address view, an Arkade one the Arkade view; a spark1…
+                address the Spark view; any on-chain address gets the regular
+                tab. */}
+            {looksLikeSparkAddress(active.query) ? (
+              <ExplorerSparkAddressTab
+                address={active.query}
+                onOpenTx={id => openTx(id, 'spark')}
+                onOpenLeaf={id => openVtxo(id, 'spark')}
+                onSignals={publishTabContext}
+              />
+            ) : arkAddressFlavor(active.query) === 'bark' && getNetwork('bark').barkServerUrl ? (
+              <ExplorerBarkAddressTab
+                serverUrl={getNetwork('bark').barkServerUrl!}
+                address={active.query}
+                onSignals={publishTabContext}
+              />
+            ) : looksLikeArkadeAddress(active.query) && getNetwork(active.networkId).arkApiUrl ? (
               <ExplorerArkadeAddressTab
                 apiBaseUrl={getNetwork(active.networkId).arkApiUrl!}
                 address={active.query}
                 onOpenTx={openTx}
+                onOpenVtxo={id => openVtxo(id, active.networkId)}
+                onSignals={publishTabContext}
               />
             ) : (
               <ExplorerAddressTab
@@ -571,8 +715,38 @@ function ExplorerWorkspace() {
                 onSignals={publishTabContext}
                 confidentialAmounts={getNetwork(active.networkId).kind === 'liquid'}
                 remoteEntities={active.networkId === 'mainnet'}
+                txBadge={active.networkId === DEFAULT_NETWORK_ID ? sparkTxBadge : undefined}
               />
             )}
+          </div>
+        )}
+        {active.kind === 'vtxo' && active.query && (
+          <div className="max-w-3xl mx-auto flex flex-col gap-6 px-5 pt-6 pb-8">
+            {getNetwork(active.networkId).kind === 'arkade' && getNetwork(active.networkId).arkApiUrl ? (
+              <ExplorerArkadeVtxoTab
+                apiBaseUrl={getNetwork(active.networkId).arkApiUrl!}
+                query={active.query}
+                onOpenTx={openTx}
+                onOpenAddress={openAddress}
+                onSignals={publishTabContext}
+              />
+            ) : getNetwork(active.networkId).kind === 'spark' ? (
+              <ExplorerSparkLeafTab
+                leafId={active.query}
+                provider={providerFor(DEFAULT_NETWORK_ID)}
+                onOpenTx={openTx}
+                onOpenAddress={openAddress}
+                onSignals={publishTabContext}
+              />
+            ) : barkServerUrl ? (
+              <ExplorerBarkVtxoTab
+                serverUrl={barkServerUrl}
+                provider={providerFor(DEFAULT_NETWORK_ID)}
+                query={active.query}
+                onOpenTx={openTx}
+                onSignals={publishTabContext}
+              />
+            ) : null}
           </div>
         )}
         {active.kind === 'xpub' && active.query && (
@@ -615,17 +789,11 @@ function ExplorerWorkspace() {
               signals={signalsByTab[active.id] ?? []}
               fullContext={fullByTab[active.id] ?? null}
               contextId={active.id}
-              contextLabel={
-                // A short, human-readable name for the attachment. Displayed
-                // locally only, never part of what is sent: a txid or address
-                // keeps its last five characters, enough for a human to
-                // recognise it; a block height is harmless in full (thousands
-                // of transactions share it).
-                active.kind === 'tx' && active.query ? `Transaction ...${active.query.slice(-5)}`
-                  : active.kind === 'address' && active.query ? `Address ...${active.query.slice(-5)}`
-                    : active.kind === 'block' && active.query ? `Block ${active.query}`
-                      : 'This page'
-              }
+              // The chip's short name (shown locally, never sent) and the
+              // identity-free sentence naming the page (sent in the
+              // de-identified block): see ask-context.ts.
+              contextLabel={askContextLabel(active.kind, active.query, activeNetwork.kind)}
+              pageNote={explorerPageNote(active.kind, activeNetwork)}
               onActivity={recordConversationActivity}
               onClose={() => setAskOpen(false)}
             />

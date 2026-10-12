@@ -6,9 +6,7 @@ import { VeniceAPIError, type Message } from './llm';
 import { quotaBlockOf } from './venice-errors';
 import { createBackend, canUseLocal, isTauriDesktop } from './ai-backend-factory';
 import { generateLanguageChecked, WrongResponseLanguageError } from './language-generation';
-import { buildRagTurnContext, isTechnicalRagQuery } from './rag';
-import { knowledgeContextCharLimit } from './knowledge-context-budget';
-import { ragQueryChunkBudget } from './rag-query-policy';
+import { retrieveTurnKnowledge } from './turn-knowledge';
 import { pedagogicalContext, recordPedagogicalSignal } from './pedagogical-profile';
 import {
   ALICE_MEMORY_CAPTURE_INSTRUCTION,
@@ -57,10 +55,6 @@ import {
 
 const BACKEND_KEY = 'alice_ai_backend';
 
-function ragChunkLimit(backendType: AIBackendType, userMessage: string): number {
-  return ragQueryChunkBudget(userMessage, backendType === 'local', () => isTechnicalRagQuery(userMessage));
-}
-
 async function buildGenerationHistory(
   history: Message[],
   userMessage: string,
@@ -97,11 +91,7 @@ async function buildGenerationHistory(
     assistantHistoryDropped,
   }, {
     recordPedagogicalSignal,
-    retrieveKnowledge: query => buildRagTurnContext(query, storageCipher, {
-      maxChunks: ragChunkLimit(backendType, query),
-      maxContextChars: knowledgeContextCharLimit(backendType === 'local'),
-      targetLanguage,
-    }),
+    retrieveKnowledge: query => retrieveTurnKnowledge(query, backendType, targetLanguage, storageCipher),
     getMemory: getAliceMemory,
     rememberMemoryCandidates: rememberAliceCandidates,
     pedagogicalContext,

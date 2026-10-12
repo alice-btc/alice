@@ -6,6 +6,8 @@
 // An xpub does reveal every address of a wallet, so this is still sensitive:
 // it lives only on the user's device, like the rest of Explorer's state.
 
+import { localVault } from '../local-vault.ts';
+
 const KEY = 'alice_explorer_wallets';
 
 /** A cached headline of the last scan, for the card. */
@@ -62,8 +64,8 @@ function isSavedWallet(v: unknown): v is Omit<SavedWallet, 'kind'> & { kind?: un
 /** Every saved item, oldest first. Tolerant of a corrupt store (returns []).
  *  Older entries without a `kind` are read as whole wallets. */
 export function loadWallets(): SavedWallet[] {
-  if (typeof localStorage === 'undefined') return [];
-  const raw = localStorage.getItem(KEY);
+  if (typeof window === 'undefined') return [];
+  const raw = localVault.getItem(KEY);
   if (!raw) return [];
   try {
     const parsed: unknown = JSON.parse(raw);
@@ -78,8 +80,8 @@ export function loadWallets(): SavedWallet[] {
 }
 
 function persist(wallets: SavedWallet[]): void {
-  if (typeof localStorage === 'undefined') return;
-  localStorage.setItem(KEY, JSON.stringify(wallets));
+  if (typeof window === 'undefined') return;
+  localVault.setItem(KEY, JSON.stringify(wallets));
 }
 
 /** Add a wallet or address (deduping on input+network), returning the full list. */

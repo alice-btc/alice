@@ -4,21 +4,22 @@
 // absent override falls back to the network's built-in default.
 
 import { getNetwork, NETWORKS, type Network } from './networks.ts';
+import { localVault } from '../local-vault.ts';
 
 const KEY_PREFIX = 'alice_explorer_node_';
 
 /** The stored override for a network, or '' when none is set. Pure read. */
 export function getNodeOverride(networkId: string): string {
-  if (typeof localStorage === 'undefined') return '';
-  return (localStorage.getItem(KEY_PREFIX + networkId) ?? '').trim();
+  if (typeof window === 'undefined') return '';
+  return (localVault.getItem(KEY_PREFIX + networkId) ?? '').trim();
 }
 
 /** Persist an override; an empty value clears it (back to the default). */
 export function setNodeOverride(networkId: string, url: string): void {
-  if (typeof localStorage === 'undefined') return;
+  if (typeof window === 'undefined') return;
   const clean = url.trim().replace(/\/$/, '');
-  if (clean) localStorage.setItem(KEY_PREFIX + networkId, clean);
-  else localStorage.removeItem(KEY_PREFIX + networkId);
+  if (clean) localVault.setItem(KEY_PREFIX + networkId, clean);
+  else localVault.removeItem(KEY_PREFIX + networkId);
 }
 
 /** The endpoint a network should actually talk to: override first, else default. */

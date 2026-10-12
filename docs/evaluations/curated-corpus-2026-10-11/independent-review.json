@@ -1,0 +1,451 @@
+{
+  "date": "2026-10-11",
+  "mode": "read_only_independent_replay",
+  "source_hashes_at_probe": {
+    "rag.ts": "744510b5fdc1056f02bd90ebb210f0fe867bb586b11f5545905c2e9d5ff3db64",
+    "curated-retrieval.ts": "5f742ecc45eab58012f89d1c4ff1fee2d1d2a7babdc99d88d56231fd30716e99",
+    "knowledge-packs.ts": "c669e94751681d41b738791caa60c3edb0ba5558f59875b1f8ca0d7d9bc06a88"
+  },
+  "source_hashes_at_completion": {
+    "rag.ts": "744510b5fdc1056f02bd90ebb210f0fe867bb586b11f5545905c2e9d5ff3db64",
+    "curated-retrieval.ts": "a46ef1a22bdf22637b37eb365fd125135b4a093e914038f14abc1ab6aa2406f6",
+    "turn-knowledge.ts": "6b545f5ea654a4508bcef08c124f4af5b98c3844923bf5500795e3e37d76ccf3",
+    "chat-context.tsx": "6de4d5dc177afca0ab6f17442f88e24b287a8e2f4fa8c7812b7535d55a89a2f2"
+  },
+  "same_sources_at_completion": true,
+  "method": "Rejeu exact des 10 questions supplémentaires et contretests de la première revue, par scripts/rag-eval-runtime.mjs. Hors ligne, aucune génération, aucun modèle téléchargé. Ajout de 3 variantes pour vérifier les nouvelles gardes et de contrôles positif/négatif du pack téléchargé. Aucun code du dépôt ni fixture modifié.",
+  "results": [
+    {
+      "id": "R1",
+      "status": "fixed_in_replay",
+      "test": "Pack bundled exclu partageant un identifiant curated",
+      "observed": [],
+      "expected": "Aucun contenu du pack exclu"
+    },
+    {
+      "id": "R2",
+      "status": "fixed_in_replay",
+      "test": "Pack téléchargé tier primary mais sans identité explicite",
+      "observed": [],
+      "expected": "Aucun contenu du pack externe sur seul mot présent dans le corps"
+    },
+    {
+      "id": "R3",
+      "status": "fixed_in_replay",
+      "test": "ETF anglais",
+      "observed": {
+        "question": "Does a Bitcoin ETF let me withdraw coins to my own wallet?",
+        "lang": "en",
+        "found": [
+          {
+            "id": "curated-paper-bitcoin",
+            "conceptId": "paper-bitcoin",
+            "locale": "fr",
+            "sourceLocale": "fr",
+            "translationStatus": "source",
+            "tier": "primary",
+            "retrievalReason": "primary-topic",
+            "retrievalScore": 1
+          }
+        ],
+        "contextChars": 1845
+      },
+      "expected": "paper-bitcoin"
+    },
+    {
+      "id": "R4",
+      "status": "fixed_in_replay",
+      "test": "Montant personnel disponible en sats, anglais",
+      "observed": {
+        "question": "How many sats are available in my wallet right now?",
+        "lang": "en",
+        "found": [],
+        "contextChars": 0
+      },
+      "expected": "Aucune source documentaire prétendant fournir la donnée personnelle"
+    },
+    {
+      "id": "R5",
+      "status": "fixed_in_targeted_final_replay",
+      "test": "Pertinence sémantique hors domaine",
+      "original_compote_probe": [],
+      "additional_probes": [
+        {
+          "q": "Comment préserver la confidentialité en utilisant Tor ?",
+          "lexical": [
+            "tor-browser"
+          ],
+          "semantic": [
+            "tor-browser",
+            "bitcoin-utxo"
+          ]
+        },
+        {
+          "q": "Je voudrais une recette de compote de pommes pour une conférence Bitcoin.",
+          "lexical": [],
+          "semantic": [
+            "bitcoin-utxo"
+          ]
+        }
+      ],
+      "remaining": null,
+      "qualification": "Les 2 contretests encore défaillants passent avec le voisin UTXO simulé à0.99 ; cela ne remplace pas une évaluation réelle du modèle sémantique.",
+      "prior_status": "partially_fixed",
+      "last_observed": [
+        {
+          "q": "Comment préserver la confidentialité en utilisant Tor ?",
+          "lexical": [
+            "tor-browser"
+          ],
+          "semantic": [
+            "tor-browser"
+          ]
+        },
+        {
+          "q": "Je voudrais une recette de compote de pommes pour une conférence Bitcoin.",
+          "lexical": [],
+          "semantic": []
+        }
+      ]
+    },
+    {
+      "id": "R6",
+      "status": "still_present_custom_budget_only",
+      "test": "Budget parent et secondaire",
+      "observed": {
+        "primaryMax": 2232,
+        "rows": [
+          {
+            "q": "Comment recevoir plusieurs paiements sans réutiliser une adresse ?",
+            "budget": 1600,
+            "selected": [
+              {
+                "id": "curated-address-reuse",
+                "len": 1121,
+                "tier": "primary"
+              },
+              {
+                "id": "curated-secondary-privacy-bip47-reusable-payment-codes",
+                "len": 612,
+                "tier": "secondary"
+              }
+            ],
+            "fitted": [
+              {
+                "id": "curated-secondary-privacy-bip47-reusable-payment-codes",
+                "conceptId": "secondary-privacy-bip47-reusable-payment-codes",
+                "locale": "fr",
+                "sourceLocale": "fr",
+                "translationStatus": "source",
+                "tier": "secondary",
+                "retrievalReason": "secondary-parent-detail",
+                "retrievalScore": 69.825
+              }
+            ]
+          }
+        ]
+      },
+      "remaining": "À 1600 caractères, address-reuse supprimée et secondaire BIP47 conservée. Non observé aux budgets examinés 2500/4000/6000 ni attendu à 12000 puisque tous les chunks sélectionnés tiennent."
+    }
+  ],
+  "new_finding": {
+    "id": "R7",
+    "priority": "P2",
+    "title": "L’ancre ETF retire le second sujet d’une comparaison",
+    "file": "packages/alice-ai/src/curated-retrieval.ts",
+    "evidence": {
+      "q": "Quelle différence entre un ETF Bitcoin et un hardware wallet ?",
+      "lexical": [
+        "paper-bitcoin"
+      ],
+      "semantic": [
+        "paper-bitcoin"
+      ]
+    },
+    "expected": "La comparaison doit conserver une source hardware-wallet en plus de paper-bitcoin, ou une fiche comparative couvrant les 2.",
+    "cause": "La branche ancre ETF retourne immédiatement paper-bitcoin avant la logique de comparaison.",
+    "status": "fixed_in_targeted_final_replay",
+    "last_observed": {
+      "q": "Quelle différence entre un ETF Bitcoin et un hardware wallet ?",
+      "lexical": [
+        "paper-bitcoin",
+        "hardware-wallet"
+      ],
+      "semantic": [
+        "paper-bitcoin",
+        "hardware-wallet"
+      ]
+    }
+  },
+  "holdouts": [
+    {
+      "question": "Une phrase de récupération suffit-elle si j’ai aussi défini une passphrase ?",
+      "lang": "fr",
+      "found": [
+        {
+          "id": "curated-bitcoin-seed",
+          "conceptId": "bitcoin-seed",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 15.694
+        },
+        {
+          "id": "curated-wallet-recovery-phrase",
+          "conceptId": "wallet-recovery-phrase",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 14.841
+        },
+        {
+          "id": "curated-bip39-passphrase",
+          "conceptId": "bip39-passphrase",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 14.175
+        }
+      ],
+      "contextChars": 4009
+    },
+    {
+      "question": "What is self custody?",
+      "lang": "en",
+      "found": [
+        {
+          "id": "curated-self-custody",
+          "conceptId": "self-custody",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 28.202
+        }
+      ],
+      "contextChars": 1662
+    },
+    {
+      "question": "Can I restore a watch-only wallet and spend my coins?",
+      "lang": "en",
+      "found": [
+        {
+          "id": "curated-watch-only-wallet",
+          "conceptId": "watch-only-wallet",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 26.913
+        }
+      ],
+      "contextChars": 1612
+    },
+    {
+      "question": "Pourquoi un paiement vers une mauvaise adresse ne peut-il pas être annulé par le support ?",
+      "lang": "fr",
+      "found": [
+        {
+          "id": "curated-bitcoin-finality",
+          "conceptId": "bitcoin-finality",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 1
+        }
+      ],
+      "contextChars": 1583
+    },
+    {
+      "question": "Does a Bitcoin ETF let me withdraw coins to my own wallet?",
+      "lang": "en",
+      "found": [
+        {
+          "id": "curated-paper-bitcoin",
+          "conceptId": "paper-bitcoin",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 1
+        }
+      ],
+      "contextChars": 1845
+    },
+    {
+      "question": "Quelle différence entre une clé publique et une adresse de réception ?",
+      "lang": "fr",
+      "found": [
+        {
+          "id": "curated-bitcoin-public-key",
+          "conceptId": "bitcoin-public-key",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 86.006
+        },
+        {
+          "id": "curated-bitcoin-address",
+          "conceptId": "bitcoin-address",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 54.511
+        }
+      ],
+      "contextChars": 2884
+    },
+    {
+      "question": "Why did my Lightning invoice expire before I paid it?",
+      "lang": "en",
+      "found": [
+        {
+          "id": "curated-lightning-invoice",
+          "conceptId": "lightning-invoice",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 7.049
+        }
+      ],
+      "contextChars": 1775
+    },
+    {
+      "question": "Explique la pâte à crêpes sans lait.",
+      "lang": "fr",
+      "found": [],
+      "contextChars": 0
+    },
+    {
+      "question": "How many sats are available in my wallet right now?",
+      "lang": "en",
+      "found": [],
+      "contextChars": 0
+    },
+    {
+      "question": "Mon portefeuille affiche 0 BTC après restauration, comment chercher les adresses utilisées ?",
+      "lang": "fr",
+      "found": [
+        {
+          "id": "curated-hd-wallet",
+          "conceptId": "hd-wallet",
+          "locale": "fr",
+          "sourceLocale": "fr",
+          "translationStatus": "source",
+          "tier": "primary",
+          "retrievalReason": "primary-topic",
+          "retrievalScore": 12.738
+        }
+      ],
+      "contextChars": 1634
+    }
+  ],
+  "holdout_assessment": {
+    "count": 10,
+    "relevance": "Les 10 réponses de retrieval sont maintenant cohérentes avec le besoin ; absence de preuve de complétude de la réponse générée.",
+    "improvements": [
+      "ETF correctement routé",
+      "Solde personnel non servi par faucet",
+      "PBKDF2 parasite retiré",
+      "Finalité retrouvée pour annulation",
+      "Comparaison clé publique/adresse retrouve les 2 concepts"
+    ],
+    "remaining_soft_limits": [
+      "La récupération avec passphrase sélectionne 3 primaires ; pas de secondaire parasite.",
+      "La restauration avec solde nul ne retrouve que hd-wallet ; le diagnostic détaillé de récupération n’est pas prouvé par cette sélection seule."
+    ]
+  },
+  "downloaded_pack_controls": {
+    "enabled_explicit_topic": [
+      {
+        "id": "independent-banana-guide",
+        "retrievalReason": "downloaded-explicit-topic",
+        "retrievalScore": 38.636
+      }
+    ],
+    "disabled": [],
+    "passed": true
+  },
+  "unchanged_observation": {
+    "topic": "Erreur de chargement du corpus",
+    "detail": "loadRagCorpus intercepte toujours l’erreur sans diagnostic exposé ; observation statique, non testée par panne injectée."
+  },
+  "limits": [
+    "R6 subsiste au budget personnalisé1600 ; les budgets production6000/12000 restent la référence.",
+    "La sélection des notes ne mesure pas la qualité factuelle des réponses finales.",
+    "Les scores sémantiques de contretest sont simulés ; pas de modèle E5 réel lancé.",
+    "L’observation de chargement silencieux reste une remarque statique non testée par panne injectée."
+  ],
+  "artifacts": [
+    "<tmp>/alice-independent-probe-final.json",
+    "<tmp>/alice-independent-budget-final.json",
+    "<tmp>/alice-independent-additional-final.json"
+  ],
+  "targeted_final_replay": {
+    "scope": "Seulement les 3 reproductions restantes, plus cold-start ; les 10 holdouts précédents ne sont pas rejoués.",
+    "source_hashes": {
+      "rag.ts": "744510b5fdc1056f02bd90ebb210f0fe867bb586b11f5545905c2e9d5ff3db64",
+      "curated-retrieval.ts": "a46ef1a22bdf22637b37eb365fd125135b4a093e914038f14abc1ab6aa2406f6",
+      "turn-knowledge.ts": "6b545f5ea654a4508bcef08c124f4af5b98c3844923bf5500795e3e37d76ccf3",
+      "chat-context.tsx": "6de4d5dc177afca0ab6f17442f88e24b287a8e2f4fa8c7812b7535d55a89a2f2"
+    },
+    "results": [
+      {
+        "q": "Comment préserver la confidentialité en utilisant Tor ?",
+        "lexical": [
+          "tor-browser"
+        ],
+        "semantic": [
+          "tor-browser"
+        ]
+      },
+      {
+        "q": "Je voudrais une recette de compote de pommes pour une conférence Bitcoin.",
+        "lexical": [],
+        "semantic": []
+      },
+      {
+        "q": "Quelle différence entre un ETF Bitcoin et un hardware wallet ?",
+        "lexical": [
+          "paper-bitcoin",
+          "hardware-wallet"
+        ],
+        "semantic": [
+          "paper-bitcoin",
+          "hardware-wallet"
+        ]
+      }
+    ],
+    "passed": 3,
+    "failed": 0,
+    "cold_start": {
+      "command": "node --test packages/alice-ai/src/turn-knowledge.test.ts",
+      "passed": 3,
+      "failed": 0,
+      "cases": [
+        "1er tour local spécialiste retrouve primaire+Splicing sous6000caractères",
+        "1er tour introduction reste1primaire",
+        "Demande solde live interceptée avant retrieval/chargement"
+      ],
+      "static_integration_verified": "chat-context.tsx utilise retrieveTurnKnowledge ; turn-knowledge.ts attend loadRagCorpus avant ragQueryChunkBudget et isTechnicalRagQuery.",
+      "warning": "Avertissement Node MODULE_TYPELESS_PACKAGE_JSON uniquement ; aucune erreur de test."
+    }
+  }
+}

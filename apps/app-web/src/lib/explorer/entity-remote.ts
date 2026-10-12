@@ -32,6 +32,12 @@ function proxyBase(): string {
   return (process.env.EXPO_PUBLIC_VENICE_PROXY_URL ?? '').replace(/\/+$/, '');
 }
 
+/** Alice's Worker base URL, for the other public Explorer routes it serves
+ *  (the settlement anchors). Empty when no proxy is configured. */
+export function proxyBaseUrl(): string {
+  return proxyBase();
+}
+
 /** True when a remote lookup can run at all (a proxy is configured). */
 export function remoteEntitiesConfigured(): boolean {
   return proxyBase().length > 0;

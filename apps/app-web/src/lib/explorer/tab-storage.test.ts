@@ -10,7 +10,7 @@ describe('pendingOpenFromUrl', () => {
     assert.equal(pending?.kind, 'tx');
     assert.equal(pending?.query, TXID);
     assert.equal(pending?.networkId, 'mainnet');
-    assert.equal(pending?.note?.origin, 'Alice Wallet');
+    assert.equal(pending?.note, undefined, 'no arrival banner for a link');
   });
 
   it('falls back to the default network when the network is unknown', () => {

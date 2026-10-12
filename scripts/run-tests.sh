@@ -8,11 +8,13 @@ trap 'rm -f "$LIST" "$REGULAR_LIST"' EXIT
 
 cd "$ROOT"
 node scripts/check-release-version.mjs
+node scripts/build-curated-rag.mjs --check
 {
   find packages -type f -name '*.test.ts' -print0
   find apps/venice-proxy-worker/src -type f -name '*.test.ts' -print0
   find apps/app-web/src -type f -name '*.test.ts' -print0
   find apps/wallet-mobile -maxdepth 1 -type f -name '*.test.ts' -print0
+  find scripts -maxdepth 1 -type f -name 'build-curated-rag.test.mjs' -print0
 } > "$LIST"
 
 COUNT="$(tr -cd '\0' < "$LIST" | wc -c | tr -d ' ')"
@@ -34,6 +36,7 @@ done < <(find apps/venice-proxy-worker/src -type f -name '*.test.ts' | sort)
   find packages -type f -name '*.test.ts' -print0
   find apps/app-web/src -type f -name '*.test.ts' -print0
   find apps/wallet-mobile -maxdepth 1 -type f -name '*.test.ts' -print0
+  find scripts -maxdepth 1 -type f -name 'build-curated-rag.test.mjs' -print0
 } > "$REGULAR_LIST"
 xargs -0 -n 10 node --test --test-concurrency=4 < "$REGULAR_LIST"
 echo "Completed $COUNT/$COUNT test files."

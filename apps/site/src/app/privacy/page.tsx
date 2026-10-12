@@ -52,9 +52,11 @@ const inApp: { title: string; detail: React.ReactNode }[] = [
     title: 'What Alice remembers about you',
     detail: (
       <>
-        The memory that personalizes her answers is stored on your device, encrypted in the phone
-        and desktop apps, in browser storage on the web, and “What Alice remembers” lets you
-        inspect and erase it anytime.
+        The memory that personalizes her answers is stored on your device and rests encrypted
+        there: with the phone’s secure storage, with a key the desktop app keeps in your system
+        keychain, or, on the web, with a key your browser keeps and never hands out. The same goes
+        for your conversations, your Explorer tabs and saved wallets, and your Playground wallet.
+        “What Alice remembers” lets you inspect and erase the memory anytime.
         When you use Private Cloud, the relevant memory travels inside the same end-to-end
         encrypted envelope as your messages, readable only by the attested enclave, never by us.
         The{' '}

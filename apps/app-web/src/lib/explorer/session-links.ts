@@ -5,6 +5,7 @@
 // session opens without tabs.
 
 import type { Tab } from './tabs.ts';
+import { localVault } from '../local-vault.ts';
 
 const KEY = 'explorer.session-tabs.v1';
 const MAX_ENTRIES = 60;
@@ -14,7 +15,7 @@ type Entry = { tabs: Tab[]; activeId: string; at: number };
 function loadAll(): Record<string, Entry> {
   if (typeof window === 'undefined') return {};
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = localVault.getItem(KEY);
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== 'object' || parsed === null) return {};
@@ -27,7 +28,7 @@ function loadAll(): Record<string, Entry> {
 function persist(all: Record<string, Entry>): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(all));
+    localVault.setItem(KEY, JSON.stringify(all));
   } catch {
     // Storage full or unavailable: the link is a nicety, not essential.
   }

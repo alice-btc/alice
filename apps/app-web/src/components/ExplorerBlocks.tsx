@@ -1,7 +1,7 @@
 'use client';
 
 import { SvgIcon } from '@/components/SvgIcon';
-import { REFRESH_ICON, BACK_ICON, RECEIVE_ICON } from '@/lib/atelier-icons';
+import { SWAP_ICON, BACK_ICON, RECEIVE_ICON } from '@/lib/atelier-icons';
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ChainDataProvider } from '@/lib/explorer/provider';
@@ -11,20 +11,24 @@ import { feeColor, formatBlockAgeOrDate, formatDateTime, formatFeeRange } from '
 const POLL_MS = 20_000;
 const BLOCK_W = 122;
 
-function ConfirmedBlock({ block, now, focused, marked, markColor, markTextColor, onClick }: {
+function ConfirmedBlock({ block, now, focused, marked, markColor, markSubject, onClick }: {
   block: NormalizedBlock;
   now: number;
   focused: boolean;
   /** True when this block carries a highlighted transaction (an Arkade
-   *  settlement); it gets the highlight colour's border and a small marker. */
+   *  settlement, a Bark round): its border takes the highlight colour. */
   marked?: boolean;
   markColor?: string;
-  /** Legible variant of markColor for the small marker text. */
-  markTextColor?: string;
+  /** What the mark means, for the hover text ("an Arkade settlement"). */
+  markSubject?: string;
   onClick: () => void;
 }) {
   const color = feeColor(block.medianFee);
   const range = formatFeeRange(block.feeRange);
+  // The focused block (the one the open transaction or block tab is about) is
+  // inverted: the accent as its background, the page background as its ink,
+  // so it stands out along the row at a glance.
+  const ink = focused ? 'var(--alice-bg)' : undefined;
   return (
     <button
       type="button"
@@ -34,36 +38,28 @@ function ConfirmedBlock({ block, now, focused, marked, markColor, markTextColor,
       style={{
         width: BLOCK_W,
         padding: '8px 10px',
-        border: `1px solid ${marked && markColor ? markColor : 'var(--alice-border)'}`,
+        border: `1px solid ${marked && markColor ? markColor : focused ? 'var(--alice-primary)' : 'var(--alice-border)'}`,
         borderTop: `3px solid ${marked && markColor ? markColor : color}`,
         borderRadius: 3,
-        // The focus highlight is a ring plus a background, never the border, so
-        // no shorthand/longhand border property changes across a rerender.
-        backgroundColor: focused ? 'var(--alice-bg)' : 'var(--alice-bg-soft)',
-        boxShadow: focused ? '0 0 0 2px var(--alice-primary)' : undefined,
+        backgroundColor: focused ? 'var(--alice-primary)' : 'var(--alice-bg-soft)',
       }}
-      title={`Block ${block.height} - ${block.poolName ?? 'unknown pool'} - ${formatDateTime(block.timestamp)}${marked ? ' - contains an Arkade settlement' : ''}`}
+      title={`Block ${block.height} - ${block.poolName ?? 'unknown pool'} - ${formatDateTime(block.timestamp)}${marked ? ` - contains ${markSubject ?? 'a marked transaction'}` : ''}`}
     >
-      <div className="font-pixel" style={{ fontSize: 10, color: 'var(--alice-text)' }}>
+      <div className="font-pixel" style={{ fontSize: 10, color: ink ?? 'var(--alice-text)' }}>
         {block.height.toLocaleString('en-US')}
       </div>
-      <div className="font-numbers" style={{ fontSize: 12, color, marginTop: 3 }}>
+      <div className="font-numbers" style={{ fontSize: 12, color: ink ?? color, marginTop: 3 }}>
         {block.medianFee !== undefined ? `~${Math.round(block.medianFee)} sat/vB` : 'n/a'}
       </div>
-      {range && <div className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{range}</div>}
-      <div className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)', marginTop: 3 }}>
+      {range && <div className="font-numbers" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)' }}>{range}</div>}
+      <div className="font-numbers" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)', marginTop: 3 }}>
         {block.txCount.toLocaleString('en-US')} tx
       </div>
       {/* Fresh blocks read as an age; a week or older, the numeric date says
           more than a big "ago" count. Hover for the exact moment. */}
-      <div className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)', opacity: 0.7 }}>
+      <div className="font-numbers" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)', opacity: ink ? 0.85 : 0.7 }}>
         {formatBlockAgeOrDate(block.timestamp, now)}
       </div>
-      {marked && (
-        <div className="font-pixel tracking-widest" style={{ fontSize: 10, color: markTextColor ?? markColor, marginTop: 3 }}>
-          TX SETTLEMENT
-        </div>
-      )}
     </button>
   );
 }
@@ -72,6 +68,8 @@ function PendingBlock({ block, index, focused }: { block: ProjectedBlock; index:
   const color = feeColor(block.medianFee);
   const range = formatFeeRange(block.feeRange);
   const eta = index === 0 ? 'NEXT BLOCK' : `IN ~${(index + 1) * 10} MIN`;
+  // Inverted when focused, like a confirmed block.
+  const ink = focused ? 'var(--alice-bg)' : undefined;
   return (
     <div
       className="shrink-0"
@@ -79,18 +77,17 @@ function PendingBlock({ block, index, focused }: { block: ProjectedBlock; index:
       style={{
         width: BLOCK_W,
         padding: '8px 10px',
-        border: '1px dashed var(--alice-border)',
+        border: `1px dashed ${focused ? 'var(--alice-primary)' : 'var(--alice-border)'}`,
         borderTop: `3px solid ${color}`,
         borderRadius: 3,
-        backgroundColor: focused ? 'var(--alice-bg)' : undefined,
-        boxShadow: focused ? '0 0 0 2px var(--alice-primary)' : undefined,
+        backgroundColor: focused ? 'var(--alice-primary)' : undefined,
       }}
       title={focused ? 'This transaction is expected in this projected block' : 'Projected block, still in the mempool'}
     >
-      <div className="font-pixel" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{eta}</div>
-      <div className="font-numbers" style={{ fontSize: 12, color, marginTop: 3 }}>~{Math.round(block.medianFee)} sat/vB</div>
-      {range && <div className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{range}</div>}
-      <div className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)', marginTop: 3 }}>
+      <div className="font-pixel" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)' }}>{eta}</div>
+      <div className="font-numbers" style={{ fontSize: 12, color: ink ?? color, marginTop: 3 }}>~{Math.round(block.medianFee)} sat/vB</div>
+      {range && <div className="font-numbers" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)' }}>{range}</div>}
+      <div className="font-numbers" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)', marginTop: 3 }}>
         {block.txCount.toLocaleString('en-US')} tx
       </div>
     </div>
@@ -139,13 +136,15 @@ export function ExplorerBlocks({
   /** What to spotlight: a confirmed block by height, or the projected block an
    *  unconfirmed transaction is expected in. Absent means centre on the divider. */
   focus?: RibbonFocus;
-  /** Blocks to mark permanently (on Arkade: the ones carrying a settlement),
-   *  with the accent colour they get. Independent of the focus spotlight.
-   *  `ensureHeight` asks the ribbon to auto-page older blocks until the window
-   *  reaches that height, so the marked blocks are actually on screen (the
-   *  chain tip alone rarely contains a settlement). `textColor` is the legible
-   *  variant used for small text where the fill colour would vanish. */
-  highlight?: { heights: ReadonlySet<number>; color: string; textColor?: string; ensureHeight?: number };
+  /** Blocks to mark permanently (on Arkade: the ones carrying a settlement;
+   *  on Bark: a round), with the accent colour they get. Independent of the
+   *  focus spotlight. The ribbon never pages towards them on its own: the
+   *  jump button opens the latest one's page, which loads its neighbourhood.
+   *  `onColor` is the ink legible on the accent (the jump button's arrow);
+   *  `name` is the network's, `subject` what a mark means, for hover text.
+   *  `busy` is set while the newest mark may not be the newest there is (the
+   *  walk is still catching up): the arrow gives way to a ring until then. */
+  highlight?: { heights: ReadonlySet<number>; color: string; onColor: string; name: string; subject: string; busy?: boolean };
 }) {
   const [blocks, setBlocks] = useState<NormalizedBlock[]>([]);
   const [pending, setPending] = useState<ProjectedBlock[]>([]);
@@ -161,6 +160,28 @@ export function ExplorerBlocks({
   // is loaded once and never re-requested on every poll.
   const neighbourhoodTried = useRef<Set<number>>(new Set());
 
+  // The newest marked block, and whether it is in the loaded window. The jump
+  // opens its page; while its neighbourhood loads, the button shows a wait.
+  const latestMarked = highlight && highlight.heights.size > 0 ? Math.max(...highlight.heights) : undefined;
+  const latestMarkedLoaded = latestMarked !== undefined && blocks.some(b => b.height === latestMarked);
+  const [jumping, setJumping] = useState(false);
+  useEffect(() => {
+    if (!jumping) return;
+    if (latestMarkedLoaded) { setJumping(false); return; }
+    const id = setTimeout(() => setJumping(false), 20_000);
+    return () => clearTimeout(id);
+  }, [jumping, latestMarkedLoaded]);
+
+  // The block a tab points at while its neighbours load (see below).
+  const [loadingAround, setLoadingAround] = useState<number | null>(null);
+  const blocksRef = useRef(blocks);
+  blocksRef.current = blocks;
+
+  // The pointer under the row: a small triangle at the focused block (or the
+  // projected block an unconfirmed transaction is expected in), kept in place
+  // as the row scrolls; hidden when nothing is focused or it is off-screen.
+  const [pointerX, setPointerX] = useState<number | null>(null);
+
   const supported = typeof provider.getRecentBlocks === 'function';
 
   // Which projected block an unconfirmed tx lands in: the first whose fee floor
@@ -173,6 +194,25 @@ export function ExplorerBlocks({
     const i = pending.findIndex(p => p.feeRange.length > 0 && f >= p.feeRange[0]);
     return i === -1 ? pending.length - 1 : i;
   })();
+
+  const updatePointer = useCallback(() => {
+    const sc = scrollRef.current;
+    if (!sc || !focus) { setPointerX(null); return; }
+    const target = focus.kind === 'height'
+      ? sc.querySelector<HTMLElement>(`[data-block-height="${focus.height}"]`)
+      : pendingFocusIndex >= 0 ? sc.querySelector<HTMLElement>(`[data-pending-index="${pendingFocusIndex}"]`) : null;
+    if (!target) { setPointerX(null); return; }
+    const x = target.getBoundingClientRect().left - sc.getBoundingClientRect().left + target.offsetWidth / 2;
+    setPointerX(x >= 0 && x <= sc.clientWidth ? x : null);
+  }, [focus, pendingFocusIndex]);
+  useEffect(() => {
+    updatePointer();
+    const sc = scrollRef.current;
+    if (!sc) return;
+    sc.addEventListener('scroll', updatePointer, { passive: true });
+    window.addEventListener('resize', updatePointer);
+    return () => { sc.removeEventListener('scroll', updatePointer); window.removeEventListener('resize', updatePointer); };
+  }, [updatePointer, blocks, pending, orientation, ready]);
 
   // Whether the spotlight target is currently on screen. Used to re-centre only
   // when it first appears (e.g. an old block's neighbourhood finishes loading),
@@ -222,7 +262,7 @@ export function ExplorerBlocks({
   // polls, so the view never jumps under the user.
   useLayoutEffect(() => {
     if (!ready) return;
-    const raf = requestAnimationFrame(() => {
+    const centre = () => {
       const sc = scrollRef.current;
       if (!sc) return;
       let target: HTMLElement | null;
@@ -234,54 +274,57 @@ export function ExplorerBlocks({
         target = dividerRef.current;
       }
       if (target) sc.scrollLeft = target.offsetLeft - sc.clientWidth / 2 + target.offsetWidth / 2;
-    });
+    };
+    // Right away, since the layout is done by now, and once more on the next
+    // frame for anything the first paint settles (fonts, scrollbars). A frame
+    // never comes while the page is hidden, so the first call is what keeps a
+    // background tab centred.
+    centre();
+    const raf = requestAnimationFrame(centre);
     return () => cancelAnimationFrame(raf);
   // Deliberately not on `blocks`: re-centre only when the target appears, so
   // loading older blocks or a new tip never yanks the view back to the start.
-  }, [ready, orientation, focus, pendingFocusIndex, focusPresent]);
+  // `loadingAround` is the one exception: the neighbours landing beside a
+  // lone block push it along the row, so it is centred again when they do.
+  }, [ready, orientation, focus, pendingFocusIndex, focusPresent, loadingAround]);
 
-  // When the spotlighted confirmed block is older than the loaded window, pull a
-  // small neighbourhood around it (roughly ten each side) so it shows in context
-  // without loading the whole chain between here and there.
+  // When the spotlighted confirmed block is older than the loaded window, show
+  // it first: its own header is one small request, the same one the open
+  // block tab makes, so it comes from the shared cache. Then a neighbourhood
+  // around it (fifteen blocks each side, both requests in flight at once),
+  // with placeholders shimmering on both sides of it until they land. The
+  // block list is read through a ref so an intermediate merge never cancels
+  // the requests still in flight.
+  const focusHeight = focus?.kind === 'height' ? focus.height : undefined;
   useEffect(() => {
-    if (focus?.kind !== 'height' || blocks.length === 0) return;
-    const h = focus.height;
-    if (blocks.some(b => b.height === h)) return;
+    if (focusHeight === undefined || !ready) return;
+    const h = focusHeight;
+    if (blocksRef.current.some(b => b.height === h)) return;
     if (neighbourhoodTried.current.has(h)) return;
     if (typeof provider.getRecentBlocks !== 'function') return;
     neighbourhoodTried.current.add(h);
     let cancelled = false;
     const controller = new AbortController();
+    setLoadingAround(h);
     (async () => {
       try {
-        const after = await provider.getRecentBlocks!(h + 10, { signal: controller.signal });
-        const before = await provider.getRecentBlocks!(h - 5, { signal: controller.signal });
+        if (typeof provider.getBlock === 'function') {
+          try {
+            const own = await provider.getBlock(String(h), { signal: controller.signal });
+            if (!cancelled) setBlocks(prev => mergeBlocks(prev, [own]));
+          } catch { /* the batches below carry it too */ }
+        }
+        const [after, before] = await Promise.all([
+          provider.getRecentBlocks!(h + 10, { signal: controller.signal }),
+          provider.getRecentBlocks!(h - 5, { signal: controller.signal }),
+        ]);
         if (!cancelled) setBlocks(prev => mergeBlocks(prev, [...after, ...before]));
-      } catch { /* leave the ribbon as it is */ }
+      } catch { /* leave the ribbon as it is */ } finally {
+        if (!cancelled) setLoadingAround(null);
+      }
     })();
     return () => { cancelled = true; controller.abort(); };
-  }, [focus, blocks, provider]);
-
-  // Auto-extend the window down to highlight.ensureHeight (a handful of pages
-  // at most, bounded), so the settlement-carrying blocks are reachable by a
-  // scroll instead of hiding behind manual "older" clicks. Guarded by a ref,
-  // not by state, so the effect never cancels its own fetch; a stale merge is
-  // harmless (mergeBlocks is idempotent by height).
-  const autoLoads = useRef(0);
-  const autoLoadInFlight = useRef(false);
-  useEffect(() => {
-    const target = highlight?.ensureHeight;
-    if (target === undefined || blocks.length === 0 || autoLoadInFlight.current) return;
-    const oldest = blocks[blocks.length - 1].height;
-    if (oldest <= target || autoLoads.current >= 8) return;
-    if (typeof provider.getRecentBlocks !== 'function') return;
-    autoLoads.current += 1;
-    autoLoadInFlight.current = true;
-    provider.getRecentBlocks(oldest - 1)
-      .then(older => setBlocks(prev => mergeBlocks(prev, older)))
-      .catch(() => { /* keep what is shown */ })
-      .finally(() => { autoLoadInFlight.current = false; });
-  }, [highlight?.ensureHeight, blocks, provider]);
+  }, [focusHeight, ready, provider]);
 
   const loadOlder = useCallback(async () => {
     if (!provider.getRecentBlocks || loadingOlder || blocks.length === 0) return;
@@ -297,13 +340,13 @@ export function ExplorerBlocks({
 
   if (!supported) return null;
 
-  // Jump to the newest settlement-carrying block loaded in the window (the
-  // auto-extension above guarantees the latest ones are), centred smoothly.
-  const latestMarked = highlight && highlight.heights.size > 0
-    ? Math.max(...highlight.heights)
-    : undefined;
+  // The jump opens the latest marked block's page; its tab spotlights the
+  // block here too, loading its neighbourhood when it is not in the window
+  // yet. When it already is, the row also scrolls to it right away.
   function jumpToLatestMarked() {
     if (latestMarked === undefined) return;
+    onOpenBlock(String(latestMarked));
+    if (!latestMarkedLoaded) { setJumping(true); return; }
     const el = scrollRef.current?.querySelector<HTMLElement>(`[data-block-height="${latestMarked}"]`);
     el?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
   }
@@ -326,24 +369,26 @@ export function ExplorerBlocks({
         aria-label="Swap confirmed and pending sides"
         title="Swap sides"
       >
-        <SvgIcon svg={REFRESH_ICON} size={20} />
+        <SvgIcon svg={SWAP_ICON} size={20} />
       </button>
       {latestMarked !== undefined && (
         <button
           type="button"
           onClick={jumpToLatestMarked}
-          className="alice-control alice-control--quiet cursor-pointer mb-1 flex items-center justify-center"
+          className="cursor-pointer mb-1 flex items-center justify-center"
           style={{
-            width: dividerBtn, height: dividerBtn, minHeight: dividerBtn, padding: 2, borderRadius: 3,
-            color: highlight!.textColor ?? highlight!.color,
+            width: dividerBtn, height: dividerBtn, minHeight: dividerBtn, padding: 2, borderRadius: 3, border: 0,
+            backgroundColor: highlight!.color, color: highlight!.onColor,
           }}
-          aria-label="Jump to the latest settlement block"
-          title={`Jump to the latest settlement (block ${latestMarked.toLocaleString('en-US')}): where Arkade last committed into Bitcoin`}
+          aria-label={`Open the latest ${highlight!.name} block`}
+          title={highlight!.busy
+            ? `Downloading the latest ${highlight!.subject}s from the Bitcoin chain. Block ${latestMarked.toLocaleString('en-US')} is the latest found so far.`
+            : `Open block ${latestMarked.toLocaleString('en-US')}, the latest with ${highlight!.subject}`}
         >
           {/* An arrow sinking halfway into a square: the commitment landing
-              inside a Bitcoin block. The square's top edge is split so the
-              shaft visibly enters it. */}
-          <SvgIcon svg={RECEIVE_ICON} size={20} />
+              inside a Bitcoin block. A ring while that block loads, and
+              while the walk still catches up with the chain. */}
+          {jumping || highlight!.busy ? <span className="rh-spinner" aria-hidden="true" /> : <SvgIcon svg={RECEIVE_ICON} size={20} />}
         </button>
       )}
       <div style={{ width: 2, flex: 1, minHeight: 16, backgroundColor: 'var(--alice-border)' }} />
@@ -371,10 +416,17 @@ export function ExplorerBlocks({
     <PendingBlock key={`p${p.medianFee}-${i}`} block={p} index={i} focused={i === pendingFocusIndex} />
   ));
 
+  // Placeholder cards beside a block whose neighbours are still loading.
+  const shimmer = (key: string) => Array.from({ length: 3 }, (_, i) => (
+    <div key={`${key}-${i}`} className="rh-skeleton shrink-0" style={{ width: BLOCK_W, minHeight: 74, borderRadius: 3, opacity: 0.8 - i * 0.2 }} aria-hidden="true" />
+  ));
+
   // Confirmed cards, newest first, with a break inserted wherever two adjacent
   // cards are not consecutive heights (the live tip and an old neighbourhood).
   const confirmedCards: React.ReactNode[] = [];
   blocks.forEach((b, i) => {
+    const alone = loadingAround === b.height;
+    if (alone) confirmedCards.push(...shimmer(`before-${b.height}`).reverse());
     confirmedCards.push(
       <ConfirmedBlock
         key={b.id}
@@ -383,10 +435,11 @@ export function ExplorerBlocks({
         focused={focus?.kind === 'height' && b.height === focus.height}
         marked={highlight?.heights.has(b.height)}
         markColor={highlight?.color}
-        markTextColor={highlight?.textColor}
+        markSubject={highlight?.subject}
         onClick={() => onOpenBlock(String(b.height))}
       />,
     );
+    if (alone) confirmedCards.push(...shimmer(`after-${b.height}`));
     const next = blocks[i + 1];
     if (next) {
       const gap = b.height - next.height - 1;
@@ -416,8 +469,20 @@ export function ExplorerBlocks({
           ))}
         </div>
       ) : (
-        <div ref={scrollRef} className="flex items-stretch gap-2 overflow-x-auto px-5 pb-2">
-          {items.map((node, i) => <div key={i} className="flex shrink-0">{node}</div>)}
+        <div className="relative">
+          <div ref={scrollRef} className="flex items-stretch gap-2 overflow-x-auto px-5 pb-3">
+            {items.map((node, i) => <div key={i} className="flex shrink-0">{node}</div>)}
+          </div>
+          {pointerX !== null && (
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute', left: pointerX, bottom: 0, transform: 'translateX(-50%)',
+                width: 0, height: 0, borderLeft: '7px solid transparent', borderRight: '7px solid transparent',
+                borderBottom: '7px solid var(--alice-primary)',
+              }}
+            />
+          )}
         </div>
       )}
     </div>

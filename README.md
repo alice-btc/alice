@@ -106,7 +106,12 @@ Alice App is more than the chat:
 - **Chat**: the companion itself, over a built-in Bitcoin knowledge base
   (retrieval described under Honest limits above).
 - **Explorer**: blocks, transactions, addresses and xpubs, explained by
-  Alice instead of dumped as hex.
+  Alice instead of dumped as hex. It also reads three layers that settle on
+  Bitcoin, Arkade, Bark and Spark, and ties every off-chain coin back to its
+  Bitcoin side: the commitment, round or deposit transaction it hangs from,
+  the block that confirmed it, and the exit path that brings it on-chain
+  without the operator. The layers' own explorers (Sparkscan, for one) stop
+  at the off-chain ledger; Alice shows both sides in one place.
 - **Learn**: the [Plan ₿ Network](https://planb.network) educational corpus
   (CC BY-SA 4.0), reshaped into per-language packs. English and French ship
   in the app; 26 more languages download on demand from

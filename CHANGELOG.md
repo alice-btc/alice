@@ -3,12 +3,116 @@
 Alice ships as four surfaces from one repository, and they are versioned
 together: a single number means a tester and a log line refer to the same code.
 
-- `0.2.2`, current release
+- `0.2.3`, current release
+- `0.2.2`, previous release
 - `0.2.1`, previous release
 - `0.2.0`, previous release
 - `0.1.0`, previous closed beta
 - `0.0.1`, first public baseline
 - `1.0.0`, public launch, planned
+
+## 0.2.3
+
+Desktop installers for macOS, Windows and Linux ship with this release. The
+Android build is unchanged and stays on `0.2.0`.
+
+### Explorer: three off-chain layers next to Bitcoin and Liquid
+
+- Bark joins the Explorer: its server, the rounds as they happen, addresses,
+  and your own coin by its id or an export of the wallet. The rounds found
+  on-chain are marked on the blocks and the ribbon, and a coin's exit tree is
+  drawn as a funnel, in Bark's own words.
+- Arkade gains addresses, a fresher commitment feed, and the exit tree of a
+  VTXO read from the operator's indexer, in Arkade's words. A view says when
+  the Arkade tools failed to load instead of staying empty.
+- Spark is read from its three operators, with no account: transfers, leaves
+  and their trees, the deposit on Bitcoin, and a live feed through Sparkscan.
+  The deposits and exits this browser has learnt about are labelled on their
+  Bitcoin transactions, never on blocks, since a Spark deposit can land in any
+  block.
+- Every off-chain page follows the Bitcoin pages' layout and one accent rule:
+  a full badge and a coloured edge in the layer's colour on each header.
+
+### The Arkade and Bark feeds start from the present
+
+- A visit no longer walks the operator's wallet forward from a seed written in
+  the code. Bark asks its server for the latest round and shows it first; both
+  networks then read the newest settlement Alice's own server has found, one
+  anonymous request the data-source note names, and fill in the recent history
+  under it: ten commitments on Arkade, a day of rounds on Bark. The seeds only
+  serve when nothing at all is known.
+- While the walk catches up with the chain, the ribbon's jump arrow and the
+  head of the feed show a ring with a line of explanation; once there, the
+  feed says it is up to date and at which block. Passes chain until the tip is
+  reached instead of waiting for the next tick. Older history loads on
+  request, twenty-five at a time, with a closing line when nothing older can
+  be found.
+- A coin's page carries a button to its commitment transaction (Arkade) or
+  its round (Bark), the virtual transaction page too, on its own line under
+  the identifier.
+- The Bark round oracle is corrected: a round's tree root can sit at another
+  output than the first, and the tree transactions a holder broadcasts to
+  exit are not rounds, whatever their policy. The rounds the earlier rule had
+  recorded are forgotten and found again.
+- Alice's Worker walks the Arkade operator's wallet every ten minutes and
+  keeps Second's latest round, and publishes both at `/explorer/anchors`.
+
+### Alice knows the layers
+
+- Fifteen concept notes on Spark and Ark, in English and French, enter the
+  Explorer corpus: what a leaf, a tree, a transfer, an exit and its timelocks,
+  an operator, a VTXO, a round and a commitment are, and where the privacy
+  limits lie.
+- Each off-chain page tells Alice what it shows. By default she receives a
+  description free of identifiers (layer, kind of page, counts, magnitude and
+  age buckets); the identified mode, switched by the eye next to the send
+  button, adds the identifiers you choose to share. The composer takes two
+  lines without an attachment, three with one.
+
+### Local data rests encrypted on every device
+
+- On desktop, a key held in the system keychain; on the web, a non-extractable
+  AES-256-GCM key the browser keeps in IndexedDB. Conversations, memory and
+  the learning profile were already encrypted on desktop; they now are on the
+  web too, and the application's own stores join them: Explorer tabs and
+  session links, saved wallets, custom nodes, the Arkade, Bark and Spark
+  registries, Ask Alice questions, and the whole Playground, recovery phrase
+  included. Values found in clear are migrated silently.
+- No PIN yet: this protects data at rest (backups, a copied profile folder, an
+  unencrypted disk, another user), not against someone using the unlocked
+  session. The design is in `docs/security/local-chat-encryption.md`.
+- The notice that announced a block or transaction opened from a link is gone.
+
+### Alice answers from a reviewed corpus
+
+- A curated corpus of 403 French fiches, 200 primary and 203 secondary,
+  replaces the imported notes and the documentation pack in retrieval. Each
+  fiche carries a short answer, an explanation and its limits, with aliases
+  and questions for search; the corpus covers Bitcoin and Alice App (local
+  data, Playground, Private Cloud, memory), and is reviewed editorially, as
+  `docs/CURATED_CORPUS.md` describes and bounds.
+- Retrieval starts from the primary fiches and opens a secondary one when the
+  question calls for it, from topic evidence and parent links; an introductory
+  question stays on its primary fiche, a comparison keeps both subjects, and
+  the diagnostics say which fiche was chosen, at which tier, and why.
+- Both semantic indexes are rebuilt from that corpus, 403 vectors each. The
+  earlier Obsidian and documentation corpora stay in the repository for
+  traceability and are no longer searched.
+
+### Desktop
+
+- The packaged app may now reach the Bark server, the three Spark operators
+  and Sparkscan, so the new Explorer pages work in the installed app as they
+  do in a browser. A node you configure yourself is still refused by that
+  list, as in 0.2.1.
+- The private application previews build on demand only.
+
+### Website and documentation
+
+- The privacy page says what Alice remembers and how it is stored; the memory
+  docs and the data and recovery page describe the encrypted stores.
+- The hero tagline reads "Private AI · Open source".
+- The AI/wallet boundary check runs in CI.
 
 ## 0.2.2
 

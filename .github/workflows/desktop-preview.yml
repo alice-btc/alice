@@ -1,24 +1,23 @@
 name: Private application previews
 
+# On demand only. On a private repository a macOS minute counts ten times
+# against the monthly Actions quota and a Windows minute twice, so building
+# these previews on every pull request used up the whole quota in October
+# 2026. Run it when a build is actually needed, from the Actions tab or with:
+#   gh workflow run desktop-preview.yml --ref <branch>
 on:
-  pull_request:
-    paths:
-      - 'assets/brand/**'
-      - 'apps/app-desktop/**'
-      - 'scripts/generate-desktop-icons.mjs'
-      - '.github/workflows/desktop-preview.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: private-previews-${{ github.event.pull_request.number || github.ref }}
+  group: private-previews-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   desktop:
-    if: github.event.repository.private == true && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.event.repository.private == true
     name: Preview ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
@@ -41,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -92,14 +91,14 @@ jobs:
           path: preview-commit.txt
           retention-days: 7
   web:
-    if: github.event.repository.private == true && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.event.repository.private == true
     name: Preview web and website
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc

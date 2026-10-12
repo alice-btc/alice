@@ -31,6 +31,14 @@ export type KnowledgeChunk = {
   priority?: string;
   status?: string;
   surface?: string;
+  /** Editorial retrieval role, independent of reading difficulty. */
+  tier?: 'primary' | 'secondary';
+  /** Stable concept identities linking an approfondissement to its foundation. */
+  parentIds?: string[];
+  relatedIds?: string[];
+  reviewMethod?: string;
+  sources?: string[];
+  questions?: string[];
 };
 
 export type KnowledgePack = {

@@ -29,6 +29,7 @@ import { PLUS_ICON, CLOSE_ICON, ATTACHMENT_ICON, EYE_OPEN_ICON, EYE_CLOSED_ICON 
 import { composeAskAlice, type FullContext } from '@/lib/explorer/ask-alice';
 import { renderAbstractSignal, toAbstractSignal } from '@/lib/explorer/audit-core';
 import type { PrivacySignal } from '@/lib/explorer/signals';
+import { localVault } from '@/lib/local-vault';
 
 const ERROR_COLOR = 'var(--alice-danger)';
 
@@ -62,7 +63,7 @@ function identifiedDisclaimerDismissed(): boolean {
 function loadUserQuestions(): string[] {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = window.localStorage.getItem(QUESTIONS_KEY);
+    const raw = localVault.getItem(QUESTIONS_KEY);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -362,6 +363,13 @@ export function AskAliceDock({
                 {fullContext.description}
               </p>
             )}
+            {/* The page note rides in the same de-identified block as the
+                signals, so it is shown with them. */}
+            {!(fullMode && fullContext) && pageNote && (
+              <p className="font-numbers m-0" style={{ fontSize: 11, lineHeight: '16px', color: 'var(--alice-text)' }}>
+                · {pageNote}
+              </p>
+            )}
             {!(fullMode && fullContext) && composition.abstractSignals.map((s, i) => (
               <p key={i} className="font-numbers m-0" style={{ fontSize: 11, lineHeight: '16px', color: 'var(--alice-text)' }}>
                 · {renderAbstractSignal(s)}
@@ -393,42 +401,22 @@ export function AskAliceDock({
           className="w-full min-w-0 resize-none bg-transparent border-none outline-none font-numbers placeholder:opacity-50"
           style={{ fontSize: 16, lineHeight: '26px', height: 26, minHeight: 26, maxHeight: 96, color: 'var(--alice-text)', overflowY: input.includes('\n') ? 'auto' : 'hidden' }}
         />
-        <div className="flex items-center justify-between gap-2">
+        {/* The attachment chip has its own row only while there is one;
+            without it the composer stays two lines tall. */}
+        {composition.abstractSignals.length > 0 && (
           <div className="flex items-center min-w-0">
-            {composition.abstractSignals.length > 0 && (
-              <AttachmentChip
-                contextLabel={contextLabel}
-                full={fullMode && !!fullContext}
-                expanded={payloadOpen}
-                onToggle={() => setPayloadOpen(o => !o)}
-                onRemove={() => {
-                  setSelected([]);
-                  setPayloadOpen(false);
-                }}
-              />
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-          {fullContext && (
-            <button
-              type="button"
-              onClick={() => {
-                if (fullMode) setFullMode(false);
-                else if (identifiedDisclaimerDismissed()) setFullMode(true);
-                else setIdentifiedPrompt(true);
+            <AttachmentChip
+              contextLabel={contextLabel}
+              full={fullMode && !!fullContext}
+              expanded={payloadOpen}
+              onToggle={() => setPayloadOpen(o => !o)}
+              onRemove={() => {
+                setSelected([]);
+                setPayloadOpen(false);
               }}
-              aria-pressed={fullMode}
-              aria-label="Identified mode"
-              title={fullMode
-                ? 'Identified mode on: the page\'s full details, identifiers included, ride along. Click to go back to de-identified.'
-                : 'De-identified mode: only abstract signals ride along. Click to send the full page details instead.'}
-              className="alice-control alice-control--tool alice-context-toggle"
-            >
-              {fullMode ? <EyeOpenIcon /> : <EyeClosedIcon />}
-            </button>
-          )}
+            />
           </div>
-        </div>
+        )}
         <div className="alice-panel-controls">
           <ModelSelector
             backendType={backendType}
@@ -436,7 +424,29 @@ export function AskAliceDock({
             setAiEnabled={setAiEnabled}
             placement="composer"
           />
-          <SendMessageButton onClick={() => requestSend()} disabled={!input.trim() || busy || !aiEnabled || decision.blocked || !backendAllowed} />
+          {/* The identified-mode eye sits with the send button, on the
+              controls row, so it never adds a line of its own. */}
+          <div className="flex items-center gap-2 shrink-0">
+            {fullContext && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (fullMode) setFullMode(false);
+                  else if (identifiedDisclaimerDismissed()) setFullMode(true);
+                  else setIdentifiedPrompt(true);
+                }}
+                aria-pressed={fullMode}
+                aria-label="Identified mode"
+                title={fullMode
+                  ? 'Identified mode on: the page\'s full details, identifiers included, ride along. Click to go back to de-identified.'
+                  : 'De-identified mode: only abstract signals ride along. Click to send the full page details instead.'}
+                className="alice-control alice-control--tool alice-context-toggle"
+              >
+                {fullMode ? <EyeOpenIcon /> : <EyeClosedIcon />}
+              </button>
+            )}
+            <SendMessageButton onClick={() => requestSend()} disabled={!input.trim() || busy || !aiEnabled || decision.blocked || !backendAllowed} />
+          </div>
         </div>
         {reason && (
           <p className="font-numbers m-0" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{reason}</p>

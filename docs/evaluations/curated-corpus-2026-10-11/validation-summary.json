@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-11",
+  "node": "24.18.0",
+  "corpus_version": "curated-c0aa6d5273745070ac25",
+  "counts": {
+    "primary": 200,
+    "secondary": 203
+  },
+  "full_suite": {
+    "files": 182,
+    "tests": 1577,
+    "passed": 1577,
+    "failed": 0,
+    "skipped": 0
+  },
+  "routing": {
+    "cases": 27,
+    "configurations": 6,
+    "asserted_runs": 162,
+    "passed": 162,
+    "modes": [
+      "off",
+      "web",
+      "native"
+    ],
+    "budgets": [
+      "local",
+      "cloud"
+    ],
+    "generated_answers_tested": false
+  },
+  "boundary_check": "passed",
+  "npm_audit": {
+    "status": "passed existing reviewed baseline",
+    "date": "2026-10-11",
+    "high": 25,
+    "critical": 0,
+    "unexpected_high": 0,
+    "baseline_review_by": "2026-11-02",
+    "explicit_network_consent": true
+  },
+  "deployment": "not deployed; private integration branch",
+  "source_sha256": {
+    "packages/alice-ai/src/answer-rules.ts": "71424395cfc294d99c22dd5b1024c1a7cd4e48a109bbadf44985f90b849b6aee",
+    "packages/alice-ai/src/chat-context.tsx": "6de4d5dc177afca0ab6f17442f88e24b287a8e2f4fa8c7812b7535d55a89a2f2",
+    "scripts/build-curated-rag.mjs": "e4241916103450366a97ae99505b264721a967d80ccd82e24897d084f255c491",
+    "scripts/build-embeddings.js": "eef7d9f392fa76be528c7cfe7b99b2f7f6f76659dc1ab83dc432b5c873cf1f56"
+  },
+  "types": "passed app-web, site, wallet-mobile, venice-proxy-worker"
+}

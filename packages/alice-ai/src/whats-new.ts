@@ -12,6 +12,17 @@ export const RELEASE_NOTES_URL = 'https://github.com/mariusoffchain/alice/releas
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.2.3',
+    highlights: [
+      'Explorer: Bark, Arkade and Spark join Bitcoin and Liquid, read from their operators, with each coin\'s way back to the chain.',
+      'Ask Alice about any off-chain page: she knows the layers and sees what the page shows, without your identifiers unless you choose.',
+      'Everything Alice keeps on this device now rests encrypted: conversations, memory, saved wallets, tabs and the Playground.',
+      'The desktop app reaches the Bark, Spark and Sparkscan servers the Explorer needs.',
+      'Alice now answers from a reviewed corpus of 403 fiches, each with its limits stated, instead of imported notes.',
+      'The Arkade and Bark feeds start from the present, say when they are up to date, and load older history on request.',
+    ],
+  },
+  {
     version: '0.2.2',
     highlights: [
       'A refreshed interface with a pixel rabbit, calmer controls and colors that follow your theme.',

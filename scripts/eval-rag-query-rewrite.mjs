@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { loadRagEvaluationRuntime } from './rag-eval-runtime.mjs';
+import { curatedConcept, CURATED_CONCEPT_MIGRATION } from './rag-curated-concept-map.mjs';
 
 const fixturePath = new URL('./data/rag-query-eval/questions.json', import.meta.url);
 const fixtureBytes = await readFile(fixturePath);
@@ -24,7 +25,7 @@ assert.equal(new Set(fixture.cases.map(row => row.id)).size, fixture.cases.lengt
 for (const row of fixture.cases) {
   for (const group of row.relevantConceptGroups) {
     assert.ok(group.length > 0);
-    for (const id of group) assert.ok(concepts.has(id), `Unknown concept ${id} in ${row.id}`);
+    for (const id of group) assert.ok(concepts.has(curatedConcept(id)), `Unknown concept ${id} in ${row.id}`);
   }
 }
 
@@ -32,7 +33,7 @@ function score(row, query, diagnostics) {
   // Locale variants are one concept. Alternative chunks for an information
   // need count once; a comparison can require two different information needs.
   const ranked = [...new Set(diagnostics.map(chunk => chunk.conceptId ?? chunk.id))].slice(0, 3);
-  const groups = row.relevantConceptGroups;
+  const groups = row.relevantConceptGroups.map(group => [...new Set(group.map(curatedConcept))]);
   const ranks = groups.map(group => ranked.findIndex(id => group.includes(id)) + 1);
   const relevantRanks = ranks.filter(rank => rank > 0);
   return {
@@ -83,6 +84,7 @@ const regression = row => (row.candidate.recallAt3 ?? 0) < (row.baseline.recallA
 const report = {
   methodology: 'Offline lexical retrieval through real prepareAliceTurn + active corpus, fixed maxChunks=3. Macro recall over required information-need groups; MRR truncated at rank 3. No-retrieval cases excluded from recall/MRR. Semantic model and Learn excerpts not measured; production local/definition budgets can be smaller.',
   baselineCommit: fixture.baselineCommit,
+  conceptMigration: CURATED_CONCEPT_MIGRATION,
   datasetSha256: createHash('sha256').update(fixtureBytes).digest('hex'),
   corpusSha256: createHash('sha256').update(chunks.map(c => `${c.id}\n${c.sourceHash ?? ''}\n${c.title}\n${c.content}`).join('\n\n')).digest('hex'),
   runtime: process.version, chunks: chunks.length, concepts: concepts.size,

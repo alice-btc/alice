@@ -157,7 +157,11 @@ BILLING_RETURN_URL = "https://app.alicebtc.com/?settings=account"
 # allowlist grants nothing there either way.
 
 [triggers]
-crons = ["17 * * * *"]
+# Hourly: account and billing clean-up, expiry reminders, the satoshi price,
+# the payment-host probe. Every ten minutes: the Explorer's settlement anchor
+# (src/explorer-anchors.ts), and nothing else; `scheduled` tells them apart
+# by the cron expression, so keep the second one equal to ANCHOR_CRON there.
+crons = ["17 * * * *", "*/10 * * * *"]
 
 [observability]
 enabled = true

@@ -1,5 +1,8 @@
 'use client';
 
+// First of all: hand the device cipher to the local vault, so every store
+// encrypts from its first write.
+import '@/lib/local-vault-setup';
 import { Suspense, useEffect, useState } from 'react';
 import {
   AccountProvider,
@@ -8,6 +11,7 @@ import {
   restoreDownloadedPacks,
   checkForPackUpdates,
   KNOWLEDGE_PACK_CATALOG,
+  getLocalCipher,
   type ChatStorageCipher,
 } from '@alice-wallet/alice-ai';
 import { AppUpdateNotices } from '@/components/AppUpdateNotices';
@@ -18,15 +22,17 @@ import { PaymentConfirmedDialog } from '@/components/PaymentConfirmedDialog';
 import { SettingsDialog } from '@/components/SettingsDialog';
 import { initThemeFromStorage } from '@/lib/theme-init';
 import { registerLearnTurnContext } from '@/lib/learn/turn-context';
-import { createTauriChatStorageCipher } from '@/lib/tauri-chat-storage-cipher';
 
 export function ChatProviderWrapper({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // The conversations rest encrypted on every device that has a cipher: the
+  // keychain key on Alice Desktop, a non-extractable WebCrypto key in a
+  // browser (see alice-ai's local-cipher.ts).
   const [storageCipher] = useState<ChatStorageCipher | undefined>(
-    createTauriChatStorageCipher,
+    () => getLocalCipher() ?? undefined,
   );
   // Desktop and web have the headroom to load the corpus right away, so the
   // first question never waits for it.
