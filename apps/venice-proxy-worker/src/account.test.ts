@@ -331,6 +331,22 @@ describe('email account', () => {
     assert.equal((await accountResponse.json() as any).cloud_requests_remaining, 21);
   });
 
+  it('caps how many anonymous users one address can mint in a day, not how often it reopens them', async () => {
+    const installIds = Array.from({ length: 6 }, (_, i) => `install-mint-${String(i).padStart(10, '0')}`);
+    for (const id of installIds.slice(0, 5)) {
+      const response = await worker.fetch(jsonRequest('/auth/anonymous', {}, { 'x-alice-install-id': id }), env);
+      assert.equal(response.status, 200);
+    }
+    const refused = await worker.fetch(jsonRequest('/auth/anonymous', {}, { 'x-alice-install-id': installIds[5] }), env);
+    assert.equal(refused.status, 429);
+    const body = await refused.json() as { error?: { code?: string; message?: string } };
+    assert.equal(body.error?.code, 'too_many_new_installations');
+    assert.match(body.error?.message ?? '', /sign in|try again tomorrow/);
+    // An installation that already has its user is only reopening a session.
+    const reopened = await worker.fetch(jsonRequest('/auth/anonymous', {}, { 'x-alice-install-id': installIds[0] }), env);
+    assert.equal(reopened.status, 200);
+  });
+
   it('grants anonymous access and keeps the quota when email converts the account', async () => {
     const anonymousResponse = await worker.fetch(
       jsonRequest('/auth/anonymous', {}),
@@ -681,6 +697,11 @@ describe('email account', () => {
     for (let index = 0; index < 5; index += 1) {
       accounts.push(await createAccount(`daily-${index}@example.com`));
     }
+    // Five anonymous users from this address is also the day's anonymous
+    // creation cap, so the sixth stands for someone whose anonymous user was
+    // made on an earlier day and who converts it today: the case the identity
+    // cap exists for. Its creation counter is cleared to say so.
+    await db.prepare(`DELETE FROM auth_rate_limits WHERE action = 'ip_anonymous_create'`).run();
     // The sixth creation from the same IP dies where creation now happens:
     // at the moment the anonymous user would take its first identity.
     const anon6 = await worker.fetch(jsonRequest('/auth/anonymous', {}), env);

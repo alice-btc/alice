@@ -63,7 +63,12 @@ jobs:
             apps/app-web/public/learn
             scripts/data/semantic-model
           key: private-preview-assets-${{ runner.os }}-${{ hashFiles('scripts/prepare-learn-packs.mjs', 'scripts/prepare-semantic-model.mjs', 'packages/alice-content/src/generated/planb-learn-catalog.ts', 'package-lock.json') }}
-      - run: npm ci
+      - name: Install the npm dependencies
+        env:
+          # Skip llama.rn's prebuilt mobile libraries, which no desktop or
+          # web build loads; see release-desktop.yml.
+          RNLLAMA_SKIP_POSTINSTALL: "1"
+        run: npm ci
       - name: Build private desktop preview
         shell: bash
         env:
@@ -103,7 +108,12 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci
+      - name: Install the npm dependencies
+        env:
+          # Skip llama.rn's prebuilt mobile libraries, which no desktop or
+          # web build loads; see release-desktop.yml.
+          RNLLAMA_SKIP_POSTINSTALL: "1"
+        run: npm ci
       - run: npm run build --workspace @alice-wallet/site
       - name: Build web application
         shell: bash

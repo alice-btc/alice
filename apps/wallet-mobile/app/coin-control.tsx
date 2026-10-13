@@ -224,7 +224,7 @@ export default function CoinControlScreen() {
         <TouchableOpacity onPress={() => router.back()} style={s.iconBtn}>
           <Ionicons name="arrow-back" size={19} color={colors.primary} />
         </TouchableOpacity>
-        <Text style={s.title}>COIN CONTROL</Text>
+        <Text style={s.title} accessibilityRole="header">COIN CONTROL</Text>
         <TouchableOpacity
           onPress={() => void runSync()}
           style={s.iconBtn}

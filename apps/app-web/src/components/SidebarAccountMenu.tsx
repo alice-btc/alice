@@ -5,7 +5,7 @@ import { SvgIcon } from '@/components/SvgIcon';
 import { ACCOUNT_ICON, SETTINGS_ICON, HELP_ICON, EXTERNAL_ICON, GITHUB_ICON, GLOBE_ICON, CHEVRON_DOWN_ICON } from '@/lib/atelier-icons';
 
 export const ALICE_SITE_URL = 'https://alicebtc.com';
-export const ALICE_SOURCE_URL = 'https://github.com/mariusoffchain/alice';
+export const ALICE_SOURCE_URL = 'https://github.com/alice-btc/alice';
 
 /** Shown in place of a username while nobody is signed in. */
 export const ANONYMOUS_NAME = 'Satoshi';

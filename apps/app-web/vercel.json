@@ -1,4 +1,19 @@
 {
   "installCommand": "cd ../.. && npm ci --include=optional",
-  "buildCommand": ": \"${NEXT_PUBLIC_LEARN_PACKS_BASE:=$(node ../../scripts/prepare-learn-packs.mjs --print-base)}\" && export NEXT_PUBLIC_LEARN_PACKS_BASE && NAPI_RS_FORCE_WASI=true npm run build"
+  "buildCommand": ": \"${NEXT_PUBLIC_LEARN_PACKS_BASE:=$(node ../../scripts/prepare-learn-packs.mjs --print-base)}\" && export NEXT_PUBLIC_LEARN_PACKS_BASE && NAPI_RS_FORCE_WASI=true npm run build",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Permissions-Policy", "value": "camera=(self), microphone=(), geolocation=(), payment=(), usb=()" },
+        {
+          "key": "Content-Security-Policy-Report-Only",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://raw.githubusercontent.com https://cdn.jsdelivr.net; font-src 'self' data:; connect-src 'self' https://*.alicebtc.com https://cdn.jsdelivr.net https://raw.githubusercontent.com https://huggingface.co https://*.hf.co https://api.trustedservices.intel.com https://certificates.trustedservices.intel.com https://mempool.space https://mempool.emzy.de https://blockstream.info https://liquid.network https://mutinynet.com https://arkade.computer https://arkade.space https://*.arkade.sh https://delegate.arkade.money https://ark.second.tech https://0.spark.lightspark.com https://spark-operator.breez.technology https://2.spark.flashnet.xyz https://api.sparkscan.io wss://updates.sparkscan.io; worker-src 'self' blob:; frame-src https://www.youtube-nocookie.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+        }
+      ]
+    }
+  ]
 }

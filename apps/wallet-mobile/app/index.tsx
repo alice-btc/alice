@@ -5,7 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { SvgXml } from 'react-native-svg';
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { spacing, typography, PALETTES } from '@alice-wallet/alice-content';
-import { useTheme } from '@alice-wallet/alice-ui';
+import { useTheme, useReducedMotion } from '@alice-wallet/alice-ui';
 import { useAccount, useChat } from '@alice-wallet/alice-ai';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -258,7 +258,8 @@ function TypingDots({ color }: { color: string }) {
 // Assistant bubble body: pulsing dots while empty, then the typed-out markdown.
 // A component (not inline in renderItem) so the typewriter hook is legal.
 function AssistantText({ content, color, animate }: { content: string; color: string; animate: boolean }) {
-  const displayed = useTypewriter(content, animate);
+  const reduceMotion = useReducedMotion();
+  const displayed = useTypewriter(content, animate && !reduceMotion);
   if (!displayed) return <TypingDots color={color} />;
   return <ChatMarkdownText content={displayed} style={s.bubbleText} color={color} />;
 }
@@ -683,7 +684,7 @@ export default function WalletScreen() {
       {!walletCollapsed && (
       <View style={s.top}>
         <View style={s.header}>
-          <TouchableOpacity onPress={() => router.push('/settings')}>
+          <TouchableOpacity onPress={() => router.push('/settings')} accessibilityRole="button" accessibilityLabel="Settings">
             <SettingsIcon size={27} color={colors.primaryDark} />
           </TouchableOpacity>
           <View style={{ width: 36 }} />
@@ -734,6 +735,9 @@ export default function WalletScreen() {
             setBalanceFormat(next);
           }}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Balance ${formatBalance(balance, balFmt, btcPrice, CURRENCY_SYMBOL[currency])} ${balanceSuffix(balFmt) ?? ''}`.trim()}
+          accessibilityHint="Changes the unit the balance is shown in"
         >
           <View style={s.balanceRow}>
             {balFmt === 'symbol' && (
@@ -1050,10 +1054,11 @@ export default function WalletScreen() {
                     s.input,
                     compactChatComposer && s.inputCompact,
                     { color: chatInk },
-                    Platform.OS === 'web' && ({ outlineStyle: 'none', fontSize: 17, lineHeight: 24 } as any),
+                    Platform.OS === 'web' && ({ fontSize: 17, lineHeight: 24 } as any),
                   ]}
                   value={chat.input}
                   onChangeText={chat.setInput}
+                  accessibilityLabel="Ask Alice something"
                   placeholder="Ask Alice something..."
                   placeholderTextColor={chatPlaceholder}
                   multiline
@@ -1063,7 +1068,7 @@ export default function WalletScreen() {
                 />
                 <View style={s.inputControlsRow}>
                   {!compactChatComposer && <View style={s.inputControlsSpacer} />}
-	                <TouchableOpacity style={[s.sendBtn, { backgroundColor: colors.primary }]} onPress={() => send()} disabled={!chat.input.trim() || chat.busy || backendUnavailableSelected}>
+	                <TouchableOpacity style={[s.sendBtn, { backgroundColor: colors.primary }]} onPress={() => send()} accessibilityRole="button" accessibilityLabel="Send" disabled={!chat.input.trim() || chat.busy || backendUnavailableSelected}>
                     <Text style={[s.sendIcon, { color: chatBg }]}>↑</Text>
                   </TouchableOpacity>
                 </View>

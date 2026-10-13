@@ -36,7 +36,6 @@ export function MobileNavMenu() {
     <div ref={rootRef} className="md:hidden">
       <button
         type="button"
-        aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Menu"
         onClick={() => setOpen(value => !value)}
@@ -49,7 +48,6 @@ export function MobileNavMenu() {
       {open && (
         <div className="absolute inset-x-0 top-full z-[70] px-3 pt-2">
           <div
-            role="menu"
             className="max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-[4px] border border-[var(--alice-border)] bg-[var(--alice-bg-soft)] p-2 shadow-xl"
           >
             <nav aria-label="Pages" className="flex flex-col" onClick={() => setOpen(false)}>

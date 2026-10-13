@@ -1,4 +1,5 @@
 export { useTheme, ThemeProvider } from './theme-context';
+export { useReducedMotion } from './use-reduced-motion';
 export { formatBalance, formatWalletAmount, formatSignedWalletAmount, getBalanceFormat, setBalanceFormat, nextFormat, balanceSuffix, formatSecondary, type BalanceFormat } from './balance-format';
 export { getFiatCurrency, setFiatCurrency, priceApiUrl, CURRENCY_SYMBOL, ALL_CURRENCIES, type FiatCurrency } from './fiat-currency';
 

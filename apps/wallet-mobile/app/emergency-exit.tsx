@@ -140,7 +140,7 @@ export default function EmergencyExitScreen() {
         <TouchableOpacity onPress={() => router.back()} style={s.iconBtn}>
           <Ionicons name="arrow-back" size={19} color={colors.primary} />
         </TouchableOpacity>
-        <Text style={s.title}>EMERGENCY EXIT</Text>
+        <Text style={s.title} accessibilityRole="header">EMERGENCY EXIT</Text>
         <View style={s.headerSpacer} />
       </View>
 

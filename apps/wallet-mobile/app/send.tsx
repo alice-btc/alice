@@ -10,7 +10,6 @@ import {
   Animated,
   Easing,
   Linking,
-  Platform,
   KeyboardAvoidingView,
   useWindowDimensions,
 } from 'react-native';
@@ -20,7 +19,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { spacing, typography, type Colors, type Pixel } from '@alice-wallet/alice-content';
-import { useTheme } from '@alice-wallet/alice-ui';
+import { useTheme, useReducedMotion } from '@alice-wallet/alice-ui';
 import {
   getArkAddress,
   getBalance,
@@ -312,11 +311,12 @@ export default function SendScreen() {
 
   // Started from PixelFill's onReady so the grid is mounted before progress
   // moves, otherwise the natively driven fill runs ahead of first paint.
+  const reduceMotion = useReducedMotion();
   const startSuccessAnimation = () => {
     successProgress.setValue(0);
     Animated.timing(successProgress, {
       toValue: 1,
-      duration: 900,
+      duration: reduceMotion ? 0 : 900,
       easing: Easing.linear,
       useNativeDriver: true,
     }).start(() => setSuccessState('complete'));
@@ -655,8 +655,8 @@ export default function SendScreen() {
   return (
     <SafeAreaView style={[s.safe, successState === 'complete' && s.safeSuccess]}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.replace('/')} style={s.backBtn}><Text style={s.backIcon}>←</Text></TouchableOpacity>
-        <Text style={s.title}>SEND</Text>
+        <TouchableOpacity onPress={() => router.replace('/')} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Back"><Text style={s.backIcon}>←</Text></TouchableOpacity>
+        <Text style={s.title} accessibilityRole="header">SEND</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -665,9 +665,10 @@ export default function SendScreen() {
         <View style={s.field}>
           <Text style={s.introText}>Send on Bitcoin, Lightning or Arkade</Text>
           <TextInput
-            style={[s.textInput, Platform.OS === 'web' && ({ outlineStyle: 'none' } as any)]}
+            style={[s.textInput]}
             value={address}
             onChangeText={handleAddressChange}
+            accessibilityLabel="Recipient address or invoice"
             placeholder="address or invoice"
             placeholderTextColor={colors.muted}
             autoCapitalize="none"
@@ -723,8 +724,9 @@ export default function SendScreen() {
           </View>
           <View style={s.amountRow}>
             <TextInput
-              style={[s.textInput, s.big, s.amountInput, Platform.OS === 'web' && ({ outlineStyle: 'none' } as any)]}
+              style={[s.textInput, s.big, s.amountInput]}
               value={amount}
+              accessibilityLabel="Amount"
               onChangeText={value => {
                 setAmount(value.replace(/\D/g, ''));
                 setFormError(null);
@@ -916,6 +918,7 @@ export default function SendScreen() {
           />
 
           <Animated.View
+            accessibilityLiveRegion="polite"
             style={[
               s.successContent,
               {

@@ -1,4 +1,4 @@
-import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useMemo, useState } from 'react';
@@ -92,7 +92,7 @@ function MemoryFactRow({
         {editing ? (
           <View>
             <TextInput
-              style={[s.editInput, Platform.OS === 'web' && ({ outlineStyle: 'none' } as any)]}
+              style={[s.editInput]}
               value={draft}
               onChangeText={setDraft}
               onSubmitEditing={save}
@@ -251,7 +251,7 @@ export default function WhatAliceKnowsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn} accessibilityLabel="Back">
           <Text style={s.backIcon}>←</Text>
         </TouchableOpacity>
-        <Text style={s.title}>WHAT ALICE REMEMBERS</Text>
+        <Text style={s.title} accessibilityRole="header">WHAT ALICE REMEMBERS</Text>
         <View style={s.backBtn} />
       </View>
 

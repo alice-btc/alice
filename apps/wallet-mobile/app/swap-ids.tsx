@@ -125,10 +125,10 @@ export default function SwapIdsScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+        <TouchableOpacity onPress={() => router.back()} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Back">
           <Text style={s.backIcon}>←</Text>
         </TouchableOpacity>
-        <Text style={s.title}>SWAP IDs</Text>
+        <Text style={s.title} accessibilityRole="header">SWAP IDs</Text>
         <TouchableOpacity onPress={() => void load(true)} style={s.backBtn} disabled={refreshing}>
           {refreshing
             ? <ActivityIndicator size="small" color={colors.primary} />

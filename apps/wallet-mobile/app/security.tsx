@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { spacing, typography, type Colors, type Pixel } from '@alice-wallet/alice-content';
 import { PixelToggle, useTheme } from '@alice-wallet/alice-ui';
@@ -12,15 +12,23 @@ import { PinInput } from '@alice-wallet/alice-ui';
 type Mode = 'loading' | 'create' | 'manage' | 'change' | 'disable';
 type PinChoice = 'none' | 4 | 6;
 
+// On the web the PIN is what encrypts the seed; without it the vault is
+// protected by a constant that ships in the bundle. So the web never offers
+// "no PIN", never offers to disable the lock, and a wallet that has none yet
+// is sent here with `required=1` before it opens.
+const WEB_PIN_REQUIRED = Platform.OS === 'web';
+
 export default function SecurityScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ required?: string }>();
+  const required = WEB_PIN_REQUIRED && params.required === '1';
   const { colors, pixel } = useTheme();
   const s = useMemo(() => makeStyles(colors, pixel), [colors, pixel]);
   const [mode, setMode] = useState<Mode>('loading');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [currentPin, setCurrentPin] = useState('');
-  const [pinChoice, setPinChoice] = useState<PinChoice>('none');
+  const [pinChoice, setPinChoice] = useState<PinChoice>(WEB_PIN_REQUIRED ? 6 : 'none');
   const [currentPinLength, setCurrentPinLength] = useState<4 | 6>(6);
   const [biometricEnabled, setBiometricState] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
@@ -81,6 +89,10 @@ export default function SecurityScreen() {
       unlockSession();
       setBiometricState(false);
       setCurrentPinLength(pin.length as 4 | 6);
+      if (required) {
+        router.replace('/?intro=pixel');
+        return;
+      }
       resetFields('manage');
       setSuccess(isChange ? 'PIN changed.' : 'App lock enabled.');
     } finally {
@@ -152,7 +164,9 @@ export default function SecurityScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}><Text style={s.backIcon}>←</Text></TouchableOpacity>
+        {required
+          ? <View style={{ width: 36 }} />
+          : <TouchableOpacity onPress={() => router.back()} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Back"><Text style={s.backIcon}>←</Text></TouchableOpacity>}
         <Text style={s.headerTitle}>SECURITY</Text>
         <View style={{ width: 36 }} />
       </View>
@@ -169,9 +183,13 @@ export default function SecurityScreen() {
 
         {mode === 'create' && (
           <>
-            <Text style={s.title}>CHOOSE APP LOCK</Text>
-            <Text style={s.description}>Choose no PIN, a 4-digit PIN, or a more secure 6-digit PIN.</Text>
-            <PinChoiceButtons />
+            <Text style={s.title} accessibilityRole="header">{WEB_PIN_REQUIRED ? 'PROTECT YOUR KEYS' : 'CHOOSE APP LOCK'}</Text>
+            <Text style={s.description}>
+              {WEB_PIN_REQUIRED
+                ? 'In a browser, this PIN is what encrypts your recovery phrase. Without one, anyone with access to this browser could read it. Six digits are safer than four.'
+                : 'Choose no PIN, a 4-digit PIN, or a more secure 6-digit PIN.'}
+            </Text>
+            <PinChoiceButtons includeNone={!WEB_PIN_REQUIRED} />
             {pinChoice === 'none' ? (
               <TouchableOpacity style={s.secondaryBtn} onPress={() => void useWithoutPin()}>
                 <Text style={s.secondaryText}>CONTINUE WITHOUT PIN</Text>
@@ -190,7 +208,7 @@ export default function SecurityScreen() {
 
         {mode === 'manage' && (
           <>
-            <Text style={s.title}>APP LOCK ENABLED</Text>
+            <Text style={s.title} accessibilityRole="header">APP LOCK ENABLED</Text>
             <Text style={s.description}>Alice locks at launch and after being left in the background for two minutes.</Text>
             <View style={s.settingRow}>
               <View style={s.settingCopy}>
@@ -207,15 +225,17 @@ export default function SecurityScreen() {
             <TouchableOpacity style={s.secondaryBtn} onPress={() => resetFields('change')}>
               <Text style={s.secondaryText}>CHANGE PIN</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[s.dangerBtn, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]} onPress={() => resetFields('disable')}>
-              <Text style={[s.dangerText, { color: colors.danger }]}>DISABLE APP LOCK</Text>
-            </TouchableOpacity>
+            {!WEB_PIN_REQUIRED && (
+              <TouchableOpacity style={[s.dangerBtn, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]} onPress={() => resetFields('disable')}>
+                <Text style={[s.dangerText, { color: colors.danger }]}>DISABLE APP LOCK</Text>
+              </TouchableOpacity>
+            )}
           </>
         )}
 
         {mode === 'change' && (
           <>
-            <Text style={s.title}>CHANGE PIN</Text>
+            <Text style={s.title} accessibilityRole="header">CHANGE PIN</Text>
             <Text style={s.description}>Choose the length of your new PIN.</Text>
             <PinChoiceButtons includeNone={false} />
             <PinInput value={currentPin} onChange={setCurrentPin} onInput={() => setError(null)} placeholder="current password" length={currentPinLength} />
@@ -230,7 +250,7 @@ export default function SecurityScreen() {
 
         {mode === 'disable' && (
           <>
-            <Text style={s.title}>DISABLE APP LOCK?</Text>
+            <Text style={s.title} accessibilityRole="header">DISABLE APP LOCK?</Text>
             <Text style={s.description}>Anyone with access to this device will be able to open Alice.</Text>
             <PinInput value={currentPin} onChange={setCurrentPin} onInput={() => setError(null)} placeholder="current password" length={currentPinLength} />
             <TouchableOpacity style={[s.dangerBtn, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]} onPress={() => void disableLock()}>

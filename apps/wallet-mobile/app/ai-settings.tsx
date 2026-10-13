@@ -328,10 +328,10 @@ export default function AISettingsScreen() {
 	  return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+        <TouchableOpacity onPress={() => router.back()} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Back">
           <Text style={s.backIcon}>←</Text>
         </TouchableOpacity>
-        <Text style={s.title}>Customize Alice</Text>
+        <Text style={s.title} accessibilityRole="header">Customize Alice</Text>
         <View style={{ width: 36 }} />
       </View>
 

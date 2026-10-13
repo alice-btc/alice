@@ -8,9 +8,19 @@ export type WhatsNewEntry = {
   highlights: string[];
 };
 
-export const RELEASE_NOTES_URL = 'https://github.com/mariusoffchain/alice/releases';
+export const RELEASE_NOTES_URL = 'https://github.com/alice-btc/alice/releases';
 
 export const WHATS_NEW: WhatsNewEntry[] = [
+  {
+    version: '0.2.4',
+    highlights: [
+      'Keyboard and screen reader: every control has a name, fields keep their focus ring, and payment status changes are announced.',
+      'Animations follow your system\'s reduce-motion setting.',
+      'A Learn course now tells your screen reader which language it is in.',
+      'The web wallet asks for a PIN before it opens: it is what encrypts your recovery phrase in this browser.',
+      'The light theme of the wallet reads at full contrast.',
+    ],
+  },
   {
     version: '0.2.3',
     highlights: [

@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -148,7 +147,7 @@ export default function AddressesScreen() {
             </View>
             <Text style={s.currentAddress} selectable>{shortAddress(current.address)}</Text>
             <TextInput
-              style={[s.labelInput, Platform.OS === 'web' && ({ outlineStyle: 'none' } as any)]}
+              style={[s.labelInput]}
               value={current.label}
               onChangeText={label => {
                 labelDrafts.current[current.address] = label;
@@ -204,7 +203,7 @@ export default function AddressesScreen() {
         <TouchableOpacity onPress={() => router.back()} style={s.iconBtn}>
           <Ionicons name="arrow-back" size={19} color={colors.primary} />
         </TouchableOpacity>
-        <Text style={s.title}>ADDRESSES</Text>
+        <Text style={s.title} accessibilityRole="header">ADDRESSES</Text>
         <TouchableOpacity
           onPress={() => void fullRescan()}
           style={s.iconBtn}

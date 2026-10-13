@@ -143,10 +143,10 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={[s.safe, { backgroundColor: colors.background }]}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')} style={[s.backBtn, pixel, { backgroundColor: colors.cardBg }]}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')} accessibilityRole="button" accessibilityLabel="Back" style={[s.backBtn, pixel, { backgroundColor: colors.cardBg }]}>
           <Text style={[s.backIcon, { color: colors.primary }]}>←</Text>
         </TouchableOpacity>
-        <Text style={[s.title, { color: colors.primaryDark }]}>SETTINGS</Text>
+        <Text style={[s.title, { color: colors.primaryDark }]} accessibilityRole="header">SETTINGS</Text>
         <View style={{ width: 36 }} />
       </View>
 

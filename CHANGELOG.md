@@ -3,13 +3,53 @@
 Alice ships as four surfaces from one repository, and they are versioned
 together: a single number means a tester and a log line refer to the same code.
 
-- `0.2.3`, current release
+- `0.2.4`, current release
+- `0.2.3`, previous release
 - `0.2.2`, previous release
 - `0.2.1`, previous release
 - `0.2.0`, previous release
 - `0.1.0`, previous closed beta
 - `0.0.1`, first public baseline
 - `1.0.0`, public launch, planned
+
+## 0.2.4
+
+Desktop installers for macOS, Windows and Linux ship with this release. The
+Android build is unchanged and stays on `0.2.0`.
+
+This release closes the security and accessibility review of 30 September.
+
+### Security
+
+- The three public hosts send security headers: no framing by another site,
+  no content sniffing, no referrer, and a permissions policy that keeps the
+  camera for the QR scanners and nothing else. A Content Security Policy
+  ships in report-only mode first and will be enforced once its reports come
+  back clean.
+- The web wallet asks for a PIN before it opens. In a browser the PIN is what
+  encrypts the recovery phrase; without one it was encrypted with a constant
+  anyone could read in the public bundle. A wallet created earlier picks its
+  PIN once at its next visit, and the lock cannot be turned off on the web.
+  Android keeps its optional PIN, since the phone's secure store holds the
+  seed there. The welcome screen says where the keys live.
+- Private Cloud, on the server: a plan is credited only when BTCPay reports
+  the invoice settled in full, never on a single confirmed payment, which
+  could be partial or late. New free installations are capped at five per
+  network and per day, and the refusal says what to do. The production
+  origin list no longer admits local development servers.
+
+### Accessibility
+
+- Wallet: the light theme's blue reads at full contrast; text fields keep
+  their focus ring on the web; every back arrow, the settings gear, the send
+  button, the balance and the QR code have a name; the address, amount, chat
+  and recovery-phrase fields have a label; payment status changes are
+  announced; the pixel fills and typewriters stop when the system asks for
+  reduced motion.
+- Alice App: a Learn course declares its own language, and the plan checkout
+  announces a confirmed payment.
+- Website: a "Skip to content" link, download panels that read as what they
+  are, and a download notice that takes the focus and gives it back.
 
 ## 0.2.3
 

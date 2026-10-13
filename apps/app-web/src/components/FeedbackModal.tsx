@@ -21,7 +21,7 @@ import appDesktopPackage from '../../../app-desktop/package.json';
 
 // Dedicated public repo for community bug reports / knowledge suggestions,
 // since the main `alice` repo is private. Revisit once `alice` goes public, // issues could move there directly instead of this separate repo.
-const FEEDBACK_REPO = 'mariusoffchain/alice-support-contribute';
+const FEEDBACK_REPO = 'alice-btc/alice-support-contribute';
 const FEEDBACK_EMAIL = 'report@alicebtc.com';
 
 type Category = 'bug' | 'alice-response' | 'knowledge';

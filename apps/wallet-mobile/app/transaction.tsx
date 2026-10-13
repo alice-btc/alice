@@ -163,8 +163,8 @@ export default function TransactionScreen() {
     return (
       <SafeAreaView style={s.safe}>
         <View style={s.header}>
-          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')} style={s.backBtn}><Text style={s.backIcon}>←</Text></TouchableOpacity>
-          <Text style={s.title}>TRANSACTION</Text>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Back"><Text style={s.backIcon}>←</Text></TouchableOpacity>
+          <Text style={s.title} accessibilityRole="header">TRANSACTION</Text>
           <View style={{ width: 36 }} />
         </View>
         <View style={s.center}>
@@ -234,8 +234,8 @@ export default function TransactionScreen() {
     return (
       <SafeAreaView style={s.safe}>
         <View style={s.header}>
-          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')} style={s.backBtn}><Text style={s.backIcon}>←</Text></TouchableOpacity>
-          <Text style={s.title}>PAYMENT DETAILS</Text>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Back"><Text style={s.backIcon}>←</Text></TouchableOpacity>
+          <Text style={s.title} accessibilityRole="header">PAYMENT DETAILS</Text>
           <View style={{ width: 36 }} />
         </View>
         <ScrollView
@@ -350,8 +350,8 @@ export default function TransactionScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')} style={s.backBtn}><Text style={s.backIcon}>←</Text></TouchableOpacity>
-        <Text style={s.title}>TRANSACTION</Text>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Back"><Text style={s.backIcon}>←</Text></TouchableOpacity>
+        <Text style={s.title} accessibilityRole="header">TRANSACTION</Text>
         <View style={{ width: 36 }} />
       </View>
 

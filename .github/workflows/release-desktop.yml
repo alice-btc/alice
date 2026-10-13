@@ -1,5 +1,8 @@
 name: Release desktop
 
+# Started by hand only. Publishing the draft release creates the tag, and a
+# tag trigger would start this workflow a second time on the same commit,
+# only to refuse the already published release at the end.
 on:
   workflow_dispatch:
     inputs:
@@ -8,15 +11,12 @@ on:
         required: true
         default: v0.2.0
         type: string
-  push:
-    tags:
-      - "v*"
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-desktop-${{ inputs.tag || github.ref_name }}
+  group: release-desktop-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
@@ -39,7 +39,7 @@ jobs:
         name: Check the tag against the version
         shell: bash
         env:
-          REQUESTED_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+          REQUESTED_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
           if [[ ! "$REQUESTED_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
@@ -61,14 +61,13 @@ jobs:
             fi
           fi
 
-          # A manual run builds from main, or from the release branch whose
-          # name carries the very version being released: the draft release
-          # fills up during QA, before anything is merged or tagged.
+          # The run builds from main, or from the release branch whose name
+          # carries the very version being released: the draft release fills
+          # up during QA, before anything is merged or tagged.
           release_branch="release/${expected_tag#v}"
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" \
-                && "${{ github.ref_name }}" != "main" \
+          if [[ "${{ github.ref_name }}" != "main" \
                 && "${{ github.ref_name }}" != "$release_branch" ]]; then
-            echo "A manual run must start from main or from $release_branch, not from ${{ github.ref_name }}." >&2
+            echo "The run must start from main or from $release_branch, not from ${{ github.ref_name }}." >&2
             exit 1
           fi
 
@@ -151,6 +150,12 @@ jobs:
           key: desktop-assets-${{ runner.os }}-${{ hashFiles('scripts/prepare-learn-packs.mjs', 'scripts/prepare-semantic-model.mjs', 'packages/alice-content/src/generated/planb-learn-catalog.ts', 'package-lock.json') }}
 
       - name: Install the npm dependencies
+        env:
+          # The workspace install also brings in the mobile wallet's native AI
+          # engine, llama.rn, whose install script downloads prebuilt iOS and
+          # Android libraries from GitHub. A desktop build never loads them,
+          # and that download has failed on GitHub's side before.
+          RNLLAMA_SKIP_POSTINSTALL: "1"
         run: npm ci
 
       - name: Check the optional Apple secrets

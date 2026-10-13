@@ -187,7 +187,7 @@ export const PALETTES: Record<PaletteId, PaletteConfig> = {
     primary: '#8bb8ff',
     light: {
       background: '#fafafa', backgroundSoft: '#f6f8fb',
-      primary: '#8bb8ff', primaryDark: '#6fa3f7', text: '#22304a',
+      primary: '#8bb8ff', primaryDark: '#2b62c2', text: '#22304a',
       border: '#8bb8ff', muted: '#5d7599', white: '#ffffff',
       cardBg: 'rgba(255, 255, 255, 0.7)', dotted: '#d0dfff', onPrimary: '#1c2b45',
       qrColor: '#1c2533', ...SEMANTIC_LIGHT,

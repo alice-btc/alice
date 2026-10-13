@@ -85,8 +85,13 @@ export default function RootLayout() {
         if (cancelled) return;
         if (!done) {
           router.replace('/onboarding');
-        } else if ((await isLockEnabled()) && !isSessionUnlocked()) {
-          router.replace('/lock');
+        } else if (await isLockEnabled()) {
+          if (!isSessionUnlocked()) router.replace('/lock');
+        } else if (Platform.OS === 'web') {
+          // A web wallet without a PIN has its seed encrypted with a constant
+          // anyone can read in the bundle. Wallets created before the PIN
+          // became mandatory land here once and choose one.
+          router.replace('/security?required=1');
         }
         setChecked(true);
       } catch (cause) {
@@ -135,8 +140,14 @@ export default function RootLayout() {
   useEffect(() => {
     if (!checked) return;
     if (currentRoute === 'lock' || currentRoute === 'onboarding') return;
-    isLockEnabled().then(enabled => {
+    isLockEnabled().then(async enabled => {
       if (enabled && !isSessionUnlocked()) router.replace('/lock');
+      // Same rule as at startup: an onboarded web wallet cannot leave
+      // Security until it has a PIN. A wallet still being created is not
+      // sent there; onboarding does that itself once the keys are saved.
+      else if (!enabled && Platform.OS === 'web' && currentRoute !== 'security' && await isOnboarded()) {
+        router.replace('/security?required=1');
+      }
     });
   }, [checked, currentRoute]);
 

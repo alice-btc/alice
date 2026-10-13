@@ -14,6 +14,10 @@ const EMAIL_RESEND_DELAY_MS = 60 * 1_000;
 const EMAIL_SEND_LIMIT = 5;
 const IP_SEND_LIMIT = 20;
 const IP_ACCOUNT_CREATION_LIMIT = 5;
+// Anonymous users are cheap to make and each one carries a free allowance.
+// Five a day leaves room for a reinstall or a cleared browser, and the
+// refusal says what to do, so a shared address is told rather than walled.
+const IP_ANONYMOUS_CREATION_LIMIT = 5;
 const VERIFY_LIMIT = 20;
 const MAX_CODE_ATTEMPTS = 5;
 const FREE_REQUEST_LIMIT = 21;
@@ -471,8 +475,15 @@ export async function parseJsonBody(request: Request): Promise<Record<string, un
   }
   let parsed: unknown;
   try {
-    parsed = await request.json();
-  } catch {
+    // The declared length is a hint; a chunked body declares none. The text
+    // that actually arrived is what gets bounded.
+    const raw = await request.text();
+    if (raw.length > 8_192) {
+      throw new AccountHttpError(413, 'body_too_large', 'Request body is too large.');
+    }
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    if (error instanceof AccountHttpError) throw error;
     throw new AccountHttpError(400, 'invalid_json', 'Request body must be valid JSON.');
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -702,6 +713,30 @@ export async function createAnonymousSession(request: Request, env: Env) {
       // Twelve accounts created and abandoned from one installation is not a
       // person losing their password, it is a loop.
       throw new AccountHttpError(429, 'too_many_accounts', 'Too many accounts from this installation.');
+    }
+  }
+
+  // Reopening a session costs nothing. Creating a user opens a fresh free
+  // allowance, and the install id is whatever the client says it is, so a
+  // script could mint one per request. New users are therefore capped on
+  // their own, per IP over a day, the way identified sign-ups already are.
+  const existing = await env.ACCOUNT_DB.prepare(
+    'SELECT 1 AS present FROM users WHERE id = ? LIMIT 1',
+  ).bind(userId).first<{ present: number }>();
+  if (!existing) {
+    try {
+      await rateLimit(
+        env, ipBucket, 'ip_anonymous_create', IP_ANONYMOUS_CREATION_LIMIT, now, ACCOUNT_CREATION_WINDOW_MS,
+      );
+    } catch (error) {
+      if (!(error instanceof AccountHttpError) || error.code !== 'rate_limited') throw error;
+      // Its own code and a plain explanation: the person on the other side
+      // is usually behind a shared address, not the one who used it up.
+      throw new AccountHttpError(
+        429,
+        'too_many_new_installations',
+        'Five new Alice installations have already started from your network today, so Alice cannot open a new free session right now. If you already have an Alice account, sign in; otherwise try again tomorrow.',
+      );
     }
   }
 

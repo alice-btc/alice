@@ -85,6 +85,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body>
+        {/* Every page has a <main id="main">; the link is the first thing a
+            keyboard reaches and stays invisible until it has the focus. */}
+        <a href="#main" className="skip-link">Skip to content</a>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}

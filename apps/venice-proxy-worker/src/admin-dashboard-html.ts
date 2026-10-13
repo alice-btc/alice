@@ -930,7 +930,7 @@ export const ADMIN_DASHBOARD_HTML = `<!doctype html>
         h('h2', { text: 'APK downloads (GitHub releases)' }),
         dlBody,
       ]));
-      fetch('https://api.github.com/repos/mariusoffchain/alice/releases')
+      fetch('https://api.github.com/repos/alice-btc/alice/releases')
         .then(function (r) { if (!r.ok) throw new Error('GitHub answered ' + r.status); return r.json(); })
         .then(function (releases) {
           var table = h('table', {});

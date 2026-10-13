@@ -5,6 +5,9 @@
 export type VeniceErrorCode =
   | 'missing_api_key'
   | 'account_required'
+  /** The network this device sits on has started its five free Alice
+   *  installations for the day. Signing in works; a new free session does not. */
+  | 'too_many_new_installations'
   | 'free_quota_exhausted'
   /** A paid plan's monthly allowance is spent. Distinct from the free one:
    *  the remedy is to wait for the reset or to buy ahead, not to subscribe. */

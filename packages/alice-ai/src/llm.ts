@@ -122,7 +122,9 @@ async function sendE2EEMessage(
           throw new VeniceAPIError(
             err.code === 'account_required' || err.code === 'session_expired'
               ? 'account_required'
-              : 'api_error',
+              : err.code === 'too_many_new_installations'
+                ? 'too_many_new_installations'
+                : 'api_error',
             err.message,
             err.status,
           );

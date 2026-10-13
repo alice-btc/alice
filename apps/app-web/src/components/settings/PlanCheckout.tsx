@@ -173,7 +173,9 @@ export function PlanCheckout() {
 
   if (pending) {
     return (
-      <section style={sectionStyle}>
+      // The status changes on its own once the payment confirms; a live
+      // region is what lets a screen reader hear that happen.
+      <section style={sectionStyle} role="status" aria-live="polite">
         <SectionLabel>WAITING FOR CONFIRMATION</SectionLabel>
         <SvgIcon svg={CLOCK_ICON} size={20} color="currentColor" />
         <p className="font-numbers m-0 mt-3" style={{ fontSize: 15, lineHeight: '21px' }}>

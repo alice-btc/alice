@@ -1,6 +1,6 @@
 {
   "name": "@alice-wallet/app-web",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "license": "AGPL-3.0-or-later",
   "private": true,
   "scripts": {

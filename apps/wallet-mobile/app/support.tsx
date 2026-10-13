@@ -22,7 +22,7 @@ import {
 } from '@alice-wallet/wallet-core';
 
 const FEEDBACK_EMAIL = 'report@alicebtc.com';
-const FEEDBACK_REPO = 'mariusoffchain/alice-support-contribute';
+const FEEDBACK_REPO = 'alice-btc/alice-support-contribute';
 
 const CATEGORIES: { id: SupportReportCategory; label: string }[] = [
   { id: 'bug', label: 'BUG' },
@@ -80,10 +80,12 @@ export default function SupportScreen() {
         <TouchableOpacity
           onPress={() => router.canGoBack() ? router.back() : router.replace('/settings')}
           style={s.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
         >
           <Text style={s.backIcon}>←</Text>
         </TouchableOpacity>
-        <Text style={s.title}>REPORT</Text>
+        <Text style={s.title} accessibilityRole="header">REPORT</Text>
         <View style={{ width: 36 }} />
       </View>
 

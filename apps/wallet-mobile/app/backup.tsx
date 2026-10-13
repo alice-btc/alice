@@ -138,7 +138,7 @@ export default function BackupScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <TouchableOpacity onPress={leaveScreen} style={s.backBtn}><Text style={s.backIcon}>←</Text></TouchableOpacity>
+        <TouchableOpacity onPress={leaveScreen} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Back"><Text style={s.backIcon}>←</Text></TouchableOpacity>
         <Text style={s.headerTitle}>{backupComplete ? 'RECOVERY' : 'BACKUP'}</Text>
         <View style={{ width: 36 }} />
       </View>
@@ -146,7 +146,7 @@ export default function BackupScreen() {
       <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
         {step === 'intro' && (
           <>
-            <Text style={s.title}>{backupComplete ? 'RECOVERY PHRASE' : 'BACK UP YOUR WALLET'}</Text>
+            <Text style={s.title} accessibilityRole="header">{backupComplete ? 'RECOVERY PHRASE' : 'BACK UP YOUR WALLET'}</Text>
             <Text style={s.description}>
               {backupComplete
                 ? 'Reveal your recovery phrase only in a private place.'
@@ -166,7 +166,7 @@ export default function BackupScreen() {
 
         {step === 'seed' && (
           <>
-            <Text style={s.title}>WRITE DOWN THESE 12 WORDS</Text>
+            <Text style={s.title} accessibilityRole="header">WRITE DOWN THESE 12 WORDS</Text>
             <Text style={s.description}>Keep them offline and in order. Anyone with these words can access your Bitcoin.</Text>
             <View style={s.seedGrid}>
               {words.map((word, index) => {
@@ -207,7 +207,7 @@ export default function BackupScreen() {
 
         {step === 'verify' && (
           <>
-            <Text style={s.title}>VERIFY YOUR BACKUP</Text>
+            <Text style={s.title} accessibilityRole="header">VERIFY YOUR BACKUP</Text>
             <Text style={s.description}>Select the correct word for each position.</Text>
             {verifyIndices.map((wordIndex, questionIndex) => (
               <View key={wordIndex} style={s.verifyBlock}>
@@ -242,7 +242,7 @@ export default function BackupScreen() {
 
         {step === 'complete' && (
           <>
-            <Text style={s.title}>BACKUP VERIFIED</Text>
+            <Text style={s.title} accessibilityRole="header">BACKUP VERIFIED</Text>
             <Text style={s.description}>Your recovery phrase is safely backed up. Alice will no longer show the backup reminder.</Text>
             <TouchableOpacity style={s.primaryBtn} onPress={() => router.replace('/')}>
               <Text style={s.primaryText}>BACK TO WALLET</Text>

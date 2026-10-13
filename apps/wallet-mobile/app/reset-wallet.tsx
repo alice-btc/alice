@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { spacing, typography, type Colors, type Pixel } from '@alice-wallet/alice-content';
@@ -82,7 +82,7 @@ export default function ResetWalletScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+        <TouchableOpacity onPress={() => router.back()} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Back">
           <Text style={s.backIcon}>←</Text>
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: colors.danger }]}>RESET WALLET</Text>
@@ -119,7 +119,7 @@ export default function ResetWalletScreen() {
 
         <Text style={s.inputLabel}>TYPE “RESET ALICE” TO CONFIRM</Text>
         <TextInput
-          style={[s.input, Platform.OS === 'web' && ({ outlineStyle: 'none' } as any)]}
+          style={[s.input]}
           value={confirmation}
           onChangeText={value => { setConfirmation(value); setError(null); }}
           autoCapitalize="characters"
