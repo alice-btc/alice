@@ -1,9 +1,9 @@
-import { View, Text, StyleSheet, TouchableOpacity, Share, Platform, ActivityIndicator, TextInput, ScrollView, Animated, Easing, Linking, KeyboardAvoidingView, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Share, Platform, AccessibilityInfo, ActivityIndicator, TextInput, ScrollView, Animated, Easing, Linking, KeyboardAvoidingView, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { spacing, typography, type Colors, type Pixel } from '@alice-wallet/alice-content';
-import { useTheme } from '@alice-wallet/alice-ui';
+import { useTheme, useReducedMotion } from '@alice-wallet/alice-ui';
 import {
   createReceivePayment,
   findNewReceivedVtxo,
@@ -90,11 +90,12 @@ export default function ReceiveScreen() {
 
   // Started from PixelFill's onReady so the grid is mounted before progress
   // moves, otherwise the natively driven fill runs ahead of first paint.
+  const reduceMotion = useReducedMotion();
   const startSuccessAnimation = () => {
     successProgress.setValue(0);
     Animated.timing(successProgress, {
       toValue: 1,
-      duration: 900,
+      duration: reduceMotion ? 0 : 900,
       easing: Easing.linear,
       useNativeDriver: true,
     }).start();
@@ -256,6 +257,8 @@ export default function ReceiveScreen() {
     if (successShownRef.current || received <= 0) return;
     successShownRef.current = true;
     setReceivedAmount(received);
+    // The overlay is visual; a screen reader hears this instead.
+    AccessibilityInfo.announceForAccessibility(`Payment received, ${received} sats`);
     if (transaction) setReceivedTx(transaction);
     if (arkTxid) setReceivedArkTxid(arkTxid);
 
@@ -355,10 +358,10 @@ export default function ReceiveScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.replace('/')} style={s.backBtn}>
+        <TouchableOpacity onPress={() => router.replace('/')} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Back">
           <Text style={s.backIcon}>←</Text>
         </TouchableOpacity>
-        <Text style={s.title}>RECEIVE</Text>
+        <Text style={s.title} accessibilityRole="header">RECEIVE</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -389,8 +392,9 @@ export default function ReceiveScreen() {
           <View style={s.amountRow}>
             <View style={s.amountInputWrap}>
               <TextInput
-                style={[s.amountInput, Platform.OS === 'web' && ({ outlineStyle: 'none' } as any)]}
+                style={[s.amountInput]}
                 value={amountInput}
+                accessibilityLabel="Amount to receive"
                 onChangeText={value => {
                   setAmountInput(value.replace(/\D/g, ''));
                   setLightningInvoice('');
@@ -416,7 +420,7 @@ export default function ReceiveScreen() {
 
         {/* Waiting indicator, stays visible until the success overlay covers it */}
         {qrValue && !showSuccess && (
-          <View style={s.waitingBanner}>
+          <View style={s.waitingBanner} accessibilityLiveRegion="polite">
             {/* A scaled-down spinner keeps its full layout box, which pushed the
                 text off its baseline; size the spinner itself instead. */}
             <ActivityIndicator size={14} color={colors.primary} />
@@ -430,6 +434,9 @@ export default function ReceiveScreen() {
           onPress={() => void copyValue()}
           disabled={!qrValue}
           activeOpacity={0.9}
+          accessibilityRole="button"
+          accessibilityLabel="Payment QR code"
+          accessibilityHint="Copies the address or invoice"
         >
         <View style={s.qrContainer}>
           {QRCode && qrValue ? (

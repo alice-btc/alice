@@ -349,6 +349,34 @@ describe('webhook', () => {
       .bind('btcpay-invoice-8').first<{ status: string }>();
     assert.equal(invoice?.status, 'expired');
   });
+
+  it('credits nothing on a confirmed payment, because a payment is not a settled invoice', async () => {
+    const { userId } = await createUser();
+    await pendingInvoice(userId, 'cloud', 24, 'btcpay-invoice-9');
+    await handleBtcpayWebhook(
+      await signedWebhook({ type: 'InvoicePaymentSettled', invoiceId: 'btcpay-invoice-9', partiallyPaid: true }),
+      env,
+    );
+    await handleBtcpayWebhook(
+      await signedWebhook({ type: 'InvoicePaymentSettled', invoiceId: 'btcpay-invoice-9' }),
+      env,
+    );
+    assert.equal(await resolvePlan(env, userId), 'free');
+    const invoice = await db.prepare('SELECT status, credited_at FROM invoices WHERE provider_invoice_id = ?')
+      .bind('btcpay-invoice-9').first<{ status: string; credited_at: number | null }>();
+    assert.equal(invoice?.status, 'pending');
+    assert.equal(invoice?.credited_at, null);
+  });
+
+  it('ignores a settled invoice that belongs to another store', async () => {
+    const { userId } = await createUser();
+    await pendingInvoice(userId, 'cloud', 1, 'btcpay-invoice-10');
+    await handleBtcpayWebhook(
+      await signedWebhook({ type: 'InvoiceSettled', invoiceId: 'btcpay-invoice-10', storeId: 'someone-elses-store' }),
+      env,
+    );
+    assert.equal(await resolvePlan(env, userId), 'free');
+  });
 });
 
 describe('plan lifetime', () => {

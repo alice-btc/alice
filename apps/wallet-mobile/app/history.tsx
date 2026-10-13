@@ -195,8 +195,8 @@ export default function HistoryScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}><Text style={s.backIcon}>←</Text></TouchableOpacity>
-        <Text style={s.title}>HISTORY</Text>
+        <TouchableOpacity onPress={() => router.back()} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Back"><Text style={s.backIcon}>←</Text></TouchableOpacity>
+        <Text style={s.title} accessibilityRole="header">HISTORY</Text>
         <View style={{ width: 36 }} />
       </View>
       {hasPending && (

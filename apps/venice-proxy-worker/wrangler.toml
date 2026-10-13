@@ -63,7 +63,11 @@ migrations_dir = "migrations-entities"
 [vars]
 # Comma-separated origin allowlist for CORS. Keep it as tight as the
 # deployment allows; an empty list means no cross-origin browser access.
-ALLOWED_ORIGINS = "https://alicebtc.com,https://app.alicebtc.com,https://wallet.alicebtc.com,https://mutinynet.alicebtc.com,https://mainnet-alice-wallet.vercel.app,tauri://localhost,http://localhost:3000,http://127.0.0.1:3000,http://localhost:3002,http://localhost:8100"
+# This is the production list: Alice's own hosts and the desktop shell. The
+# local dev servers are not in it; `wrangler dev` reads them from the
+# git-ignored `.dev.vars`, which overrides this value on this machine only:
+#   ALLOWED_ORIGINS="https://alicebtc.com,...,tauri://localhost,http://localhost:3000,http://127.0.0.1:3000,http://localhost:3002,http://localhost:8100"
+ALLOWED_ORIGINS = "https://alicebtc.com,https://app.alicebtc.com,https://wallet.alicebtc.com,https://mutinynet.alicebtc.com,tauri://localhost"
 AUTH_EMAIL_FROM = "login@auth.alicebtc.com"
 AUTH_EMAIL_PROVIDER = "resend"
 FREE_CLOUD_MODELS = "e2ee-gpt-oss-120b-p"

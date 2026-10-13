@@ -873,16 +873,26 @@ export async function handleBtcpayWebhook(request: Request, env: Env): Promise<R
     return new Response('invalid signature', { status: 401 });
   }
 
-  let event: { type?: string; invoiceId?: string };
+  let event: { type?: string; invoiceId?: string; storeId?: string };
   try {
     event = JSON.parse(raw);
   } catch {
     return new Response('invalid json', { status: 400 });
   }
   if (!event.invoiceId) return new Response('ok');
+  // A webhook signed with our secret but describing another store's invoice
+  // is a misconfiguration, not a payment. Nothing to credit.
+  if (env.BTCPAY_STORE_ID && event.storeId && event.storeId !== env.BTCPAY_STORE_ID) {
+    return new Response('ok');
+  }
 
   const now = Date.now();
-  if (event.type === 'InvoiceSettled' || event.type === 'InvoicePaymentSettled') {
+  // Only the invoice's own verdict counts. InvoiceSettled means BTCPay saw
+  // the whole amount confirmed. InvoicePaymentSettled means one payment on
+  // the invoice confirmed, which can be a partial or late one with the
+  // invoice still Processing or Expired, so it credits nothing: a buyer who
+  // paid a few sats on-chain would otherwise walk away with the full plan.
+  if (event.type === 'InvoiceSettled') {
     await creditInvoice(env, event.invoiceId, now);
   } else if (event.type === 'InvoiceExpired' || event.type === 'InvoiceInvalid') {
     const status = event.type === 'InvoiceExpired' ? 'expired' : 'invalid';

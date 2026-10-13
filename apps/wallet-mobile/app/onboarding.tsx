@@ -3,7 +3,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { spacing, typography, type Colors, type Pixel } from '@alice-wallet/alice-content';
-import { useTheme } from '@alice-wallet/alice-ui';
+import { useTheme, useReducedMotion } from '@alice-wallet/alice-ui';
 import { PixelFill } from '@alice-wallet/alice-ui';
 import { AliceAvatar } from '@alice-wallet/alice-ui';
 import { forgetWalletForNewSeed, initWallet, NETWORK, restoreWallet, saveMnemonic } from '@alice-wallet/wallet-core';
@@ -51,13 +51,14 @@ export default function OnboardingScreen() {
   // Started from PixelFill's onReady so the grid is mounted before progress
   // moves, otherwise the natively driven fill runs ahead of first paint.
   // Idempotent: the layout signal and the safety net below may both call it.
+  const reduceMotion = useReducedMotion();
   const startReadyAnimation = () => {
     if (readyStartedRef.current) return;
     readyStartedRef.current = true;
     readyProgress.setValue(0);
     Animated.timing(readyProgress, {
       toValue: 1,
-      duration: 900,
+      duration: reduceMotion ? 0 : 900,
       easing: Easing.linear,
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -82,7 +83,8 @@ export default function OnboardingScreen() {
   useEffect(() => {
     if (!readyComplete) return;
     let i = 0;
-    const charsPerTick = Platform.OS === 'web' ? 1 : 3;
+    // With reduced motion the message lands whole instead of typing itself.
+    const charsPerTick = reduceMotion ? READY_MESSAGE.length : Platform.OS === 'web' ? 1 : 3;
     const interval = Platform.OS === 'web' ? 24 : 40;
     const id = setInterval(() => {
       i = Math.min(i + charsPerTick, READY_MESSAGE.length);
@@ -92,10 +94,10 @@ export default function OnboardingScreen() {
       if (i >= READY_MESSAGE.length) clearInterval(id);
     }, interval);
     return () => clearInterval(id);
-  }, [readyComplete]);
+  }, [readyComplete, reduceMotion]);
 
   useEffect(() => {
-    if (step !== 'ready') return;
+    if (step !== 'ready' || reduceMotion) return;
     const id = setInterval(() => setCursorOn(v => !v), 480);
     return () => clearInterval(id);
   }, [step]);
@@ -165,11 +167,13 @@ export default function OnboardingScreen() {
 
         {step === 'welcome' && (
           <>
-            <Text style={s.title}>ALICE</Text>
+            <Text style={s.title} accessibilityRole="header">ALICE</Text>
             <Text style={s.subtitle}>Your Bitcoin companion</Text>
             <Text style={s.desc}>
               Alice creates a secure wallet on your device.{`\n`}
-              Your keys never leave your phone.
+              {Platform.OS === 'web'
+                ? 'Your keys stay in this browser, encrypted with a PIN you choose next.'
+                : 'Your keys stay on this device.'}
             </Text>
             {NETWORK === 'bitcoin' && (
               <Text style={[s.warning, { color: colors.danger }]}>MAINNET BETA · REAL BITCOIN · START WITH SMALL AMOUNTS</Text>
@@ -189,15 +193,16 @@ export default function OnboardingScreen() {
 
         {step === 'import' && (
           <>
-            <Text style={s.title}>IMPORT</Text>
+            <Text style={s.title} accessibilityRole="header">IMPORT</Text>
             <Text style={s.subtitle}>Restore an existing wallet</Text>
             <Text style={s.desc}>Enter your 12- or 24-word English BIP39 recovery phrase in the correct order.</Text>
             {NETWORK === 'bitcoin' && (
               <Text style={[s.warning, { color: colors.danger }]}>MAINNET BETA · REAL BITCOIN · START WITH SMALL AMOUNTS</Text>
             )}
             <TextInput
-              style={[s.seedInput, Platform.OS === 'web' && ({ outlineStyle: 'none' } as any)]}
+              style={[s.seedInput]}
               value={importPhrase}
+              accessibilityLabel="Recovery phrase"
               onChangeText={value => { setImportPhrase(value); setError(null); }}
               placeholder="word1 word2 word3 ..."
               placeholderTextColor={colors.muted}
@@ -227,7 +232,7 @@ export default function OnboardingScreen() {
 
         {(step === 'creating' || step === 'ready') && (
           <>
-            <Text style={s.title}>{restoring ? 'RESTORING' : 'CREATING'}</Text>
+            <Text style={s.title} accessibilityRole="header">{restoring ? 'RESTORING' : 'CREATING'}</Text>
             <Text style={s.subtitle}>{restoring ? 'Scanning the network for your funds' : 'Generating your keys...'}</Text>
             {restoring && (
               <Text style={s.desc}>This can take a minute on a slow connection. Keep Alice open.</Text>
@@ -274,7 +279,10 @@ export default function OnboardingScreen() {
                 </Text>
               </View>
             </View>
-            <TouchableOpacity style={s.readyBtn} onPress={() => router.replace('/?intro=pixel')}>
+            {/* On the web the seed is only as safe as the PIN that encrypts
+                it, so the PIN is chosen before the wallet opens, not offered
+                later in Settings. */}
+            <TouchableOpacity style={s.readyBtn} onPress={() => router.replace(Platform.OS === 'web' ? '/security?required=1' : '/?intro=pixel')}>
               <Text style={s.readyBtnText}>START</Text>
             </TouchableOpacity>
           </Animated.View>

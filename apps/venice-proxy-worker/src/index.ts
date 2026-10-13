@@ -466,6 +466,11 @@ async function relayAttestation(request: Request, env: Env, cors: Record<string,
   if (!model || !nonce) {
     return json({ error: 'model and nonce are required' }, 400, cors);
   }
+  // The model name ends up in the technical log; keep it to a model-shaped
+  // token rather than whatever the query string carried.
+  if (!/^[a-z0-9._-]{1,64}$/i.test(model)) {
+    return json({ error: 'invalid model' }, 400, cors);
+  }
   if (!/^[0-9a-f]{64}$/i.test(nonce)) {
     return json({
       error: {

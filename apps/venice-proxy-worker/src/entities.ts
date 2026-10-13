@@ -50,9 +50,13 @@ const MAX_ADDRESSES = 100;
 export async function lookupEntities(request: Request, env: Env): Promise<unknown> {
   if (!env.ENTITY_DB) return { labels: {} };
 
+  // A hundred addresses fit in a few kilobytes; anything much larger is not
+  // a lookup, and it is bounded on what arrived rather than on a header.
   let body: unknown;
   try {
-    body = await request.json();
+    const raw = await request.text();
+    if (raw.length > 16_384) return { labels: {} };
+    body = JSON.parse(raw);
   } catch {
     return { labels: {} };
   }

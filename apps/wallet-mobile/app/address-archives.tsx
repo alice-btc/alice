@@ -107,7 +107,7 @@ export default function AddressArchivesScreen() {
         <TouchableOpacity onPress={() => router.back()} style={s.iconBtn}>
           <Ionicons name="arrow-back" size={19} color={colors.primary} />
         </TouchableOpacity>
-        <Text style={s.title}>ARCHIVED ADDRESSES</Text>
+        <Text style={s.title} accessibilityRole="header">ARCHIVED ADDRESSES</Text>
         <View style={s.headerSpacer} />
       </View>
 

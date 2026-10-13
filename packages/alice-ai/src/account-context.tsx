@@ -149,6 +149,7 @@ const AccountContext = createContext<AccountContextValue | null>(null);
 function messageFor(error: unknown): string {
   if (error instanceof AliceAccountError) {
     if (error.code === 'rate_limited') return 'Too many attempts. Try again later.';
+    if (error.code === 'too_many_new_installations') return error.message;
     if (error.code === 'invalid_code') return 'That code is invalid or expired.';
     if (error.code === 'network') return 'Network error. Check your connection and try again.';
     return error.message;

@@ -64,7 +64,7 @@ export default function DelegatesScreen() {
         <TouchableOpacity onPress={() => router.back()} style={s.iconBtn}>
           <Ionicons name="arrow-back" size={19} color={colors.primary} />
         </TouchableOpacity>
-        <Text style={s.title}>DELEGATED RENEWAL</Text>
+        <Text style={s.title} accessibilityRole="header">DELEGATED RENEWAL</Text>
         <View style={s.headerSpacer} />
       </View>
 

@@ -92,7 +92,6 @@ export function PlatformRow({ icon, label, href, notice, compact }: PlatformItem
       <>
         <button
           type="button"
-          role="menuitem"
           onClick={() => setShowNotice(true)}
           className={`${box} w-full cursor-pointer bg-transparent text-left transition-colors hover:bg-[var(--alice-bg)]`}
         >
@@ -113,7 +112,6 @@ export function PlatformRow({ icon, label, href, notice, compact }: PlatformItem
     return (
       <a
         href={href}
-        role="menuitem"
         {...externalLinkProps(href)}
         className={`${box} transition-colors hover:bg-[var(--alice-bg)]`}
       >
@@ -123,7 +121,6 @@ export function PlatformRow({ icon, label, href, notice, compact }: PlatformItem
   }
   return (
     <div
-      role="menuitem"
       aria-disabled="true"
       className={`${box} opacity-50`}
     >
@@ -149,7 +146,8 @@ function PlatformMenu({
     >
       {/* One compact list for companion downloads. */}
       <div
-        role="menu"
+        role="group"
+        aria-label="Downloads"
         className="grid grid-cols-1 gap-1.5 rounded-[4px] border border-[var(--alice-border)] bg-[var(--alice-bg-soft)] p-1.5 shadow-xl"
       >
         {groups.map((group, i) => (
@@ -244,7 +242,6 @@ function PlatformSelector({
     >
       <button
         type="button"
-        aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen(value => !value)}
         className={`${className} cursor-pointer`}

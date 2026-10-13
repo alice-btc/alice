@@ -19,6 +19,7 @@
 //
 // Which watcher calls the route is an operator's choice and is not encoded
 // here: anything able to POST with the shared secret works.
+import { constantTimeEqual } from './account.ts';
 import { recordTechnicalEvent } from './admin.ts';
 import type { Env } from './index.ts';
 
@@ -248,7 +249,7 @@ export async function checkAndAlert(env: Env, trigger: 'cron' | 'watcher'): Prom
  * not exist at all rather than standing open.
  */
 export async function handleTunnelAlert(request: Request, env: Env, secret: string): Promise<Response> {
-  if (!env.OPS_ALERT_SECRET || secret !== env.OPS_ALERT_SECRET) {
+  if (!env.OPS_ALERT_SECRET || !constantTimeEqual(secret, env.OPS_ALERT_SECRET)) {
     return new Response('not found', { status: 404 });
   }
   const diagnosis = await checkAndAlert(env, 'watcher');

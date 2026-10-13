@@ -139,6 +139,11 @@ function sendErrorText(err: unknown, backendType: AIBackendType): string {
     if (err.code === 'account_required') {
       return 'Private Cloud could not restore its session. Try again.';
     }
+    if (err.code === 'too_many_new_installations') {
+      // The server's own words, which say what happened and what to do; the
+      // local model is the way to keep going today.
+      return `${err.message} Alice Local is still available.`;
+    }
     if (err.code === 'free_quota_exhausted') {
       return 'You have used your 21 free Private Cloud requests. Alice Local is still available.';
     }

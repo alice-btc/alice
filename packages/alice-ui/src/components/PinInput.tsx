@@ -1,5 +1,5 @@
 import { forwardRef, useMemo, useState } from 'react';
-import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 import { spacing, typography, type Colors, type Pixel } from '@alice-wallet/alice-content';
 import { useTheme } from '../theme-context';
 
@@ -46,7 +46,7 @@ export const PinInput = forwardRef<TextInput, Props>(function PinInput(
     <View style={[s.wrapper, containerStyle]}>
       <TextInput
         ref={ref}
-        style={[s.input, Platform.OS === 'web' && ({ outlineStyle: 'none' } as any), inputStyle, !editable && s.disabled]}
+        style={[s.input, inputStyle, !editable && s.disabled]}
         value={value}
         onChangeText={handleChange}
         placeholder={placeholder}

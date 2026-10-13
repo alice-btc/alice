@@ -87,11 +87,11 @@ export default function AccountScreen() {
       <View style={s.header}>
         <TouchableOpacity
           onPress={() => router.canGoBack() ? router.back() : router.replace('/settings')}
-          style={[s.backBtn, pixel, { backgroundColor: colors.cardBg }]}
+          accessibilityRole="button" accessibilityLabel="Back" style={[s.backBtn, pixel, { backgroundColor: colors.cardBg }]}
         >
           <Text style={[s.backIcon, { color: colors.primary }]}>←</Text>
         </TouchableOpacity>
-        <Text style={[s.title, { color: colors.primaryDark }]}>ACCOUNT</Text>
+        <Text style={[s.title, { color: colors.primaryDark }]} accessibilityRole="header">ACCOUNT</Text>
         <View style={{ width: 36 }} />
       </View>
 

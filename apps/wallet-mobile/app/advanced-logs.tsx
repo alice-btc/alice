@@ -55,8 +55,8 @@ export default function AdvancedLogsScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}><Text style={s.backIcon}>←</Text></TouchableOpacity>
-        <Text style={s.title}>LOGS</Text><View style={{ width: 36 }} />
+        <TouchableOpacity onPress={() => router.back()} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Back"><Text style={s.backIcon}>←</Text></TouchableOpacity>
+        <Text style={s.title} accessibilityRole="header">LOGS</Text><View style={{ width: 36 }} />
       </View>
       <Text style={s.notice}>Diagnostic logs never include your recovery phrase or PIN.</Text>
       <FlatList

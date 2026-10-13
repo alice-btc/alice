@@ -2,7 +2,7 @@
 
 import { CloseIcon } from '@/components/icons';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // What an unsigned build does to a first-time visitor, said before it happens
 // rather than after.
@@ -80,6 +80,16 @@ export function DownloadNotice({
   // the file and leaves the instructions standing.
   const [started, setStarted] = useState(false);
 
+  // The dialog takes the focus when it opens and gives it back to the button
+  // that opened it when it closes; otherwise a keyboard user is left on a
+  // control hidden behind the overlay.
+  const closeRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
+    return () => opener?.focus?.();
+  }, []);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onCancel();
@@ -109,6 +119,7 @@ export function DownloadNotice({
         }}
       >
         <button
+          ref={closeRef}
           type="button"
           onClick={onCancel}
           aria-label="Close"

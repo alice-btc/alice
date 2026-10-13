@@ -213,7 +213,9 @@ export function LearnMarkdown({
   const blocks = preparsed ?? parseMarkdown(markdown);
 
   return (
-    <div className="font-numbers" style={{ fontSize: 16, lineHeight: '26px', color: 'var(--alice-text)' }}>
+    // The page is declared English; a course in one of the 28 other languages
+    // says so here, which is what a screen reader needs to pronounce it.
+    <div lang={lang} className="font-numbers" style={{ fontSize: 16, lineHeight: '26px', color: 'var(--alice-text)' }}>
       {blocks.map((block, i) => (
         <Block key={i} block={block} assetBase={assetBase} videos={videos} lang={lang} online={online} onAnchorClick={onAnchorClick} />
       ))}

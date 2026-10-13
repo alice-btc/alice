@@ -58,8 +58,15 @@ async function parseJsonBody(request: Request): Promise<Record<string, unknown>>
   }
   let parsed: unknown;
   try {
-    parsed = await request.json();
-  } catch {
+    // The declared length is a hint; a chunked body declares none. The text
+    // that actually arrived is what gets bounded.
+    const raw = await request.text();
+    if (raw.length > 8_192) {
+      throw new AccountHttpError(413, 'body_too_large', 'Request body is too large.');
+    }
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    if (error instanceof AccountHttpError) throw error;
     throw new AccountHttpError(400, 'invalid_json', 'Request body must be valid JSON.');
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {

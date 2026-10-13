@@ -83,7 +83,7 @@ export default function LockScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.body}>
-        <Text style={s.title}>ALICE IS LOCKED</Text>
+        <Text style={s.title} accessibilityRole="header">ALICE IS LOCKED</Text>
         <Text style={s.description}>{cooldown > 0 ? `TRY AGAIN IN ${cooldown}s` : `ENTER YOUR ${pinLength}-DIGIT PIN`}</Text>
         <PinInput
           value={pin}

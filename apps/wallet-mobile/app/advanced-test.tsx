@@ -34,8 +34,8 @@ export default function AdvancedTestScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}><Text style={s.backIcon}>←</Text></TouchableOpacity>
-        <Text style={s.title}>TEST</Text>
+        <TouchableOpacity onPress={() => router.back()} style={s.backBtn} accessibilityRole="button" accessibilityLabel="Back"><Text style={s.backIcon}>←</Text></TouchableOpacity>
+        <Text style={s.title} accessibilityRole="header">TEST</Text>
         <View style={{ width: 36 }} />
       </View>
 
