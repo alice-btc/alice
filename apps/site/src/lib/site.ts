@@ -31,11 +31,9 @@ export const WALLET_BETA_NOTE = 'Beta, not audited. Small amounts only.';
 
 export const SITE_NAME = 'Alice';
 
-// Drives noindex/robots.txt. Still false: the next release opens the public
-// beta, and this flag flips on go-live day, as the last step of the release
-// checklist, not before. Until then the site stays unlisted even though the
-// source is already public.
-export const SITE_IS_PUBLIC = false;
+// Drives noindex/robots.txt. True since 2026-10-19: every page carries
+// `index, follow`, and robots.txt allows all crawlers and lists the sitemap.
+export const SITE_IS_PUBLIC = true;
 
 // Deep-link a question into the Alice app. `autosend=1` asks the app to submit
 // the question immediately so Alice is already answering on arrival. Both params
