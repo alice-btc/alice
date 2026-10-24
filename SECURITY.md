@@ -1,16 +1,11 @@
 # Security Policy
 
-Alice is in mainnet beta.
-
-## Use Small Amounts
-
-Use only small amounts while Alice is being validated. Do not rely on it for
-funds you cannot afford to lose.
+Alice is in beta.
 
 ## Scope
 
-This policy covers the code in this repository (Alice Wallet, Alice App web
-and desktop, the website, the Private Cloud proxy Worker) and the
+This policy covers the code in this repository (Alice App web
+and Desktop, the website, the Private Cloud proxy Worker) and the
 `alicebtc.com` services it runs. Reports we care about most, because they
 attack what Alice promises:
 
@@ -68,13 +63,7 @@ AI features must remain separated from wallet spending authority. The assistant 
 
 ## AI / Wallet Isolation
 
-The AI core is intentionally text-only. It must not import wallet custody, signing, balance, or payment modules. The wallet core must not import AI or chat modules.
-
-This boundary is checked by:
-
-```bash
-cd apps/wallet-mobile && npm run check:ai-boundary
-```
+The AI core is intentionally text-only. It must not import wallet custody, signing, balance, or payment modules.
 
 Chat input is also screened before model inference. Recovery phrases and private keys are blocked before they can be stored in chat history or sent to local, cloud, or custom AI backends.
 

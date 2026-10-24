@@ -85,25 +85,18 @@ Les diagnostics exposent le concept, le niveau documentaire, le score et la rais
 
 Les plafonds de production restent de 6 000 caractères en local et 12 000 en cloud. Les définitions courtes demandent 1 fiche ; un approfondissement peut ouvrir le budget local de 2 fiches, même si son niveau pédagogique est `beginner`. Le plafond cloud est de 3 fiches. Le chargement du corpus précède le calcul de budget au premier tour.
 
-## Reconstruction des index sémantiques
+## Reconstruction de l’index sémantique
 
-Les 2 index contiennent chacun 403 vecteurs de dimension 384. Ils sont reconstruits depuis le même module sélectionné. La vérification compare les identifiants et l’empreinte des contenus ; remplacer seulement le manifeste sans les vecteurs ne suffit pas.
+Ce dépôt construit un seul index, celui d’Alice App web et desktop : 403 vecteurs de dimension 384, écrits dans `apps/app-web/public/core-embeddings` (`index.json` et `embeddings.f32`). Il est reconstruit depuis le module sélectionné. La vérification compare les identifiants et l’empreinte des contenus ; remplacer seulement le manifeste sans les vecteurs ne suffit pas.
 
 ```sh
 node scripts/build-curated-rag.mjs --check
 ALICE_EMBEDDING_MODEL_CACHE=/chemin/cache-e5-web ALICE_EMBEDDING_OFFLINE=1 node scripts/build-embeddings.js
-ALICE_EMBEDDING_TARGET=native ALICE_EMBEDDING_ENDPOINT=http://127.0.0.1:18082/v1/embeddings node scripts/build-embeddings.js
 ```
 
-La reconstruction Web utilise `Xenova/multilingual-e5-small`. Pour reproduire ce lot, les fichiers de modèle proviennent de la révision `761b726dd34fb83930e26aab4e9ac3899aa1fa78`. Le cache doit contenir la configuration, le tokenizer et le modèle ONNX FP32 attendu par Transformers.js sous Node. Aucun cache de modèle n’est versionné dans le dépôt.
+La cible par défaut, et la seule, est `web`. La reconstruction utilise `Xenova/multilingual-e5-small`. Pour reproduire ce lot, les fichiers de modèle proviennent de la révision `761b726dd34fb83930e26aab4e9ac3899aa1fa78`. Le cache doit contenir la configuration, le tokenizer et le modèle ONNX FP32 attendu par Transformers.js sous Node. Aucun cache de modèle n’est versionné dans le dépôt. Le modèle ONNX applique sa propre limite de tokenizer ; les longues fiches ne sont pas intégralement représentées dans leur vecteur, mais leur texte complet demeure disponible pour la recherche lexicale et le contexte de réponse.
 
-La reconstruction native utilise `multilingual-e5-small-q8_0.gguf`, révision `b6cac9615d4ecce28d7f22539b7322d695fc2886` de `TwinSunsLLC/multilingual-e5-small-gguf`. Son SHA-256 vérifié est `e011debc1208e31bf7b6aebee2d9fc8bd2ca11694a77ed66ac9d0c9d0a877c93`. Le serveur de reconstruction se lance localement avec llama.cpp.
-
-```sh
-llama-server -m /chemin/multilingual-e5-small-q8_0.gguf --embedding --pooling mean -ngl 0 --no-op-offload -t 2 -c 512 -b 512 --host 127.0.0.1 --port 18082 --no-webui
-```
-
-Le script natif utilise aussi `/tokenize` pour borner l’entrée à 511 tokens, en conservant le token final. Les longues fiches ne peuvent donc pas être intégralement représentées dans leur vecteur. Leur texte complet demeure disponible pour la recherche lexicale et le contexte de réponse. Le modèle ONNX applique sa propre limite de tokenizer ; les valeurs des vecteurs Web et natifs ne sont pas supposées identiques.
+L’index natif (GGUF, llama.cpp) appartient à Alice Wallet et se reconstruit dans le dépôt `alice-btc/alice-wallet`.
 
 ## Rejouer l’acceptation
 
@@ -112,13 +105,10 @@ Node 24.18.0 a été utilisé. Depuis un clone disposant des dépendances du loc
 ```sh
 npm test
 npm run check:types
-node apps/wallet-mobile/scripts/check-ai-wallet-boundary.js
 node scripts/eval-curated-rag.mjs --semantic off --budget local --check
 node scripts/eval-curated-rag.mjs --semantic off --budget cloud --check
 node scripts/eval-curated-rag.mjs --semantic web --budget local --model-cache /chemin/cache-e5-web --check
 node scripts/eval-curated-rag.mjs --semantic web --budget cloud --model-cache /chemin/cache-e5-web --check
-node scripts/eval-curated-rag.mjs --semantic native --budget local --check
-node scripts/eval-curated-rag.mjs --semantic native --budget cloud --check
 ```
 
 Les 27 questions de la fixture documentaire sont conservées sans réécriture. Les exécutions sémantiques exigent de vrais appels au modèle et échouent si elles se rabattent sur une erreur silencieuse. Elles testent la récupération et les budgets du moteur, pas la qualité finale d’une réponse générée. Le mode `cloud` désigne le budget de contexte ; ces évaluations ne font appel à aucun fournisseur d’inférence cloud.

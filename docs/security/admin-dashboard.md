@@ -22,7 +22,7 @@ below is enumerable, there is no "and miscellaneous logs" bucket.
 
 **1. Can never be collected, impossible by construction.** Wallet recovery
 phrases, wallet keys, balances, transactions, or even the fact that a wallet
-exists: the wallet apps never send any of it to this Worker, and no schema
+exists: Alice never sends any of it to this Worker, and no schema
 column could hold it. Chat prompts and AI responses: encrypted on the device,
 relayed as ciphertext, never readable here. Plaintext passwords: only salted
 hashes exist. Plaintext email addresses at rest: none. Since 0.2.0 the
@@ -165,7 +165,7 @@ an attacker then has to pass your IdP before they can even see the form.
 
 - **No CORS on `/admin/api/*`.** The dashboard is served same-origin by this
   Worker, so it needs none, and withholding the headers means no other
-  allowlisted Alice origin (the wallet apps, `localhost` during development)
+  allowlisted Alice origin (the Alice apps, `localhost` during development)
   can script a request against these endpoints from a user's browser.
   Preflights for `/admin*` are answered without CORS headers too. The normal
   account API keeps its CORS as before.
@@ -282,7 +282,7 @@ content).
 
 ## Look and feel
 
-The dashboard is deliberately the same visual language as the wallet, so a
+The dashboard is deliberately the same visual language as the app, so a
 screenshot of it can go straight into Alice's communication without looking
 borrowed from a generic admin tool.
 
@@ -294,21 +294,21 @@ borrowed from a generic admin tool.
 - **Type**: PressStart2P for display/labels and terminal-grotesque for body
   and numbers, matching `typography.pixel` / `typography.numbers`. Both are
   embedded as WOFF2 data URIs, converted from the TTFs in
-  `apps/wallet-mobile/assets/fonts` (115KB + 49KB of TTF → 29KB + 12KB). The
+  `apps/app-web/public/fonts` (115KB + 49KB of TTF → 29KB + 12KB). The
   page's CSP is `default-src 'none'`, so nothing can be fetched from a CDN, the bytes have to travel with the Worker.
 - **Pixel treatment**: 2px borders and a 2px radius everywhere, matching
   `getPixel()`. Charts are drawn as discrete cells (horizontal strips for
   bars, stacked segments for the per-day series) rather than smooth
   rectangles, so they read as part of the same pixel language as the
-  wallet's toggles.
+  app's toggles.
 - **Themes**: dark by default like the app, with a light toggle for
   screenshots on a white page.
 
 Two deliberate deviations from the palette, both because this page carries
-far denser text than a wallet screen:
+far denser text than an app screen:
 
 - In light mode, `muted` (`#b8d0ff`) falls to ~1.5:1 on `#fafafa`. It is an
-  accent tone in the wallet, not body text. Light mode reuses the dark
+  accent tone in the app, not body text. Light mode reuses the dark
   palette's `muted` (`#4a6a9a`) instead → 5.3:1.
 - `--alice-ink` carries prominent text. In dark mode it is the primary; in
   light mode the primary is a pale accent (1.9:1) that cannot carry a
@@ -317,7 +317,7 @@ far denser text than a wallet screen:
   both themes.
 
 Measured contrast: headline numbers 9.4:1 dark / 14.8:1 light; secondary
-text 3.4:1 dark / 5.3:1 light. The dark secondary figure is the wallet's own
+text 3.4:1 dark / 5.3:1 light. The dark secondary figure is the app's own
 `muted` on its own background, kept as-is for brand fidelity rather than
 nudged to clear AA.
 
@@ -378,7 +378,7 @@ almost every product decision actually needs.
 ### Client side
 
 `packages/alice-ai/src/product-events.ts` batches events and flushes at most
-every 10s, on app background (mobile) and on tab hide (web). Failures are
+every 10s, on tab hide. Failures are
 swallowed, a counter is never worth a retry queue or a broken user action.
 `setProductEventsEnabled(false)` stops collection at the source, so a
 user-facing opt-out does not have to trust the server to discard data.
@@ -389,8 +389,7 @@ id, and the counters must never receive one.
 
 `packages/alice-ai/src/client-info.ts` attaches `X-Alice-Platform` and
 `X-Alice-App-Version` to authenticated proxy requests. Platform resolution
-follows the repo's existing `.native.ts` split so the iOS/Android build uses
-`Platform.OS` while web/desktop sniffs the Tauri webview; the pure
+reports `web`, or sniffs the Tauri webview on desktop; the pure
 formatting logic lives in `client-info-format.ts` so it is unit tested as a
 leaf module.
 
@@ -404,8 +403,8 @@ current allowlist so drift is visible to an operator.
 - Prompts, AI responses, or any Private Cloud request/response body, the
   proxy never reads them in the first place (see `docs/security/private-cloud-e2ee.md`).
 - Wallet seeds, wallet private keys, wallet transactions, or even *the fact
-  that a wallet exists*, this Worker has no wallet data at all, the wallet
-  apps never send it here, and no milestone or event records wallet activity.
+  that a wallet exists*, this Worker has no wallet data at all, Alice
+  never sends it here, and no milestone or event records wallet activity.
 - Per-user click streams, page-view timelines, or session replay. Product
   analytics are aggregate counters only.
 - Passwords, password hashes and session tokens.

@@ -94,13 +94,13 @@ export function DataTab() {
           <button
             onClick={() => setConfirmChatCleanup('all')}
             className="alice-control alice-control--danger font-numbers"
-            disabled={count === 0 || cleaningChat}
+            disabled={cleaningChat}
           >
             DELETE ALL
           </button>
         </div>
         {cleanupNotice && (
-          <p className="font-numbers m-0 mt-3" style={{ fontSize: 14, opacity: 1 }}>
+          <p role="status" className="font-numbers m-0 mt-3" style={{ fontSize: 14, opacity: 1 }}>
             {cleanupNotice}
           </p>
         )}
@@ -111,7 +111,9 @@ export function DataTab() {
       {confirmChatCleanup && (
         <ConfirmDialog
           title="DELETE CONVERSATIONS"
-          body={`Delete ${chatCleanupCount} conversation${chatCleanupCount === 1 ? '' : 's'} from this device? This cannot be undone.`}
+          body={confirmChatCleanup === 'all'
+            ? 'Delete all conversations saved on this device, including any that cannot currently be read? This cannot be undone.'
+            : `Delete ${chatCleanupCount} conversation${chatCleanupCount === 1 ? '' : 's'} from this device? This cannot be undone.`}
           confirmLabel={cleaningChat ? 'DELETING...' : 'DELETE'}
           busy={cleaningChat}
           onCancel={() => setConfirmChatCleanup(null)}

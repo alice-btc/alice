@@ -22,18 +22,18 @@ const LAYERS: Layer[] = [
 const STEPS: { eyebrow: string; title: string; body: string }[] = [
   {
     eyebrow: 'Option 1 · On your device',
-    title: 'Local, nothing leaves your machine',
-    body: 'Run Alice entirely on your own device, or point her at your own AI hosted on another machine you control, through its API. Your questions are answered by hardware you own and never leave it, the most private way to think out loud about your money.',
+    title: 'Local runs on your device',
+    body: 'Local runs the model on your own device in the installed app; the web app has no local inference. Custom AI is different: it points Alice at your own server through its API, so questions travel to that server. Downloads and other network features still use the network.',
   },
   {
     eyebrow: 'Option 2 · When you need power',
     title: 'Private Cloud, encrypted end-to-end',
-    body: 'Ask anything about Bitcoin. Nobody else reads the question. When you need a bigger model, your messages travel encrypted end-to-end to confidential hardware (a TEE), not logged, not sold, not training data. Both modes live in the app: you choose, and switch whenever you want.',
+    body: 'Ask anything about Bitcoin. When you need a bigger model, your messages travel end-to-end encrypted to confidential hardware (a TEE). Its hardware is verified before every message; the exact program inside cannot be verified yet, pending Venice’s reference values. On installed apps, you can switch between Local and Private Cloud.',
   },
   {
     eyebrow: 'Whichever you pick',
     title: 'One companion, from the first question to the first payment',
-    body: 'The AI that answers your everyday questions is growing an everyday Bitcoin wallet beside it. Learn in the app and practise in the Playground. Alice Wallet is a separate, experimental project that holds real bitcoin: small amounts only. It is presented further down this page. However she runs, your keys stay yours: you hold them, and Alice never can.',
+    body: 'Learn in the app and practise in the Playground, with coins that cost nothing. However she runs, your keys stay yours: you hold them, and Alice never can.',
   },
 ];
 

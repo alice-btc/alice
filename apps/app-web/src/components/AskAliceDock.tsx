@@ -343,8 +343,10 @@ export function AskAliceDock({
 
       <SideChatConversation input={input} questions={questionChips} onQuestion={requestSend} disabled={decision.blocked || !backendAllowed} />
 
-      {/* Composer: attachments, prefilled questions, input, reason. */}
-      <div className="alice-panel-composer flex flex-col gap-2 shrink-0">
+      {/* Composer: attachments, prefilled questions, input, reason. It may
+          shrink and scroll in a very low window, so the input, the attachment
+          chip and the controls stay reachable while the header keeps Close. */}
+      <div className="alice-panel-composer flex flex-col gap-2 min-h-0 overflow-y-auto">
         {decision.blocked && (
           <div className="flex flex-col gap-1 px-3 py-2" style={{ border: `1px solid ${ERROR_COLOR}`, borderRadius: 'var(--alice-radius-control)' }}>
             <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: ERROR_COLOR }}>NOTHING SENT</span>
@@ -352,9 +354,18 @@ export function AskAliceDock({
           </div>
         )}
 
-        {/* The exact payload, opened from the attachment chip below. */}
+        {/* The exact payload, opened from the attachment chip below. Its
+            height is bounded and it scrolls on its own (keyboard included);
+            long txids and addresses wrap anywhere, with no hyphen added and
+            the text itself left untouched, so a copy stays exact. */}
         {payloadOpen && composition.abstractSignals.length > 0 && (
-          <div className="flex flex-col gap-2 px-3 py-2" style={{ border: '1px solid var(--alice-border)', borderRadius: 'var(--alice-radius-control)', backgroundColor: 'var(--alice-bg)' }}>
+          <div
+            role="region"
+            aria-label="Sent to Alice, exactly"
+            tabIndex={0}
+            className="flex flex-col gap-2 px-3 py-2 shrink-0 overflow-y-auto"
+            style={{ maxHeight: 'min(40vh, 320px)', overflowWrap: 'anywhere', border: '1px solid var(--alice-border)', borderRadius: 'var(--alice-radius-control)', backgroundColor: 'var(--alice-bg)' }}
+          >
             <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
               SENT TO ALICE, EXACTLY:
             </span>

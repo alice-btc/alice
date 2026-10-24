@@ -11,7 +11,7 @@ const outputPath = value('--output', '/tmp/alice-curated-routing-report.json');
 const semanticMode = value('--semantic', 'off');
 const budget = value('--budget', 'cloud');
 if (!['cloud', 'local'].includes(budget)) throw new Error('Use --budget cloud or local');
-if (!['off', 'web', 'native'].includes(semanticMode)) throw new Error('Use --semantic off, web or native');
+if (!['off', 'web'].includes(semanticMode)) throw new Error('Use --semantic off or web');
 const fixtureText = await readFile(fixturePath, 'utf8');
 const fixture = JSON.parse(fixtureText);
 const runtimeFiles = [
@@ -37,7 +37,7 @@ let semanticCalls = 0;
 let semanticSuccesses = 0;
 const semanticErrors = [];
 if (semanticMode !== 'off') {
-  const directory = semanticMode === 'web' ? 'apps/app-web/public/core-embeddings' : 'apps/wallet-mobile/assets/core-embeddings';
+  const directory = 'apps/app-web/public/core-embeddings';
   const metadataBytes = await readFile(`${directory}/index.json`);
   const meta = JSON.parse(metadataBytes);
   const vectorsBytes = await readFile(`${directory}/embeddings.f32`);
@@ -47,28 +47,16 @@ if (semanticMode !== 'off') {
   if (JSON.stringify(meta.ids) !== JSON.stringify(chunks.map(c => c.id)) || meta.corpusHash !== corpusHash) throw new Error('Semantic index does not match the active corpus');
   if (vectors.length !== meta.ids.length * meta.dim) throw new Error('Semantic vector dimensions mismatch');
   semanticIndexHash = createHash('sha256').update(metadataBytes).update(vectorsBytes).digest('hex');
-  if (semanticMode === 'web') {
-    const { pipeline, env } = await import('@huggingface/transformers');
-    env.allowRemoteModels = false;
-    const cache = value('--model-cache', null);
-    if (!cache) throw new Error('Web evaluation requires an existing --model-cache');
-    env.cacheDir = cache;
-    extractor = await pipeline('feature-extraction', meta.model, { local_files_only: true });
-  }
+  const { pipeline, env } = await import('@huggingface/transformers');
+  env.allowRemoteModels = false;
+  const cache = value('--model-cache', null);
+  if (!cache) throw new Error('Web evaluation requires an existing --model-cache');
+  env.cacheDir = cache;
+  extractor = await pipeline('feature-extraction', meta.model, { local_files_only: true });
   runtime.setEvaluationSemanticMatcher(async (query, topK) => {
     semanticCalls += 1;
     try {
-    let vector;
-    if (extractor) vector = (await extractor([runtime.toQueryText(query)], { pooling: 'mean', normalize: true })).data;
-    else {
-      const response = await fetch('http://127.0.0.1:18082/v1/embeddings', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: [runtime.toQueryText(query)], model: meta.model }),
-        signal: AbortSignal.timeout(30000),
-      });
-      if (!response.ok) throw new Error(`Local E5 returned ${response.status}`);
-      vector = (await response.json()).data[0].embedding;
-    }
+    const vector = (await extractor([runtime.toQueryText(query)], { pooling: 'mean', normalize: true })).data;
     const norm = Math.hypot(...vector);
     if (vector.length !== meta.dim || !Number.isFinite(norm) || norm === 0) throw new Error('Invalid semantic query vector');
       semanticSuccesses += 1;

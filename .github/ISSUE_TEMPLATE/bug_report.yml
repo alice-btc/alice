@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a problem with Alice Wallet
+description: Report a problem with Alice
 title: "[Bug]: "
 labels: ["bug"]
 body:
@@ -12,9 +12,11 @@ body:
     attributes:
       label: Platform
       options:
-        - PWA
-        - Android APK
-        - iOS dev build
+        - Web app
+        - Desktop, macOS
+        - Desktop, Windows
+        - Desktop, Linux
+        - Website
         - Other
     validations:
       required: true

@@ -12,6 +12,16 @@ export const RELEASE_NOTES_URL = 'https://github.com/alice-btc/alice/releases';
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.2.5',
+    highlights: [
+      'Your conversations, memory and settings stay as they were after the update, and a record the app cannot read is kept instead of being overwritten.',
+      'What Alice remembers no longer misses accented or plural forms of the subjects it must never keep.',
+      'Report an issue now opens a prefilled issue on the public alice repository; copy and email still work.',
+      'Ask Alice in Explorer: long transaction ids wrap and large details scroll, with Close always in reach.',
+      'Learn in French: titles, times and buttons fit the French interface on a phone.',
+    ],
+  },
+  {
     version: '0.2.4',
     highlights: [
       'Keyboard and screen reader: every control has a name, fields keep their focus ring, and payment status changes are announced.',

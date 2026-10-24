@@ -5,7 +5,7 @@ import { pendingOpenFromUrl, searchWithoutOpenRequest } from './tab-storage.ts';
 const TXID = 'a'.repeat(64);
 
 describe('pendingOpenFromUrl', () => {
-  it('opens a transaction linked by Alice Wallet on a known network', () => {
+  it('opens a transaction linked by another app on a known network', () => {
     const pending = pendingOpenFromUrl(`?tx=${TXID}&network=mainnet`);
     assert.equal(pending?.kind, 'tx');
     assert.equal(pending?.query, TXID);

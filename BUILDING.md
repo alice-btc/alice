@@ -8,7 +8,6 @@ credentials.
 
 - Node.js `>=22.12.0 <25` (Node `24` LTS recommended)
 - npm compatible with the committed `package-lock.json`
-- Android Studio and an Android SDK for native Android builds
 - Rust and the Tauri platform requirements for Desktop builds
 - Network access for the first build of each surface (see Build-time
   downloads below)
@@ -86,21 +85,6 @@ semantic search stack before `tauri build` wraps it:
 npm run build --workspace @alice-wallet/app-desktop
 ```
 
-Alice Wallet, PWA:
-
-```bash
-cd apps/wallet-mobile && npm run build:pwa
-```
-
-Alice Wallet, Android:
-
-```bash
-cd apps/wallet-mobile && npx eas-cli@latest build --profile preview --platform android
-```
-
-The Android command requires an Expo account with access to the Alice project.
-It is for authorised release operators only and does not deploy the Worker.
-
 The website (`SITE_IS_PUBLIC` in `apps/site/src/lib/site.ts` gates the
 go-live surfaces):
 
@@ -111,8 +95,8 @@ npm run build --workspace @alice-wallet/site
 Before a release, record the shared version, commit, and known limits in
 `CHANGELOG.md`, update every release declaration, and add the highlights to
 `packages/alice-ai/src/whats-new.ts`. Do not maintain that file list by hand.
-`npm run check:release-version` covers the package and lock manifests, Expo,
-EAS, Tauri, the native Cargo crate, the Worker endpoint, the example
+`npm run check:release-version` covers the package and lock manifests,
+Tauri, the native Cargo crate, the Worker endpoint, the example
 environments, the changelog, and the in-app notes. Then run the platform QA
 checklist in [docs/RELEASE_QA.md](docs/RELEASE_QA.md). Do not deploy or push a
 release merely because a local build succeeded.

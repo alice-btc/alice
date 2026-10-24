@@ -30,7 +30,7 @@ export function SideChatConversation({ input, questions, onQuestion, disabled = 
       <div className="atelier-perch"><AliceRabbit state={rabbitState} connected={available} size={32} /></div>
       <div ref={scrollRef} className="atelier-history" role="region" aria-label={lang === 'fr' ? 'Conversation avec Alice' : 'Conversation with Alice'} tabIndex={0}>
         <div className="atelier-messages">
-          {visible.map(message => <ChatMessage key={message.id} message={message} compact showAvatar={false} streaming={message.id === streamingId} />)}
+          {visible.map(message => <ChatMessage key={message.id} message={message} compact showAvatar={false} streaming={message.id === streamingId} lang={lang} />)}
           {messages.length === 0 && <p className="font-numbers m-0" style={{ color: 'var(--alice-text)' }}>
             {lang === 'fr' ? 'Salut ! Que souhaites-tu apprendre aujourd’hui ?' : 'Hi! What would you like to learn about today?'}
           </p>}

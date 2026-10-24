@@ -8,7 +8,7 @@ import { loadRagEvaluationRuntime, redactLocalPaths } from './rag-eval-runtime.m
 const args = process.argv.slice(2);
 const value = (flag, fallback) => args.includes(flag) ? args[args.indexOf(flag) + 1] : fallback;
 const semantic = value('--semantic', 'off');
-assert.ok(['off', 'web', 'native'].includes(semantic));
+assert.ok(['off', 'web'].includes(semantic), 'Use --semantic off or web');
 const baselineRef = value('--baseline-ref', 'c84fc611');
 const semanticIndexDir = value('--semantic-index-dir', null);
 // Corpus/model changes must be evaluated against their own matching index.
@@ -106,7 +106,7 @@ const vectorCache = new Map();
 const embeddingMs = [];
 const semanticErrors = [];
 if (semantic !== 'off') {
-  const directory = semanticIndexDir ?? (semantic === 'web' ? 'apps/app-web/public/core-embeddings' : 'apps/wallet-mobile/assets/core-embeddings');
+  const directory = semanticIndexDir ?? 'apps/app-web/public/core-embeddings';
   const metadataBytes = await readFile(`${directory}/index.json`);
   const metadata = JSON.parse(metadataBytes);
   assert.ok(typeof metadata.model === 'string' && metadata.dim === 384);
@@ -116,33 +116,18 @@ if (semantic !== 'off') {
   assert.equal(bytes.length, metadata.ids.length * metadata.dim * 4, 'Invalid semantic matrix byte length');
   index = { ...metadata, vectors: new Float32Array(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)) };
   assert.equal(metadata.corpusHash, corpusHash(candidate.getAllChunks()));
-  if (semantic === 'web') {
-    const { pipeline, env } = await import('@huggingface/transformers');
-    env.allowRemoteModels = false;
-    const cache = value('--model-cache', null);
-    if (cache) env.cacheDir = cache;
-    const loadStarted = performance.now();
-    extractor = await pipeline('feature-extraction', metadata.model, { local_files_only: true });
-    modelLoadMs = performance.now() - loadStarted;
-  }
+  const { pipeline, env } = await import('@huggingface/transformers');
+  env.allowRemoteModels = false;
+  const cache = value('--model-cache', null);
+  if (cache) env.cacheDir = cache;
+  const loadStarted = performance.now();
+  extractor = await pipeline('feature-extraction', metadata.model, { local_files_only: true });
+  modelLoadMs = performance.now() - loadStarted;
   const match = async (query, topK) => {
     if (profiling || !vectorCache.has(query)) {
       const start = performance.now();
-      let vector;
-      if (semantic === 'web') {
-        const output = await extractor([candidate.toQueryText(query)], { pooling: 'mean', normalize: true });
-        vector = Float32Array.from(output.data.slice(0, index.dim));
-      } else {
-        const response = await fetch('http://127.0.0.1:18082/v1/embeddings', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ input: [candidate.toQueryText(query)], model: index.model }),
-        });
-        assert.ok(response.ok, `Native embedding HTTP ${response.status}`);
-        const json = await response.json();
-        vector = Float32Array.from(json.data[0].embedding);
-        const norm = Math.hypot(...vector);
-        vector = vector.map(x => x / norm);
-      }
+      const output = await extractor([candidate.toQueryText(query)], { pooling: 'mean', normalize: true });
+      const vector = Float32Array.from(output.data.slice(0, index.dim));
       assert.equal(vector.length, index.dim);
       embeddingMs.push(performance.now() - start);
       vectorCache.set(query, vector);

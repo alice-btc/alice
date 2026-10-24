@@ -76,8 +76,7 @@ exceptions are removed from the gate. Expiration stays **2026-10-20**.
   `metro > image-size 2.0.4` override broke `getAssetData` on Metro 0.83.3,
   which passes a file path that image-size 2.x rejects (recorded in
   `scripts/data/dependency-image-size-rejected-2026-10-04.json`). The 0.83.8
-  migration was checked on the project's 36 assets with
-  `scripts/check-metro-assets-compatibility.cjs`
+  migration was checked on the project's 36 assets
   (`scripts/data/dependency-metro-2026-10-04.json`).
 - Compatible ws branches move to 6.2.6, 7.5.13 and 8.22.0. The viem peer tree
   still resolves its own pinned 8.20.1 despite the attempted scoped override;
@@ -114,13 +113,17 @@ accepted for the verification-only use described below.
 or `node-forge` enters the client module graph (including nested modules).
 The build must print its boundary check success; the exception cannot silently
 turn into shipped client code. The Worker has no dependency path to either.
+The `web-build` CI job runs the secured app-web build and fails if the exact
+boundary success line is missing from its output, so a dropped plugin or a
+Turbopack build cannot pass silently. `scripts/web-client-boundary.test.mjs`
+compiles small webpack fixtures (clean, direct and nested `braces` and
+`node-forge`) with the real plugin.
 The other high package entries (including Expo/React Native and Arkade/Satora
 via optional Expo peers) propagate these same underlying advisories.
 
 Remaining moderate findings are `decode-uri-component` through mobile routing
 and `uuid` through Expo/Xcode build tooling. This pass does not change the
 existing gate's high/critical policy or claim a zero-vulnerability repository.
-The next native/mobile release needs its own scope-specific review.
 
 ### Miniflare diagnosis
 
@@ -189,13 +192,6 @@ Verification:
 - Paired Web exports use separate fresh cache directories; every output file
   is byte-identical. These exports do not prove browser behavior, APK/native
   execution, device performance or generated-answer quality.
-
-```sh
-node scripts/check-metro-assets-compatibility.cjs /path/to/old-installed /path/to/new-installed <tmp>/new-metro-assets.json
-# From apps/wallet-mobile, with a new output path for each run:
-EXPO_NO_DOTENV=1 EXPO_NO_TELEMETRY=1 EXPO_OFFLINE=1 CI=1 node ../../node_modules/expo/bin/cli export --platform android --output-dir <tmp>/new-android-export --max-workers 2 --dump-assetmap --clear
-# Use --platform web for the separate Web export.
-```
 
 Fresh audit falls to **30 high, 17 moderate, 2 low, zero critical**. Only
 image-size disappears; no finding is added. Remove its obsolete package
@@ -512,3 +508,25 @@ Updated only 2 lockfile resolutions within their existing parent ranges. No new 
 - `source-map-js` 1.2.1 → 1.2.2, used by PostCSS and `@tailwindcss/node` (`^1.2.1`). Fixes event-loop blocking from indexed source-map offsets, [GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
 
 Reproduce with Node 24 and `npm update compression source-map-js --package-lock-only --ignore-scripts`, then `npm ci` and the CI checks. The lockfile resolution was generated in a temporary workspace copy to avoid modifying shared local node_modules. Only these 2 package entries changed. A registry audit and the unchanged audit gate passed on the corrected lockfile: neither package is reported; 27 high and 0 critical findings remain in the previously reviewed baseline. This is not a clean-vulnerability claim. Fresh installation, tests and type validation run in the private PR CI; application previews rebuild from the corrected commit.
+
+### Reviewed on 2026-10-22 — Next.js security patch
+
+The final private validation of PR #98 initially passed, then the registry
+reported a new critical Next.js finding and the unchanged CI gate refused the
+merge. Upgrade both Next consumers (`app-web` and `site`) from 15.5.25 to
+15.5.28, including `@next/env` and platform SWC packages in the lockfile.
+No other package resolutions, overrides, audit exceptions or deadlines change.
+
+[Next.js 15.5.28](https://github.com/vercel/next.js/releases/tag/v15.5.28)
+fixes the [image-optimization RCE advisory](https://github.com/advisories/GHSA-2464-fhr4-w9xw)
+and the [Server Actions denial-of-service advisory](https://github.com/advisories/GHSA-p3m5-59mp-jv5r).
+Both Alice Next apps use static export, so this audit result does not establish
+an exploitable deployed Next server. The repository already overrides `sharp`
+to 0.35.5, which the RCE advisory lists as a mitigation. Upgrade within the
+existing Next major anyway, rather than bypassing the dependency gate.
+
+Validation must use the updated lockfile with `npm ci --ignore-scripts`, both
+Next production builds, type checks, the existing audit gate and PR CI. Repeat
+the app's script-policy, browser storage and custom-chat checks against the new
+export. Results and any remaining limits are recorded on private PR #98 and in
+the local validation record. No public export or deployment is authorized.

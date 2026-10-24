@@ -50,8 +50,9 @@ export function SemanticSearchSection() {
     return () => window.removeEventListener(SEMANTIC_SEARCH_STATE_EVENT, sync);
   }, []);
 
-  // The Expo PWA has no semantic engine; a section made only of dead buttons
-  // would be noise there.
+  // `unsupported` only comes from semantic-runtime.web.ts, which this Next
+  // build does not resolve. Kept as a guard: a section made only of dead
+  // buttons would be noise.
   if (state.status === 'unsupported') return null;
 
   const embedded = isEmbeddedDesktopBuild();

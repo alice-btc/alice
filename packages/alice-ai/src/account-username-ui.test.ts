@@ -8,16 +8,9 @@ const webSource = readFileSync(
   ),
   'utf8',
 );
-const mobileSource = readFileSync(
-  decodeURIComponent(
-    new URL('../../../apps/wallet-mobile/components/AccountPasswordModal.tsx', import.meta.url).pathname,
-  ),
-  'utf8',
-);
 
 for (const [surface, source] of [
   ['web', webSource],
-  ['mobile', mobileSource],
 ] as const) {
   test(`${surface} account settings expose the supported username rotation`, () => {
     assert.match(source, /CHANGE USERNAME/);

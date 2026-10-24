@@ -191,13 +191,13 @@ export const ANSWER_RULES: readonly AnswerRule[] = [
         'that a 2-of-3 wallet needs three signatures or the third seed',
         'that the user\'s wallet is 3-of-3, or any threshold the user did not state',
         'that the seeds alone guarantee recovery',
-        'that Alice Wallet can import the seeds or rebuild a multisig wallet, or any Alice feature absent from the notes',
+        'that Alice can import the seeds or rebuild a multisig wallet, or any Alice feature absent from the notes',
       ],
       fr: [
         "qu'un portefeuille 2 de 3 a besoin de trois signatures ou de la troisième seed",
         "que le portefeuille de l'utilisateur est un 3 de 3, ou tout seuil qu'il n'a pas indiqué",
         'que les seeds seules garantissent la récupération',
-        "qu'Alice Wallet peut importer les seeds ou reconstruire un portefeuille multisig, ou toute fonction d'Alice absente des notes",
+        "qu'Alice peut importer les seeds ou reconstruire un portefeuille multisig, ou toute fonction d'Alice absente des notes",
       ],
     },
   },
@@ -247,8 +247,8 @@ const MULTISIG_QUORUM_CORRECTION: Localized = {
   fr: "Correction : un portefeuille multisig dépense avec son seuil de clés, pas avec toutes : un 2 de 3 signe avec deux clés sur trois, quelles qu'elles soient, et une troisième signature ou seed n'est pas requise. Ne suppose pas un seuil plus élevé que celui avec lequel ton portefeuille a été créé. Deux seeds seules peuvent toutefois ne pas suffire à reconstruire le portefeuille sans sa configuration complète ou son descripteur (clés publiques de tous les cosignataires, seuil, politique de script, chemins de dérivation) : vérifie cette sauvegarde et teste la récupération sans envoyer tes seeds ni tes clés à qui que ce soit.",
 };
 const MULTISIG_ALICE_CORRECTION: Localized = {
-  en: 'Note: nothing in the notes available here describes a multisig import or restore feature in Alice Wallet. Follow the documentation of the wallet that created the multisig, and never send seeds or keys to anyone.',
-  fr: "Précision : rien dans les notes disponibles ici ne décrit une fonction d'import ou de restauration multisig dans Alice Wallet. Suis la documentation du portefeuille qui a créé le multisig, et n'envoie jamais tes seeds ni tes clés à qui que ce soit.",
+  en: 'Note: nothing in the notes available here describes a multisig import or restore feature in Alice. Follow the documentation of the wallet that created the multisig, and never send seeds or keys to anyone.',
+  fr: "Précision : rien dans les notes disponibles ici ne décrit une fonction d'import ou de restauration multisig dans Alice. Suis la documentation du portefeuille qui a créé le multisig, et n'envoie jamais tes seeds ni tes clés à qui que ce soit.",
 };
 const RBF_OPT_IN_CORRECTION: Localized = {
   en: 'Correction: a replacement does not require that RBF was enabled or signaled when the payment was sent. Nodes and miners applying full-RBF, the default in Bitcoin Core since version 28.0, also accept a replacement of a transaction that did not signal it; signaling improves predictability, it is not a precondition everywhere. Whether a replacement can be attempted depends on your wallet and on node policies, and it is never guaranteed.',

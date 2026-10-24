@@ -9,9 +9,7 @@ verify, and she never sees your keys.
 reads the chain in plain words, a Learn library of courses, and a Playground
 where you practise real wallet moves with coins that are worth nothing.
 
-**Alice Wallet** is the separate, self-custodial wallet, currently in mainnet
-beta and validated with small amounts only. It is a companion piece, not the
-way into Alice.
+The self-custodial Alice Wallet lives in its own repository, alice-btc/alice-wallet.
 
 ## What Alice can never see
 
@@ -52,8 +50,9 @@ its own slice: Cloudflare relays encrypted AI traffic, hosts our DNS, and
 counts page views on the website (cookieless, no fingerprint, site
 only, never in the app);
 Venice runs AI inference inside a hardware enclave and receives ciphertext;
-Arkade, Boltz and Satora execute the payments you ask for; Esplora (a
-blockchain-explorer API) answers on-chain lookups; Resend delivers login-code
+Esplora (a blockchain-explorer API) answers on-chain lookups, including the
+Playground's on Mutinynet (a test network); Explorer asks the Arkade, Bark
+and Spark servers about coins on those layers; Resend delivers login-code
 emails; Hugging Face serves the semantic-search model to web builds (fetched
 on your first question, never on a data-saving connection, and the installed
 desktop app carries it and asks Hugging Face nothing) and the optional local
@@ -61,15 +60,6 @@ chat models; jsDelivr serves downloadable Learn languages and course art;
 GitHub serves course images from Plan ₿ Network's repository. What a CDN
 sees is the classic slice: your IP address and which files you fetch. None
 of these providers receives your seed or your chat history in clear.
-
-**The AI/wallet boundary**: the AI code cannot import wallet custody,
-signing or payment modules, and the wallet code cannot import AI modules.
-This is enforced by an automated check that runs in CI on every pull
-request, not by convention:
-
-```bash
-cd apps/wallet-mobile && npm run check:ai-boundary
-```
 
 Recovery phrases and private keys pasted into chat are blocked before they
 can be stored or sent to any AI backend.
@@ -87,15 +77,12 @@ can be stored or sent to any AI backend.
   [docs/security/private-cloud-e2ee.md](docs/security/private-cloud-e2ee.md).
 - **E2EE turns are single-shot.** Venice does not encrypt assistant replies,
   so Alice drops them from the context instead of leaking them back.
-- **Semantic search runs on Android, Alice App web and Desktop, but not on
-  the installable PWA.** Where it runs, retrieval is hybrid: keyword matching
-  fused with an on-device embedding model, and it falls back to keywords
-  alone, silently, whenever the model is not loaded. The PWA stays on
-  keyword retrieval because its bundler cannot load the ONNX runtime (the
-  exact error is documented in the code). Result quality has been validated
-  on Android; the web engine runs the same model over the same index.
-- **External services fail visibly.** If Arkade, Boltz, Satora or Esplora is
-  down, Alice reports it rather than silently switching payment rails.
+- **Semantic search runs on Alice App web and Desktop.** Retrieval is hybrid:
+  keyword matching fused with an on-device embedding model, and it falls back
+  to keywords alone, silently, whenever the model is not loaded.
+- **The Playground is on-chain only, on Mutinynet.** It has one explorer
+  (Esplora) and one faucet and no fallback server: if either is down, the
+  Playground shows the error. Only the fee estimate falls back, to 1 sat/vB.
 
 The broader map is in [docs/security/THREAT_MODEL.md](docs/security/THREAT_MODEL.md).
 
@@ -123,13 +110,6 @@ Alice App is more than the chat:
 ## Trying Alice
 
 - [Alice App](https://app.alicebtc.com), the companion, in any browser
-- [Alice Wallet](https://wallet.alicebtc.com), mainnet beta, real funds,
-  small amounts only ("Web wallet" in the site's download menu)
-- [Alice Mutinynet](https://mutinynet.alicebtc.com), the wallet on a test
-  network: a test environment for wallet flows. For learning and practising,
-  use the Playground inside Alice App.
-- Android: APK through the closed-beta channel, see
-  [docs/BETA_TESTING.md](docs/BETA_TESTING.md)
 
 Do not rely on a URL alone to identify a build: check its version and commit.
 Never share your recovery phrase, and never send it to Alice: she will never
@@ -137,7 +117,7 @@ ask for it.
 
 An Alice account (email + username + password) is optional; it exists only to
 manage Private Cloud quotas. 21 free Private Cloud requests are available
-without any account. The wallet itself never needs an account.
+without any account.
 
 ## AI modes
 
@@ -155,7 +135,6 @@ without any account. The wallet itself never needs an account.
 ## Repository map
 
 ```
-apps/wallet-mobile        Alice Wallet (Expo/React Native: Android, PWA)
 apps/app-web              Alice App (Next.js static export: web, and the
                           desktop shell's frontend)
 apps/app-desktop          Alice App desktop shell (Tauri)
@@ -164,9 +143,7 @@ apps/venice-proxy-worker  Private Cloud blind proxy (Cloudflare Worker)
 packages/alice-ai         AI companion: chat, RAG, E2EE, memory
 packages/alice-content    knowledge base and generated Learn catalog
 packages/practice-wallet  the Playground's Mutinynet wallet logic
-packages/wallet-core      wallet primitives shared across surfaces
 packages/alice-ui         shared UI primitives
-packages/shared-types     types shared across packages
 ```
 
 ## Development
@@ -176,18 +153,6 @@ the source of truth for a reproducible dependency tree.
 
 ```bash
 npm ci
-```
-
-Start Expo (mobile/PWA development):
-
-```bash
-cd apps/wallet-mobile && npm start
-```
-
-Build the PWA:
-
-```bash
-cd apps/wallet-mobile && npm run build:pwa
 ```
 
 Unit tests, from the repository root:
@@ -203,7 +168,7 @@ npm run check:npm-audit
 ```
 
 Type-checking runs per workspace (each app and package carries its own
-`tsconfig.json`; Next and Expo check their app during their builds). A single
+`tsconfig.json`; Next checks its app during its build). A single
 repo-wide `tsc` pass is not wired up yet. For the pure packages:
 
 ```bash
@@ -214,16 +179,9 @@ Tests use Node's built-in runner (`node --test`) on the TypeScript sources
 directly, so there is no test framework to install and no build step. One
 constraint follows: Node resolves ES module specifiers literally, so imports
 carry an explicit extension (`./venice-errors.ts`). Only pure modules are
-testable this way: anything importing `expo/*` or `react-native` cannot be
-loaded outside Metro.
+testable this way.
 
-Check Alice prompt constraints when changing prompt or instruction handling:
-
-```bash
-node apps/wallet-mobile/scripts/check-ai-system-prompt.js
-```
-
-For the reproducible release checklist across web, Android and Desktop, see
+For the reproducible release checklist across web and Desktop, see
 [BUILDING.md](BUILDING.md). Never place production secrets in a client build.
 
 ### Alice App, desktop build (Tauri)
@@ -272,9 +230,9 @@ Copy `.env.example` to `.env` and adjust when needed:
 cp .env.example .env
 ```
 
-Never commit `.env`. Every distributed build, including Android and Desktop,
-routes Private Cloud through `EXPO_PUBLIC_VENICE_PROXY_URL`
-(`https://proxy.alicebtc.com` for official builds): an APK or desktop binary
+Never commit `.env`. Every distributed build, including Desktop, routes
+Private Cloud through `EXPO_PUBLIC_VENICE_PROXY_URL`
+(`https://proxy.alicebtc.com` for official builds): a desktop binary
 can be inspected, so none may contain the Venice API key. Direct Venice calls
 exist only for explicit internal diagnostics with a personal, revocable key.
 

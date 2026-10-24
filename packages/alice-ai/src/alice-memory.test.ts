@@ -245,6 +245,87 @@ test('exchange accounts are refused, self-custody setup stays accepted', () => {
   }
 });
 
+test('forbidden subjects match accented spellings, capitals and word variants', () => {
+  // Accents, capitals, plurals and simple derivatives of a listed term are
+  // caught: the filter folds the text (NFD, combining marks dropped, lower
+  // case) and matches a plural or a stem where the word has one.
+  for (const text of [
+    'Talks about politics with friends',
+    'Follows political news every morning',
+    'Parle souvent de politique',
+    'Est politicien dans sa commune',
+    'A des soucis de santé',
+    'Santé fragile depuis 2021',
+    'SANTÉ FRAGILE',
+    'Sa sante est fragile',
+    'Cares about health above all',
+    'Wants healthy habits',
+    'Got a diagnosis last year',
+    'A reçu un diagnostic en 2024',
+    'Questions about sexuality',
+    'Parle de sa sexualité',
+    'Est très religieux',
+    'Pratique plusieurs religions',
+    'Suit un traitement médical',
+    'Prend des médicaments',
+    'Voit un médecin chaque mois',
+    'Takes medication daily',
+    'Souffre de plusieurs maladies',
+    'Est malade depuis 2021',
+    'Has two chronic diseases',
+  ]) {
+    assert.equal(aliceMemoryRefusalReason(text), 'sensitive', text);
+  }
+  for (const [text, reason] of [
+    ['Garde sa clé privée sur papier', 'secret'],
+    ['Garde ses clés privées sur papier', 'secret'],
+    ['Keeps private keys on paper', 'secret'],
+    ['Has several recovery phrases', 'secret'],
+    ['Reuses the same addresses', 'address'],
+    ['Réutilise ses adresses', 'address'],
+    ['Pays invoices every month', 'address'],
+    ['Fait beaucoup de transactions', 'activity'],
+    ['Checks balances every morning', 'activity'],
+    ['Emails are checked daily', 'identity'],
+    ['Mes mots de passe sont dans un gestionnaire', 'identity'],
+    ['Mon prénom est Marius', 'identity'],
+    ['Je m’appelle Marius', 'identity'],
+    ['Habite à Lyon', 'location'],
+    ['Habite aux Lilas', 'location'],
+    ['Is living at 5 Baker Street', 'location'],
+    ['Laisse ses coordonnées à ses amis', 'location'],
+    ['Compte Gemini vérifié', 'exchange'],
+  ] as const) {
+    assert.equal(aliceMemoryRefusalReason(text), reason, text);
+  }
+});
+
+test('forbidden-subject stems stop at the chosen edge cases', () => {
+  // Each line is a deliberate limit of the filter, kept so a later change to
+  // a stem shows up here: "polite" is not "politics", "Santa" is not "santé",
+  // "maladroit" is not "malade", the Medici are not medical, "lives in" is
+  // not a street address, the French "soldes" (sales) is not a balance, and
+  // "politique" as policy (monetary, fee, mempool) is Bitcoin, not politics.
+  for (const text of [
+    'Prefers polite answers',
+    'Reads Santa stories to the kids',
+    'Est maladroit avec les outils',
+    'Likes the history of the Medici bankers',
+    'Lives in a small town and runs a node',
+    'Attend les soldes pour acheter un hardware wallet',
+    "S'intéresse à la politique monétaire de Bitcoin",
+    'Veut comprendre la politique de frais de son portefeuille',
+    'Lit la politique de mempool de Bitcoin Core',
+    'Only has a phone, no computer',
+  ]) {
+    assert.equal(aliceMemoryRefusalReason(text), null, text);
+  }
+  // Pre-existing behaviour, kept on purpose: the word is refused whatever
+  // its meaning in the sentence, so the plural is refused the same way.
+  assert.equal(aliceMemoryRefusalReason('Wants to understand how transactions are built'), 'activity');
+  assert.equal(aliceMemoryRefusalReason('Prefers a healthy dose of examples'), 'sensitive');
+});
+
 test('each refusal reason names what was refused in both languages', () => {
   assert.equal(aliceMemoryRefusalReason('My recovery phrase is written on paper'), 'secret');
   assert.equal(aliceMemoryRefusalReason(`Sends to bc1q${'q'.repeat(38)}`), 'address');

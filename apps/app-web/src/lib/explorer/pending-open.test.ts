@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { localVault } from '../local-vault.ts';
 
-// Under Node the vault has no cipher: a plain window onto the fake storage.
+// Under Node the vault has no cipher: writes live in the session only.
 localVault.configure(() => null);
 
 // The one-shot deep-link channel carries a subject from another surface (a
@@ -29,6 +29,7 @@ let consumePendingOpen: typeof import('./tab-storage.ts').consumePendingOpen;
 beforeEach(async () => {
   (globalThis as Record<string, unknown>).window = fakeWindow();
   ({ requestPendingOpen, consumePendingOpen } = await import('./tab-storage.ts'));
+  localVault.removeItem(KEY);
 });
 
 afterEach(() => {
@@ -36,8 +37,7 @@ afterEach(() => {
 });
 
 function writeRaw(value: string) {
-  (globalThis as unknown as { window: { localStorage: Storage } })
-    .window.localStorage.setItem(KEY, value);
+  localVault.setItem(KEY, value);
 }
 
 describe('explorer pending-open channel', () => {

@@ -1,9 +1,10 @@
 # Changelog
 
-Alice ships as four surfaces from one repository, and they are versioned
+Alice ships as three surfaces from one repository, and they are versioned
 together: a single number means a tester and a log line refer to the same code.
 
-- `0.2.4`, current release
+- `0.2.5`, current release
+- `0.2.4`, previous release
 - `0.2.3`, previous release
 - `0.2.2`, previous release
 - `0.2.1`, previous release
@@ -11,6 +12,105 @@ together: a single number means a tester and a log line refer to the same code.
 - `0.1.0`, previous closed beta
 - `0.0.1`, first public baseline
 - `1.0.0`, public launch, planned
+
+## 0.2.5
+
+Desktop installers for macOS, Windows and Linux ship with this release.
+
+Alice Wallet, the self-custodial wallet (Android app and web wallet), now
+lives in its own repository, alice-btc/alice-wallet, and is released on its
+own from there. This repository ships no Android build any more; the last
+Android build published here is `0.2.0`. The Playground, the practice wallet
+inside Alice App, is unchanged.
+
+This release repairs what 0.2.4 left wrong. It adds no feature.
+
+### Your data in Alice App on the web
+
+- A conversation, a memory or a profile the app cannot read any more (a
+  damaged record, or one written while another tab was saving) is kept as it
+  is instead of being written over, and a notice says so. The local
+  encryption key is created once, even with several tabs open, and an
+  existing key is never replaced. Without a working key, new conversations
+  stay in memory for the session and are never written in clear.
+- Erasing is explicit and complete: "Delete all" also removes conversations
+  the list could not show, the memory panel waits for the erase before it
+  refreshes, and a failed erase says so instead of looking done.
+- Conversations, memory and settings written by 0.2.4 open unchanged after
+  the update.
+
+### Security on the web
+
+- Alice App enforces its Content Security Policy: each page allows only its
+  own scripts, and the semantic search engine loads from the app instead of
+  a blob. The bitcoin price feed is no longer reported as a violation.
+- Next.js moves to 15.5.28.
+
+### What Alice remembers about you
+
+- The forbidden-subject filter no longer misses accented, capitalised or
+  derived forms: "santé", "SANTÉ", "politics", "political", "diagnosis",
+  "sexualité", "clés privées", "mots de passe" and "transactions" are refused
+  like the words already on the list, and "politique monétaire", "politique
+  de frais" or "soldes" stay allowed. The sentence that warned about this
+  limit leaves the website's memory page and both memory documents.
+
+### Reporting a problem
+
+- A report opens a prefilled issue on the public `alice-btc/alice`
+  repository, from Alice App (Account > Report an issue) and from the wallet
+  (Settings > Report a problem). Copy still works, and email now goes to
+  `support@alicebtc.com`. Nothing is sent until you choose one of them.
+- Choosing GitHub first opens a short warning: a GitHub issue is public,
+  readable by anyone, so remove anything personal or send the report by
+  email instead, which stays private.
+- A report names the page it comes from (Explorer, Learn…) instead of copying
+  its full address, which could carry an identifier.
+
+### Explorer
+
+- In Ask Alice, the details of an attachment wrap long transaction ids and
+  addresses, with nothing added to them, and scroll inside their own box.
+  The message field, the attachment and Close stay reachable on a large
+  transaction, in a narrow panel or a low window.
+
+### Learn in French
+
+- Section titles, the time under a chat message and the welcome dialog's
+  buttons fit the French interface on a phone. The response language reads
+  FRANÇAIS.
+- Course videos play again. The YouTube player refused to start since 0.2.4
+  (error 153) because the app sends no referrer; the video frame alone now
+  tells YouTube it is embedded by Alice, its origin only, never the page or
+  the course.
+
+### Sharing a link
+
+- A link to Alice App shows a preview card again on X, Telegram, Nostr and
+  other apps: one per section (Chat, Explorer, Learn, Playground), in the
+  website's style, each with its sidebar icon. A card names the section only,
+  never a transaction, an address or a course.
+
+### Privacy wording
+
+- The website and the app's privacy page say what Local and Private Cloud
+  protect, and no more: Local runs the model on your device while other
+  features use the network; Private Cloud is end-to-end encrypted, Alice
+  checks the enclave hardware before every message, and the exact program
+  inside cannot be verified until Venice publishes its reference values.
+  The GPU attestation is not checked yet. The privacy page also lists
+  the Instructions for Alice and Learn progress kept unencrypted, the price
+  feed and the Playground faucet requests.
+- The comparison with ChatGPT no longer announces a future wallet that would
+  let Alice make payments on your behalf.
+
+### For contributors
+
+- CI compares the Content Security Policies of the web hosts and the desktop
+  app, and builds Alice App with its client boundary checked.
+  `scripts/csp-crawl` walks the surfaces with a violation listener.
+- `GET /app-version` on the Worker also returns `wallet`, the released
+  Alice Wallet version, for the wallet's own update banner.
 
 ## 0.2.4
 

@@ -37,7 +37,7 @@ export type RequestOptions = {
 };
 
 // A typed error so the UI can phrase each failure precisely, mirroring the
-// per-domain error classes already used across wallet-core and alice-ai.
+// per-domain error classes already used across alice-ai.
 export class ChainDataError extends Error {
   readonly code: ChainDataErrorCode;
   constructor(code: ChainDataErrorCode, message: string) {

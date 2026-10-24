@@ -1,7 +1,7 @@
 {
   "schema_version": "0.2",
   "status": "selected_snapshot",
-  "scope": "Alice App et Bitcoin ; Alice Wallet hors périmètre.",
+  "scope": "Alice App et Bitcoin.",
   "counts": {
     "primary": 200,
     "secondary": 203

@@ -107,7 +107,7 @@ export function fitMessagesToEstimatedLocalContext(
 
 /**
  * Same mandatory-context-preserving trim, for backends whose chat template and
- * tokenizer are only available at runtime (llama.rn). `countPromptTokens`
+ * tokenizer are only available at runtime (the native engine). `countPromptTokens`
  * must count the actual formatted prompt for the candidate it is given, not
  * estimate it, since the exact template is model-specific.
  */

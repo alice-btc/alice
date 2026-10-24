@@ -128,22 +128,43 @@ const AMOUNT_PATTERNS = [
 // the same sentence.
 const EXCHANGE_NAMES = /\b(?:binance|kraken|coinbase|bitstamp|bitfinex|bitpanda|bitvavo|paymium|okx|bybit|kucoin|bitget|bittrex|poloniex|huobi|htx|mexc|gate\.io|cex\.io|etoro|robinhood|crypto\.com|upbit|bithumb)\b/i;
 const AMBIGUOUS_EXCHANGE_NAMES = /\b(?:gemini|strike|river|swan|relai|revolut|n26|paypal|cash app|bull bitcoin|ledger live)\b/i;
-const ACCOUNT_WORDS = /\b(?:compte|account|wallet|portefeuille|kyc|exchange|plateforme|platform|login|identifiant|verified|vérifié|verifie)\b/i;
+// Runs on the folded text (see `foldForMatching`), so "vérifié" is "verifie".
+const ACCOUNT_WORDS = /\b(?:compte|account|wallet|portefeuille|kyc|exchange|plateforme|platform|login|identifiant|verified|verifie)\b/i;
 
 // These details are either wallet secrets, financial activity, direct
 // identifiers, precise location, or sensitive personal attributes. They are
 // never accepted as durable memory, even if a model proposes them or the user
 // asks for them to be kept.
+//
+// The patterns run on the folded text (`foldForMatching`: lower case, accents
+// removed, typographic apostrophes straightened), so they are written without
+// accents and match "santé", "Santé", "clé privée" or "habite à" all the
+// same. Plurals are spelled out ("transactions", "clés privées", "mots de
+// passe"), and a sensitive term that has derivatives is a stem with no
+// closing boundary: `politi` covers politics, political, politique and
+// politicien; `diagnos` covers diagnosis and diagnostic; `sexual` covers
+// sexuality; `religi` covers religious and religieux; `health` covers
+// healthy; `medica`, `medicin` and `medec` cover medical, médicament,
+// medication, medicine and médecin.
+//
+// Chosen limits, each pinned by a test: "polite" is not `politi`, "Santa" is
+// not "sante", "maladroit" is not "malade" (`malad(e|ie)s?` is bounded), the
+// Medici are not medical, "lives in" is not a street address, and the French
+// "soldes" (sales) is not matched because only the singular "solde" is a
+// balance. "Politique" followed by a Bitcoin policy word (monétaire, de frais,
+// de mempool, de relais, de script, de confidentialité, de sécurité) is a
+// policy, not politics, and is let through.
+const POLICY_NOT_POLITICS = String.raw`(?!ques?\s+(?:monetaires?|de\s+(?:frais|mempool|relais|scripts?|confidentialite|securite)))`;
 const FORBIDDEN_MEMORY: Array<{ reason: AliceMemoryRefusalReason; pattern: RegExp }> = [
-  { reason: 'secret', pattern: /\b(seed phrase|recovery phrase|mnemonic|private key|cle privee|clé privée|phrase de recuperation|phrase de récupération|phrase secrete|phrase secrète|xprv|nsec)\b/i },
-  { reason: 'address', pattern: /\b(address|adresse|invoice|facture)\b/i },
-  { reason: 'activity', pattern: /\b(txid|transaction|balance|solde|sats?|bitcoin balance)\b/i },
+  { reason: 'secret', pattern: /\b(seed phrases?|recovery phrases?|mnemonics?|private keys?|cles? privees?|phrases? de recuperation|phrases? secretes?|xprv|nsec)\b/ },
+  { reason: 'address', pattern: /\b(address(?:es)?|adresses?|invoices?|factures?)\b/ },
+  { reason: 'activity', pattern: /\b(txids?|transactions?|balances?|solde|sats?)\b/ },
   // "Phone" alone is a device ("only has a phone, no computer" is a valid
   // constraint); a phone number is caught by the raw-value rule below.
-  { reason: 'identity', pattern: /\b(email|e-mail|phone number|numero de telephone|numéro de téléphone|user\s?id|username|password|mot de passe)\b/i },
-  { reason: 'identity', pattern: /\b(my name|name is|named|first name|last name|je m appelle|je m'appelle|mon nom|prenom|prénom|nom de famille)\b/i },
-  { reason: 'sensitive', pattern: /\b(health|medical|diagnos|disease|maladie|sante|santé|sexual|religion|politic|politique)\b/i },
-  { reason: 'location', pattern: /\b(lives? at|habite au|habite à|home address|adresse personnelle|gps|coordinates?)\b/i },
+  { reason: 'identity', pattern: /\b(e-?mails?|phone numbers?|numeros? de telephone|user\s?ids?|usernames?|passwords?|mots? de passe)\b/ },
+  { reason: 'identity', pattern: /\b(my name|name is|named|first name|last name|je m appelle|je m'appelle|mon nom|prenoms?|noms? de famille)\b/ },
+  { reason: 'sensitive', pattern: new RegExp(String.raw`\b(health|medica|medicin|medec|diagnos|diseases?|malad(?:e|ie)s?\b|sante\b|sexual|religi|politi${POLICY_NOT_POLITICS})`) },
+  { reason: 'location', pattern: /\b(liv(?:es?|ing) at|habite aux?|habite a|home address(?:es)?|adresses? personnelles?|gps|coordinates?|coordonnees)\b/ },
 ];
 
 // Models may return a raw value without naming what it is. These patterns
@@ -181,6 +202,23 @@ export function normalizeAliceMemoryText(value: string): string {
   return value.replace(/\s+/g, ' ').replace(/^[-*•\s]+/, '').trim();
 }
 
+/**
+ * The text the word filters look at: lower case, accents removed (NFD, then
+ * the combining marks dropped), the ligatures œ and æ spelled out and
+ * typographic apostrophes straightened. "Santé" becomes "sante", "clé
+ * privée" becomes "cle privee", so an ASCII pattern with a word boundary
+ * matches the accented spelling too.
+ */
+export function foldForMatching(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/œ/g, 'oe')
+    .replace(/æ/g, 'ae')
+    .replace(/[’‘`]/g, "'");
+}
+
 function normalizedKey(category: AliceMemoryCategory, text: string): string {
   let value = text
     .toLowerCase()
@@ -207,9 +245,9 @@ function memoryId(category: AliceMemoryCategory, text: string): string {
   return `memory-${(hash >>> 0).toString(36)}`;
 }
 
-function isExchangeAccount(text: string): boolean {
-  if (EXCHANGE_NAMES.test(text)) return true;
-  return AMBIGUOUS_EXCHANGE_NAMES.test(text) && ACCOUNT_WORDS.test(text);
+function isExchangeAccount(folded: string): boolean {
+  if (EXCHANGE_NAMES.test(folded)) return true;
+  return AMBIGUOUS_EXCHANGE_NAMES.test(folded) && ACCOUNT_WORDS.test(folded);
 }
 
 /**
@@ -226,9 +264,10 @@ export function aliceMemoryRefusalReason(value: string): AliceMemoryRefusalReaso
     if (rule.pattern.test(text)) return rule.reason;
   }
   if (AMOUNT_PATTERNS.some(pattern => pattern.test(text))) return 'amount';
-  if (isExchangeAccount(text)) return 'exchange';
+  const folded = foldForMatching(text);
+  if (isExchangeAccount(folded)) return 'exchange';
   for (const rule of FORBIDDEN_MEMORY) {
-    if (rule.pattern.test(text)) return rule.reason;
+    if (rule.pattern.test(folded)) return rule.reason;
   }
   return null;
 }

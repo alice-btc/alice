@@ -114,7 +114,7 @@ function ExplorerWorkspace() {
     const stored = loadTabs();
     // A deep link from another surface (a Learn anchor, a Playground
     // transaction) opens its subject on top of whatever was restored.
-    // A subject in the URL (a link from Alice Wallet) wins over a stored
+    // A subject in the URL (a link from another app) wins over a stored
     // request, and is taken out of the address bar once read so a reload
     // does not open it a second time.
     const fromUrl = pendingOpenFromUrl(window.location.search);
@@ -593,7 +593,7 @@ function ExplorerWorkspace() {
           <span className="font-numbers min-w-0 truncate" style={{ fontSize: 13, color: 'var(--alice-text)' }}>
             {arrival.label}
           </span>
-          {/* A visitor sent by Alice Wallet arrived by URL: this tab has no
+          {/* A visitor sent by another app arrived by URL: this tab has no
               page to go back to, so the only sensible action is to dismiss. */}
           {!arrival.origin.toLowerCase().includes('wallet') && (
             <button
