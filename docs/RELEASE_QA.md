@@ -2,13 +2,13 @@
 
 What to try by hand before publishing a release, on the artefacts that will
 actually be distributed. Automated tests cover the logic; this list covers
-what only a human holding a phone can see.
+what only a human can see.
 
 Work through it on the **built** artefacts, never on a dev server: a dev build
 resolves paths, versions and origins differently, and those differences are
 exactly where release bugs hide.
 
-Have ready: an Android phone, a second browser or a private window, and a few
+Have ready: a second browser or a private window, and a few
 thousand Mutinynet sats in the Playground.
 
 ---
@@ -48,27 +48,9 @@ thousand Mutinynet sats in the Playground.
       needs downloading.
 - [ ] Conversations survive closing and reopening the app.
 
-## 3. Alice Wallet, Android APK
+## 3. Playground payment paths
 
-- [ ] The APK installs from the release page and its checksum matches.
-- [ ] Create a wallet, write the recovery phrase, pass the verification step.
-- [ ] The red backup banner disappears once the phrase is confirmed.
-- [ ] Receive: an address and a QR appear, and an amount can be requested.
-- [ ] Restore the same wallet on a second device from the phrase alone, and the
-      balance reappears.
-- [ ] Ask Alice a question from inside the wallet; the answer arrives.
-- [ ] Settings shows the account, the plan and the remaining free requests.
-
-## 4. Alice Wallet, PWA
-
-- [ ] Installing to the home screen works, and the app opens standalone.
-- [ ] Same wallet flows as Android: create, back up, receive.
-- [ ] The AI answers. Semantic search is deliberately absent here: the settings
-      must not offer a button that does nothing.
-
-## 5. Real payment paths
-
-The only part no test can prove. Small amounts, and on Mutinynet first.
+The only part no test can prove. Mutinynet only, worthless coins.
 
 - [ ] **Playground faucet**: a fresh install receives its practice coins once,
       and asking twice is refused with a clear message.
@@ -76,13 +58,8 @@ The only part no test can prove. Small amounts, and on Mutinynet first.
       Explorer on Mutinynet.
 - [ ] **MAX**: sends the whole balance, and the amount that arrives matches the
       amount shown after pressing MAX.
-- [ ] **Satora swap** (never validated end to end): perform one Lightning
-      payment from the wallet and confirm it settles. If it fails, capture the
-      error message before retrying.
-- [ ] **Mainnet**: one small real payment, and one receive. Small means an
-      amount you would shrug at losing.
 
-## 6. What the release claims
+## 4. What the release claims
 
 Read the release notes and check each claim against the app you just used.
 

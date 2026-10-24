@@ -23,7 +23,7 @@ const MISSIONS: { icon: ReactNode; title: string; body: string }[] = [
   {
     icon: <ShieldCheckIcon size={24} />,
     title: 'Verify locally',
-    body: 'The wallet validates on your device; Alice only advises, she never signs.',
+    body: 'Your wallet validates on your device; Alice only advises, she never signs.',
   },
 ];
 
@@ -46,7 +46,7 @@ export function Missions() {
         <p className="mt-3 text-lg leading-relaxed text-[var(--alice-muted)]">
           Uncensorable and private like Bitcoin itself, private by design, never able
           to touch your keys, and Bitcoin-native to the core. She teaches, guides, and
-          helps you tighten your security and privacy, while the wallet checks everything on your
+          helps you tighten your security and privacy, while your wallet checks everything on your
           device. Need more power? Private Cloud is one tap away, still end-to-end
           encrypted.
         </p>

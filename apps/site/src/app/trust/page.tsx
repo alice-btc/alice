@@ -52,7 +52,6 @@ const statusRows: [string, string][] = [
   ['Measurement pinning mechanism', 'Implemented + verified'],
   ['Measurement reference values', 'Externally blocked, needs Venice / dstack governance data'],
   ['NVIDIA GPU attestation', 'Pending, not implemented; fails closed when required'],
-  ['Mobile (Android / iOS) runtime', 'Export passes; real-device runs still required'],
 ];
 
 function H({ children, id }: { children: React.ReactNode; id?: string }) {
@@ -164,7 +163,6 @@ export default function TrustPage() {
           <li>NVIDIA GPU attestation is not verified.</li>
           <li>DCAP verification reduces, but doesn’t remove, trust in Phala’s availability and Intel’s / NVIDIA’s roots.</li>
           <li>Assistant history is dropped in Private (single-shot turns), since Venice doesn’t encrypt assistant replies.</li>
-          <li>Mobile (Android / iOS) enclave verification isn’t runtime-tested yet.</li>
           <li>We’ve reached out to Venice for the measurement reference values and the attestation-binding confirmation above, and are waiting on their reply.</li>
         </ul>
 

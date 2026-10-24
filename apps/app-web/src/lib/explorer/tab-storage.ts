@@ -113,7 +113,7 @@ export function requestPendingOpen(
 }
 
 /**
- * The same request, carried by the URL instead of storage: Alice Wallet links
+ * The same request, carried by the URL instead of storage: another app links
  * a transaction or an address as `/explorer?tx=<id>&network=<id>` (also
  * `address=`, `block=`, `xpub=`), and nothing on the wallet side can write to
  * this origin's localStorage. A network the registry no longer knows falls

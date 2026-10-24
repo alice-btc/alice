@@ -22,7 +22,7 @@ type MemoryCopy = {
   refused: { heading: string; lead: string; filters: Pair[]; limits: string; guards: string };
   stored: { heading: string; rows: Pair[]; after: string; trustLabel: string; afterTrust: string };
   used: { heading: string; p1: string; notLead: string; nots: string[]; local: string };
-  control: { heading: string; lead: string; items: string[]; edit: string };
+  control: { heading: string; lead: string; items: string[] };
   coming: { heading: string; lead: string; items: string[]; outOfPlan: string };
   closing: { before: string; docLabel: string; between: string; privacyLabel: string; and: string; trustLabel: string; after: string };
   diagram: MemoryFlowCopy;
@@ -37,7 +37,7 @@ const copy: MemoryCopy = {
       'She may misread a sentence and keep something she should not have kept, and the filters described here can miss a case they did not anticipate. They are a safeguard, not a guarantee. Do not fully trust what is shown as remembered or as forgotten. The real protection is to give Alice only the minimum your question needs, and never an address, a key, a recovery phrase, an amount or anything that identifies you. What you type in the conversation remains your responsibility.',
     intro: [
       'Alice keeps two memories, both on your device. The personal memory holds short facts you said about yourself: a preference for short answers, the hardware you use, a project you are building, a constraint to keep in mind, or a sentence you asked her to keep. The learning profile holds how familiar you are with fourteen Bitcoin concepts, so she can pick the right vocabulary and depth. Neither is stored on our servers, and neither is a source of truth for Alice: they only change how she answers, never what she holds to be true.',
-      'This page describes what the code does today, in Alice App 0.2.4 on the web and on desktop. The Android app, Alice Wallet, is still version 0.2.0 and keeps the previous memory until its next build: how it differs is said under “Where it is stored” and “See, edit and erase everything”. The parts that are decided and not yet in the app are listed at the end, under “Coming”, and nowhere else.',
+      'This page describes what the code does today, in Alice App 0.2.5 on the web and on desktop. The parts that are decided and not yet in the app are listed at the end, under “Coming”, and nowhere else.',
     ],
     capture: {
       heading: 'What Alice remembers, and how',
@@ -85,7 +85,7 @@ const copy: MemoryCopy = {
         },
         {
           title: '5. Forbidden subjects',
-          body: 'Recovery phrase, private key, address, invoice, transaction id, transaction, balance, sats, email, phone number, user id, username, password, first and last name, health, medical, disease, religion, sexual, home address, coordinates, in English and French. Each word is matched whole, so a variant can slip past: “politics”, “sexuality” or “diagnosis” are not on the list.',
+          body: 'Recovery phrase, private key, address, invoice, transaction id, transaction, balance, sats, email, phone number, user id, username, password, first and last name, health, medical, disease, religion, sexual, politics, home address, coordinates, in English and French. Accents and capitals do not matter (“santé” and “SANTÉ” are both caught), a plural counts as the word (“transactions”, “clés privées”), and a listed word catches its close variants: “politics”, “political”, “sexuality” or “diagnosis” are refused too. A word that is not on the list still passes.',
         },
       ],
       limits:
@@ -98,14 +98,13 @@ const copy: MemoryCopy = {
       rows: [
         { title: 'On the web, app.alicebtc.com', body: 'In your browser’s local storage, on this device only.' },
         { title: 'On desktop, Alice App for macOS, Windows and Linux', body: 'In the same local storage, encrypted by the application before it is written, with a key kept in the system keychain.' },
-        { title: 'On the phone, Alice Wallet', body: 'In the phone’s secure store (Android Keystore), tied to this device. The app you can install today is 0.2.0, with the previous memory: six categories, twenty facts at most (the oldest leave first), the earlier filters without the amount and exchange rules, Forget but no edit. Its next build brings what this page describes, and moves a memory that outgrows the secure store to a file the app encrypts.' },
         { title: 'On our servers', body: 'Nothing. No copy, no sync between devices, no export to your account.' },
       ],
       after:
         'When you use Private Cloud, the facts selected for a message, ten at most, and the learning hints for its concepts travel inside the same encrypted envelope as the message itself, meant to be opened only inside the enclave, never by the proxy and never by us. Alice checks the enclave hardware before every message, but cannot yet verify which software runs inside it: ',
       trustLabel: 'see Trust',
       afterTrust:
-        '. In Local mode nothing leaves the device at all, memory included. With a custom server you connect yourself, they go to that server with your message.',
+        '. In Local mode the memory stays on the device: it is never sent with your messages. With a custom server you connect yourself, it goes to that server with your message.',
     },
     used: {
       heading: 'How Alice uses it, and how she does not',
@@ -128,9 +127,8 @@ const copy: MemoryCopy = {
         'Each fact with Edit and Delete. An edit goes through the same filters as a capture, and a refusal says why.',
         'Past the fifty most recent facts, a folded “older facts” section, with the same Edit and Delete.',
         'The learning signals, concept by concept, each with a Forget button.',
-        'Forget everything, which erases both memories on this device. Your conversations and your wallet are untouched.',
+        'Forget everything, which erases both memories on this device. Your conversations and your Playground wallet are untouched.',
       ],
-      edit: 'On the phone, Alice Wallet 0.2.0 still shows the previous screen, under the AI settings: the switch, the list of facts with Forget on each, the learning signals and Forget everything. A fact cannot be edited there: forget it, then say it again the way you want it kept. The new screen reaches the phone with the next Android build.',
     },
     coming: {
       heading: 'Coming, not shipped yet',
@@ -138,7 +136,6 @@ const copy: MemoryCopy = {
       items: [
         'A notice under the answer, “Alice remembers: …”, with Keep and Forget, shown every time something is captured. Until then, a capture shows only on the “What Alice remembers” screen, or in the reply to a “remember that” request.',
         'Fixed patterns for Setup and Experience (“I have a multisig”, “I use a hardware wallet”, “I run a node”). Until then, these facts come only from the model’s proposal or from a “remember that” request.',
-        'On the phone, with the next build of Alice Wallet: the new categories and “remember that” notes, the stronger filters, the screen with fields, Edit and Pause, no cap, and the move to an encrypted file once the memory outgrows the secure store.',
       ],
       outOfPlan: 'Out of scope, by decision: no copy off the device, no sync between devices, no export to your account.',
     },
@@ -154,13 +151,13 @@ const copy: MemoryCopy = {
     diagram: {
       title: 'From a message to the memory on your device',
       description:
-        'Your message can reach the memory by two kinds of path. In the code: fixed patterns, which keep at most two facts, and an explicit “remember that” request, kept word for word. From the model: zero to three facts in a hidden block after its answer, never inferred. Everything goes through five filters in the code: a secrets detector, raw values, amounts, exchange accounts and forbidden subjects. A refused fact is not written, and only a “remember that” request gets an answer saying why. An accepted fact goes to the memory on your device, 160 characters a fact and no cap on their number: in the browser’s local storage on the web, encrypted by the app on desktop, in the phone’s secure store on mobile. That memory feeds the next conversation, where preferences, constraints and requested notes come first and the rest is ranked by the message, ten at most, and the “What Alice remembers” screen, with Edit and Delete per fact, Pause and Delete all per category, Forget per concept and Forget everything.',
+        'Your message can reach the memory by two kinds of path. In the code: fixed patterns, which keep at most two facts, and an explicit “remember that” request, kept word for word. From the model: zero to three facts in a hidden block after its answer, never inferred. Everything goes through five filters in the code: a secrets detector, raw values, amounts, exchange accounts and forbidden subjects. A refused fact is not written, and only a “remember that” request gets an answer saying why. An accepted fact goes to the memory on your device, 160 characters a fact and no cap on their number: in the browser’s local storage on the web, encrypted by the app on desktop. That memory feeds the next conversation, where preferences, constraints and requested notes come first and the rest is ranked by the message, ten at most, and the “What Alice remembers” screen, with Edit and Delete per fact, Pause and Delete all per category, Forget per concept and Forget everything.',
       message: 'Your message',
       patterns: { title: 'In the code', lines: ['“I prefer”, “my goal is”,', '“I am working on”:', '2 facts at most;', '“remember that…”:', 'kept word for word'] },
       model: { title: 'The model proposes', lines: ['0 to 3 facts in a hidden', 'block after its answer,', 'never inferred'] },
       filters: { title: 'Five filters, in the code', lines: ['1. secrets detector (seed, keys)', '2. raw values (addresses, ids)', '3. amounts in any unit', '4. exchange accounts', '5. forbidden subjects'] },
       refused: { title: 'Refused', lines: ['nothing is written;', 'on “remember that”,', 'Alice says why'] },
-      stored: { title: 'Memory on your device', lines: ['160 characters a fact, no cap', 'web: local storage', 'desktop: encrypted by the app', 'phone: secure store'] },
+      stored: { title: 'Memory on your device', lines: ['160 characters a fact, no cap', 'web: local storage', 'desktop: encrypted by the app'] },
       next: { title: 'Next conversation', lines: ['preferences, constraints,', 'requested notes first,', 'the rest ranked by', 'the message, 10 at most'] },
       screen: { title: '“What Alice remembers”', lines: ['Edit, Delete per fact,', 'Pause, Delete all here,', 'Forget per concept,', 'Forget everything'] },
     },
@@ -277,7 +274,6 @@ export function MemoryPage() {
             </li>
           ))}
         </ul>
-        <p className="mt-4 leading-relaxed text-[var(--alice-text)]">{copy.control.edit}</p>
 
         <H id="coming">{copy.coming.heading}</H>
         <p className="mt-3 leading-relaxed text-[var(--alice-text)]">{copy.coming.lead}</p>

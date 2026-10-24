@@ -2,10 +2,26 @@ import type { Metadata, Viewport } from 'next';
 import { ChatProviderWrapper } from '@/lib/chat-provider';
 import './globals.css';
 
+const DESCRIPTION =
+  'Alice is a Bitcoin education AI companion that helps you learn about Bitcoin, privacy, and self-sovereignty in a friendly, accessible way.';
+
+// The preview image of each section is the opengraph-image.png next to its
+// page, rendered by scripts/generate-og.mjs; Next adds it to these tags.
 export const metadata: Metadata = {
+  metadataBase: new URL('https://app.alicebtc.com'),
   title: 'Alice - Your Bitcoin Companion',
-  description:
-    'Alice is a Bitcoin education AI companion that helps you learn about Bitcoin, privacy, and self-sovereignty in a friendly, accessible way.',
+  description: DESCRIPTION,
+  openGraph: {
+    type: 'website',
+    siteName: 'Alice',
+    title: 'Alice - Your Bitcoin Companion',
+    description: DESCRIPTION,
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Alice - Your Bitcoin Companion',
+    description: DESCRIPTION,
+  },
   icons: {
     icon: [
       { url: '/alice-symbol.svg', type: 'image/svg+xml' },

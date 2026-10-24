@@ -4,8 +4,20 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "customConditions": [
+      "react-native"
+    ],
     "jsx": "react-jsx",
+    "lib": [
+      "DOM",
+      "ESNext"
+    ],
+    "allowJs": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true,
+    "noEmit": true,
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
@@ -14,8 +26,6 @@
   "exclude": [
     "node_modules",
     "apps/app-desktop/src-tauri/target",
-    "dist",
-    ".expo-export-*"
-  ],
-  "extends": "expo/tsconfig.base"
+    "dist"
+  ]
 }

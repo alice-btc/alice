@@ -72,11 +72,9 @@ test('the web and native semantic indexes exactly match the active core corpus',
   }) => `${chunk.id}\n${chunk.sourceHash ?? ''}\n${chunk.title}\n${chunk.content}`).join('\n\n')).digest('hex');
   const indexes = await Promise.all([
     readSemanticIndex('../../../apps/app-web/public/core-embeddings'),
-    readSemanticIndex('../../../apps/wallet-mobile/assets/core-embeddings'),
   ]);
 
   assert.equal(indexes[0].metadata.model, 'Xenova/multilingual-e5-small');
-  assert.equal(indexes[1].metadata.model, 'TwinSunsLLC/multilingual-e5-small-gguf@b6cac9615d4ecce28d7f22539b7322d695fc2886');
   for (const { metadata, vectors } of indexes) {
     assert.deepEqual(metadata.ids, expectedIds);
     assert.equal(vectors.byteLength, metadata.ids.length * metadata.dim * Float32Array.BYTES_PER_ELEMENT);

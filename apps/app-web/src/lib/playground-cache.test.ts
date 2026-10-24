@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-import { localVault } from './local-vault.ts';
+import { playgroundVault as localVault } from './playground-vault.ts';
 
-// Under Node the vault has no cipher: a plain window onto the fake storage.
+// Under Node the vault is volatile; legacy values remain readable.
 localVault.configure(() => null);
 
 // The cache lets the wallet paint instantly on open. It is read before any

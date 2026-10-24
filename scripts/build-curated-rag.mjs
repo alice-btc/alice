@@ -105,7 +105,7 @@ export async function loadCorpus(corpusDir, { allowExcludedFiles = false } = {})
 function snapshotManifest(corpus) {
   return {
     schema_version: '0.2', status: 'selected_snapshot',
-    scope: 'Alice App et Bitcoin ; Alice Wallet hors périmètre.',
+    scope: 'Alice App et Bitcoin.',
     counts: corpus.counts,
     reviewed_meaning: 'Revue éditoriale selon review_method ; ni approbation humaine intégrale ni fact-check externe exhaustif.',
     policy: 'retrieval-policy.json',

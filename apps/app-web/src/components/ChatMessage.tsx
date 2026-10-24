@@ -7,6 +7,7 @@ import { AliceIcon } from '@/components/AliceIcon';
 import { splitAskAliceMessage, type MessageAttachment } from '@/lib/explorer/ask-alice';
 import { useOpenSettings } from '@/lib/settings-url';
 import { useChat } from '@alice-wallet/alice-ai';
+import { relativeTime, type RelativeTimeLang } from '@/lib/relative-time';
 import type { TokenUsage, MessageVariant } from '@alice-wallet/alice-ai';
 
 interface ChatMessageProps {
@@ -18,6 +19,8 @@ interface ChatMessageProps {
   /** True while this assistant reply is still being written: shows the
       blinking terminal cursor at the end of the streamed text. */
   streaming?: boolean;
+  /** Language of the surface the chat sits in, for the message time. */
+  lang?: RelativeTimeLang;
   message: {
     id: string;
     role: 'user' | 'assistant' | 'system';
@@ -199,22 +202,6 @@ function QuotaNotice({ kind }: { kind: 'free' | 'plan' }) {
       )}
     </div>
   );
-}
-
-function relativeTime(date: Date): string {
-  const now = Date.now();
-  const diff = now - date.getTime();
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 30) return 'Just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 1) return `${seconds}s ago`;
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days}d ago`;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined });
 }
 
 // --- Icon components (inline SVG, no dependencies) ---
@@ -524,10 +511,12 @@ function MessageActions({
   message,
   onEdit,
   compact = false,
+  lang = 'en',
 }: {
   message: ChatMessageProps['message'];
   onEdit: () => void;
   compact?: boolean;
+  lang?: RelativeTimeLang;
   /** The main chat has a single fixed mascot outside its message history. */
   showAvatar?: boolean;
 }) {
@@ -558,7 +547,7 @@ function MessageActions({
       }}
     >
       <span style={{ fontSize: 10, color: 'var(--alice-muted)', opacity: 1, marginRight: 4, fontFamily: 'var(--font-numbers, monospace)' }}>
-        {relativeTime(time)}
+        {relativeTime(time, lang)}
       </span>
 
       {message.variants && message.variants.length > 1 && (
@@ -651,7 +640,7 @@ function UserMessageBody({ content }: { content: string }) {
   );
 }
 
-export function ChatMessage({ message, compact = false, streaming = false, showAvatar = true }: ChatMessageProps) {
+export function ChatMessage({ message, compact = false, streaming = false, showAvatar = true, lang = 'en' }: ChatMessageProps) {
   const { editMessage } = useChat();
   const [editing, setEditing] = useState(false);
 
@@ -714,7 +703,7 @@ export function ChatMessage({ message, compact = false, streaming = false, showA
         </div>
       </div>
       {!editing && message.content && message.id !== 'greeting' && (
-        <MessageActions message={message} onEdit={() => setEditing(true)} compact={compact || !showAvatar} />
+        <MessageActions message={message} onEdit={() => setEditing(true)} compact={compact || !showAvatar} lang={lang} />
       )}
     </div>
   );

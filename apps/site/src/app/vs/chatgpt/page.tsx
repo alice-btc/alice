@@ -37,12 +37,12 @@ const rows: { dimension: string; alice: string; chatgpt: string }[] = [
   },
   {
     dimension: 'Can it move your money?',
-    alice: 'No. Alice has no spending authority today, the wallet, not the AI, holds keys and signs. A separate wallet for Alice to make agentic payments on your behalf is planned, not available yet.',
+    alice: 'No. Alice has no spending authority today, the wallet, not the AI, holds keys and signs.',
     chatgpt: 'No wallet of its own, but plugins/agents wired to one can be given real spending power.',
   },
   {
     dimension: 'Bitcoin focus',
-    alice: 'Purpose-built for Bitcoin, self-custody, and privacy. Alice Wallet sits alongside it as an experimental beta: real bitcoin, small amounts only.',
+    alice: 'Purpose-built for Bitcoin, self-custody, and privacy, with a Playground to practise sending, receiving and backing up on test coins (on-chain).',
     chatgpt: 'General-purpose; strong broad knowledge, not specialized or connected to your wallet.',
   },
   {
@@ -59,15 +59,15 @@ const faqs: { q: string; a: string }[] = [
   },
   {
     q: 'Can Alice spend or move my Bitcoin?',
-    a: 'No. Alice is designed so the AI never has spending authority. The wallet code, not the AI model, holds your keys and signs transactions, so a prompt can never move your funds. A separate wallet giving Alice agentic payment ability is planned for later, not available today.',
+    a: 'No. Alice is designed so the AI never has spending authority. The wallet code, not the AI model, holds your keys and signs transactions, so a prompt can never move your funds.',
   },
   {
     q: 'Where is ChatGPT still better than Alice?',
-    a: 'ChatGPT is a mature, general-purpose assistant with broader world knowledge and a long track record. Alice is a focused product in public beta, narrower on purpose, but encrypted end-to-end in the cloud and fully offline when run Local, both further than ChatGPT goes.',
+    a: 'ChatGPT is a mature, general-purpose assistant with broader world knowledge and a long track record. Alice is a focused beta, narrower on purpose, but Private Cloud is end-to-end encrypted to an attested enclave, and Local runs the model on your device in the installed app. Both go further than ChatGPT.',
   },
   {
     q: 'Do I need to trust Alice with my coins to try her?',
-    a: 'No. You can try Alice without any coins at all: the companion answers your questions on its own. And when you do use the wallet, it is self-custodial. Your keys are generated on your device, stay on your device, and Alice can never touch them. Alice Wallet is still an experimental beta holding real bitcoin, so use small amounts only.',
+    a: 'No. Alice holds no coins and asks for none. The companion answers your questions on its own, and the Playground lets you practise sending, receiving and backing up on-chain with test coins that are worth nothing. Alice never touches your keys.',
   },
 ];
 
@@ -98,9 +98,11 @@ export default function VsChatGptPage() {
         </h1>
         <p className="mt-5 max-w-2xl text-lg leading-relaxed text-[var(--alice-text)]">
           Most people already ask ChatGPT about Bitcoin. The difference with
-          Alice is simple: your questions stay private. They are encrypted so
-          that no one, not even us, can read them, and they are answered by a
-          companion built only for Bitcoin. Here’s the honest comparison,
+          Alice is simple: your questions stay private. In Private Cloud they
+          are end-to-end encrypted to confidential hardware; Venice does not yet
+          publish what is needed to verify the exact program inside (the trust
+          page says what is verified). They are answered by a companion built
+          only for Bitcoin. Here’s the honest comparison,
           including where ChatGPT still wins.
         </p>
 
@@ -141,9 +143,10 @@ export default function VsChatGptPage() {
           <p className="mt-3 leading-relaxed text-[var(--alice-text)]">
             We’re not going to pretend otherwise. ChatGPT is a mature, general-purpose
             assistant with far broader knowledge and years of refinement. Alice is a
-            focused product in public beta: narrower on purpose, but encrypted
-            end-to-end in the cloud and fully offline when run Local, both further
-            than ChatGPT goes. If you want a do-everything assistant, ChatGPT
+            focused beta, narrower on purpose, but Private Cloud is end-to-end
+            encrypted to an attested enclave, and Local runs the model on your
+            device in the installed app. Both go further than ChatGPT. If you
+            want a do-everything assistant, ChatGPT
             wins. If you want a private, Bitcoin-specialized companion that can’t
             touch your funds, that’s Alice.
           </p>

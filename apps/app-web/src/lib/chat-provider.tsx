@@ -3,6 +3,7 @@
 // First of all: hand the device cipher to the local vault, so every store
 // encrypts from its first write.
 import '@/lib/local-vault-setup';
+import { getWebStorageCipher } from '@/lib/storage-cipher';
 import { Suspense, useEffect, useState } from 'react';
 import {
   AccountProvider,
@@ -11,9 +12,9 @@ import {
   restoreDownloadedPacks,
   checkForPackUpdates,
   KNOWLEDGE_PACK_CATALOG,
-  getLocalCipher,
   type ChatStorageCipher,
 } from '@alice-wallet/alice-ai';
+import { StorageNotice } from '@/components/StorageNotice';
 import { AppUpdateNotices } from '@/components/AppUpdateNotices';
 import { MenuCommands } from '@/components/MenuCommands';
 import { ModelDownloadToasts } from '@/components/ModelDownloadToasts';
@@ -32,7 +33,7 @@ export function ChatProviderWrapper({
   // keychain key on Alice Desktop, a non-extractable WebCrypto key in a
   // browser (see alice-ai's local-cipher.ts).
   const [storageCipher] = useState<ChatStorageCipher | undefined>(
-    () => getLocalCipher() ?? undefined,
+    () => getWebStorageCipher() ?? undefined,
   );
   // Desktop and web have the headroom to load the corpus right away, so the
   // first question never waits for it.
@@ -63,6 +64,7 @@ export function ChatProviderWrapper({
             <ModelDownloadToasts />
             {children}
           </div>
+          <StorageNotice />
           {/* useSearchParams needs a boundary so the rest of the tree can still
               be prerendered. */}
           <Suspense fallback={null}>

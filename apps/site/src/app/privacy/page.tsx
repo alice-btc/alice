@@ -24,7 +24,7 @@ const inApp: { title: string; detail: React.ReactNode }[] = [
         <a href="/trust/#status" className="text-[var(--alice-primary)] hover:underline">
           trust page
         </a>{' '}
-        tracks that limit. Or run Alice fully Local, and nothing leaves at all.
+        tracks that limit. In Local mode, the installed app runs the model on your device. Downloads, Explorer and other network features still make network requests.
       </>
     ),
   },
@@ -58,7 +58,7 @@ const inApp: { title: string; detail: React.ReactNode }[] = [
         for your conversations, your Explorer tabs and saved wallets, and your Playground wallet.
         “What Alice remembers” lets you inspect and erase the memory anytime.
         When you use Private Cloud, the relevant memory travels inside the same end-to-end
-        encrypted envelope as your messages, readable only by the attested enclave, never by us.
+        encrypted envelope as your messages, addressed to the attested enclave. The hardware is checked, but the exact program inside cannot be verified yet, pending Venice’s reference values.
         The{' '}
         <a href="/memory/" className="text-[var(--alice-primary)] hover:underline">
           memory page

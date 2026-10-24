@@ -1,8 +1,11 @@
 # Alice threat model
 
-Alice is a self-custodial Bitcoin wallet and an AI companion. This document
-summarises the security boundaries of the current mainnet beta. It is a map of
-the system, not a claim that all risks are eliminated.
+This repository holds Alice App (web and desktop), the website, the Private
+Cloud proxy Worker and the Playground, a practice wallet on Mutinynet with
+worthless test coins. Alice App holds no real funds. Alice Wallet, the
+self-custodial wallet, lives in `alice-btc/alice-wallet` with its own threat
+model. This document summarises the security boundaries of this repository. It
+is a map of the system, not a claim that all risks are eliminated.
 
 ## Assets that must remain private
 
@@ -14,12 +17,13 @@ the system, not a claim that all risks are eliminated.
 
 ## Trust boundaries
 
-### Wallet custody
+### Playground custody
 
-The wallet creates and holds its seed on the device. Alice account credentials
-never derive, wrap, encrypt, decrypt, restore, or export the wallet seed. The
-AI code cannot import wallet custody or payment modules, and deterministic
-wallet code still requires explicit user confirmation to spend.
+The Playground creates and holds its practice seed on the device, for
+Mutinynet coins only. Alice account credentials never derive, wrap, encrypt,
+decrypt, restore, or export that seed. The AI code cannot import the
+Playground's custody or payment modules, and the deterministic Playground code
+still requires explicit user confirmation to send.
 
 ### Alice account service
 
@@ -41,20 +45,22 @@ exact enclave image. It must not be described as full E2EE.
 
 Local AI runs on the device. The learning profile is local only and stores
 bounded topic-level counters, not a copy of a user message. Semantic retrieval
-runs on Android, Alice App web and Desktop (an on-device embedding model,
-bundled with the desktop installer, downloaded on the other surfaces); the
-installable PWA stays on lexical retrieval.
+runs on Alice App web and Desktop (an on-device embedding model, bundled with
+the desktop installer, downloaded on the web).
 
 ### Third-party services
 
-Arkade, Satora, Boltz, Esplora, Venice and Cloudflare are external services
-with their own availability and privacy boundaries. Alice should fail clearly
-when one is unavailable rather than silently changing a payment rail or
-downgrading Private Cloud to plaintext.
+Esplora (the Playground's on-chain lookups and faucet rails), the Explorer's
+providers (Esplora mirrors, Arkade, Bark, Spark, Liquid), Venice and
+Cloudflare are external services with their own availability and privacy
+boundaries. Alice should fail clearly when one is unavailable rather than
+silently switching to another server or downgrading Private Cloud to
+plaintext.
 
 ## Non-goals and known limits
 
-- Mainnet beta is for small amounts only.
+- Nothing in this repository holds real funds: the Playground runs on Mutinynet
+  only. Limits on real funds belong to Alice Wallet's threat model.
 - Private Cloud does not currently provide full measurement-pinned E2EE.
 - The Worker does not provide a cloud backup of wallet seeds or chats.
 - The admin console is local and aggregate by design. It cannot expose a seed,
@@ -64,5 +70,4 @@ downgrading Private Cloud to plaintext.
 
 - [Private Cloud trust model](private-cloud-e2ee.md)
 - [Local chat encryption](local-chat-encryption.md)
-- [Recovery bundle](recovery-bundle.md)
 - [Admin dashboard privacy model](admin-dashboard.md)

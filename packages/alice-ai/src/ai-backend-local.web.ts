@@ -7,7 +7,7 @@ export class LocalAIBackend implements AIBackend {
   async init(): Promise<void> {}
 
   status(): AIBackendStatus {
-    return { state: 'error', message: 'Local AI requires the Alice Wallet native app.' };
+    return { state: 'error', message: 'Local AI runs in the installed Alice app, not in the browser.' };
   }
 
   sendMessage(_messages: Message[], _onChunk?: (chunk: string) => void): Promise<AIResponse> {

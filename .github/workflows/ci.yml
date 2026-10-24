@@ -5,6 +5,9 @@ on:
   push:
     branches:
       - main
+  # A branch that conflicts with main gets no pull_request run (GitHub builds
+  # no merge commit for it), so a candidate can also be checked by hand.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -22,5 +25,29 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm test
       - run: npm run check:types
-      - run: node apps/wallet-mobile/scripts/check-ai-wallet-boundary.js
+      - run: npm run check:csp-parity
       - run: npm run check:npm-audit
+
+  web-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Build secured Alice Web
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/alice-web-build.log"
+          rm -f "$log"
+          npm run build --workspace @alice-wallet/app-web 2>&1 | tee "$log"
+          if ! grep -Fxq 'Web client boundary passed: braces and node-forge are absent.' "$log"; then
+            echo "::error::Web client boundary success marker missing; the boundary plugin did not run."
+            exit 1
+          fi
