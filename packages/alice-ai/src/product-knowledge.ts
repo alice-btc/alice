@@ -25,7 +25,6 @@ export const ALICE_LOCAL_DATA_KNOWLEDGE = {
     'recuperer wallet',
     'récupérer wallet',
     'importer seed',
-    'swap recovery',
     'alice desktop encryption',
     'desktop chat encryption',
     'chiffrement conversations desktop',
@@ -33,5 +32,5 @@ export const ALICE_LOCAL_DATA_KNOWLEDGE = {
   level: 'beginner' as const,
   retrievalWeight: 3,
   content:
-    'Alice keeps conversation history on the current device, limits it to 50 conversations, and lets the user delete the 10 oldest, keep only the 10 newest, or delete all from Settings or Customize Alice. Alice Desktop encrypts conversation messages, titles, and its session index at rest with AES-256-GCM; its random encryption key stays in the operating system keychain, and existing plaintext conversations are migrated automatically. Do not claim that this desktop keychain protection applies to every browser or mobile storage backend. In Alice Wallet, the seed phrase restores the wallet identity and funds discoverable from the supported networks, but it does not by itself recreate every device-local record. Transaction history is a local cache rebuilt or refreshed from wallet providers where possible. Pending or refundable swap records can contain recovery metadata that is not guaranteed to be recoverable from the seed alone, so users should finish or refund pending swaps before resetting, changing browsers, or deleting wallet data. Never claim that Alice stores wallet seeds, chats, or swap metadata on an Alice server.',
+    'Alice keeps conversation history on the current device, limits it to 50 conversations, and lets the user delete the 10 oldest, keep only the 10 newest, or delete all from Settings or Customize Alice. Alice Desktop encrypts conversation messages, titles, and its session index at rest with AES-256-GCM; its random encryption key stays in the operating system keychain, and existing plaintext conversations are migrated automatically. Do not claim that this desktop keychain protection applies to every browser or mobile storage backend. The Playground wallet runs on Mutinynet with test coins only; its recovery phrase restores that practice wallet and nothing else. Never claim that Alice stores wallet seeds, conversations, or memory on an Alice server.',
 };

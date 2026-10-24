@@ -2,8 +2,8 @@
 //
 // The admin page ships a strict CSP (default-src 'none') and must load
 // nothing from a CDN, so the bytes travel with the Worker. Converted from
-// the TTFs in apps/wallet-mobile/assets/fonts, which are the same files the
-// wallet and the web app use — 115KB + 49KB of TTF become 29KB + 12KB here.
+// the TTFs in apps/app-web/public/fonts, the same files the web app serves:
+// 115KB + 49KB of TTF become 29KB + 12KB here.
 //
 // PressStart2P is the pixel display face; terminal-grotesque is the body and
 // numeric face. See packages/alice-content/src/theme.ts (typography).

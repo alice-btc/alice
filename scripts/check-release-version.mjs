@@ -54,13 +54,7 @@ for (const relativePath of workspaceManifests) {
   expectEqual(`package-lock.json (${workspacePath})`, packageLock.packages?.[workspacePath]?.version, releaseVersion);
 }
 
-expectEqual('apps/wallet-mobile/app.json', readJson('apps/wallet-mobile/app.json').expo?.version, releaseVersion);
 expectEqual('apps/app-desktop/src-tauri/tauri.conf.json', readJson('apps/app-desktop/src-tauri/tauri.conf.json').version, releaseVersion);
-expectEqual(
-  'apps/wallet-mobile/eas.json (production app version)',
-  readJson('apps/wallet-mobile/eas.json').build?.production?.env?.EXPO_PUBLIC_ALICE_APP_VERSION,
-  releaseVersion,
-);
 
 expectMatch(
   'apps/app-desktop/src-tauri/Cargo.toml',
@@ -88,12 +82,6 @@ expectMatch(
 );
 expectMatch(
   '.env.example',
-  'example client version',
-  /^EXPO_PUBLIC_ALICE_APP_VERSION=([^\s#]+)$/m,
-  releaseVersion,
-);
-expectMatch(
-  'apps/wallet-mobile/.env.example',
   'example client version',
   /^EXPO_PUBLIC_ALICE_APP_VERSION=([^\s#]+)$/m,
   releaseVersion,

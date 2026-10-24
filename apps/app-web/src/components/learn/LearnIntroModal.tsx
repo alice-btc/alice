@@ -105,7 +105,9 @@ export function LearnIntroModal({
               {fr ? 'Ne plus afficher' : 'Don’t show this again'}
             </span>
           </label>
-          <div className="flex items-center gap-2">
+          {/* The two actions wrap on a phone instead of running past the
+              dialog (the French labels are the longer ones). */}
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
               onClick={() => { confirm(); onPickLanguage(); }}

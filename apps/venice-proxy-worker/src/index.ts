@@ -9,7 +9,7 @@
 //   - buffer the response (the upstream stream is passed straight through)
 //   - serve as a plaintext relay (missing E2EE headers are rejected outright)
 
-import { APP_RELEASE_VERSION } from './app-release.ts';
+import { APP_RELEASE_VERSION, WALLET_RELEASE_VERSION } from './app-release.ts';
 import { ANCHOR_CRON, readAnchors, refreshAnchors } from './explorer-anchors.ts';
 import { checkAndAlert, handleTunnelAlert } from './ops-alert.ts';
 import {
@@ -1010,13 +1010,14 @@ export default {
       return handleTunnelAlert(request, env, url.pathname.slice('/ops/tunnel-alert/'.length));
     }
 
-    // Latest released app version, public and unauthenticated. The four
+    // Latest released versions, public and unauthenticated. The three
     // surfaces version together and the Worker deploys with each release, so
-    // this constant IS the release number; every surface polls it to offer
-    // the update banner (packages/alice-ai/src/app-update.ts). Cacheable:
-    // nothing here is per-user.
+    // `version` IS the release number; every surface polls it to offer the
+    // update banner (packages/alice-ai/src/app-update.ts). `wallet` is Alice
+    // Wallet's own number, read by its banner. Cacheable: nothing here is
+    // per-user.
     if (url.pathname === '/app-version' && request.method === 'GET') {
-      return json({ version: APP_RELEASE_VERSION }, 200, {
+      return json({ version: APP_RELEASE_VERSION, wallet: WALLET_RELEASE_VERSION }, 200, {
         ...cors,
         'Cache-Control': 'public, max-age=300',
       });

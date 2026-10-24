@@ -11,8 +11,14 @@
 // value cannot be moved from one key to another.
 //
 // Where neither is available (no WebCrypto, no IndexedDB) the cipher is
-// null and the stores keep their plaintext behaviour. See
+// null and each store decides what to do without one. See
 // docs/security/local-chat-encryption.md for the scope and limitations.
+//
+// The browser key is created once per origin: every tab that finds none
+// makes a candidate, and one IndexedDB transaction keeps the first one added,
+// so two tabs opening together end up on the same key. A key that is stored
+// but cannot be read or used is an error, never a reason to make a new one:
+// a new key would leave every value sealed under the old one unreadable.
 
 import type { ChatStorageCipher } from './chat-storage.ts';
 import { isTauriDesktop, tauriInvoke } from './tauri-runtime.ts';
@@ -40,8 +46,27 @@ export function createTauriLocalCipher(): LocalCipher {
 
 /** Where a browser keeps its key: IndexedDB, or anything else in tests. */
 export interface LocalKeyStore {
+  /** The stored key, or null when none was ever stored. Rejects when the
+   *  store cannot be read: that is not the same as having no key. */
   get(): Promise<CryptoKey | null>;
-  put(key: CryptoKey): Promise<void>;
+  /** Keeps `candidate` only if no key is stored yet, in one atomic step, and
+   *  resolves with the key that is stored (the candidate, or the one another
+   *  tab added first) once the store has committed. Never replaces a key. */
+  getOrAdd(candidate: CryptoKey): Promise<CryptoKey>;
+}
+
+/** A stored key is used as it is or not at all. */
+function usableKey(value: unknown): CryptoKey {
+  const key = value as Partial<CryptoKey> | null | undefined;
+  const algorithm = key?.algorithm as { name?: unknown; length?: unknown } | undefined;
+  if (
+    key && typeof key === 'object' && key.type === 'secret' && algorithm?.name === 'AES-GCM'
+    && algorithm.length === 256 && key.extractable === false
+    && Array.isArray(key.usages) && key.usages.includes('encrypt') && key.usages.includes('decrypt')
+  ) {
+    return key as CryptoKey;
+  }
+  throw new Error('The local key is present but unusable; it is left in place.');
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -60,7 +85,8 @@ function base64ToBytes(text: string): Uint8Array {
 /**
  * The browser cipher. `subtle` and `random` are injected so the same code
  * runs under Node's WebCrypto in tests; the key is created on first use,
- * non-extractable, and kept in the key store.
+ * non-extractable, and kept in the key store. A failure to reach the key is
+ * retried on the next use, and never leads to a new key.
  */
 export function createWebCryptoLocalCipher(
   subtle: SubtleCrypto,
@@ -73,11 +99,13 @@ export function createWebCryptoLocalCipher(
   const key = () => {
     if (!keyPromise) {
       keyPromise = (async () => {
-        const existing = await keyStore.get();
-        if (existing) return existing;
-        const created = await subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
-        await keyStore.put(created);
-        return created;
+        const stored = await keyStore.get();
+        if (stored !== null) return usableKey(stored);
+        // None yet. The candidate is made before the store's transaction,
+        // which cannot wait on WebCrypto; whichever key the store holds once
+        // it commits is the one used, ours or another tab's.
+        const candidate = await subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+        return usableKey(await keyStore.getOrAdd(candidate));
       })().catch(error => { keyPromise = null; throw error; });
     }
     return keyPromise;
@@ -106,10 +134,12 @@ export function createWebCryptoLocalCipher(
         throw new Error('Local data could not be decoded.');
       }
       if (payload.length <= NONCE_BYTES) throw new Error('Local data is too short to be authenticated.');
+      // Outside the try: a key that cannot be reached is not a forged value.
+      const cryptoKey = await key();
       try {
         const plaintext = await subtle.decrypt(
           { name: 'AES-GCM', iv: payload.slice(0, NONCE_BYTES), additionalData: encoder.encode(context) },
-          await key(),
+          cryptoKey,
           payload.slice(NONCE_BYTES),
         );
         return decoder.decode(plaintext);
@@ -120,27 +150,63 @@ export function createWebCryptoLocalCipher(
   };
 }
 
-/** The browser's key store: one non-extractable key in IndexedDB. */
-export function indexedDbKeyStore(dbName = KEY_DB): LocalKeyStore {
+/** The browser's key store: one non-extractable key in IndexedDB. `factory`
+ *  is the page's `indexedDB` unless a test hands another. */
+export function indexedDbKeyStore(dbName = KEY_DB, factory?: IDBFactory): LocalKeyStore {
   const open = () => new Promise<IDBDatabase>((resolve, reject) => {
-    const req = indexedDB.open(dbName, 1);
+    const req = (factory ?? indexedDB).open(dbName, 1);
     req.onupgradeneeded = () => { req.result.createObjectStore(KEY_STORE); };
-    req.onsuccess = () => resolve(req.result);
+    let blocked = false;
+    req.onsuccess = () => {
+      if (blocked) req.result.close();
+      else resolve(req.result);
+    };
     req.onerror = () => reject(req.error ?? new Error('IndexedDB is unavailable.'));
-    req.onblocked = () => reject(new Error('IndexedDB is blocked.'));
+    req.onblocked = () => { blocked = true; reject(new Error('IndexedDB is blocked.')); };
   });
-  const run = <T>(mode: IDBTransactionMode, op: (store: IDBObjectStore) => IDBRequest<T>) =>
+  // Settles on the transaction, not on its requests: a request can succeed
+  // in a transaction that then aborts (quota, a closing database), and then
+  // nothing it wrote was kept.
+  const transact = <T>(mode: IDBTransactionMode, work: (store: IDBObjectStore, keep: (value: T) => void) => void) =>
     open().then(db => new Promise<T>((resolve, reject) => {
-      const tx = db.transaction(KEY_STORE, mode);
-      const req = op(tx.objectStore(KEY_STORE));
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error ?? new Error('IndexedDB request failed.'));
-      tx.oncomplete = () => db.close();
+      let kept: { value: T } | null = null;
+      let tx: IDBTransaction;
+      try {
+        tx = db.transaction(KEY_STORE, mode);
+      } catch (error) {
+        db.close();
+        reject(error);
+        return;
+      }
+      tx.oncomplete = () => {
+        db.close();
+        if (kept) resolve(kept.value);
+        else reject(new Error('IndexedDB transaction ended without a result.'));
+      };
       tx.onabort = () => { db.close(); reject(tx.error ?? new Error('IndexedDB transaction aborted.')); };
+      try {
+        work(tx.objectStore(KEY_STORE), value => { kept = { value }; });
+      } catch (error) {
+        reject(error);
+        try { tx.abort(); } catch { /* already over */ }
+      }
     }));
   return {
-    get: () => run<CryptoKey | undefined>('readonly', store => store.get(KEY_ID)).then(k => k ?? null),
-    put: key => run('readwrite', store => store.put(key, KEY_ID)).then(() => undefined),
+    get: () => transact<CryptoKey | null>('readonly', (store, keep) => {
+      const read = store.get(KEY_ID);
+      read.onsuccess = () => keep(read.result === undefined ? null : read.result);
+    }),
+    // The read and the add share one readwrite transaction, and IndexedDB
+    // runs those one at a time per store: two tabs cannot both find it empty.
+    // `add`, not `put`: even out of turn it fails rather than replace a key.
+    getOrAdd: candidate => transact<CryptoKey>('readwrite', (store, keep) => {
+      const read = store.get(KEY_ID);
+      read.onsuccess = () => {
+        if (read.result !== undefined) { keep(read.result); return; }
+        const add = store.add(candidate, KEY_ID);
+        add.onsuccess = () => keep(candidate);
+      };
+    }),
   };
 }
 

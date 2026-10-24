@@ -182,11 +182,15 @@ function VideoBlock({
   }
   return (
     <div style={{ margin: '16px 0', border: '1px solid var(--alice-border)', borderRadius: 'var(--alice-radius-control)' }}>
+      {/* The site sends no referrer (Referrer-Policy: no-referrer), and the
+          YouTube player refuses to start without one (error 153). This frame
+          alone sends Alice's origin, never the page path or its query. */}
       <iframe
         src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
         title="Course video"
         allow="encrypted-media; picture-in-picture"
         allowFullScreen
+        referrerPolicy="strict-origin"
         style={{ display: 'block', width: '100%', aspectRatio: '16 / 9', border: 0 }}
       />
     </div>

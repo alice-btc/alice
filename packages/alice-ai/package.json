@@ -1,6 +1,6 @@
 {
   "name": "@alice-wallet/alice-ai",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "license": "AGPL-3.0-or-later",
   "private": true,
   "main": "src/index.ts",
@@ -11,9 +11,13 @@
     "@noble/hashes": "^2.2.0",
     "@noble/secp256k1": "^3.0.0",
     "@phala/dcap-qvl": "^0.6.1",
+    "@react-native-async-storage/async-storage": "^2.2.0",
     "@scure/bip39": "^2.0.0",
     "@types/react": "19.1.17",
-    "expo-secure-store": "~15.0.8"
+    "expo": "^54.0.0",
+    "expo-file-system": "~19.0.23",
+    "expo-secure-store": "~15.0.8",
+    "react-native": "0.81.5"
   },
   "peerDependencies": {
     "react": "^19.1.0"

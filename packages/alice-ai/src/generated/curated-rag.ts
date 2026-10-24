@@ -2,7 +2,7 @@
 // Selected corpus; review methods do not imply exhaustive fact-checking.
 import type { KnowledgeChunk } from '../knowledge-packs';
 
-export const CURATED_CORPUS_VERSION = "curated-c0aa6d5273745070ac25";
+export const CURATED_CORPUS_VERSION = "curated-30dad64ecb1912acc7c4";
 
 export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
   {

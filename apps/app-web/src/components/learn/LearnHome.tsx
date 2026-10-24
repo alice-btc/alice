@@ -367,7 +367,7 @@ export function LearnHome({
         <>
           {forYou.length > 0 && (
             <section style={{ marginBottom: 24 }}>
-              <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 10px' }}>FOR YOU</h2>
+              <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 10px' }}>{lang === 'fr' ? 'POUR VOUS' : 'FOR YOU'}</h2>
               <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
                 {forYou.map((entry) => (
                   <button
@@ -392,7 +392,7 @@ export function LearnHome({
           )}
           {resume.length > 0 && (
             <section style={{ marginBottom: 24 }}>
-              <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 10px' }}>RESUME</h2>
+              <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 10px' }}>{lang === 'fr' ? 'REPRENDRE' : 'RESUME'}</h2>
               <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
                 {resume.map((entry) => {
                   const course = courseByCode.get(entry.courseCode);
@@ -442,7 +442,7 @@ export function LearnHome({
           )}
 
           <section>
-            <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 14px' }}>COURSES</h2>
+            <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 14px' }}>{lang === 'fr' ? 'COURS' : 'COURSES'}</h2>
             {sections.map((section) => (
               <div key={section.topic} style={{ marginBottom: 22 }}>
                 <h3 className="font-pixel" style={{ fontSize: 10, color: 'var(--alice-muted)', margin: '0 0 8px' }}>
@@ -466,7 +466,7 @@ export function LearnHome({
           </section>
 
           <section style={{ marginTop: 34 }}>
-            <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 14px' }}>TUTORIALS</h2>
+            <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 14px' }}>{lang === 'fr' ? 'TUTORIELS' : 'TUTORIALS'}</h2>
             {tutorialGroups.map((group) => (
               <div key={group.category} style={{ marginBottom: 22 }}>
                 <h3 className="font-pixel flex items-baseline gap-2" style={{ fontSize: 10, color: 'var(--alice-muted)', margin: '0 0 8px' }}>

@@ -17,11 +17,6 @@ const TARGETS = {
     modelId: 'Xenova/multilingual-e5-small',
     outputDir: path.join(__dirname, '..', 'apps', 'app-web', 'public', 'core-embeddings'),
   },
-  native: {
-    endpoint: process.env.ALICE_EMBEDDING_ENDPOINT ?? 'http://127.0.0.1:18082/v1/embeddings',
-    modelId: 'TwinSunsLLC/multilingual-e5-small-gguf@b6cac9615d4ecce28d7f22539b7322d695fc2886',
-    outputDir: path.join(__dirname, '..', 'apps', 'wallet-mobile', 'assets', 'core-embeddings'),
-  },
 };
 
 function normalize(values) {
@@ -33,7 +28,7 @@ function normalize(values) {
 }
 
 async function createEmbedder(target) {
-  if (TARGET === 'web') {
+  {
     const { pipeline, env } = await import('@huggingface/transformers');
     if (process.env.ALICE_EMBEDDING_MODEL_CACHE) env.cacheDir = process.env.ALICE_EMBEDDING_MODEL_CACHE;
     if (process.env.ALICE_EMBEDDING_OFFLINE === '1') env.allowRemoteModels = false;
@@ -46,45 +41,12 @@ async function createEmbedder(target) {
       ));
     };
   }
-
-  return async texts => {
-    // This E5 conversion advertises 511 tokens. Bound the embedding input,
-    // retaining EOS, just as the ONNX tokenizer bounds long passages. The
-    // complete fiche remains available to lexical search and answer context.
-    const tokenizerUrl = new URL('/tokenize', target.endpoint);
-    const input = await Promise.all(texts.map(async text => {
-      const tokenResponse = await fetch(tokenizerUrl, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text, add_special: true }),
-      });
-      if (!tokenResponse.ok) throw new Error(`Native tokenizer returned HTTP ${tokenResponse.status}.`);
-      const { tokens } = await tokenResponse.json();
-      if (!Array.isArray(tokens) || !tokens.length || tokens.some(token => !Number.isInteger(token))) {
-        throw new Error('Native tokenizer returned invalid token IDs.');
-      }
-      return tokens.length > 511 ? [...tokens.slice(0, 510), tokens.at(-1)] : tokens;
-    }));
-    const response = await fetch(target.endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input, model: target.modelId }),
-    });
-    if (!response.ok) {
-      throw new Error(`Native embedding server returned HTTP ${response.status}.`);
-    }
-    const payload = await response.json();
-    const rows = [...(payload.data ?? [])].sort((left, right) => left.index - right.index);
-    if (rows.length !== texts.length || rows.some(row => !Array.isArray(row.embedding))) {
-      throw new Error('Native embedding server returned an invalid matrix.');
-    }
-    return rows.map(row => normalize(row.embedding));
-  };
 }
 
 async function main() {
   const configuredTarget = TARGETS[TARGET];
   const target = configuredTarget && { ...configuredTarget, outputDir: process.env.ALICE_EMBEDDING_OUTPUT_DIR ?? configuredTarget.outputDir };
-  if (!target) throw new Error(`Unknown embedding target: ${TARGET}. Expected web or native.`);
+  if (!target) throw new Error(`Unknown embedding target: ${TARGET}. Expected web.`);
   // Bundle the TypeScript entry explicitly. Direct TS imports depend on Node's
   // evolving ESM extension rules and previously made this release tool fail on
   // a clean machine even though application builds were valid.

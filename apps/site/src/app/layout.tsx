@@ -20,7 +20,6 @@ export const metadata: Metadata = {
     'private AI',
     'Bitcoin companion',
     'self-custody',
-    'Bitcoin wallet',
     'privacy',
     'Arkade',
     'end-to-end encrypted AI',
