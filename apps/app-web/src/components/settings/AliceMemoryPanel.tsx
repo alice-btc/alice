@@ -251,6 +251,7 @@ export function AliceMemoryPanel({ onBack }: { onBack?: () => void }) {
   const [learning, setLearning] = useState<PedagogicalProfile | null>(null);
   const [olderOpen, setOlderOpen] = useState(false);
   const [confirmErase, setConfirmErase] = useState(false);
+  const [eraseError, setEraseError] = useState('');
 
   const refresh = useCallback(() => {
     void Promise.all([getAliceMemory(), getPedagogicalProfile()])
@@ -270,7 +271,14 @@ export function AliceMemoryPanel({ onBack }: { onBack?: () => void }) {
 
   const erase = () => {
     setConfirmErase(false);
-    void Promise.all([clearAliceMemory(), clearPedagogicalProfile()]).then(refresh);
+    setEraseError('');
+    void Promise.allSettled([clearAliceMemory(), clearPedagogicalProfile()])
+      .then(results => {
+        if (results.some(result => result.status === 'rejected')) {
+          setEraseError('Deletion failed: some saved memory could not be erased. What remains is still listed; please try again.');
+        }
+        refresh();
+      });
   };
 
   // Items are stored oldest first. The fifty most recent fill the fields;
@@ -302,8 +310,9 @@ export function AliceMemoryPanel({ onBack }: { onBack?: () => void }) {
           <div className="font-numbers" style={{ fontSize: 13 }}>MEMORY</div>
           <p style={{ margin: '8px 0 0', color: 'var(--alice-muted)', lineHeight: '22px' }}>
             Useful details stay in this browser. When you use Private Cloud, the
-            relevant ones travel inside the same end-to-end encrypted envelope as
-            your messages, readable only by the attested enclave.
+            relevant ones travel end-to-end encrypted with your messages to the
+            attested enclave. The exact enclave software cannot be verified yet,
+            pending Venice&apos;s reference values.
           </p>
         </div>
         <button
@@ -375,6 +384,7 @@ export function AliceMemoryPanel({ onBack }: { onBack?: () => void }) {
 
       <div className="mt-8 pt-4" style={{ borderTop: '1px solid var(--alice-border)' }}>
         <p className="text-sm" style={{ color: 'var(--alice-muted)' }}>Forget all local memories and learning signals on this device. Your conversations and wallet remain.</p>
+        {eraseError && <p role="alert" className="text-sm">{eraseError}</p>}
         {confirmErase ? (
           <InlineConfirm
             id="memory-forget-everything"

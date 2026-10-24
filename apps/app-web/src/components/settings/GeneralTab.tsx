@@ -24,7 +24,7 @@ const UNIT_OPTIONS: { value: BalanceFormat; label: string }[] = [
 
 const LANGUAGE_OPTIONS: [ResponseLanguagePreference, string][] = [
   ['auto', 'AUTO'],
-  ['fr', 'FRANCAIS'],
+  ['fr', 'FRANÇAIS'],
   ['en', 'ENGLISH'],
 ];
 

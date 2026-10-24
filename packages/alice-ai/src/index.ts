@@ -309,3 +309,5 @@ export {
 } from './product-events';
 
 export { pendingWhatsNew, acknowledgeWhatsNew } from './whats-new-state';
+
+export { browserStorageIssues, subscribeBrowserStorageIssues, reportBrowserStorageIssue } from './browser-storage-security';

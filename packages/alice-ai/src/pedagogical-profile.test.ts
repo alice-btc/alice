@@ -106,7 +106,7 @@ test('the derived prompt receives familiarity guidance, never a profile document
   assert.doesNotMatch(context, new RegExp(JSON.stringify(profile)));
 });
 
-test('versions 1 and 2 are reset rather than mapped onto the new concept model', async () => {
+test('old profiles are not mapped onto the new model and legacy bytes await explicit deletion', async () => {
   const v2 = JSON.stringify({
     version: 2,
     totalQuestions: 99,
@@ -116,7 +116,7 @@ test('versions 1 and 2 are reset rather than mapped onto the new concept model',
   const fixture = createStorage({ secure: v2, legacy: JSON.stringify({ version: 1 }) });
   const profile = await getPedagogicalProfileFromStorage(fixture.storage);
   assert.deepEqual(profile, createPedagogicalProfile());
-  assert.equal(fixture.legacy(), null);
+  assert.equal(fixture.legacy(), JSON.stringify({ version: 1 }));
   assert.equal(JSON.parse(fixture.secure()!).version, 3);
 });
 
@@ -180,3 +180,12 @@ test('sidechains is a first-class concept the message inference can reach', () =
     // idea. The split is only real if inference routes them to the new home.
     assert.deepEqual(inferPedagogicalConcepts('How does a peg-out work on Liquid?'), ['sidechains']);
   });
+
+
+test('a temporary empty read does not authorize deleting a legacy profile', async () => {
+  const fixture = createStorage({ legacy: 'unavailable stored profile' });
+  await getPedagogicalProfileFromStorage({ ...fixture.storage, read: async () => null, readLegacy: async () => null });
+  assert.equal(fixture.legacy(), 'unavailable stored profile');
+  await clearPedagogicalProfileFromStorage(fixture.storage);
+  assert.equal(fixture.legacy(), null);
+});

@@ -28,7 +28,7 @@ import {
   type PracticeTxReview,
   type PracticeUtxo,
 } from '@alice-wallet/practice-wallet';
-import { localVault } from './local-vault.ts';
+import { playgroundVault as localVault } from './playground-vault.ts';
 
 // Pre-rename prefix, kept so practice wallets created before the Playground
 // rename keep working. Do not change without a data migration.

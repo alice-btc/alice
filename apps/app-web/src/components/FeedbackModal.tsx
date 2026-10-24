@@ -16,13 +16,11 @@ import {
   useChat,
 } from '@alice-wallet/alice-ai';
 import { openExternalUrl } from '@/lib/open-external';
+import { buildFeedbackIssueUrl, getReportPageLabel } from '@/lib/feedback-context';
 import appWebPackage from '../../package.json';
 import appDesktopPackage from '../../../app-desktop/package.json';
 
-// Dedicated public repo for community bug reports / knowledge suggestions,
-// since the main `alice` repo is private. Revisit once `alice` goes public, // issues could move there directly instead of this separate repo.
-const FEEDBACK_REPO = 'alice-btc/alice-support-contribute';
-const FEEDBACK_EMAIL = 'report@alicebtc.com';
+const FEEDBACK_EMAIL = 'support@alicebtc.com';
 
 type Category = 'bug' | 'alice-response' | 'knowledge';
 
@@ -67,6 +65,9 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [copied, setCopied] = useState(false);
+  // GitHub issues are public: the warning comes when that choice is made.
+  const [githubConfirm, setGithubConfirm] = useState(false);
+  const githubButton = useRef<HTMLButtonElement>(null);
 
   const active = CATEGORIES.find(c => c.id === category)!;
   const summary = title.trim() || active.label;
@@ -122,7 +123,7 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
       aiContext && aiContext.model !== BACKEND_LABELS[backendType] ? `- Model: ${aiContext.model}` : '',
       `- Reasoning: ${aiContext ? REASONING_LABELS[aiContext.preset] : 'Unknown'}`,
       `- Backend status: ${backendStatus.state}`,
-      `- URL: ${typeof window !== 'undefined' ? window.location.href : 'Unknown'}`,
+      `- Page: ${typeof window !== 'undefined' ? getReportPageLabel(window.location.href) : 'Unknown'}`,
       `- User agent: ${typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown'}`,
       `- Screenshot selected: ${screenshot ? screenshot.name : 'No'}`,
       '',
@@ -182,12 +183,13 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
   };
 
   const handleSubmit = async () => {
-    const url = new URL(`https://github.com/${FEEDBACK_REPO}/issues/new`);
-    url.searchParams.set('title', summary);
-    url.searchParams.set('body', buildReportBody());
-    url.searchParams.set('labels', `${category},private-beta`);
-    await openExternalUrl(url.toString());
+    await openExternalUrl(buildFeedbackIssueUrl({ title: summary, body: buildReportBody(), category }));
     onClose();
+  };
+
+  const closeGithubConfirm = () => {
+    setGithubConfirm(false);
+    githubButton.current?.focus();
   };
 
   return (
@@ -367,7 +369,7 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
           )}
         </div>
 
-        <p id="feedback-send-help" className="font-numbers mt-3" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>Add a description to prepare a report. Email opens a draft; GitHub opens a new issue form for you to review and submit.</p>
+        <p id="feedback-send-help" className="font-numbers mt-3" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>Add a description to prepare a report. Email opens a private draft; GitHub opens a public issue form.</p>
         <div className="grid gap-2 mt-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
           <button
             onClick={onClose}
@@ -393,8 +395,10 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
             <SvgIcon svg={MAIL_ICON} size={20} /> Prepare email
           </button>
           <button
-            onClick={() => void handleSubmit()}
+            ref={githubButton}
+            onClick={() => setGithubConfirm(true)}
             disabled={!trimmedDescription}
+            aria-describedby="feedback-send-help"
             className="alice-control alice-control--primary flex-1 disabled:cursor-not-allowed"
             style={{ padding: '10px 12px' }}
           >
@@ -402,6 +406,64 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
           </button>
         </div>
       </div>
+
+      {githubConfirm && (
+        <div
+          className="fixed inset-0 flex items-center justify-center px-6"
+          style={{ backgroundColor: 'rgba(0,0,0,0.55)', zIndex: 60 }}
+          onClick={(event) => { event.stopPropagation(); closeGithubConfirm(); }}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="feedback-github-title"
+            aria-describedby="feedback-github-text"
+            onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); closeGithubConfirm(); } }}
+            onClick={(event) => event.stopPropagation()}
+            className="flex flex-col gap-3"
+            style={{
+              width: '100%',
+              maxWidth: 440,
+              padding: 18,
+              backgroundColor: 'var(--alice-bg)',
+              border: '1px solid var(--alice-border)',
+              borderRadius: 'var(--alice-radius-field)',
+              color: 'var(--alice-text)',
+            }}
+          >
+            <h4 id="feedback-github-title" className="font-pixel tracking-widest m-0" style={{ fontSize: 12, color: 'var(--alice-primary-dark)' }}>
+              GITHUB ISSUES ARE PUBLIC
+            </h4>
+            <p id="feedback-github-text" className="font-numbers m-0" style={{ fontSize: 15, lineHeight: '21px', color: 'var(--alice-text)' }}>
+              Anyone can read what you post there. Remove anything personal, or send it by email instead: it stays private.
+            </p>
+            <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+              <button
+                autoFocus
+                onClick={() => void handleSubmit()}
+                className="alice-control alice-control--primary"
+                style={{ padding: '10px 12px' }}
+              >
+                <SvgIcon svg={EXTERNAL_ICON} size={16} /> Continue on GitHub
+              </button>
+              <button
+                onClick={() => { setGithubConfirm(false); void handleEmail(); }}
+                className="alice-control alice-control--quiet"
+                style={{ padding: '10px 12px' }}
+              >
+                <SvgIcon svg={MAIL_ICON} size={20} /> Send by email instead
+              </button>
+              <button
+                onClick={closeGithubConfirm}
+                className="alice-control alice-control--quiet"
+                style={{ padding: '10px 12px' }}
+              >
+                <SvgIcon svg={CLOSE_ICON} size={16} /> Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

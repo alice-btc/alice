@@ -2,6 +2,15 @@
 
 Status: implemented for Alice Desktop (keychain key) and for the web app (browser key). The same cipher now also protects the Explorer's and the Playground's local stores through the local vault. The shared adapter contract is ready for future native wallet implementations.
 
+## Web hardening
+
+The browser storage changes and static-export script policy are documented in
+[Web storage hardening](web-storage-hardening.md). The web adapters no longer
+persist sensitive values in plaintext when no cipher is available. Those
+sessions are volatile and show an exceptional storage notice. Existing
+unreadable values are preserved, and practice-wallet data is loaded separately
+when needed. No PIN or cryptographic unlock step is introduced.
+
 ## Objective
 
 Stored Alice discussions remain local and are encrypted at rest when the application cipher is available. Access to the encryption key depends on the platform and storage model described below. The design works without an Alice account, synchronization server, or mandatory PIN.
@@ -16,9 +25,9 @@ The shared `ChatStorageCipher` adapter gives `ChatProvider` only `encrypt` and `
 
 ## Browser key model
 
-In a browser, `packages/alice-ai/src/local-cipher.ts` generates a non-extractable AES-256-GCM key with WebCrypto and keeps it in IndexedDB (`alice-local-cipher` database, `keys` store). Non-extractability prevents exporting the key through the WebCrypto API; it does not establish how the browser protects the persisted key on disk. Managed application values are ciphertext when the cipher is available, but resistance to a complete profile copy depends on the browser, operating system and key storage. This design has not demonstrated that protection through a profile-copy test. Any script of this origin can still use the key. Values have the same shape as the desktop's (`v1:` + base64(nonce || ciphertext), the storage key as additional authenticated data), so the same stores read both. `getLocalCipher()` returns the keychain cipher on Alice Desktop, the WebCrypto cipher in a browser, and null where neither exists (the stores then keep their plain behaviour).
+In a browser, `packages/alice-ai/src/local-cipher.ts` generates a non-extractable AES-256-GCM key with WebCrypto and keeps it in IndexedDB (`alice-local-cipher` database, `keys` store). Non-extractability prevents exporting the key through the WebCrypto API; it does not establish how the browser protects the persisted key on disk. Managed application values are ciphertext when the cipher is available, but resistance to a complete profile copy depends on the browser, operating system and key storage. This design has not demonstrated that protection through a profile-copy test. Any script of this origin can still use the key. Values have the same shape as the desktop's (`v1:` + base64(nonce || ciphertext), the storage key as additional authenticated data), so the same stores read both. `getLocalCipher()` returns the keychain cipher on Alice Desktop, the WebCrypto cipher in a browser, and null where neither exists (the web adapters then keep new sensitive values in memory only).
 
-Verified scope: the browser cipher encrypts managed application values at rest when WebCrypto is available. The WebCrypto specification does not prescribe secure persistent storage of CryptoKey objects. Non-extractability alone therefore does not demonstrate protection against complete browser-profile copies, backups, an unencrypted disk, or other applications with the same privileges. Browser persistence and operating-system protections must be evaluated separately. Where no cipher is available, the stores retain plaintext behaviour; encryption is not universal across environments.
+Verified scope: the browser cipher encrypts managed application values at rest when WebCrypto is available. The WebCrypto specification does not prescribe secure persistent storage of CryptoKey objects. Non-extractability alone therefore does not demonstrate protection against complete browser-profile copies, backups, an unencrypted disk, or other applications with the same privileges. Browser persistence and operating-system protections must be evaluated separately. Where no cipher is available, the web adapters keep new sensitive values in memory rather than persisting plaintext. Existing stored values are not a guarantee of universal encryption across environments.
 
 This design does not protect against someone opening the app on an unlocked session or software running with access to that session. Desktop keychain protection is a separate storage mechanism and must be assessed against its own threat model. A PIN could provide an additional boundary depending on its implementation; it is deliberately not required yet.
 
@@ -26,7 +35,7 @@ Reference: [W3C Web Cryptography, security considerations](https://www.w3.org/TR
 
 ## Local vault for the Explorer and the Playground
 
-`apps/app-web/src/lib/local-vault.ts` routes the app's own stores through the same cipher: the Explorer's open tabs and session links, saved wallets (extended public keys), node overrides, the Arkade, Bark and Spark registries, the Ask Alice question history, and the Playground wallet's words and state. The vault decrypts every managed key once at start into memory, serves synchronous reads from it, writes encrypted one value at a time per key, and re-encrypts any value found in clear (the migration from the previous releases). Readers that may run before it is ready wait for `ready()` or `whenReady`. Alice Desktop's command layer only encrypts for known contexts: the conversation and profile keys, and the Explorer and Playground key prefixes listed in `lib.rs`.
+`apps/app-web/src/lib/local-vault.ts` routes the app's own stores through the same cipher: the Explorer's open tabs and session links, saved wallets (extended public keys), node overrides, the Arkade, Bark and Spark registries, the Ask Alice question history, and the Playground wallet's words and state. The Explorer vault decrypts its managed keys at start into memory; the separate Playground vault waits until it is requested. Each vault serves synchronous reads from memory, writes encrypted one value at a time per key, and re-encrypts any value found in clear (the migration from the previous releases). Readers that may run before it is ready wait for `ready()` or `whenReady`. Alice Desktop's command layer only encrypts for known contexts: the conversation and profile keys, and the Explorer and Playground key prefixes listed in `lib.rs`.
 
 Not in the vault, by choice: preferences, dismissed notices and the chain-data cache (public blocks and transactions, cleared like any cache).
 

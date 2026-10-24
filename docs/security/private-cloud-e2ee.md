@@ -210,7 +210,6 @@ measurement never passes (refuse, never "present so trust it"). The list ships
   Phala's PCCS availability and Intel's/NVIDIA's roots.
 - Assistant history is **dropped** in Private (Venice does not encrypt assistant
   turns); Private turns are single-shot and auto-continuation is disabled.
-- Mobile (Android/iOS) DCAP execution is **not yet runtime-tested**.
 
 ## Reproducing the checks (developers)
 
@@ -218,7 +217,6 @@ measurement never passes (refuse, never "present so trust it"). The list ships
 npm test          # unit tests, incl. the fail-closed matrix
 npx tsc --noEmit -p packages/alice-ai/tsconfig.json
 npx tsc --noEmit --incremental false -p apps/app-web/tsconfig.json
-npx tsc --noEmit --incremental false -p apps/wallet-mobile/tsconfig.json
 npm --workspace @alice-wallet/app-web run build
 ```
 
@@ -246,7 +244,6 @@ values from a single production response.
 | Assurance metadata | **implemented** through `AIResponse.privacyAssurance`; no full-E2EE UI claim |
 | Web DCAP execution | **production build passes**; DCAP lazy-loaded to avoid initial-bundle cost |
 | Tauri DCAP execution | **not runtime-tested** |
-| Android / iOS DCAP execution | **Metro/Hermes export passes**; real device runs still required |
 
 **Not ready to display "E2EE verified".** Reason: measurement pinning is not
 active (no reference values) and NVIDIA attestation is unimplemented, so the

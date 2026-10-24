@@ -325,8 +325,9 @@ export async function getPedagogicalProfileFromStorage(storage: PedagogicalProfi
     if (current) return current;
 
     // Versions 1 and 2 used broad counters and manual user classification.
-    // Do not map that imprecise data onto the new knowledge map.
-    await storage.removeLegacy();
+    // Do not map that imprecise data onto the new knowledge map. Keep legacy
+    // records until an explicit reset: an empty read can be a temporary
+    // session without access to its cipher, not proof that storage is empty.
     return save(storage, createPedagogicalProfile());
   } catch {
     return createPedagogicalProfile();

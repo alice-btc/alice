@@ -223,8 +223,9 @@ export function AccountTab() {
               )}
               <p className="font-numbers m-0 mt-4" style={{ fontSize: 13, opacity: 1 }}>
                 Usage is estimated from the volume of data exchanged. Your
-                messages are end-to-end encrypted, Alice cannot read them, so
-                the exact token count is not accessible to her.
+                messages are end-to-end encrypted: the Alice proxy cannot read
+                them or count their tokens. See the privacy notice for what
+                Venice does not yet let Alice verify.
               </p>
             </>
           ) : free ? (

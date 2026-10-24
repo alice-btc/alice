@@ -4,10 +4,13 @@
 // local-vault.ts so that module stays free of the AI package at runtime and
 // its tests run under plain Node.
 
-import { getLocalCipher } from '@alice-wallet/alice-ai';
+import { getWebStorageCipher } from './storage-cipher.ts';
 import { localVault } from './local-vault.ts';
+import { observeVaultHealth } from './local-vault-health.ts';
 
-localVault.configure(getLocalCipher);
+observeVaultHealth(localVault);
+
+localVault.configure(getWebStorageCipher);
 // Start decrypting now, so the stores find their values by the time a page
 // mounts rather than on their first read.
 void localVault.ready();

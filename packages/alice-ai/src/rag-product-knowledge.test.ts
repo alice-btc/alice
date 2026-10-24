@@ -6,6 +6,6 @@ test('Alice product knowledge covers local storage and recovery rules', () => {
   assert.ok(ALICE_LOCAL_DATA_KNOWLEDGE.keywords.includes('discussion history'));
   assert.match(ALICE_LOCAL_DATA_KNOWLEDGE.content, /limits it to 50 conversations/);
   assert.match(ALICE_LOCAL_DATA_KNOWLEDGE.content, /operating system keychain/);
-  assert.match(ALICE_LOCAL_DATA_KNOWLEDGE.content, /seed phrase restores the wallet identity/);
-  assert.match(ALICE_LOCAL_DATA_KNOWLEDGE.content, /Pending or refundable swap records/);
+  assert.match(ALICE_LOCAL_DATA_KNOWLEDGE.content, /Playground wallet runs on Mutinynet with test coins only/);
+  assert.match(ALICE_LOCAL_DATA_KNOWLEDGE.content, /Never claim that Alice stores wallet seeds, conversations, or memory on an Alice server/);
 });

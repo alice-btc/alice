@@ -1,8 +1,8 @@
 import type { NextConfig } from 'next';
 
 // Static website for alicebtc.com. Exported as flat HTML so it can be
-// hosted anywhere (Vercel/Cloudflare Pages) with no server runtime. It shares
-// no code with the wallet app — no react-native/expo shims are needed here.
+// hosted anywhere (Vercel/Cloudflare Pages) with no server runtime. It imports
+// no workspace package, so it builds on its own, apart from apps/app-web.
 const nextConfig: NextConfig = {
   output: 'export',
   // Nested `foo/index.html` exports resolve cleanly on static hosts and keep

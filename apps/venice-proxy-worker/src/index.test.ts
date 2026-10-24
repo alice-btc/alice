@@ -220,8 +220,9 @@ describe('the released version door', () => {
     const res = await worker.fetch(new Request('https://proxy.test/app-version', { method: 'GET' }), ENV);
     assert.equal(res.status, 200);
     assert.match(res.headers.get('Cache-Control') ?? '', /max-age/);
-    const body = await res.json() as { version: string };
+    const body = await res.json() as { version: string; wallet: string };
     assert.match(body.version, /^\d+\.\d+\.\d+$/);
+    assert.match(body.wallet, /^\d+\.\d+\.\d+$/);
   });
 });
 

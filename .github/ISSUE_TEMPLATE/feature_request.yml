@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest an improvement for Alice Wallet
+description: Suggest an improvement for Alice
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
@@ -22,11 +22,12 @@ body:
     attributes:
       label: Area
       options:
-        - Wallet
-        - PWA
-        - Android
-        - iOS
-        - AI assistant
+        - Chat
+        - Explorer
+        - Learn
+        - Playground
+        - Desktop app
+        - Website
         - Documentation
         - Other
   - type: textarea

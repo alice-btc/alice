@@ -1,3 +1,4 @@
+import { localSemanticWasmPaths } from './semantic-wasm-policy';
 // Browser-side loader for the semantic search layer: downloads the
 // multilingual embedding model (cached by the browser afterwards) and the
 // precomputed chunk-embedding index, then answers "which chunk ids are
@@ -107,6 +108,15 @@ async function loadPipeline(): Promise<FeatureExtractionPipeline | null> {
       // On the web there is nothing local to probe; skipping the probe also
       // silences the two 404s it printed on every model load.
       env.allowLocalModels = false;
+      // Import the pinned factory from Alice, not a CDN or a cached blob.
+      // This keeps semantic search compatible with the strict script CSP.
+      // Development has no exported factory directory or enforced script policy.
+      if (process.env.NODE_ENV === 'production') {
+        env.useWasmCache = false;
+        if (env.backends.onnx.wasm) {
+          env.backends.onnx.wasm.wasmPaths = localSemanticWasmPaths(env.backends.onnx.wasm.wasmPaths);
+        }
+      }
     }
     // The hub serves the model as several files; progress is their combined
     // byte count so the settings bar moves once, monotonically.
