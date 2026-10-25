@@ -37,7 +37,7 @@ const copy: MemoryCopy = {
       'She may misread a sentence and keep something she should not have kept, and the filters described here can miss a case they did not anticipate. They are a safeguard, not a guarantee. Do not fully trust what is shown as remembered or as forgotten. The real protection is to give Alice only the minimum your question needs, and never an address, a key, a recovery phrase, an amount or anything that identifies you. What you type in the conversation remains your responsibility.',
     intro: [
       'Alice keeps two memories, both on your device. The personal memory holds short facts you said about yourself: a preference for short answers, the hardware you use, a project you are building, a constraint to keep in mind, or a sentence you asked her to keep. The learning profile holds how familiar you are with fourteen Bitcoin concepts, so she can pick the right vocabulary and depth. Neither is stored on our servers, and neither is a source of truth for Alice: they only change how she answers, never what she holds to be true.',
-      'This page describes what the code does today, in Alice App 0.2.5 on the web and on desktop. The parts that are decided and not yet in the app are listed at the end, under “Coming”, and nowhere else.',
+      'This page describes what the code does today, in Alice App 0.2.6 on the web and on desktop. The parts that are decided and not yet in the app are listed at the end, under “Coming”, and nowhere else.',
     ],
     capture: {
       heading: 'What Alice remembers, and how',
