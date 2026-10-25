@@ -4,11 +4,21 @@
 export const SITE_URL = 'https://alicebtc.com';
 export const APP_URL = 'https://app.alicebtc.com';
 export const WALLET_URL = 'https://wallet.alicebtc.com';
+// The same wallet on Mutinynet, a test network with worthless coins: the place
+// to try it without risking anything.
+export const WALLET_MUTINYNET_URL = 'https://mutinynet.alicebtc.com';
+// Alice Wallet has its own repository and numbering since 2026-10-24; the
+// web wallets above are served from it.
+export const WALLET_SOURCE_URL = 'https://github.com/alice-btc/alice-wallet';
 // The blind proxy. The pricing page quotes satoshi prices from its public
 // /billing/plans endpoint, the same one the app checks out against, so the
 // site can never advertise a different figure than the invoice asks for.
 export const PROXY_URL = 'https://proxy.alicebtc.com';
 export const SOURCE_URL = 'https://github.com/alice-btc/alice';
+// The last Android build of the wallet, from August 2026. It was released from
+// this repository under Alice's numbers, before the wallet moved out, so it
+// predates the wallet changes since. Move these to the wallet repository's
+// release once it publishes an APK.
 export const ANDROID_VERSION = '0.2.0';
 export const ANDROID_RELEASE_URL = `${SOURCE_URL}/releases/tag/v${ANDROID_VERSION}`;
 export const ANDROID_APK_URL = `${SOURCE_URL}/releases/download/v${ANDROID_VERSION}/Alice-Wallet-beta-${ANDROID_VERSION}-v9.apk`;
