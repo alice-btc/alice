@@ -7,19 +7,22 @@ import { useEffect, useRef, useState } from 'react';
 // What an unsigned build does to a first-time visitor, said before it happens
 // rather than after.
 //
-// Alice ships without a code-signing certificate: Apple charges yearly for
-// one, Windows certificates cost more, and neither is worth buying before we
-// know anyone runs those builds. The cost is not technical, it is a scary
-// screen at the worst possible moment: someone who has just decided to try a
-// Bitcoin wallet is told their computer protected them from it.
+// The Windows installer ships without a code-signing certificate and the
+// Android APK is installed outside the Play Store. The cost is not technical,
+// it is a scary screen at the worst possible moment: someone who has just
+// decided to try a Bitcoin companion is told their computer protected them
+// from it.
 //
 // Saying it first turns an alarm into a formality. It also happens to be the
 // honest thing: the warning is real, it is our doing, and the visitor deserves
 // to know why before they click, not to discover it alone.
 //
-// Linux and the web surfaces show nothing, because nothing happens there.
+// The Mac build is signed with a Developer ID and notarised by Apple since
+// 0.2.5, so macOS asks only its standard first-launch question, the same one
+// every app outside the App Store gets. Linux and the web surfaces show
+// nothing, because nothing happens there.
 
-export type DownloadPlatform = 'android' | 'windows' | 'macos';
+export type DownloadPlatform = 'android' | 'windows';
 
 type Notice = {
   title: string;
@@ -47,17 +50,6 @@ const NOTICES: Record<DownloadPlatform, Notice> = {
     steps: [
       'Click “More info”, the small grey link.',
       'Then click “Run anyway”.',
-    ],
-  },
-  macos: {
-    title: 'macOS will refuse to open Alice at first',
-    screen: '“Alice” Not Opened. “Apple could not verify ‘Alice’ is free of malware that may harm your Mac or compromise your privacy.”',
-    why: 'Apple signing is in progress but not ready, and macOS says this about every unsigned app, whoever wrote it. The dialog itself offers no way through: the only buttons are Done and Move to Bin. The permission is given in System Settings instead.',
-    steps: [
-      'Drag Alice into Applications, then open it once. On the warning, click Done, never Move to Bin.',
-      'Open the Apple menu, then System Settings, then Privacy and Security.',
-      'Scroll down to Security. A line says Alice was blocked, with an Open Anyway button. Click it, authenticate, then confirm Open.',
-      'That line only stays for a while after a blocked launch. If it is not there, open Alice again and come back to this screen.',
     ],
   },
 };
