@@ -13,16 +13,16 @@ Alice's source lives at <https://github.com/alice-btc/alice>.
 
 - Alice Web: <https://app.alicebtc.com>
 
-Desktop installers are attached to the `0.2.5` GitHub Release. The first beta
-can be distributed before trusted Apple and Windows certificates are available.
+Desktop installers for macOS, Windows and Linux are attached to the `0.2.5`
+GitHub Release and linked from <https://alicebtc.com>.
 
 ## Installing Alice Desktop 0.2.5
 
 The GitHub Release contains a universal macOS DMG, a Windows MSI, a Linux
 AppImage and a Debian package. It also contains one build information file per
-platform. Read its `signing` line before installing. Early beta builds can be
-published without a trusted certificate. This is expected to produce the
-warnings described below, but it does not replace checksum verification.
+platform; its `signing` line says how that installer is signed. The macOS
+application is signed and notarised by Apple; the Windows and Linux installers
+are not signed yet, which explains the Windows warning described below.
 
 Compare the downloaded installer with `SHA256SUMS-desktop-v0.2.5.txt` from the
 same release before opening it.
@@ -67,6 +67,11 @@ show **Windows protected your PC**. Choose **More info**, verify that the file
 name and checksum match the release, then choose **Run anyway**. A signed
 certificate can still show SmartScreen until it has acquired enough reputation.
 
+Alice installs for all users in Program Files, so Windows then asks whether to
+allow the app to make changes to your device, with **Unknown publisher**. Choose
+**Yes**. On a Windows 10 without Microsoft Edge WebView2, the installer downloads
+it from Microsoft, so keep the computer online.
+
 When `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PASSWORD` contain a
 base64-encoded PFX and its password, the release workflow imports it and signs
 the MSI automatically. With neither secret, the MSI remains unsigned. A single
@@ -88,6 +93,17 @@ On Debian or Ubuntu, install the local package with:
 sudo apt install ./Alice_0.2.5_*.deb
 ```
 
+Alice keeps the key that encrypts your conversations in the desktop's keyring
+(GNOME Keyring, or KWallet with its Secret Service support), which a desktop
+session usually unlocks when you log in. Without an unlocked keyring, Alice still
+works but saves nothing: conversations and the practice wallet are gone at the
+next launch. If the keyring asks for your password when Alice starts, unlock it.
+
+To uninstall, run `sudo apt remove alice` for the Debian package, or delete the
+AppImage file. Your data stays in `~/.local/share/com.alicebitcoin.desktop`,
+with its key in the keyring under `com.alicebitcoin.desktop`; delete both to
+start from scratch.
+
 ## Safety Rules
 
 - Never send a recovery phrase, private key, or sensitive screenshot to Alice,
@@ -102,10 +118,6 @@ in the public [`alice`](https://github.com/alice-btc/alice/issues) repository.
 Nothing is sent until you choose one of these. Include the platform, version,
 action, expected result, and actual result. Never include wallet secrets.
 Security vulnerabilities follow `SECURITY.md`, not a public issue.
-
-Reports opened from older builds still land in
-[`alice-support-contribute`](https://github.com/alice-btc/alice-support-contribute),
-which stays open.
 
 ## Known Limits
 
