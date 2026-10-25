@@ -29,36 +29,36 @@ same release before opening it.
 
 ### macOS
 
-Open the DMG and drag Alice into Applications. A build without an Apple
-Developer ID uses an ad hoc signature for Apple Silicon compatibility, so
-macOS refuses to open it the first time. On macOS 15 and later the dialog is
-**"Alice" Not Opened**, saying that Apple could not verify the app is free of
-malware, and it offers only **Done** and **Move to Bin**. The right-click
-**Open** shortcut of earlier macOS versions no longer bypasses this.
+Open the DMG and drag Alice into Applications. Since 0.2.5 the application is
+signed with Marius Farashi's Apple Developer ID and notarised by Apple
+(`signing=apple-developer` in `alice-desktop-macos.txt`). The first launch
+shows the standard question macOS asks about every application downloaded
+outside the App Store, naming the developer, with an **Open** button. Click
+it once; later launches ask nothing. Apple's notarisation ticket is stapled to
+the application, so this works offline too.
 
-Grant the permission from the settings instead:
-
-1. Open Alice once from Applications, then click **Done** on the warning.
-   Never choose Move to Bin.
-2. Open the Apple menu, then **System Settings**, then **Privacy & Security**.
-3. Scroll to **Security**. A line reports that Alice was blocked, with an
-   **Open Anyway** button. Click it, authenticate, then confirm **Open**.
-
-The button is shown only for a while after a blocked launch. If it is gone,
-open Alice again and return to the settings. Once granted, the permission is
-remembered and normal double-clicks work.
-
-The same permission can be given from a terminal, on the copy in Applications:
+To check the signature yourself, on the copy in Applications:
 
 ```bash
-xattr -d com.apple.quarantine /Applications/Alice.app
+codesign -dv --verbose=2 /Applications/Alice.app
+spctl -a -vv -t exec /Applications/Alice.app
 ```
 
-When the `APPLE_CERTIFICATE` and `APPLE_CERTIFICATE_PASSWORD` secrets are
-available, the release workflow signs the application with that identity. If
-`APPLE_ID`, `APPLE_PASSWORD` and `APPLE_TEAM_ID` are also available, it
-notarizes the DMG. A certificate without notarization can still produce a
-Gatekeeper warning.
+The first command must list `Developer ID Application: Marius Farashi`, the
+second must answer `accepted` with `source=Notarized Developer ID`. Anything
+else, including an **"Alice" Not Opened** dialog that offers only **Done** and
+**Move to Bin**, means the file is not the one from the release: delete it and
+download again from the release page.
+
+Builds made without the Apple secrets (a fork, or a preview build) carry an ad
+hoc signature instead, and macOS refuses them at first launch. The permission
+is then granted from **System Settings**, **Privacy & Security**, **Security**,
+**Open Anyway**, after one blocked launch.
+
+The release workflow signs with the `APPLE_CERTIFICATE` and
+`APPLE_CERTIFICATE_PASSWORD` secrets and notarises with `APPLE_ID`,
+`APPLE_PASSWORD` and `APPLE_TEAM_ID`. The application bundle is notarised and
+stapled; the DMG file around it is signed but not notarised on its own.
 
 ### Windows
 
