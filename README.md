@@ -9,7 +9,8 @@ verify, and she never sees your keys.
 reads the chain in plain words, a Learn library of courses, and a Playground
 where you practise real wallet moves with coins that are worth nothing.
 
-The self-custodial Alice Wallet lives in its own repository, alice-btc/alice-wallet.
+Alice Wallet, an experimental self-custodial wallet that has not been audited,
+lives in its own repository: [alice-btc/alice-wallet](https://github.com/alice-btc/alice-wallet).
 
 ## What Alice can never see
 
@@ -109,7 +110,21 @@ Alice App is more than the chat:
 
 ## Trying Alice
 
-- [Alice App](https://app.alicebtc.com), the companion, in any browser
+- [Alice App](https://app.alicebtc.com), the companion, in any browser,
+  phones included.
+- **Alice Desktop** for macOS, Windows and Linux, from
+  [alicebtc.com](https://alicebtc.com) or the
+  [latest release](https://github.com/alice-btc/alice/releases/latest):
+  - macOS: a universal DMG, signed with an Apple Developer ID and notarised
+    by Apple; the first launch asks the usual question about an app
+    downloaded from the internet;
+  - Windows: an MSI, not signed yet, so SmartScreen shows "Windows protected
+    your PC" until you choose **More info**, then **Run anyway**;
+  - Linux: an AppImage and a Debian package.
+
+  The desktop app adds Local mode (see AI modes below). Compare each download
+  with the release's `SHA256SUMS-desktop-*.txt` before opening it; the steps
+  are in [docs/BETA_TESTING.md](docs/BETA_TESTING.md).
 
 Do not rely on a URL alone to identify a build: check its version and commit.
 Never share your recovery phrase, and never send it to Alice: she will never
@@ -119,14 +134,20 @@ An Alice account (email + username + password) is optional; it exists only to
 manage Private Cloud quotas. 21 free Private Cloud requests are available
 without any account.
 
+Something wrong or unclear? In the app, open **Account > Report an issue**, or
+open an [issue](https://github.com/alice-btc/alice/issues) here. Issues are
+public: leave out anything personal, or write to
+[support@alicebtc.com](mailto:support@alicebtc.com) instead. Security issues
+follow [SECURITY.md](SECURITY.md).
+
 ## AI modes
 
 - **Private Cloud**: encrypted inference through Alice's blind proxy (a
   Cloudflare Worker in [apps/venice-proxy-worker](apps/venice-proxy-worker)).
   The proxy holds the Venice API key server-side and relays ciphertext; no
   client build ever contains the key.
-- **Local**: a model file (GGUF) downloaded from Settings and run entirely
-  on your device. No chat model is preinstalled in any build. (The desktop
+- **Local**, in Alice Desktop: a model file (GGUF) downloaded from Settings
+  and run entirely on your device. No chat model is preinstalled in any build. (The desktop
   installer does include the small semantic-search embedding model, so
   knowledge retrieval works offline out of the box; web builds fetch it on
   first use instead.)
