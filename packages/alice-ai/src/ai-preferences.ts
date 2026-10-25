@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isExpectedModelFileSize } from './model-file-validation';
 import type { ResponseLanguagePreference } from './language-policy';
-import { isAllowedModelDownloadUrl, parseStoredCustomModels, type LocalModelEntry, type LocalModelSource } from './local-model-registry';
+import { isAllowedModelDownloadUrl, modelDownloadRefusal, parseStoredCustomModels, type LocalModelEntry, type LocalModelSource } from './local-model-registry';
 
 export type AIPreset = 'fast' | 'balanced' | 'deep';
 /** Ids of the default catalog; a legacy or custom entry carries any other string. */
@@ -46,12 +46,15 @@ export const ALL_PRESETS: AIPreset[] = ['fast', 'balanced', 'deep'];
 export const MODEL_CATALOG: ModelEntry[] = [
   // Qwen3.5 small series (March 2026, Apache 2.0), text-only GGUF files from
   // the unsloth repositories pinned to a revision so a re-download yields the
-  // same bytes. Sizes come from the Hugging Face LFS metadata of that revision.
+  // same bytes. Sizes and SHA-256 hashes come from the Hugging Face LFS
+  // metadata of that revision (tree API, matching the resolve URL's
+  // X-Linked-Etag); the desktop rejects a download that does not hash to it.
   {
     id: 'qwen3.5-2b',
     name: 'Qwen3.5 2B',
     filename: 'Qwen3.5-2B-Q4_K_M.gguf',
     sizeBytes: 1_280_835_840,
+    sha256: 'aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223',
     url: 'https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/f6d5376be1edb4d416d56da11e5397a961aca8ae/Qwen3.5-2B-Q4_K_M.gguf',
     description: 'Lightest model for older phones. Short answers; it can hallucinate a lot, verify anything important.',
     speed: 'Fast',
@@ -64,6 +67,7 @@ export const MODEL_CATALOG: ModelEntry[] = [
     name: 'Qwen3.5 4B',
     filename: 'Qwen3.5-4B-Q4_K_M.gguf',
     sizeBytes: 2_740_937_888,
+    sha256: '00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4',
     url: 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf',
     description: 'The recommended local model: runs on every recent phone with the best balance of quality and speed.',
     speed: 'Medium',
@@ -76,6 +80,7 @@ export const MODEL_CATALOG: ModelEntry[] = [
     name: 'Qwen3.5 9B',
     filename: 'Qwen3.5-9B-Q4_K_M.gguf',
     sizeBytes: 5_680_522_464,
+    sha256: '03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8',
     url: 'https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b6810b007914f3a7950a8d1b469d598a5/Qwen3.5-9B-Q4_K_M.gguf',
     description: 'The most capable local model, for computers and high-end phones with a large download.',
     speed: 'Slow',
@@ -87,6 +92,8 @@ export const MODEL_CATALOG: ModelEntry[] = [
 
 // Previous catalog entries. They are not offered for download any more, but a
 // file already on disk keeps working and can be deleted from the settings.
+// Their URLs follow the `main` branch, so both installers refuse them (see
+// modelDownloadRefusal): nothing is fetched from a ref that can move.
 export const LEGACY_MODELS: ModelEntry[] = [
   {
     id: 'qwen3-0.6b',
@@ -342,6 +349,8 @@ export async function installModel(
 ): Promise<void> {
   if (Platform.OS === 'web') throw new Error('Install not available on web.');
   const entry = getModelEntry(id);
+  const refusal = modelDownloadRefusal(entry);
+  if (refusal) throw new Error(refusal);
   const FileSystem = await import('expo-file-system/legacy');
   const dir = `${FileSystem.documentDirectory}models/`;
   await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
@@ -367,6 +376,9 @@ export async function installModel(
       throw new Error(`Download failed (status ${result?.status ?? 'unknown'}).`);
     }
 
+    // Size only here: expo-file-system hashes files with MD5, not SHA-256, and
+    // reading gigabytes into JavaScript to hash them is not an option on a
+    // phone. The desktop installer checks entry.sha256 in Rust.
     const info = await FileSystem.getInfoAsync(partial);
     if (!info.exists || !isExpectedModelFileSize(info.size, entry.sizeBytes)) {
       const received = info.exists && typeof info.size === 'number' ? info.size : 0;

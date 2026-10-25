@@ -6,20 +6,24 @@ import {
   customModelId,
   isAllowedModelDownloadUrl,
   isCustomModelId,
+  isPinnedModelDownloadUrl,
+  modelDownloadRefusal,
   normalizeHuggingFaceRepo,
   parseHuggingFaceModelListing,
   parseStoredCustomModels,
 } from './local-model-registry.ts';
 
 const sha = 'f6d5376be1edb4d416d56da11e5397a961aca8ae';
+const q4Sha256 = 'aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223';
 const payload = {
   sha,
   gated: false,
   cardData: { license: 'apache-2.0' },
   siblings: [
     { rfilename: 'README.md', size: 1200 },
-    { rfilename: 'Qwen3.5-2B-Q4_K_M.gguf', size: 1_280_835_840 },
-    { rfilename: 'Qwen3.5-2B-Q8_0.gguf', size: 2_100_000_000 },
+    { rfilename: 'Qwen3.5-2B-Q4_K_M.gguf', size: 1_280_835_840, lfs: { sha256: q4Sha256, size: 1_280_835_840, pointerSize: 135 } },
+    // An LFS record that disagrees with the listed size is not trusted.
+    { rfilename: 'Qwen3.5-2B-Q8_0.gguf', size: 2_100_000_000, lfs: { sha256: q4Sha256, size: 1 } },
     { rfilename: 'Qwen3.5-2B-BF16.gguf' },
     { rfilename: 'mmproj-F16.gguf', size: 900_000_000 },
     { rfilename: 'Qwen3.5-2B-Q4_K_M-00001-of-00002.gguf', size: 700_000_000 },
@@ -42,6 +46,7 @@ test('the listing keeps complete single gguf weights with a size, sorted by size
   assert.equal(listing.license, 'apache-2.0');
   assert.equal(listing.gated, false);
   assert.deepEqual(listing.files.map(f => f.filename), ['nested/Qwen3.5-2B-IQ4_XS.gguf', 'Qwen3.5-2B-Q4_K_M.gguf', 'Qwen3.5-2B-Q8_0.gguf']);
+  assert.deepEqual(listing.files.map(f => f.sha256), [undefined, q4Sha256, undefined]);
   assert.throws(() => parseHuggingFaceModelListing('x/y', { siblings: [] }), /revision/);
   assert.throws(() => parseHuggingFaceModelListing('x/y', null), /Unexpected/);
   assert.equal(parseHuggingFaceModelListing('x/y', { sha, gated: 'auto', siblings: [] }).gated, true);
@@ -56,6 +61,7 @@ test('a custom entry is pinned to the revision, stored under a flat filename and
   assert.equal(entry.sizeBytes, 1_280_835_840);
   assert.equal(entry.source, 'custom');
   assert.equal(entry.revision, sha);
+  assert.equal(entry.sha256, q4Sha256);
   assert.match(entry.description, /Not tested by Alice/);
   assert.ok(isCustomModelId(entry.id));
   assert.ok(isAllowedModelDownloadUrl(entry.url));
@@ -68,6 +74,8 @@ test('a custom entry is pinned to the revision, stored under a flat filename and
   assert.equal(nested.filename, 'unsloth__Qwen3.5-2B-GGUF__nested__Qwen3.5-2B-IQ4_XS.gguf');
   assert.equal(nested.url, `https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/${sha}/nested/Qwen3.5-2B-IQ4_XS.gguf`);
   assert.equal(nested.name, 'Qwen3.5-2B-IQ4_XS');
+  // No hash in the listing: the entry keeps the size check only.
+  assert.equal(nested.sha256, undefined);
   const escaping = { ...listing, files: [...listing.files, { filename: 'a/../b.gguf', sizeBytes: 1 }, { filename: '.hidden/c.gguf', sizeBytes: 1 }] };
   assert.throws(() => buildCustomModelEntry(escaping, 'a/../b.gguf'), /Invalid model filename/);
   assert.throws(() => buildCustomModelEntry(escaping, '.hidden/c.gguf'), /Invalid model filename/);
@@ -92,12 +100,14 @@ test('stored custom models are read defensively', () => {
     { ...entry, id: 'custom:x/y/z.gguf', url: 'https://example.com/z.gguf' }, // foreign host
     { ...entry, id: 'custom:x/y/w.gguf', filename: '../w.gguf' }, // path escape
     { ...entry, id: 'custom:x/y/v.gguf', sizeBytes: -1 },
+    { ...entry, id: 'custom:x/y/u.gguf', sha256: 'not-a-hash' }, // kept, without the bad hash
     'garbage',
     null,
   ]);
   const parsed = parseStoredCustomModels(stored);
-  assert.equal(parsed.length, 1);
+  assert.equal(parsed.length, 2);
   assert.deepEqual(parsed[0], entry);
+  assert.equal(parsed[1].sha256, undefined);
   assert.deepEqual(parseStoredCustomModels(null), []);
   assert.deepEqual(parseStoredCustomModels('{not json'), []);
   assert.deepEqual(parseStoredCustomModels('{"a":1}'), []);
@@ -114,4 +124,22 @@ test('the listing fetch maps HTTP outcomes to plain errors and never leaves hugg
   await assert.rejects(fetchHuggingFaceGgufListing('a/b', async () => ({ ok: false, status: 404, json: async () => ({}) })), /does not exist/);
   await assert.rejects(fetchHuggingFaceGgufListing('a/b', async () => ({ ok: false, status: 403, json: async () => ({}) })), /gated/);
   await assert.rejects(fetchHuggingFaceGgufListing('a/b', async () => ({ ok: true, status: 200, json: async () => ({ sha, siblings: [] }) })), /No single gguf/);
+});
+
+test('downloads come only from a commit, never from a branch or the previous catalog', () => {
+  const listing = parseHuggingFaceModelListing('unsloth/Qwen3.5-2B-GGUF', payload);
+  const custom = buildCustomModelEntry(listing, 'Qwen3.5-2B-Q4_K_M.gguf');
+  assert.ok(isPinnedModelDownloadUrl(custom.url));
+  assert.equal(isPinnedModelDownloadUrl('https://huggingface.co/a/b/resolve/main/c.gguf'), false);
+  assert.equal(isPinnedModelDownloadUrl(`https://huggingface.co/a/b/resolve/${sha.slice(0, 12)}/c.gguf`), false);
+  assert.equal(isPinnedModelDownloadUrl('not a url'), false);
+
+  assert.equal(modelDownloadRefusal(custom), null);
+  // A custom file listed without a hash still downloads, with the size check only.
+  assert.equal(modelDownloadRefusal({ ...custom, sha256: undefined }), null);
+  assert.match(modelDownloadRefusal({ ...custom, url: 'https://huggingface.co/a/b/resolve/main/c.gguf' }) ?? '', /not pinned/);
+  assert.match(modelDownloadRefusal({ ...custom, url: `https://example.com/a/b/resolve/${sha}/c.gguf` }) ?? '', /not pinned/);
+  assert.match(modelDownloadRefusal({ ...custom, source: 'legacy' }) ?? '', /previous catalog/);
+  assert.equal(modelDownloadRefusal({ ...custom, source: 'catalog' }), null);
+  assert.match(modelDownloadRefusal({ ...custom, source: 'catalog', sha256: undefined }) ?? '', /no published checksum/);
 });

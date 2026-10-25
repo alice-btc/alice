@@ -1,6 +1,6 @@
 [package]
 name = "alice-desktop"
-version = "0.2.5"
+version = "0.2.6"
 license = "AGPL-3.0-or-later"
 edition = "2021"
 
@@ -30,6 +30,9 @@ base64 = "0.22"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 rand = "0.8"
 zeroize = "1"
+sha2 = "0.10"
+# Model downloads run in the shell, straight to disk (see local_ai_download_model_start).
+reqwest = "0.13"
 # cookie 0.18.1 (transitively pulled by tauri/wry) calls time::parse() with 1
 # argument; time 0.3.52 changed that signature to require 2. Pin to last
 # compatible version to unblock the build on Rust 1.96.

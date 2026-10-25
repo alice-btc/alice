@@ -5,6 +5,7 @@ import type { AIBackend, AIBackendType, AIBackendStatus, TokenUsage } from './ai
 import { VeniceAPIError, type Message } from './llm';
 import { quotaBlockOf } from './venice-errors';
 import { createBackend, canUseLocal, isTauriDesktop } from './ai-backend-factory';
+import { subscribeLocalModelInstalled } from './local-model-events';
 import { generateLanguageChecked, WrongResponseLanguageError } from './language-generation';
 import { retrieveTurnKnowledge } from './turn-knowledge';
 import { pedagogicalContext, recordPedagogicalSignal } from './pedagogical-profile';
@@ -374,6 +375,20 @@ export function ChatProvider({
       backend.dispose().catch(() => {});
     };
   }, [backendType, activeBackendEnabled, backendReloadKey]);
+
+  // A model that finished downloading is now the active local model. When the
+  // chat already runs on Local, its engine was initialized against the previous
+  // state of the disk (no model at all, or another model) and would keep
+  // answering from it, or keep saying no model is installed, until a restart.
+  // Re-initialize it; switching from another backend to Local stays the
+  // user's gesture.
+  useEffect(() => subscribeLocalModelInstalled(() => {
+    if (backendType !== 'local' || !activeBackendEnabled) return;
+    if (backendRef.current?.status().state === 'loading') return;
+    backendRef.current = null;
+    setBackendStatus({ state: 'loading' });
+    setBackendReloadKey(key => key + 1);
+  }), [backendType, activeBackendEnabled]);
 
   const setBackendType = useCallback((type: AIBackendType) => {
     if (type === 'cloud' && !PRIVATE_CLOUD_ENABLED) return;

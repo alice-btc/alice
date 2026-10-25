@@ -21,11 +21,17 @@ import {
   withAliceInstructionReminder,
 } from './ai-system-prompt';
 import { fitMessagesToEstimatedLocalContext } from './local-context-budget';
+import { modelDownloadRefusal } from './local-model-registry';
+import { DESKTOP_DOWNLOAD_POLL_MS, interpretDesktopDownloadStatus, type DesktopModelDownloadPhase } from './local-model-download-progress';
+import { modelFilenameFromPath } from './model-file-validation';
 
 const LLAMA_BASE = 'http://localhost:11435';
 const POLL_INTERVAL_MS = 500;
 const POLL_TIMEOUT_MS = 30_000;
 
+// Older builds stored the full path of the model here. Only its filename is
+// used now: the desktop shell starts a model by name, from its own models
+// directory, and refuses any other file.
 const DESKTOP_MODEL_PATH_KEY = 'alice_ai_desktop_model_path';
 // Desktop machines afford a roomier context than the shared mobile default:
 // every catalog model supports at least 8k, and 4096 left ~250 tokens for the
@@ -63,49 +69,44 @@ export async function getDesktopInstalledModelPath(id: LocalModelId): Promise<st
   }
 }
 
+/**
+ * Installs a catalog or custom model. `onProgress` is called with the
+ * fraction of the current phase: the transfer, then `verifying` while the
+ * shell hashes the complete file.
+ */
 export async function installDesktopModel(
   id: LocalModelId,
-  onProgress?: (fraction: number) => void,
+  onProgress?: (fraction: number, phase: DesktopModelDownloadPhase) => void,
 ): Promise<void> {
   const entry = entryFor(id);
-  await tauriInvoke('local_ai_download_model_prepare', { filename: entry.filename });
-  try {
-    const response = await globalThis.fetch(entry.url);
-    if (!response.ok || !response.body) {
-      throw new Error(`Download failed (${response.status})`);
+  const refusal = modelDownloadRefusal(entry);
+  if (refusal) throw new Error(refusal);
+  // The shell downloads the file itself, straight into its models directory,
+  // and checks the exact size and the SHA-256 before the file takes its final
+  // name; a failed attempt leaves nothing behind. The webview only polls where
+  // the download stands.
+  await tauriInvoke('local_ai_download_model_start', {
+    filename: entry.filename,
+    url: entry.url,
+    sizeBytes: entry.sizeBytes,
+    sha256: entry.sha256 ?? null,
+  });
+  onProgress?.(0, 'downloading');
+  while (true) {
+    await new Promise<void>(resolve => setTimeout(resolve, DESKTOP_DOWNLOAD_POLL_MS));
+    const status = await tauriInvoke<unknown>('local_ai_download_model_progress', {
+      filename: entry.filename,
+    });
+    const step = interpretDesktopDownloadStatus(status);
+    if (step.kind === 'progress') {
+      onProgress?.(step.fraction, step.phase);
+      continue;
     }
-    const total = Number(response.headers.get('content-length') ?? entry.sizeBytes);
-    const reader = response.body.getReader();
-    let written = 0;
-    // Network reads arrive in ~16-64 KB pieces; forwarding each one over the
-    // JSON IPC bridge means tens of thousands of expensive calls on a
-    // multi-GB file (observed failing late into large downloads). Batch them.
-    const BATCH_BYTES = 4 * 1024 * 1024;
-    let batch: number[] = [];
-    const flush = async () => {
-      if (batch.length === 0) return;
-      const chunk = batch;
-      batch = [];
-      await tauriInvoke('local_ai_download_model_chunk', {
-        filename: entry.filename,
-        chunk,
-      });
-    };
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!value) continue;
-      written += value.byteLength;
-      for (let i = 0; i < value.length; i++) batch.push(value[i]);
-      if (batch.length >= BATCH_BYTES) await flush();
-      if (total > 0) onProgress?.(Math.min(written / total, 1));
+    if (step.kind === 'installed') {
+      onProgress?.(1, 'verifying');
+      return;
     }
-    await flush();
-    await tauriInvoke('local_ai_download_model_finish', { filename: entry.filename });
-    onProgress?.(1);
-  } catch (error) {
-    await tauriInvoke('local_ai_delete_model', { filename: entry.filename }).catch(() => {});
-    throw error;
+    throw new Error(step.error);
   }
 }
 
@@ -156,7 +157,7 @@ async function waitForExistingLocalServer(timeoutMs: number): Promise<boolean> {
 // The model llama-server was last started with, so switching the active model
 // in the UI actually reloads the server instead of silently answering with
 // whatever was loaded before.
-let runningModelPath: string | null = null;
+let runningModelFile: string | null = null;
 
 export class LocalDesktopAIBackend implements AIBackend {
   readonly type = 'local' as const;
@@ -168,21 +169,21 @@ export class LocalDesktopAIBackend implements AIBackend {
       const activeModelId = await getActiveModelId();
       const installedModelPath = await getDesktopInstalledModelPath(activeModelId);
       const modelPath = await getDesktopModelPath();
-      const selectedModelPath = installedModelPath || modelPath;
+      const selectedModelFile = modelFilenameFromPath(installedModelPath || modelPath);
       const serverReady = await isLocalServerReady();
-      if (serverReady && (!selectedModelPath || runningModelPath === selectedModelPath)) {
+      if (serverReady && (!selectedModelFile || runningModelFile === selectedModelFile)) {
         this._status = { state: 'ready' };
         return;
       }
-      if (selectedModelPath) {
+      if (selectedModelFile) {
         if (serverReady) {
           // A server is up but with another (or an unknown) model: reload it
           // so the answer really comes from the model named in the UI.
           await tauriInvoke('local_ai_stop').catch(() => {});
         }
-        await tauriInvoke('local_ai_start', { modelPath: selectedModelPath, ctxSize: DESKTOP_CONTEXT_TOKENS });
+        await tauriInvoke('local_ai_start', { filename: selectedModelFile, ctxSize: DESKTOP_CONTEXT_TOKENS });
         await pollUntilReady();
-        runningModelPath = selectedModelPath;
+        runningModelFile = selectedModelFile;
         this._status = { state: 'ready' };
         return;
       }
