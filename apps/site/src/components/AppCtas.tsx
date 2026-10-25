@@ -40,7 +40,10 @@ export type PlatformItem = {
 // Companion platforms shared by the desktop and mobile download menus.
 export const APP_PLATFORM_ITEMS: PlatformItem[] = [
   { icon: <GlobeIcon size={18} />, label: 'Web app', href: APP_URL },
-  { icon: <AppleGlyph size={18} />, label: 'Mac', href: DESKTOP_MAC_URL, notice: 'macos' },
+  // The Mac build is signed with a Developer ID and notarised since 0.2.5, so
+  // macOS only asks the standard "downloaded from the Internet" question that
+  // every app outside the App Store gets; nothing worth a notice.
+  { icon: <AppleGlyph size={18} />, label: 'Mac', href: DESKTOP_MAC_URL },
   { icon: <WindowsGlyph size={16} />, label: 'Windows', href: DESKTOP_WINDOWS_URL, notice: 'windows' },
   // Desktop rows carry no version: every installer on the release page is the
   // same version, and the app updates itself from there. The APK keeps its
