@@ -9,6 +9,7 @@ import {
   MODEL_DOWNLOAD_EVENT,
   clearModelDownload,
   getModelDownloads,
+  isModelDownloadRunning,
 } from '@/lib/model-downloads';
 
 // Lateral notification for background model downloads: mounted once at the
@@ -30,7 +31,7 @@ export function ModelDownloadToasts() {
     const seen = new Set<string>();
     const sync = () => {
       for (const [id, state] of getModelDownloads()) {
-        if (state.status === 'downloading') continue;
+        if (isModelDownloadRunning(state)) continue;
         const key = `${id}:${state.status}`;
         if (seen.has(key)) continue;
         seen.add(key);

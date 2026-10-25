@@ -29,6 +29,8 @@ import { MODEL_DOWNLOAD_EVENT, getModelDownloads, startModelDownload } from '@/l
 type LocalModelState = {
   status: ModelStatus;
   downloadProgress: number | null;
+  /** The transfer is complete and the shell is checking the file's hash. */
+  verifying?: boolean;
 };
 
 const defaultLocalModelStates = Object.fromEntries(
@@ -120,8 +122,8 @@ export function LocalModelsSection() {
       setLocalModelStates(prev => {
         const next = { ...prev };
         for (const [id, download] of getModelDownloads()) {
-          if (download.status === 'downloading') {
-            next[id] = { status: 'downloading', downloadProgress: download.progress };
+          if (download.status === 'downloading' || download.status === 'verifying') {
+            next[id] = { status: 'downloading', downloadProgress: download.progress, verifying: download.status === 'verifying' };
           } else if (download.status === 'installed') {
             next[id] = { status: 'installed', downloadProgress: null };
           } else if (next[id]?.status === 'downloading') {
@@ -240,14 +242,14 @@ export function LocalModelsSection() {
                           {!installed && !downloading && <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>NOT INSTALLED</span>}
                           {model.source === 'legacy' && <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>PREVIOUS CATALOG</span>}
                           {model.source === 'custom' && <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>CUSTOM, UNTESTED</span>}
-                          <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>{model.ramNeeded}</span>
+                          <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>{`RAM ${model.ramNeeded}`}</span>
                         </div>
                         <p className="font-numbers m-0 mt-2" style={{ fontSize: 13, opacity: 1 }}>
-                          {downloading ? 'Downloading...' : 'Open details'}
+                          {downloading ? (state.verifying ? 'Verifying the file...' : 'Downloading...') : 'Open details'}
                         </p>
                         {downloading && progress !== null && (
                           <div className="flex items-center gap-2 mt-2">
-                            <div role="progressbar" aria-label={`Downloading ${model.name}`} aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} style={{ height: 6, flex: 1, border: '1px solid var(--alice-border)' }}>
+                            <div role="progressbar" aria-label={`${state.verifying ? 'Verifying' : 'Downloading'} ${model.name}`} aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} style={{ height: 6, flex: 1, border: '1px solid var(--alice-border)' }}>
                               <div style={{ height: '100%', width: `${progress}%`, backgroundColor: 'var(--alice-primary)' }} />
                             </div>
                             <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>{progress}%</span>

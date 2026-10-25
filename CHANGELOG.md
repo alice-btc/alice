@@ -3,7 +3,8 @@
 Alice ships as three surfaces from one repository, and they are versioned
 together: a single number means a tester and a log line refer to the same code.
 
-- `0.2.5`, current release
+- `0.2.6`, current release
+- `0.2.5`, previous release
 - `0.2.4`, previous release
 - `0.2.3`, previous release
 - `0.2.2`, previous release
@@ -12,6 +13,39 @@ together: a single number means a tester and a log line refer to the same code.
 - `0.1.0`, previous closed beta
 - `0.0.1`, first public baseline
 - `1.0.0`, public launch, planned
+
+## 0.2.6
+
+Desktop installers for macOS, Windows and Linux ship with this release.
+
+This release repairs the download of local models in Alice Desktop. It adds
+no feature.
+
+### Desktop
+
+- A local model is downloaded by the app itself, straight into its models
+  folder, and the settings page only asks how far it is. Until 0.2.5 the
+  page fetched the file and handed the bytes to the app over its message
+  bridge, which on macOS silently lost a message after a few hundred
+  megabytes: the bar froze at 4 %, 6 % or 16 % with no error. A download that
+  receives nothing for 60 seconds, or is offered a file of another size than
+  the catalog's, now fails with a message.
+- The window no longer freezes while a model downloads: until 0.2.5 the page
+  re-rendered on every network piece and decoded megabytes of JSON on the
+  window's own thread, and Settings could not even be closed.
+- Once the whole file is on disk, the row says `Verifying the file...` with
+  its own bar while the SHA-256 is computed (seconds in the published app),
+  instead of a full bar still labelled `Downloading...`.
+- A model that finishes downloading while the chat is already on Local is
+  picked up at once: the chat reloads its engine with the new model instead
+  of keeping "No local model is installed yet" (or the previous model) until
+  the app was restarted.
+- Under a model's name, `6 GB` is labelled `RAM 6 GB`: it is the memory the
+  model needs, and it read as a second file size next to the 2.7 GB download.
+- A local model starts only from the app's models folder, and a downloaded
+  model is accepted only if its exact size and SHA-256 match the catalog;
+  a mismatch deletes the file. Models listed without a pinned revision are
+  no longer downloaded. Reported in alice-btc/alice#7.
 
 ## 0.2.5
 

@@ -311,3 +311,4 @@ export {
 export { pendingWhatsNew, acknowledgeWhatsNew } from './whats-new-state';
 
 export { browserStorageIssues, subscribeBrowserStorageIssues, reportBrowserStorageIssue } from './browser-storage-security';
+export { notifyLocalModelInstalled, subscribeLocalModelInstalled } from './local-model-events';

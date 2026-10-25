@@ -12,6 +12,13 @@ export const RELEASE_NOTES_URL = 'https://github.com/alice-btc/alice/releases';
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.2.6',
+    highlights: [
+      'Downloading a local model works again on desktop: the bar no longer stops at a few percent, and the window stays usable while it runs.',
+      'Once the file is on disk, Alice says it is verifying it, then the chat uses the new model right away, no restart needed.',
+    ],
+  },
+  {
     version: '0.2.5',
     highlights: [
       'Your conversations, memory and settings stay as they were after the update, and a record the app cannot read is kept instead of being overwritten.',

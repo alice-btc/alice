@@ -3,6 +3,8 @@
 // downloaded) and the files a user adds from a Hugging Face repository. No
 // storage, no platform import, so this module is testable under node:test.
 
+import { isSha256Hex } from './model-file-validation.ts';
+
 export type LocalModelSource = 'catalog' | 'legacy' | 'custom';
 
 export type LocalModelEntry = {
@@ -20,6 +22,12 @@ export type LocalModelEntry = {
   repo?: string;
   /** Git revision the download URL is pinned to, when known. */
   revision?: string;
+  /**
+   * SHA-256 of the file at that revision, from the Hugging Face LFS metadata.
+   * Every catalog entry has one; a custom entry has one when the listing gave
+   * it. The desktop refuses a download whose bytes do not match.
+   */
+  sha256?: string;
 };
 
 export const HUGGING_FACE_ORIGIN = 'https://huggingface.co';
@@ -45,6 +53,8 @@ export function normalizeHuggingFaceRepo(input: string): string | null {
 export type HuggingFaceGgufFile = {
   filename: string;
   sizeBytes: number;
+  /** The LFS SHA-256 the listing published for this file, when it did. */
+  sha256?: string;
 };
 
 export type HuggingFaceGgufListing = {
@@ -68,11 +78,14 @@ export function parseHuggingFaceModelListing(repo: string, payload: unknown): Hu
   const files: HuggingFaceGgufFile[] = [];
   for (const sibling of siblings) {
     if (!sibling || typeof sibling !== 'object') continue;
-    const { rfilename, size } = sibling as { rfilename?: unknown; size?: unknown };
+    const { rfilename, size, lfs } = sibling as { rfilename?: unknown; size?: unknown; lfs?: { sha256?: unknown; size?: unknown } };
     if (typeof rfilename !== 'string' || !/\.gguf$/i.test(rfilename)) continue;
     if (SHARD_PATTERN.test(rfilename) || /mmproj/i.test(rfilename)) continue;
     if (typeof size !== 'number' || !Number.isSafeInteger(size) || size <= 0) continue;
-    files.push({ filename: rfilename, sizeBytes: size });
+    // The LFS pointer of this revision names the hash of the file's bytes;
+    // kept only when it describes the same size the listing reports.
+    const sha256 = lfs && lfs.size === size && isSha256Hex(lfs.sha256) ? lfs.sha256 : undefined;
+    files.push({ filename: rfilename, sizeBytes: size, sha256 });
   }
   files.sort((a, b) => a.sizeBytes - b.sizeBytes);
   const license = typeof data.cardData?.license === 'string' ? data.cardData.license : null;
@@ -135,7 +148,34 @@ export function buildCustomModelEntry(listing: HuggingFaceGgufListing, filename:
     source: 'custom',
     repo,
     revision: listing.revision,
+    sha256: file.sha256,
   };
+}
+
+/**
+ * A Hugging Face URL that resolves a file at a commit. A branch such as
+ * `main` can be rewritten under the same URL, so only a commit pins the bytes.
+ */
+export function isPinnedModelDownloadUrl(url: string): boolean {
+  try {
+    return /^\/[^/]+\/[^/]+\/resolve\/[0-9a-f]{40}\//.test(new URL(url).pathname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Why an entry may not be downloaded, or null when it may. Previous catalog
+ * entries point at a branch, not a commit, and are kept only for files already
+ * on disk; a catalog entry without its published hash is a packaging mistake.
+ */
+export function modelDownloadRefusal(entry: LocalModelEntry): string | null {
+  if (entry.source === 'legacy') return `${entry.name} is from the previous catalog and can no longer be downloaded.`;
+  if (!isAllowedModelDownloadUrl(entry.url) || !isPinnedModelDownloadUrl(entry.url)) {
+    return `${entry.name} is not pinned to a Hugging Face commit; Alice downloads only pinned files.`;
+  }
+  if (entry.source === 'catalog' && !isSha256Hex(entry.sha256)) return `${entry.name} has no published checksum.`;
+  return null;
 }
 
 /** The download URL must stay on Hugging Face, where the catalog already points. */
@@ -181,6 +221,7 @@ export function parseStoredCustomModels(raw: string | null): LocalModelEntry[] {
       source: 'custom',
       repo: typeof entry.repo === 'string' ? entry.repo : undefined,
       revision: typeof entry.revision === 'string' ? entry.revision : undefined,
+      sha256: isSha256Hex(entry.sha256) ? entry.sha256 : undefined,
     });
   }
   return entries;
