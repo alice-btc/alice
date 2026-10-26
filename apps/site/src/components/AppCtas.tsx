@@ -149,7 +149,7 @@ function PlatformMenu({
       className="platform-menu absolute top-full z-[70] pt-2"
       style={{ width: placement.width, left: placement.left }}
     >
-      {/* One compact list for companion downloads. */}
+      {/* One compact list; groups stack under their titles. */}
       <div
         role="group"
         aria-label={label}

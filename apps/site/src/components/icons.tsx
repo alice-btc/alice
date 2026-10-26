@@ -104,12 +104,12 @@ export function AndroidGlyph({ size = 20 }: { size?: number }) {
   );
 }
 
-// Contact and community marks, pixel-grid like the interface glyphs above.
+// Two people, on the pixel grid like the interface glyphs above.
 export function CommunityIcon({ size = 20 }: { size?: number }) {
   return <PixelGlyph size={size} path="M6 4h3v1h1v3H9v1H6V8H5V5h1zM4 10h8v1h1v6H3v-6h1zM13 3h2v1h1v2h-1v1h-2V6h-1V4h1zM14 9h3v1h1v5h-4z" />;
 }
 
-// Line envelope, drawn for the site in the stroke style of common UI icons.
+// Line envelope for the contact links.
 export function MailIcon({ size = 20 }: { size?: number }) {
   return (
     <svg
