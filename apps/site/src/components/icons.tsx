@@ -104,6 +104,59 @@ export function AndroidGlyph({ size = 20 }: { size?: number }) {
   );
 }
 
+// Two people, on the pixel grid like the interface glyphs above.
+export function CommunityIcon({ size = 20 }: { size?: number }) {
+  return <PixelGlyph size={size} path="M6 4h3v1h1v3H9v1H6V8H5V5h1zM4 10h8v1h1v6H3v-6h1zM13 3h2v1h1v2h-1v1h-2V6h-1V4h1zM14 9h3v1h1v5h-4z" />;
+}
+
+// Line envelope for the contact links.
+export function MailIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="2.5" y="4.5" width="19" height="15" rx="2" />
+      <path d="m3.5 6.5 7.4 5.6a1.8 1.8 0 0 0 2.2 0l7.4-5.6" />
+    </svg>
+  );
+}
+
+// The Nostr icon by Andrea Nicolini / mbarulli/nostr-logo, CC0 1.0, cropped
+// to its drawing so it fills the box like the X mark.
+export function NostrGlyph({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="44 40 176 176" fill="currentColor" aria-hidden="true">
+      <path d="M210.8 199.4c0 3.1-2.5 5.7-5.7 5.7h-68c-3.1 0-5.7-2.5-5.7-5.7v-15.5c.3-19 2.3-37.2 6.5-45.5 2.5-5 6.7-7.7 11.5-9.1 9.1-2.7 24.9-.9 31.7-1.2 0 0 20.4.8 20.4-10.7s-9.1-8.6-9.1-8.6c-10 .3-17.7-.4-22.6-2.4-8.3-3.3-8.6-9.2-8.6-11.2-.4-23.1-34.5-25.9-64.5-20.1-32.8 6.2.4 53.3.4 116.1v8.4c0 3.1-2.6 5.6-5.7 5.6H57.7c-3.1 0-5.7-2.5-5.7-5.7v-144c0-3.1 2.5-5.7 5.7-5.7h31.7c3.1 0 5.7 2.5 5.7 5.7 0 4.7 5.2 7.2 9 4.5 11.4-8.2 26-12.5 42.4-12.5 36.6 0 64.4 21.4 64.4 68.7v83.2ZM150 99.3c0-6.7-5.4-12.1-12.1-12.1s-12.1 5.4-12.1 12.1 5.4 12.1 12.1 12.1S150 106 150 99.3Z" />
+    </svg>
+  );
+}
+
+// The X mark, from Simple Icons (CC0 1.0).
+export function XGlyph({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z" />
+    </svg>
+  );
+}
+
+// The GitHub mark, from Simple Icons (CC0 1.0).
+export function GitHubGlyph({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+    </svg>
+  );
+}
+
 // The D2 symbol is the A in the wordmark. The rabbit remains the assistant mascot.
 export function AliceMark({ size = 22, showWordmark = true }: {
   size?: number;

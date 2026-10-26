@@ -3,6 +3,7 @@
 Alice ships as three surfaces from one repository, and they are versioned
 together: a single number means a tester and a log line refer to the same code.
 
+- `Unreleased`, landed since `0.2.6`, to be numbered at release
 - `0.2.6`, current release
 - `0.2.5`, previous release
 - `0.2.4`, previous release
@@ -13,6 +14,20 @@ together: a single number means a tester and a log line refer to the same code.
 - `0.1.0`, previous closed beta
 - `0.0.1`, first public baseline
 - `1.0.0`, public launch, planned
+
+## Unreleased
+
+### Site
+
+- A contact icon in the top bar, on every screen, opens the list of ways to
+  reach Alice: contact@alicebtc.com, @askAliceBTC on X and Alice on Nostr,
+  and a Report section that opens a new issue on the public repository,
+  with the same warning as the app's Report form that GitHub issues are
+  public. It opens on hover with a mouse and on a tap on a phone, like the
+  Download menu.
+- The footer has the same links on a Contact line, with their icons.
+  The site's Organization data lists the same address and profiles, with
+  the source code.
 
 ## 0.2.6
 

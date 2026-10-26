@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { SITE_IS_PUBLIC, SITE_NAME, SITE_TAGLINE, SITE_URL } from '@/lib/site';
+import { CONTACT_EMAIL, NOSTR_URL, SITE_IS_PUBLIC, SITE_NAME, SITE_TAGLINE, SITE_URL, SOURCE_URL, X_URL } from '@/lib/site';
 import { StickyAsk } from '@/components/StickyAsk';
 import './globals.css';
 
@@ -65,6 +65,8 @@ const orgSchema = {
       name: SITE_NAME,
       url: SITE_URL,
       description: SITE_TAGLINE,
+      email: CONTACT_EMAIL,
+      sameAs: [X_URL, NOSTR_URL, SOURCE_URL],
     },
     {
       '@type': 'WebSite',
