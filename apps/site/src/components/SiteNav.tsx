@@ -1,6 +1,7 @@
 import { NAV_LINKS } from '@/lib/site';
 import { DownloadButton, OpenAliceButton } from '@/components/AppCtas';
 import { MobileNavMenu } from '@/components/MobileNavMenu';
+import { CommunityMenu } from '@/components/CommunityMenu';
 import { AliceMark } from '@/components/icons';
 
 // Sitewide top navigation. Keeps the primary CTA (open the app) always reachable.
@@ -31,7 +32,9 @@ export function SiteNav() {
 
         <div className="flex items-center gap-2.5">
           {/* Desktop: open the companion, or reach every install. Phone:
-              everything folds into the single Menu button. */}
+              everything folds into the single Menu button, except the
+              contact icon, which stays on every screen. */}
+          <CommunityMenu />
           <span className="hidden md:block">
             <DownloadButton size="sm" />
           </span>

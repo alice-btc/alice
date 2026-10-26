@@ -138,9 +138,11 @@ export function PlatformRow({ icon, label, href, notice, compact }: PlatformItem
 function PlatformMenu({
   groups,
   placement,
+  label,
 }: {
   groups: PlatformGroup[];
   placement: { width: number; left: number; compact: boolean };
+  label: string;
 }) {
   return (
     <div
@@ -150,13 +152,13 @@ function PlatformMenu({
       {/* One compact list for companion downloads. */}
       <div
         role="group"
-        aria-label="Downloads"
+        aria-label={label}
         className="grid grid-cols-1 gap-1.5 rounded-[4px] border border-[var(--alice-border)] bg-[var(--alice-bg-soft)] p-1.5 shadow-xl"
       >
         {groups.map((group, i) => (
           <div
             key={group.label}
-            className={i > 0 ? 'border-l border-[var(--alice-border)] pl-1.5' : ''}
+            className={i > 0 ? 'border-t border-[var(--alice-border)] pt-1.5' : ''}
           >
             {/* No glyph on the group title: the icons belong to the rows,
                 where they say which platform. One in the header only competes
@@ -165,8 +167,7 @@ function PlatformMenu({
               <span className="whitespace-nowrap font-pixel text-[9px] uppercase tracking-widest text-[var(--alice-muted)]">
                 {group.label}
               </span>
-              {/* The note sits under its title and wraps; the App column has
-                  one row more, so the two columns end level. */}
+              {/* The note sits under its title and wraps. */}
               {group.note && (
                 <p className="mt-1 text-[11px] leading-[1.35] text-[var(--alice-muted)]">
                   {group.note}
@@ -187,14 +188,23 @@ function PlatformMenu({
 // the trigger is enough (see .platform-selector in globals.css). The click
 // path needs state rather than a bare <details> so an open menu can close on
 // outside click or Escape instead of staying pinned over the page.
-function PlatformSelector({
+export function PlatformSelector({
   trigger,
   className,
   groups,
+  menuLabel = 'Downloads',
+  ariaLabel,
+  chevron = true,
+  menuWidth = 300,
 }: {
   trigger: ReactNode;
   className: string;
   groups: PlatformGroup[];
+  menuLabel?: string;
+  /** For a trigger that shows only an icon. */
+  ariaLabel?: string;
+  chevron?: boolean;
+  menuWidth?: number;
 }) {
   const [open, setOpen] = useState(false);
   // The panel is placed in viewport pixels, never by edge: centred on its
@@ -211,7 +221,7 @@ function PlatformSelector({
       const rect = rootRef.current?.getBoundingClientRect();
       if (!rect) return;
       const vw = window.innerWidth;
-      const width = Math.min(300, vw - 24);
+      const width = Math.min(menuWidth, vw - 24);
       const centre = rect.left + rect.width / 2;
       const inViewport = Math.min(Math.max(centre - width / 2, 12), vw - 12 - width);
       setPlacement({ width, left: inViewport - rect.left, compact: false });
@@ -219,7 +229,7 @@ function PlatformSelector({
     update();
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
-  }, []);
+  }, [menuWidth]);
 
   useEffect(() => {
     if (!open) return;
@@ -246,13 +256,14 @@ function PlatformSelector({
       <button
         type="button"
         aria-expanded={open}
+        aria-label={ariaLabel}
         onClick={() => setOpen(value => !value)}
         className={`${className} cursor-pointer`}
       >
         {trigger}
-        <ChevronDownIcon size={14} />
+        {chevron && <ChevronDownIcon size={14} />}
       </button>
-      <PlatformMenu groups={groups} placement={placement} />
+      <PlatformMenu groups={groups} placement={placement} label={menuLabel} />
     </div>
   );
 }

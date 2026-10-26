@@ -15,6 +15,8 @@ export const WALLET_SOURCE_URL = 'https://github.com/alice-btc/alice-wallet';
 // site can never advertise a different figure than the invoice asks for.
 export const PROXY_URL = 'https://proxy.alicebtc.com';
 export const SOURCE_URL = 'https://github.com/alice-btc/alice';
+// Problems go to the public repository's issues, like the app's Report form.
+export const REPORT_URL = `${SOURCE_URL}/issues/new`;
 // The last Android build of the wallet, from August 2026. It was released from
 // this repository under Alice's numbers, before the wallet moved out, so it
 // predates the wallet changes since. Move these to the wallet repository's
@@ -40,6 +42,13 @@ export const DESKTOP_LINUX_DEB_URL = `${DESKTOP_DOWNLOAD_BASE}/Alice_${DESKTOP_V
 export const WALLET_BETA_NOTE = 'Beta, not audited. Small amounts only.';
 
 export const SITE_NAME = 'Alice';
+
+// Where to reach Alice: the footer, the contact menu in the top bar and the
+// Organization schema all read them from here.
+export const CONTACT_EMAIL = 'contact@alicebtc.com';
+export const X_URL = 'https://x.com/askAliceBTC';
+export const NOSTR_URL =
+  'https://primal.net/p/nprofile1qqs922jm7zh6kzjr3rs2kpzv5prnpc6ard7kpacmtgeuu3tm9gzxt3qckk3sr';
 
 // Drives noindex/robots.txt. True since 2026-10-19: every page carries
 // `index, follow`, and robots.txt allows all crawlers and lists the sitemap.
