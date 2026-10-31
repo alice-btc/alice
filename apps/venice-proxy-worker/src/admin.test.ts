@@ -35,8 +35,8 @@ beforeEach(async () => {
   env = {
     ACCOUNT_DB: db,
     EMAIL: {
-      async send(message: { subject: string }) {
-        sentCode = message.subject.match(/\b(\d{6})\b/)?.[1] ?? '';
+      async send(message: { subject: string; text: string }) {
+        sentCode = message.text.match(/\b(\d{6})\b/)?.[1] ?? '';
         return { messageId: 'message-test' };
       },
     },
@@ -256,7 +256,7 @@ describe('admin account operations', () => {
     assert.ok(listBody.accounts.some(a => a.support_id === target.account.username));
 
     const suspend = await worker.fetch(
-      jsonRequest(`/admin/api/accounts/${enc(target.account.username)}/suspend`, { reason: 'abuse report' }, bearer(admin.access_token)),
+      jsonRequest(`/admin/api/accounts/${enc(target.account.username)}/suspend`, { reason: 'abuse report', admin_password: ADMIN_PASSWORD }, bearer(admin.access_token)),
       env,
     );
     assert.equal(suspend.status, 200);
@@ -272,7 +272,7 @@ describe('admin account operations', () => {
     assert.equal(blockedLogin.status, 401);
 
     const reactivate = await worker.fetch(
-      jsonRequest(`/admin/api/accounts/${enc(target.account.username)}/reactivate`, { reason: 'resolved' }, bearer(admin.access_token)),
+      jsonRequest(`/admin/api/accounts/${enc(target.account.username)}/reactivate`, { reason: 'resolved', admin_password: ADMIN_PASSWORD }, bearer(admin.access_token)),
       env,
     );
     assert.equal(reactivate.status, 200);
@@ -288,11 +288,28 @@ describe('admin account operations', () => {
     assert.ok(actions.includes('admin_bootstrap'));
   });
 
+  it('asks for the admin password again before suspending or changing credits', async () => {
+    const admin = await bootstrapAdmin('reauth-ops-admin');
+    const target = await registerAccount('reauth-ops-target');
+    for (const [path, body] of [
+      ['suspend', { reason: 'abuse report' }],
+      ['credits', { delta: 10, reason: 'support gesture' }],
+      ['suspend', { reason: 'abuse report', admin_password: 'not-the-admin-password' }],
+    ] as const) {
+      const res = await worker.fetch(
+        jsonRequest(`/admin/api/accounts/${enc(target.account.username)}/${path}`, body, bearer(admin.access_token)),
+        env,
+      );
+      assert.equal(res.status, 403);
+      assert.equal(((await res.json()) as { error: { code: string } }).error.code, 'reauth_required');
+    }
+  });
+
   it('requires a reason to suspend', async () => {
     const admin = await bootstrapAdmin('reason-admin');
     const target = await registerAccount('reason-target');
     const res = await worker.fetch(
-      jsonRequest(`/admin/api/accounts/${enc(target.account.username)}/suspend`, {}, bearer(admin.access_token)),
+      jsonRequest(`/admin/api/accounts/${enc(target.account.username)}/suspend`, { admin_password: ADMIN_PASSWORD }, bearer(admin.access_token)),
       env,
     );
     assert.equal(res.status, 400);
@@ -303,7 +320,7 @@ describe('admin account operations', () => {
     const target = await registerAccount('credit-target');
 
     const grant = await worker.fetch(
-      jsonRequest(`/admin/api/accounts/${enc(target.account.username)}/credits`, { delta: 10, reason: 'support gesture' }, bearer(admin.access_token)),
+      jsonRequest(`/admin/api/accounts/${enc(target.account.username)}/credits`, { delta: 10, reason: 'support gesture', admin_password: ADMIN_PASSWORD }, bearer(admin.access_token)),
       env,
     );
     assert.equal(grant.status, 200);
@@ -311,7 +328,7 @@ describe('admin account operations', () => {
     assert.equal(grantBody.cloud_requests_limit, 31);
 
     const revoke = await worker.fetch(
-      jsonRequest(`/admin/api/accounts/${enc(target.account.username)}/credits`, { delta: -1000, reason: 'correction' }, bearer(admin.access_token)),
+      jsonRequest(`/admin/api/accounts/${enc(target.account.username)}/credits`, { delta: -1000, reason: 'correction', admin_password: ADMIN_PASSWORD }, bearer(admin.access_token)),
       env,
     );
     assert.equal(revoke.status, 200);
@@ -345,6 +362,17 @@ describe('admin account operations', () => {
     );
     assert.equal(badConfirm.status, 400);
 
+    // Rows the delete must remove by name, not by trusting the cascade.
+    const now = Date.now();
+    await db.prepare(`
+      INSERT INTO account_emails (user_id, email_ciphertext, email_masked, verified_at, product_updates, created_at, updated_at)
+      VALUES (?, 'ciphertext', 'de****@example.com', ?, 1, ?, ?)
+      ON CONFLICT (user_id) DO NOTHING
+    `).bind(target.account.user_id, now, now, now).run();
+    await db.prepare(`
+      INSERT INTO billing_reminders (user_id, plan_expires_at, kind, sent_at) VALUES (?, ?, 't_minus_3', ?)
+    `).bind(target.account.user_id, now, now).run();
+
     const goodConfirm = await worker.fetch(
       jsonRequest(`/admin/api/accounts/${enc(target.account.username)}`, { confirm: target.account.username, admin_password: ADMIN_PASSWORD }, bearer(admin.access_token), 'DELETE'),
       env,
@@ -362,6 +390,11 @@ describe('admin account operations', () => {
 
     const row = await db.prepare('SELECT id FROM users WHERE username = ?').bind(target.account.username).first();
     assert.equal(row, null);
+    for (const table of ['account_emails', 'billing_reminders']) {
+      const left = await db.prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE user_id = ?`)
+        .bind(target.account.user_id).first<{ count: number }>();
+      assert.equal(left?.count, 0, `${table} should be empty for a deleted account`);
+    }
   });
 });
 
@@ -433,6 +466,30 @@ describe('promo codes', () => {
       env,
     );
     assert.equal(redeem.status, 400);
+  });
+
+  it('gives the last slot to one account only when two redeem at once', async () => {
+    const admin = await bootstrapAdmin('promo-admin-3');
+    const first = await registerAccount('promo-race-1');
+    const second = await registerAccount('promo-race-2');
+    await worker.fetch(
+      jsonRequest('/admin/api/promo-codes', { code: 'ALICE-LAST', credits: 5, max_redemptions: 1 }, bearer(admin.access_token)),
+      env,
+    );
+    const responses = await Promise.all([first, second].map(user => worker.fetch(
+      jsonRequest('/account/promo/redeem', { code: 'ALICE-LAST' }, bearer(user.access_token)),
+      env,
+    )));
+    assert.deepEqual(responses.map(response => response.status).sort(), [200, 400]);
+
+    const limits = await env.ACCOUNT_DB.prepare(`
+      SELECT free_cloud_requests_limit AS value FROM entitlements WHERE user_id IN (?, ?)
+    `).bind(first.account.user_id, second.account.user_id).all<{ value: number }>();
+    assert.deepEqual(limits.results.map(row => row.value).sort(), [21, 26]);
+    const redemptions = await env.ACCOUNT_DB.prepare(`
+      SELECT COUNT(*) AS count FROM promo_redemptions WHERE code = 'ALICE-LAST'
+    `).first<{ count: number }>();
+    assert.equal(redemptions?.count, 1);
   });
 });
 
@@ -599,6 +656,181 @@ describe('analytics', () => {
     const body = await res.json() as { platforms: { platform: string; app_version: string }[] };
     assert.ok(!body.platforms.some(p => p.platform.includes('definitely-not')));
     assert.ok(!body.platforms.some(p => p.app_version.includes('not-a-version')));
+  });
+});
+
+describe('launch pulse', () => {
+  it('compares the last 24 hours with the 24 before, as aggregates only', async () => {
+    const admin = await bootstrapAdmin('launch-admin');
+    await registerAccount('launch-user');
+
+    const res = await worker.fetch(
+      jsonRequest('/admin/api/launch', {}, bearer(admin.access_token), 'GET'),
+      env,
+    );
+    assert.equal(res.status, 200);
+    const body = await res.json() as {
+      installations: { last_24h: number; previous_24h: number };
+      accounts: { last_24h: number; previous_24h: number };
+      requests: { last_24h: number };
+      active_installations_24h: number;
+      series: { requests: { hour: number; count: number }[]; installations: { count: number }[] };
+    };
+    assert.equal(body.installations.last_24h, 2);
+    assert.equal(body.installations.previous_24h, 0);
+    assert.equal(body.accounts.last_24h, 2);
+    assert.equal(body.requests.last_24h, 0);
+    assert.equal(body.active_installations_24h, 2);
+    assert.equal(body.series.requests.length, 48);
+    assert.equal(body.series.installations.reduce((sum, row) => sum + row.count, 0), 2);
+
+    const text = JSON.stringify(body);
+    assert.doesNotMatch(text, /user_id/);
+    assert.doesNotMatch(text, /install_id/);
+  });
+
+  it('is refused to a session that is not an admin', async () => {
+    const account = await registerAccount('launch-nobody');
+    for (const path of ['/admin/api/launch', '/admin/api/site-analytics']) {
+      const res = await worker.fetch(jsonRequest(path, {}, bearer(account.access_token), 'GET'), env);
+      assert.equal(res.status, 403, path);
+    }
+  });
+});
+
+describe('site analytics', () => {
+  it('says what is missing instead of calling Cloudflare without a token', async () => {
+    const admin = await bootstrapAdmin('site-admin');
+    const res = await worker.fetch(
+      jsonRequest('/admin/api/site-analytics', {}, bearer(admin.access_token), 'GET'),
+      env,
+    );
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), {
+      configured: false,
+      missing: ['CF_ANALYTICS_API_TOKEN', 'CF_ACCOUNT_ID'],
+    });
+  });
+
+  it('finds the site by host and maps Cloudflare Web Analytics rows', async () => {
+    const admin = await bootstrapAdmin('site-admin-on');
+    Object.assign(env, { CF_ANALYTICS_API_TOKEN: 'cf-token-test', CF_ACCOUNT_ID: 'account-test' });
+    const calls: { url: string; auth: string | null; body: string | null }[] = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({
+        url,
+        auth: new Headers(init?.headers).get('authorization'),
+        body: typeof init?.body === 'string' ? init.body : null,
+      });
+      if (url.includes('/rum/site_info/list')) {
+        return Response.json({ result: [
+          { site_tag: 'tag-other', host: 'offchain.media' },
+          { site_tag: 'tag-alice', host: 'alicebtc.com' },
+        ] });
+      }
+      return Response.json({ data: { viewer: { accounts: [{
+        daily: [
+          { count: 12, sum: { visits: 5 }, dimensions: { date: '2026-10-25' } },
+          { count: 30, sum: { visits: 11 }, dimensions: { date: '2026-10-26' } },
+        ],
+        paths: [{ count: 20, sum: { visits: 9 }, dimensions: { requestPath: '/' } }],
+        countries: [{ count: 18, sum: { visits: 8 }, dimensions: { countryName: 'LT' } }],
+        referers: [{ count: 4, sum: { visits: 2 }, dimensions: { refererHost: 'x.com' } }],
+      }] } } });
+    }) as typeof fetch;
+    try {
+      const res = await worker.fetch(
+        jsonRequest('/admin/api/site-analytics', {}, bearer(admin.access_token), 'GET'),
+        env,
+      );
+      assert.equal(res.status, 200);
+      const body = await res.json() as {
+        configured: boolean;
+        daily: { key: string; visits: number; page_views: number }[];
+        top_paths_7d: { key: string }[];
+        countries_7d: { key: string }[];
+        referers_7d: { key: string }[];
+      };
+      assert.equal(body.configured, true);
+      assert.deepEqual(body.daily[1], { key: '2026-10-26', visits: 11, page_views: 30 });
+      assert.equal(body.top_paths_7d[0].key, '/');
+      assert.equal(body.countries_7d[0].key, 'LT');
+      assert.equal(body.referers_7d[0].key, 'x.com');
+
+      assert.ok(calls.every(call => call.auth === 'Bearer cf-token-test'));
+      const graphql = calls.find(call => call.url.endsWith('/graphql'));
+      assert.ok(graphql?.body);
+      assert.deepEqual(JSON.parse(graphql.body).variables, { account: 'account-test', site: 'tag-alice' });
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it('never shows another site of the account when the host does not match', async () => {
+    const admin = await bootstrapAdmin('site-admin-other');
+    Object.assign(env, { CF_ANALYTICS_API_TOKEN: 'cf-token-test', CF_ACCOUNT_ID: 'account-test' });
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => Response.json({
+      result: [{ site_tag: 'tag-other', host: 'offchain.media' }],
+    })) as unknown as typeof fetch;
+    try {
+      const res = await worker.fetch(
+        jsonRequest('/admin/api/site-analytics', {}, bearer(admin.access_token), 'GET'),
+        env,
+      );
+      const body = await res.json() as { configured: boolean; error?: string };
+      assert.equal(body.configured, true);
+      assert.match(body.error ?? '', /No Web Analytics site for alicebtc\.com/);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it('passes on why Cloudflare refused the token', async () => {
+    const admin = await bootstrapAdmin('site-admin-403');
+    Object.assign(env, { CF_ANALYTICS_API_TOKEN: 'cf-token-test', CF_ACCOUNT_ID: 'account-test' });
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => Response.json(
+      { success: false, errors: [{ message: 'Authentication error' }] },
+      { status: 403 },
+    )) as unknown as typeof fetch;
+    try {
+      const res = await worker.fetch(
+        jsonRequest('/admin/api/site-analytics', {}, bearer(admin.access_token), 'GET'),
+        env,
+      );
+      assert.deepEqual(await res.json(), {
+        configured: true,
+        error: 'Cloudflare answered 403: Authentication error',
+      });
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it('reports a Cloudflare error instead of failing the page', async () => {
+    const admin = await bootstrapAdmin('site-admin-err');
+    Object.assign(env, {
+      CF_ANALYTICS_API_TOKEN: 'cf-token-test',
+      CF_ACCOUNT_ID: 'account-test',
+      CF_WEB_ANALYTICS_SITE_TAG: 'tag-alice',
+    });
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => Response.json(
+      { errors: [{ message: 'not authorized for that account' }] },
+    )) as unknown as typeof fetch;
+    try {
+      const res = await worker.fetch(
+        jsonRequest('/admin/api/site-analytics', {}, bearer(admin.access_token), 'GET'),
+        env,
+      );
+      assert.equal(res.status, 200);
+      assert.deepEqual(await res.json(), { configured: true, error: 'not authorized for that account' });
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 });
 
@@ -846,7 +1078,7 @@ describe('first-run bootstrap flow', () => {
     const suspend = await worker.fetch(
       jsonRequest(
         `/admin/api/accounts/${enc(target.account.username)}/suspend`,
-        { reason: 'checking the operator tools work' },
+        { reason: 'checking the operator tools work', admin_password: ADMIN_PASSWORD },
         bearer(token),
       ),
       env,
@@ -977,7 +1209,7 @@ describe('the password is the real gate', () => {
     // not enough to keep the dashboard open.
     await worker.fetch(
       jsonRequest(`/admin/api/accounts/${enc(admin.account.username)}/suspend`,
-        { reason: 'compromised' }, bearer(second.access_token)),
+        { reason: 'compromised', admin_password: ADMIN_PASSWORD }, bearer(second.access_token)),
       env,
     );
     const res = await worker.fetch(

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { ChatProviderWrapper } from '@/lib/chat-provider';
+import { LanguageProvider } from '@/i18n';
 import './globals.css';
 
 const DESCRIPTION =
@@ -39,6 +40,11 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: 'cover',
   themeColor: '#0d1117',
+  // iOS zooms into a field whose text is under 16px when it takes focus and
+  // stays zoomed (the Explorer and Learn searches). The iOS app build caps the
+  // scale; Tauri sets TAURI_ENV_PLATFORM while it runs the export. Alice Web
+  // and the other apps keep the browser's own zoom.
+  ...(process.env.TAURI_ENV_PLATFORM === 'ios' ? { maximumScale: 1 } : {}),
 };
 
 export default function RootLayout({
@@ -47,9 +53,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
+    // `lang` is English in the static export; LanguageProvider sets the app
+    // language on the client before the first paint.
     <html lang="en" className="dark">
       <body className="bg-[var(--alice-bg)]">
-        <ChatProviderWrapper>{children}</ChatProviderWrapper>
+        <LanguageProvider>
+          <ChatProviderWrapper>{children}</ChatProviderWrapper>
+        </LanguageProvider>
       </body>
     </html>
   );

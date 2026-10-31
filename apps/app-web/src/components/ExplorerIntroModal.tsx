@@ -6,6 +6,7 @@ import { SvgIcon } from '@/components/SvgIcon';
 import { CLOSE_ICON } from '@/lib/atelier-icons';
 
 import { useState } from 'react';
+import { useT } from '@/i18n';
 
 // First-open welcome for the Explorer section. Shown every time the section
 // mounts until the user ticks "don't show this again" and confirms; a plain OK
@@ -24,6 +25,7 @@ export function wasIntroDismissed(): boolean {
 }
 
 export function ExplorerIntroModal({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const dialogRef = useExplorerDialog(onClose);
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
@@ -62,27 +64,25 @@ export function ExplorerIntroModal({ onClose }: { onClose: () => void }) {
           color: 'var(--alice-text)',
         }}
       >
-        <div className="flex justify-end"><button type="button" aria-label="Close introduction" onClick={onClose} className="alice-control alice-control--tool"><SvgIcon svg={CLOSE_ICON} size={16} /></button></div>
+        <div className="flex justify-end"><button type="button" aria-label={t('explorer.intro.close')} onClick={onClose} className="alice-control alice-control--tool"><SvgIcon svg={CLOSE_ICON} size={16} /></button></div>
         <h3
           id="explorer-intro-title"
           className="font-pixel tracking-widest m-0"
           style={{ fontSize: 12, lineHeight: 1.8, color: 'var(--alice-text)' }}
         >
-          WELCOME TO EXPLORER
+          {t('explorer.intro.title')}
         </h3>
         <p
           className="font-numbers m-0 mt-3"
           style={{ fontSize: 15, lineHeight: '21px', color: 'var(--alice-muted)' }}
         >
-          Explorer browses the Bitcoin chain with a privacy lens. Search a transaction,
-          an address or a block, follow the coins, and see what the chain quietly reveals.
+          {t('explorer.intro.body')}
         </p>
         <p
           className="font-numbers m-0 mt-2"
           style={{ fontSize: 15, lineHeight: '21px', color: 'var(--alice-muted)' }}
         >
-          Everything here is deterministic, on-chain data. Alice, the AI companion, is
-          strictly optional.
+          {t('explorer.intro.optional')}
         </p>
 
         <div className="flex flex-wrap items-center justify-between gap-3 mt-5">
@@ -94,7 +94,7 @@ export function ExplorerIntroModal({ onClose }: { onClose: () => void }) {
               style={{ width: 14, height: 14, accentColor: 'var(--alice-primary)' }}
             />
             <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>
-              Don&apos;t show this again
+              {t('explorer.intro.dontShow')}
             </span>
           </label>
           <button
@@ -110,7 +110,7 @@ export function ExplorerIntroModal({ onClose }: { onClose: () => void }) {
 
             }}
           >
-            Start exploring
+            {t('explorer.intro.start')}
           </button>
         </div>
       </div>

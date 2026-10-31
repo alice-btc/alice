@@ -6,6 +6,8 @@ import { SvgIcon } from '@/components/SvgIcon';
 import { CLOSE_ICON, CHEVRON_DOWN_ICON, CHECK_ICON, MAIL_ICON, KEY_ICON } from '@/lib/atelier-icons';
 import { useDialogFocus } from '@/components/settings/ui';
 import { useOpenSettings } from '@/lib/settings-url';
+import { useT } from '@/i18n';
+import { sellsPlans } from '@/lib/store-rules';
 
 type Mode = 'create' | 'signin';
 type Flow = 'form' | 'verify-email' | 'choose-username' | 'change-username';
@@ -14,6 +16,7 @@ type Flow = 'form' | 'verify-email' | 'choose-username' | 'change-username';
 const SUFFIX_PANEL_HEIGHT = 102;
 
 export function AccountPasswordDialog() {
+  const t = useT();
   const account = useAccount();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   useDialogFocus(account.signInOpen, dialogRef);
@@ -103,7 +106,7 @@ export function AccountPasswordDialog() {
   // because that is what it now grants: the extra it was sold for, Deep
   // Research, no longer exists to grant.
   const usage = account.cloudUsage;
-  const planLabel = usage?.kind === 'paid' ? 'Private Cloud' : 'Free';
+  const planLabel = usage?.kind === 'paid' ? 'Private Cloud' : t('account.card.free');
   // A bitcoin plan has an end date and no renewal, so the date is not a
   // detail: it is the thing the holder has to act on.
   const renewsOn = usage?.kind === 'paid' && usage.expiresAt
@@ -131,7 +134,7 @@ export function AccountPasswordDialog() {
 
   // Signed out, this dialog is both the sign-in and the sign-up path, so it is
   // named after the destination rather than after one of the two routes to it.
-  const title = 'ALICE ACCOUNT';
+  const title = t('account.title');
 
   return (
     <div
@@ -173,22 +176,21 @@ export function AccountPasswordDialog() {
             </h2>
             <p className="font-numbers m-0 mt-2" style={{ fontSize: 16, lineHeight: '21px', color: 'var(--alice-muted)' }}>
               {account.status === 'signed_in'
-                ? 'Your Alice account is separate from your wallet and recovery phrase.'
+                ? t('account.intro.signedIn')
                 : account.signInReason === 'purchase'
                   // Telling someone their free requests need no account, right
                   // after they asked to buy a plan, answers a question they
                   // did not ask and contradicts the one they did.
-                  ? 'A paid plan needs an account so it can follow you to another device.'
+                  ? t('account.intro.purchase')
                   : account.cloudUsage?.kind === 'free'
-                    ? `${account.cloudUsage.remaining} of your ${account.cloudUsage.limit} free `
-                      + 'Private Cloud requests are left. They work without an account.'
-                    : 'Your 21 free Private Cloud requests also work without an account.'}
+                    ? t('account.intro.freeLeft', { remaining: account.cloudUsage.remaining, limit: account.cloudUsage.limit })
+                    : t('account.intro.free')}
             </p>
           </div>
           <button
             type="button"
             onClick={account.dismissSignIn}
-            aria-label="Close account"
+            aria-label={t('account.close')}
             className="alice-control alice-control--tool shrink-0"
             style={{ color: 'var(--alice-muted)', fontSize: 24, lineHeight: '28px' }}
           >
@@ -199,30 +201,30 @@ export function AccountPasswordDialog() {
         {account.status === 'signed_in' && account.account && flow !== 'choose-username' && flow !== 'change-username' ? (
           <div className="mt-5">
             <dl className="m-0 grid grid-cols-[1fr_auto] gap-x-4 gap-y-3 font-numbers">
-              <dt style={{ color: 'var(--alice-muted)' }}>Username</dt>
+              <dt style={{ color: 'var(--alice-muted)' }}>{t('account.card.username')}</dt>
               <dd className="m-0 max-w-[230px] truncate text-right">{account.account.username}</dd>
-              <dt style={{ color: 'var(--alice-muted)' }}>Email</dt>
-              <dd className="m-0 text-right">{account.account.email_masked ?? 'Not linked'}</dd>
+              <dt style={{ color: 'var(--alice-muted)' }}>{t('account.card.email')}</dt>
+              <dd className="m-0 text-right">{account.account.email_masked ?? t('account.card.notLinked')}</dd>
               {/* Which plan, before how much of it is left. The card used to
                   show only a percentage under the words "Private Cloud",
                   which someone who had just paid for Cloud+ could read
                   without ever seeing that they had it. A number means
                   nothing until you know what it is a number of. */}
-              <dt style={{ color: 'var(--alice-muted)' }}>Plan</dt>
+              <dt style={{ color: 'var(--alice-muted)' }}>{t('account.card.plan')}</dt>
               <dd className="m-0 text-right">{planLabel}</dd>
               <dt style={{ color: 'var(--alice-muted)' }}>
-                {account.cloudUsage?.kind === 'paid' ? 'Allowance used' : 'Free requests'}
+                {account.cloudUsage?.kind === 'paid' ? t('account.card.allowanceUsed') : t('account.card.freeRequests')}
               </dt>
               <dd className="m-0 text-right">
                 {/* Paid plans are metered in bytes server-side, so the exact
                     request counter only exists on the free plan. */}
                 {account.cloudUsage?.kind === 'paid'
-                  ? `${account.cloudUsage.percentUsed}%`
+                  ? t('account.card.percent', { percent: account.cloudUsage.percentUsed })
                   : `${account.account.cloud_requests_remaining} / ${account.account.cloud_requests_limit}`}
               </dd>
               {renewsOn ? (
                 <>
-                  <dt style={{ color: 'var(--alice-muted)' }}>Runs out</dt>
+                  <dt style={{ color: 'var(--alice-muted)' }}>{t('account.card.runsOut')}</dt>
                   <dd className="m-0 text-right">{renewsOn}</dd>
                 </>
               ) : null}
@@ -230,11 +232,11 @@ export function AccountPasswordDialog() {
             {confirmDelete ? (
               <div className="mt-5" style={{ borderTop: '1px solid var(--alice-border)', paddingTop: 16 }}>
                 <p className="font-numbers m-0" style={{ fontSize: 15, lineHeight: '20px' }}>
-                  Delete this Alice account? Your local chats and wallet remain on this device.
+                  {t('account.delete.confirm')}
                 </p>
                 <div className="mt-3 flex gap-2">
-                  <button type="button" className="alice-control alice-control--quiet font-numbers flex-1" disabled={busy} onClick={() => setConfirmDelete(false)}>CANCEL</button>
-                  <button type="button" className="alice-control alice-control--danger font-numbers flex-1" disabled={busy} onClick={() => void run(account.deleteAccount)}>DELETE</button>
+                  <button type="button" className="alice-control alice-control--quiet font-numbers flex-1" disabled={busy} onClick={() => setConfirmDelete(false)}>{t('account.cancelCaps')}</button>
+                  <button type="button" className="alice-control alice-control--danger font-numbers flex-1" disabled={busy} onClick={() => void run(account.deleteAccount)}>{t('account.delete.confirmButton')}</button>
                 </div>
               </div>
             ) : (
@@ -243,8 +245,9 @@ export function AccountPasswordDialog() {
                     tell someone their plan was running out and offer them no
                     way to do anything about it. The purchase itself stays in
                     one place; this is a door to it, next to the line that
-                    prompts the question. */}
-                <button
+                    prompts the question. The phone apps have no door
+                    (store-rules.ts). */}
+                {sellsPlans() && <button
                   type="button"
                   className="alice-control alice-control--primary font-numbers w-full"
                   disabled={busy}
@@ -257,8 +260,8 @@ export function AccountPasswordDialog() {
                       a button must not promise more than the screen behind
                       it sells, and today that screen sells plans and months,
                       not credit. */}
-                  UPGRADE PLAN
-                </button>
+                  {t('account.upgrade')}
+                </button>}
                 <button
                   type="button"
                   className="alice-control alice-control--quiet font-numbers mt-2 w-full"
@@ -272,11 +275,11 @@ export function AccountPasswordDialog() {
                     setFlow('change-username');
                   }}
                 >
-                  CHANGE USERNAME
+                  {t('account.changeUsername')}
                 </button>
-                <button type="button" className="alice-control alice-control--quiet font-numbers mt-2 w-full" disabled={busy} onClick={() => void run(account.logout)}>Sign out</button>
+                <button type="button" className="alice-control alice-control--quiet font-numbers mt-2 w-full" disabled={busy} onClick={() => void run(account.logout)}>{t('account.signOut')}</button>
                 <div className="mt-5 pt-4" style={{ borderTop: '1px solid var(--alice-border)' }}>
-                  <button type="button" className="alice-control alice-control--danger font-numbers w-full" disabled={busy} onClick={() => setConfirmDelete(true)}>Delete account</button>
+                  <button type="button" className="alice-control alice-control--danger font-numbers w-full" disabled={busy} onClick={() => setConfirmDelete(true)}>{t('account.delete.button')}</button>
                 </div>
               </div>
             )}
@@ -306,7 +309,7 @@ export function AccountPasswordDialog() {
               });
             }}
           >
-            <label className="font-numbers block" htmlFor="account-username-prefix">Username</label>
+            <label className="font-numbers block" htmlFor="account-username-prefix">{t('account.username.label')}</label>
             <>
                 {/* The username, laid out as it reads, left to right: the name
                     that was typed, the middle word to pick from a scrolling
@@ -316,13 +319,13 @@ export function AccountPasswordDialog() {
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <input
                     id="account-username-prefix"
-                    aria-label="Username name part"
+                    aria-label={t('account.username.namePart')}
                     autoFocus
                     autoComplete="username"
                     value={prefix}
                     onChange={event => setPrefix(event.target.value)}
                     className="alice-field font-numbers w-full min-w-0 flex-1"
-                    placeholder="Your name"
+                    placeholder={t('account.username.namePlaceholder')}
                   />
                   <span className="font-numbers shrink-0" style={{ fontSize: 18, color: 'var(--alice-muted)' }}>.</span>
                   <div className="relative shrink-0" style={{ width: 168 }}>
@@ -330,7 +333,7 @@ export function AccountPasswordDialog() {
                       type="button"
                       aria-haspopup="listbox"
                       aria-expanded={suffixOpen}
-                      aria-label="Middle word"
+                      aria-label={t('account.username.middleWord')}
                       disabled={!suffixes.length}
                       onClick={() => setSuffixOpen(open => !open)}
                       className="alice-control alice-control--option flex w-full items-center justify-between gap-2 text-left font-numbers"
@@ -351,7 +354,7 @@ export function AccountPasswordDialog() {
                     {suffixOpen && suffixes.length ? (
                       <div
                         role="listbox"
-                        aria-label="Middle word"
+                        aria-label={t('account.username.middleWord')}
                         // Opened on the word already chosen rather than at the
                         // top of the list: three rows is not enough to find
                         // your own place in fifteen.
@@ -396,7 +399,7 @@ export function AccountPasswordDialog() {
                   <span className="font-numbers shrink-0" style={{ fontSize: 18, color: 'var(--alice-muted)' }}>#</span>
                   <span
                     className="font-numbers shrink-0"
-                    aria-label="Your number, already assigned"
+                    aria-label={t('account.username.number')}
                     style={{ fontSize: 18, color: digits ? 'var(--alice-primary-dark)' : 'var(--alice-muted)' }}
                   >
                     {digits ?? '····'}
@@ -404,25 +407,25 @@ export function AccountPasswordDialog() {
                 </div>
                 {chosenUsername ? (
                   <p className="font-numbers m-0 mt-2" style={{ fontSize: 15, color: 'var(--alice-muted)' }}>
-                    Your username: {' '}
+                    {t('account.username.yours')}{' '}
                     <span style={{ color: 'var(--alice-primary-dark)' }}>{chosenUsername.username}</span>
                   </p>
                 ) : null}
               </>
             {flow === 'choose-username' ? (
-              <label className="alice-field-label mt-3">Password · 15+ characters
+              <label className="alice-field-label mt-3">{t('account.password.newLabel')}
               <input
                 type="password"
                 autoComplete="new-password"
                 value={password}
                 onChange={event => setPassword(event.target.value)}
                 className="alice-field font-numbers w-full mt-2"
-                placeholder="Password, 15+ characters"
+                placeholder={t('account.password.newPlaceholder')}
               />
               </label>
             ) : (
               <p className="font-numbers m-0 mt-3" style={{ color: 'var(--alice-muted)', fontSize: 14 }}>
-                A username can be changed once every 30 days.
+                {t('account.username.changeLimit')}
               </p>
             )}
             <button
@@ -430,11 +433,11 @@ export function AccountPasswordDialog() {
               className="alice-control alice-control--primary font-numbers mt-3 w-full"
               disabled={busy || !chosenUsername || (flow === 'choose-username' && password.length < 15)}
             >
-              {flow === 'change-username' ? 'SAVE USERNAME' : 'CREATE ACCOUNT'}
+              {flow === 'change-username' ? t('account.username.save') : t('account.create')}
             </button>
             {flow === 'change-username' ? (
               <button type="button" className="alice-control alice-control--quiet font-numbers mt-2 w-full" disabled={busy} onClick={() => setFlow('form')}>
-                CANCEL
+                {t('account.cancelCaps')}
               </button>
             ) : null}
           </form>
@@ -453,7 +456,7 @@ export function AccountPasswordDialog() {
               void run(() => (mode === 'signin' ? account.verifyCode(code, resetPassword) : account.verifyEmailSignup(code)));
             }}
           >
-            <label className="font-numbers block" htmlFor="account-email-code">Verification code sent to {account.pendingEmail}</label>
+            <label className="font-numbers block" htmlFor="account-email-code">{t('account.verify.codeSentTo', { email: account.pendingEmail ?? '' })}</label>
             <input
               id="account-email-code"
               aria-invalid={Boolean(account.error)}
@@ -468,14 +471,14 @@ export function AccountPasswordDialog() {
               placeholder="000000"
             />
             {mode === 'signin' ? (
-              <label className="alice-field-label mt-3">New password · 15+ characters
+              <label className="alice-field-label mt-3">{t('account.password.resetLabel')}
               <input
                 type="password"
                 autoComplete="new-password"
                 value={resetPassword}
                 onChange={event => setResetPassword(event.target.value)}
                 className="alice-field font-numbers w-full mt-2"
-                placeholder="New password, 15+ characters"
+                placeholder={t('account.password.resetPlaceholder')}
               />
               </label>
             ) : null}
@@ -484,19 +487,19 @@ export function AccountPasswordDialog() {
               className="alice-control alice-control--primary font-numbers mt-3 w-full"
               disabled={busy || code.length !== 6 || (mode === 'signin' && resetPassword.length < 15)}
             >
-              {mode === 'signin' ? 'RESET AND SIGN IN' : 'VERIFY EMAIL'}
+              {mode === 'signin' ? t('account.verify.resetAndSignIn') : t('account.verify.email')}
             </button>
           </form>
         ) : (
           <div className="mt-5">
-            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Account access">
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label={t('account.access')}>
               <button
                 type="button"
                 className="alice-control alice-control--choice font-numbers"
                 aria-pressed={mode === 'create'}
                 onClick={() => { setMode('create'); account.clearError(); }}
               >
-                CREATE ACCOUNT
+                {t('account.create')}
               </button>
               <button
                 type="button"
@@ -510,7 +513,7 @@ export function AccountPasswordDialog() {
                   account.clearError();
                 }}
               >
-                SIGN IN
+                {t('account.signInCaps')}
               </button>
             </div>
             {mode === 'create' ? (
@@ -525,9 +528,9 @@ export function AccountPasswordDialog() {
                   });
                 }}
               >
-                <label htmlFor="account-email" className="alice-field-label">Email address</label>
-                <input id="account-email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} className="alice-field font-numbers w-full" placeholder="you@example.com" />
-                <button type="submit" className="alice-control alice-control--primary font-numbers mt-3 w-full" disabled={busy || !email.trim()}><SvgIcon svg={MAIL_ICON} size={20} color="currentColor" /> Receive a code</button>
+                <label htmlFor="account-email" className="alice-field-label">{t('account.email.label')}</label>
+                <input id="account-email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} className="alice-field font-numbers w-full" placeholder={t('account.email.placeholder')} />
+                <button type="submit" className="alice-control alice-control--primary font-numbers mt-3 w-full" disabled={busy || !email.trim()}><SvgIcon svg={MAIL_ICON} size={20} color="currentColor" /> {t('account.email.receiveCode')}</button>
               </form>
             ) : usePassword ? (
               <form
@@ -537,13 +540,13 @@ export function AccountPasswordDialog() {
                   if (identifier.trim() && password.length >= 15) void run(() => account.signInWithPassword(identifier, password));
                 }}
               >
-                <label htmlFor="account-identifier" className="alice-field-label">Email or username</label>
-                <input id="account-identifier" autoComplete="username" value={identifier} onChange={event => setIdentifier(event.target.value)} className="alice-field font-numbers w-full" placeholder="Email or username" />
-                <label htmlFor="account-password" className="alice-field-label mt-3">Password</label>
-                <input id="account-password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} className="alice-field font-numbers w-full mt-2" placeholder="Password" />
-                <button type="submit" className="alice-control alice-control--primary font-numbers mt-3 w-full" disabled={busy || !identifier.trim() || password.length < 15}><SvgIcon svg={KEY_ICON} size={20} color="currentColor" /> Sign in</button>
+                <label htmlFor="account-identifier" className="alice-field-label">{t('account.identifier.label')}</label>
+                <input id="account-identifier" autoComplete="username" value={identifier} onChange={event => setIdentifier(event.target.value)} className="alice-field font-numbers w-full" placeholder={t('account.identifier.label')} />
+                <label htmlFor="account-password" className="alice-field-label mt-3">{t('account.password.label')}</label>
+                <input id="account-password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} className="alice-field font-numbers w-full mt-2" placeholder={t('account.password.label')} />
+                <button type="submit" className="alice-control alice-control--primary font-numbers mt-3 w-full" disabled={busy || !identifier.trim() || password.length < 15}><SvgIcon svg={KEY_ICON} size={20} color="currentColor" /> {t('account.signIn')}</button>
                 <button type="button" className="alice-control alice-control--quiet font-numbers mt-2 w-full" disabled={busy} onClick={() => { setUsePassword(false); account.clearError(); }}>
-                  FORGOT PASSWORD? RESET BY EMAIL
+                  {t('account.password.forgot')}
                 </button>
               </form>
             ) : (
@@ -562,16 +565,16 @@ export function AccountPasswordDialog() {
                   });
                 }}
               >
-                <label htmlFor="account-email" className="alice-field-label">Email address</label>
-                <input id="account-email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} className="alice-field font-numbers w-full" placeholder="you@example.com" />
-                <button type="submit" className="alice-control alice-control--primary font-numbers mt-3 w-full" disabled={busy || !email.trim()}><SvgIcon svg={MAIL_ICON} size={20} color="currentColor" /> Email me a reset code</button>
+                <label htmlFor="account-email" className="alice-field-label">{t('account.email.label')}</label>
+                <input id="account-email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} className="alice-field font-numbers w-full" placeholder={t('account.email.placeholder')} />
+                <button type="submit" className="alice-control alice-control--primary font-numbers mt-3 w-full" disabled={busy || !email.trim()}><SvgIcon svg={MAIL_ICON} size={20} color="currentColor" /> {t('account.email.resetCode')}</button>
                 <button type="button" className="alice-control alice-control--quiet font-numbers mt-2 w-full" disabled={busy} onClick={() => { setUsePassword(true); account.clearError(); }}>
-                  BACK TO PASSWORD
+                  {t('account.password.back')}
                 </button>
               </form>
             )}
             <button type="button" className="alice-control alice-control--quiet mt-4 w-full font-numbers" style={{ color: 'var(--alice-muted)', fontSize: 14 }} onClick={account.dismissSignIn} disabled={busy}>
-              {account.signInReason === 'purchase' ? 'CANCEL' : 'CONTINUE WITHOUT AN ACCOUNT'}
+              {account.signInReason === 'purchase' ? t('account.cancelCaps') : t('account.continueWithout')}
             </button>
           </div>
         )}

@@ -65,3 +65,9 @@ test('native prompt retains its original stronger sensitive-wallet nondisclosure
   assert.match(r.buildAliceLocalSystemPrompt('', 'en'), /Never ask for or expose a seed phrase, private key, balance, address history, or other sensitive wallet data/);
   assert.match(r.buildAliceLocalSystemPrompt('', 'fr'), /Ne demande et n'expose jamais une seed phrase, une clé privée, un solde, un historique d'adresses ou toute autre donnée sensible/);
 });
+
+test('the condensed French persona speaks to the user as tu, like the full one', async () => {
+  const r = await prompts();
+  assert.match(r.buildAliceLocalSystemPrompt('', 'fr'), /Tutoie l'utilisateur/);
+  assert.match(r.buildAliceSystemPrompt('', 'fr'), /Tutoie l'utilisateur/);
+});

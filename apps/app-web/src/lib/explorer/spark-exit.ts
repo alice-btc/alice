@@ -11,6 +11,7 @@
 // transaction (the exit to the owner), timelock.
 
 import { isAnchorOutput, parseRawTx, sequenceBlocks, SparkError, type SparkLeaf, type SparkLeafStatus } from './spark.ts';
+import { t as tr } from '../../i18n/translate.ts';
 
 export type SparkExitOutput = { amountSats: number; ours: boolean };
 
@@ -54,28 +55,28 @@ export type SparkExitPath = {
 export function buildSparkExitPath(nodes: readonly SparkLeaf[], leafId: string): SparkExitPath {
   const byId = new Map(nodes.map(n => [n.id, n]));
   const leaf = byId.get(leafId);
-  if (!leaf) throw new SparkError('The operator does not know this leaf.');
+  if (!leaf) throw new SparkError(tr('explorerSpark.error.unknownLeaf'));
   // Leaf up to the root, then reversed.
   const chain: SparkLeaf[] = [];
   const seen = new Set<string>();
   for (let cur: SparkLeaf | undefined = leaf; cur; cur = cur.parentId ? byId.get(cur.parentId) : undefined) {
-    if (seen.has(cur.id)) throw new SparkError('This leaf’s tree loops on itself.');
+    if (seen.has(cur.id)) throw new SparkError(tr('explorerSpark.error.loop'));
     seen.add(cur.id);
     chain.push(cur);
-    if (cur.parentId && !byId.has(cur.parentId)) throw new SparkError(`The operator did not serve the whole tree (node ${cur.parentId.slice(0, 8)}… is missing).`);
+    if (cur.parentId && !byId.has(cur.parentId)) throw new SparkError(tr('explorerSpark.error.partialTree', { node: cur.parentId.slice(0, 8) }));
   }
   chain.reverse();
   const steps: SparkExitStep[] = [];
   for (let i = 0; i < chain.length; i++) {
     const node = chain[i];
-    if (node.nodeTx.length === 0) throw new SparkError(`Node ${node.id.slice(0, 8)}… carries no transaction.`);
+    if (node.nodeTx.length === 0) throw new SparkError(tr('explorerSpark.error.noNodeTx', { node: node.id.slice(0, 8) }));
     const tx = parseRawTx(node.nodeTx);
     const outs = tx.outputs.map((o, index) => ({ ...o, index })).filter(o => !isAnchorOutput(o));
     // The child's `vout` names the output it spends; the leaf's own transaction
     // has one real output, the coin.
     const ourVout = i + 1 < chain.length ? chain[i + 1].vout : 0;
     const ourIndex = outs.findIndex(o => o.index === ourVout);
-    if (ourIndex < 0) throw new SparkError(`Node ${node.id.slice(0, 8)}… has no output leading to this leaf.`);
+    if (ourIndex < 0) throw new SparkError(tr('explorerSpark.error.noNodeOutput', { node: node.id.slice(0, 8) }));
     steps.push({
       nodeId: node.id,
       txid: tx.txid,
@@ -89,8 +90,8 @@ export function buildSparkExitPath(nodes: readonly SparkLeaf[], leafId: string):
   }
   const rootTx = parseRawTx(chain[0].nodeTx);
   const deposit = rootTx.inputs[0];
-  if (!deposit) throw new SparkError('The root transaction spends nothing.');
-  if (leaf.refundTx.length === 0) throw new SparkError('This leaf carries no refund transaction.');
+  if (!deposit) throw new SparkError(tr('explorerSpark.error.rootSpendsNothing'));
+  if (leaf.refundTx.length === 0) throw new SparkError(tr('explorerSpark.error.noRefund'));
   const refundTx = parseRawTx(leaf.refundTx);
   const refundOut = refundTx.outputs.find(o => !isAnchorOutput(o)) ?? refundTx.outputs[0];
   const refund = {

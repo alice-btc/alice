@@ -769,6 +769,7 @@ function readReason(body: Record<string, unknown>): string {
 export async function adminSuspendAccount(request: Request, env: Env, idOrUsername: string) {
   const admin = await requireAdmin(request, env, 'admin');
   const body = await parseJsonBody(request);
+  await requireRecentPassword(request, env, admin, body);
   const reason = readReason(body);
   const userId = await resolveAccountId(env, idOrUsername);
   const now = Date.now();
@@ -789,6 +790,7 @@ export async function adminSuspendAccount(request: Request, env: Env, idOrUserna
 export async function adminReactivateAccount(request: Request, env: Env, idOrUsername: string) {
   const admin = await requireAdmin(request, env, 'admin');
   const body = await parseJsonBody(request);
+  await requireRecentPassword(request, env, admin, body);
   const reason = readReason(body);
   const userId = await resolveAccountId(env, idOrUsername);
   await env.ACCOUNT_DB.prepare(`
@@ -803,6 +805,7 @@ export async function adminReactivateAccount(request: Request, env: Env, idOrUse
 export async function adminAdjustCredits(request: Request, env: Env, idOrUsername: string) {
   const admin = await requireAdmin(request, env, 'admin');
   const body = await parseJsonBody(request);
+  await requireRecentPassword(request, env, admin, body);
   const reason = readReason(body);
   const delta = Number(body.delta);
   if (
@@ -869,6 +872,11 @@ export async function adminDeleteAccount(request: Request, env: Env, idOrUsernam
   // enforced for this connection — correct regardless of D1's per-connection
   // foreign_keys pragma state.
   await env.ACCOUNT_DB.batch([
+    env.ACCOUNT_DB.prepare('DELETE FROM billing_reminders WHERE user_id = ?').bind(userId),
+    env.ACCOUNT_DB.prepare('DELETE FROM invoices WHERE user_id = ?').bind(userId),
+    env.ACCOUNT_DB.prepare('DELETE FROM billing_contacts WHERE user_id = ?').bind(userId),
+    env.ACCOUNT_DB.prepare('DELETE FROM account_emails WHERE user_id = ?').bind(userId),
+    env.ACCOUNT_DB.prepare('DELETE FROM auth_challenges WHERE user_id = ?').bind(userId),
     env.ACCOUNT_DB.prepare('DELETE FROM promo_redemptions WHERE user_id = ?').bind(userId),
     env.ACCOUNT_DB.prepare('DELETE FROM admin_users WHERE user_id = ?').bind(userId),
     env.ACCOUNT_DB.prepare('DELETE FROM cloud_request_ledger WHERE user_id = ?').bind(userId),
@@ -1236,18 +1244,265 @@ export async function redeemPromoCode(request: Request, env: Env) {
     throw new AccountHttpError(409, 'promo_already_redeemed', 'You already redeemed this promo code.');
   }
 
-  await env.ACCOUNT_DB.batch([
-    env.ACCOUNT_DB.prepare(`
-      UPDATE promo_codes
-      SET redemptions_count = redemptions_count + 1
-      WHERE code = ? AND redemptions_count < max_redemptions
-    `).bind(code),
-    env.ACCOUNT_DB.prepare(`
-      UPDATE entitlements
-      SET free_cloud_requests_limit = free_cloud_requests_limit + ?, updated_at = ?
-      WHERE user_id = ?
-    `).bind(promo.credits, now, userId),
-  ]);
+  // The read above can be stale: two accounts can both see the last slot
+  // free. The guarded increment is the real check, so the credits wait for
+  // it, and the loser gives its redemption row back.
+  const counted = await env.ACCOUNT_DB.prepare(`
+    UPDATE promo_codes
+    SET redemptions_count = redemptions_count + 1
+    WHERE code = ? AND redemptions_count < max_redemptions
+  `).bind(code).run();
+  if ((counted.meta.changes ?? 0) !== 1) {
+    await env.ACCOUNT_DB.prepare(`
+      DELETE FROM promo_redemptions WHERE code = ? AND user_id = ?
+    `).bind(code, userId).run();
+    throw new AccountHttpError(400, 'invalid_promo_code', 'This promo code is not valid.');
+  }
+  await env.ACCOUNT_DB.prepare(`
+    UPDATE entitlements
+    SET free_cloud_requests_limit = free_cloud_requests_limit + ?, updated_at = ?
+    WHERE user_id = ?
+  `).bind(promo.credits, now, userId).run();
 
   return { account: await getAccountSnapshot(env, userId) };
+}
+
+const HOUR_MS = 60 * 60 * 1_000;
+
+/** Like densify, by the hour: every hour of the window, quiet ones as 0. */
+function densifyHours(
+  rows: Array<{ hour: number; count: number }>,
+  hours: number,
+  currentHour: number,
+): Array<{ hour: number; count: number }> {
+  const byHour = new Map(rows.map(row => [row.hour, row.count]));
+  const out: Array<{ hour: number; count: number }> = [];
+  for (let offset = hours - 1; offset >= 0; offset -= 1) {
+    const hour = currentHour - offset;
+    out.push({ hour, count: byHour.get(hour) ?? 0 });
+  }
+  return out;
+}
+
+/**
+ * The launch-day pulse: the last 24 hours against the 24 before, and an
+ * hourly curve over 48 hours. Rolling windows rather than calendar days, so
+ * the comparison is as fair at 9 in the morning as it is at midnight.
+ *
+ * Same aggregates as the overview, nothing per person. Product events are
+ * stored by day only, so they compare today and yesterday in UTC instead.
+ */
+export async function adminLaunch(request: Request, env: Env) {
+  await requireAdmin(request, env);
+  const now = Date.now();
+  const mid = now - 24 * HOUR_MS;
+  const start = now - 48 * HOUR_MS;
+  const today = Math.floor(now / DAY_MS);
+  const currentHour = Math.floor(now / HOUR_MS);
+
+  const [counts, events, requestSeries, installSeries] = await Promise.all([
+    env.ACCOUNT_DB.prepare(`
+      SELECT
+        (SELECT COUNT(*) FROM installations WHERE first_seen_at > ?) AS installs_now,
+        (SELECT COUNT(*) FROM installations
+          WHERE first_seen_at > ? AND first_seen_at <= ?) AS installs_before,
+        (SELECT COUNT(*) FROM installations WHERE last_seen_at > ?) AS active_now,
+        (SELECT COUNT(*) FROM (
+          SELECT MIN(created_at) AS first_at FROM user_identities GROUP BY user_id
+        ) WHERE first_at > ?) AS accounts_now,
+        (SELECT COUNT(*) FROM (
+          SELECT MIN(created_at) AS first_at FROM user_identities GROUP BY user_id
+        ) WHERE first_at > ? AND first_at <= ?) AS accounts_before,
+        (SELECT COUNT(*) FROM cloud_request_ledger
+          WHERE status = 'confirmed' AND created_at > ?) AS requests_now,
+        (SELECT COUNT(*) FROM cloud_request_ledger
+          WHERE status = 'confirmed' AND created_at > ? AND created_at <= ?) AS requests_before,
+        (SELECT COUNT(*) FROM technical_events WHERE created_at > ?) AS errors_now,
+        (SELECT COUNT(*) FROM technical_events
+          WHERE created_at > ? AND created_at <= ?) AS errors_before
+    `).bind(
+      mid,
+      start, mid,
+      mid,
+      mid,
+      start, mid,
+      mid,
+      start, mid,
+      mid,
+      start, mid,
+    ).first<Record<string, number>>(),
+
+    env.ACCOUNT_DB.prepare(`
+      SELECT
+        event_name,
+        SUM(CASE WHEN day = ? THEN count ELSE 0 END) AS today,
+        SUM(CASE WHEN day = ? THEN count ELSE 0 END) AS yesterday
+      FROM events_daily
+      WHERE day >= ?
+      GROUP BY event_name
+      ORDER BY today DESC, yesterday DESC
+    `).bind(today, today - 1, today - 1)
+      .all<{ event_name: string; today: number; yesterday: number }>(),
+
+    // Literal divisor with a CAST: a bound divisor reaches SQLite as a real
+    // and turns this into a float division that matches no hour.
+    env.ACCOUNT_DB.prepare(`
+      SELECT CAST(created_at / 3600000 AS INTEGER) AS hour, COUNT(*) AS count
+      FROM cloud_request_ledger
+      WHERE status = 'confirmed' AND created_at > ?
+      GROUP BY hour ORDER BY hour ASC
+    `).bind(start).all<{ hour: number; count: number }>(),
+
+    env.ACCOUNT_DB.prepare(`
+      SELECT CAST(first_seen_at / 3600000 AS INTEGER) AS hour, COUNT(*) AS count
+      FROM installations
+      WHERE first_seen_at > ?
+      GROUP BY hour ORDER BY hour ASC
+    `).bind(start).all<{ hour: number; count: number }>(),
+  ]);
+
+  const pair = (key: string) => ({
+    last_24h: counts?.[`${key}_now`] ?? 0,
+    previous_24h: counts?.[`${key}_before`] ?? 0,
+  });
+
+  return {
+    generated_at: now,
+    installations: pair('installs'),
+    accounts: pair('accounts'),
+    requests: pair('requests'),
+    errors: pair('errors'),
+    // Only "now" exists: last_seen_at is overwritten on every visit, so how
+    // many were active the day before is not something the table remembers.
+    active_installations_24h: counts?.active_now ?? 0,
+    events: events.results ?? [],
+    series: {
+      requests: densifyHours(requestSeries.results ?? [], 48, currentHour),
+      installations: densifyHours(installSeries.results ?? [], 48, currentHour),
+    },
+  };
+}
+
+const CLOUDFLARE_API = 'https://api.cloudflare.com/client/v4';
+const SITE_ANALYTICS_HOST_DEFAULT = 'alicebtc.com';
+
+type SiteAnalyticsRow = {
+  count: number;
+  sum: { visits: number };
+  dimensions: Record<string, string>;
+};
+
+async function cloudflareJson(env: Env, path: string, init: RequestInit = {}) {
+  const res = await fetch(`${CLOUDFLARE_API}${path}`, {
+    ...init,
+    headers: {
+      authorization: `Bearer ${env.CF_ANALYTICS_API_TOKEN?.trim()}`,
+      'content-type': 'application/json',
+      ...(init.headers ?? {}),
+    },
+  });
+  const body = await res.json().catch(() => null) as Record<string, unknown> | null;
+  if (!res.ok || !body) {
+    // Cloudflare says why in the body (a missing permission, a wrong
+    // account); that sentence is what the operator needs to fix the token.
+    const reasons = (body?.errors as Array<{ message?: string }> | undefined)
+      ?.map(error => error.message).filter(Boolean).join('; ');
+    throw new Error(`Cloudflare answered ${res.status}${reasons ? `: ${reasons}` : ''}`);
+  }
+  return body;
+}
+
+/**
+ * The site's own Web Analytics tag. Taken from CF_WEB_ANALYTICS_SITE_TAG when
+ * set; otherwise looked up among the account's Web Analytics sites by host,
+ * so the operator only has to create one token.
+ */
+async function siteAnalyticsTag(env: Env): Promise<string> {
+  const configured = env.CF_WEB_ANALYTICS_SITE_TAG?.trim();
+  if (configured) return configured;
+  const host = env.CF_WEB_ANALYTICS_HOST?.trim() || SITE_ANALYTICS_HOST_DEFAULT;
+  const body = await cloudflareJson(
+    env,
+    `/accounts/${encodeURIComponent(env.CF_ACCOUNT_ID!.trim())}/rum/site_info/list?per_page=100`,
+  );
+  const sites = (body.result ?? []) as Array<{ site_tag?: string; host?: string }>;
+  // Exact host only: falling back to the account's only site would show
+  // another site's visits under Alice's name without a word.
+  const match = sites.find(site => site.host === host);
+  if (!match?.site_tag) {
+    throw new Error(
+      `No Web Analytics site for ${host}. Set CF_WEB_ANALYTICS_SITE_TAG in .dev.vars.`,
+    );
+  }
+  return match.site_tag;
+}
+
+/**
+ * Site visits, read from Cloudflare Web Analytics: the cookie-free beacon the
+ * site already loads, so this adds no collection, it only brings the numbers
+ * Cloudflare already has into the console.
+ *
+ * Needs a read-only API token (Account Analytics: Read) and the account id in
+ * .dev.vars, which only the local console reads. Without them the card says
+ * how to set it up instead of failing.
+ */
+export async function adminSiteAnalytics(request: Request, env: Env) {
+  await requireAdmin(request, env);
+  const missing = (['CF_ANALYTICS_API_TOKEN', 'CF_ACCOUNT_ID'] as const)
+    .filter(name => !env[name]?.trim());
+  if (missing.length > 0) return { configured: false, missing };
+
+  try {
+    const siteTag = await siteAnalyticsTag(env);
+    const now = Date.now();
+    const until = new Date(now).toISOString();
+    const since30 = new Date(now - 30 * DAY_MS).toISOString();
+    const since7 = new Date(now - 7 * DAY_MS).toISOString();
+    const group = (alias: string, since: string, dimension: string, order: string, limit: number) => `
+      ${alias}: rumPageloadEventsAdaptiveGroups(
+        limit: ${limit}
+        filter: { AND: [
+          { datetime_geq: "${since}" }, { datetime_leq: "${until}" }, { siteTag: $site }
+        ] }
+        orderBy: [${order}]
+      ) { count sum { visits } dimensions { ${dimension} } }`;
+    const query = `query ($account: String!, $site: String!) {
+      viewer { accounts(filter: { accountTag: $account }) {
+        ${group('daily', since30, 'date', 'date_ASC', 40)}
+        ${group('paths', since7, 'requestPath', 'count_DESC', 15)}
+        ${group('countries', since7, 'countryName', 'count_DESC', 15)}
+        ${group('referers', since7, 'refererHost', 'count_DESC', 15)}
+      } }
+    }`;
+    const body = await cloudflareJson(env, '/graphql', {
+      method: 'POST',
+      body: JSON.stringify({
+        query,
+        variables: { account: env.CF_ACCOUNT_ID!.trim(), site: siteTag },
+      }),
+    });
+    const errors = body.errors as Array<{ message?: string }> | null | undefined;
+    if (errors && errors.length > 0) {
+      throw new Error(errors.map(error => error.message ?? 'unknown error').join('; '));
+    }
+    const account = ((body.data as { viewer?: { accounts?: unknown[] } } | undefined)
+      ?.viewer?.accounts?.[0] ?? {}) as Record<string, SiteAnalyticsRow[] | undefined>;
+    const rows = (key: string, dimension: string) => (account[key] ?? []).map(row => ({
+      key: row.dimensions?.[dimension] ?? '',
+      visits: row.sum?.visits ?? 0,
+      page_views: row.count ?? 0,
+    }));
+    return {
+      configured: true,
+      daily: rows('daily', 'date'),
+      top_paths_7d: rows('paths', 'requestPath'),
+      countries_7d: rows('countries', 'countryName'),
+      referers_7d: rows('referers', 'refererHost'),
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      error: error instanceof Error ? error.message : 'Cloudflare request failed',
+    };
+  }
 }

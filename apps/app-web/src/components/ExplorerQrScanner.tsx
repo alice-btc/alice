@@ -6,6 +6,7 @@ import { SvgIcon } from '@/components/SvgIcon';
 import { CLOSE_ICON } from '@/lib/atelier-icons';
 
 import { useEffect, useRef, useState } from 'react';
+import { useT, type MessageKey } from '@/i18n';
 
 // A minimal shape for the native BarcodeDetector, which is not in the TS DOM
 // lib. We use only QR decoding; everything else is left untyped on purpose.
@@ -51,9 +52,10 @@ export function ExplorerQrScanner({
   onResult: (text: string) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const dialogRef = useExplorerDialog(onClose);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<MessageKey | ''>('');
   const supported = qrDecodingSupported();
 
   // The result handler is held in a ref rather than being an effect
@@ -66,7 +68,7 @@ export function ExplorerQrScanner({
   useEffect(() => { onResultRef.current = onResult; }, [onResult]);
 
   useEffect(() => {
-    if (!supported) { setError('This browser cannot scan QR codes. Import a file or paste instead.'); return; }
+    if (!supported) { setError('explorer.qr.unsupported'); return; }
     let stream: MediaStream | null = null;
     let raf = 0;
     let stopped = false;
@@ -77,7 +79,7 @@ export function ExplorerQrScanner({
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       } catch {
-        if (!stopped) setError('Camera access was denied or is unavailable.');
+        if (!stopped) setError('explorer.qr.cameraDenied');
         return;
       }
       const video = videoRef.current;
@@ -134,9 +136,9 @@ export function ExplorerQrScanner({
         aria-labelledby="explorer-qr-title"
         onClick={e => e.stopPropagation()}
       >
-        <span id="explorer-qr-title" className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-primary)' }}>SCAN A QR CODE</span>
+        <span id="explorer-qr-title" className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-primary)' }}>{t('explorer.qr.title')}</span>
         {error ? (
-          <p className="font-numbers m-0" style={{ fontSize: 13, color: 'var(--alice-danger)' }}>{error}</p>
+          <p className="font-numbers m-0" style={{ fontSize: 13, color: 'var(--alice-danger)' }}>{t(error)}</p>
         ) : (
           <div style={{ position: 'relative', width: '100%', aspectRatio: '1 / 1', overflow: 'hidden', borderRadius: 'var(--alice-radius-control)', backgroundColor: '#000' }}>
             <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -144,7 +146,7 @@ export function ExplorerQrScanner({
           </div>
         )}
         <p className="font-numbers m-0" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>
-          Point the camera at an xpub, descriptor or address QR. Nothing leaves this device.
+          {t('explorer.qr.hint')}
         </p>
         <button
           type="button"
@@ -153,7 +155,7 @@ export function ExplorerQrScanner({
           className="alice-control alice-control--quiet font-numbers self-start cursor-pointer"
           style={{ fontSize: 13, padding: '8px 16px', borderRadius: 'var(--alice-radius-control)', color: 'var(--alice-primary)' }}
         >
-          <SvgIcon svg={CLOSE_ICON} size={16} /> Cancel
+          <SvgIcon svg={CLOSE_ICON} size={16} /> {t('common.cancel')}
         </button>
       </div>
     </div>

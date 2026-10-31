@@ -1,5 +1,5 @@
 import type { AIBackend, AIBackendStatus, AIResponse, SendMessageOptions } from './ai-backend';
-import { sendMessage, usesE2EE, type Message } from './llm';
+import { sendMessage, type Message } from './llm';
 import { resolveVeniceTransport } from './venice-transport.ts';
 import { getPreset, CLOUD_PRESETS, getActiveCloudModelId, getCloudVeniceId, getAliceInstructions } from './ai-preferences';
 import {
@@ -17,25 +17,12 @@ import {
 export class CloudAIBackend implements AIBackend {
   readonly type = 'cloud' as const;
   private _status: AIBackendStatus = { state: 'idle' };
-  private _e2ee = false;
-
-  /**
-   * E2EE drops assistant history (Venice does not encrypt those turns), so a
-   * continuation would have nothing to extend and would re-send prior replies
-   * in clear. Refuse it rather than silently weaken the mode.
-   */
-  get allowsAutoContinuation(): boolean {
-    return !this._e2ee;
-  }
 
   async init(): Promise<void> {
     if (!PRIVATE_CLOUD_ENABLED) {
       this._status = { state: 'error', message: PRIVATE_CLOUD_DISABLED_MESSAGE };
       return;
     }
-
-    const cloudModelId = await getActiveCloudModelId();
-    this._e2ee = usesE2EE(getCloudVeniceId(cloudModelId));
 
     try {
       const proxyUrl = process.env.EXPO_PUBLIC_VENICE_PROXY_URL ?? '';
@@ -77,8 +64,6 @@ export class CloudAIBackend implements AIBackend {
     const shouldBuffer = requiresBufferedAliceResponse(instructions);
     const responseLanguage = options?.responseLanguage ?? 'en';
     const model = getCloudVeniceId(cloudModelId);
-    // Decides whether continuation is allowed for this answer.
-    this._e2ee = usesE2EE(model);
     // Withholding onChunk only suppresses the UI stream. The network request
     // still streams, E2EE rejects stream:false, and the buffering happens
     // client-side, after decryption.

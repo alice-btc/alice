@@ -6,17 +6,17 @@ Alice App, on the web and on desktop, is a public beta.
 
 Alice's source lives at <https://github.com/alice-btc/alice>.
 
-- Version: `0.2.6`.
-- Source: public tag `v0.2.6` in <https://github.com/alice-btc/alice>.
+- Version: `0.2.7`.
+- Source: public tag `v0.2.7` in <https://github.com/alice-btc/alice>.
 
 ## Available Surfaces
 
 - Alice Web: <https://app.alicebtc.com>
 
-Desktop installers for macOS, Windows and Linux are attached to the `0.2.6`
+Desktop installers for macOS, Windows and Linux are attached to the `0.2.7`
 GitHub Release and linked from <https://alicebtc.com>.
 
-## Installing Alice Desktop 0.2.6
+## Installing Alice Desktop 0.2.7
 
 The GitHub Release contains a universal macOS DMG, a Windows MSI, a Linux
 AppImage and a Debian package. It also contains one build information file per
@@ -24,7 +24,7 @@ platform; its `signing` line says how that installer is signed. The macOS
 application is signed and notarised by Apple; the Windows and Linux installers
 are not signed yet, which explains the Windows warning described below.
 
-Compare the downloaded installer with `SHA256SUMS-desktop-v0.2.6.txt` from the
+Compare the downloaded installer with `SHA256SUMS-desktop-v0.2.7.txt` from the
 same release before opening it.
 
 ### macOS
@@ -50,16 +50,6 @@ else, including an **"Alice" Not Opened** dialog that offers only **Done** and
 **Move to Bin**, means the file is not the one from the release: delete it and
 download again from the release page.
 
-**Updating from 0.2.4 or earlier.** Alice Desktop keeps its storage key in the
-macOS keychain. Builds up to 0.2.4 were signed ad hoc, and the keychain knows
-the signed 0.2.5 as a different application. Its first launch therefore shows
-once "Alice wants to use your confidential information stored in
-“com.alicebitcoin.desktop” in your keychain" and asks for your session
-password. Choose **Always Allow**: conversations, memory and settings stay as
-they were, and later signed versions ask nothing. **Allow** brings the question
-back at every launch; **Deny** leaves your saved conversations unreadable until
-you accept. A fresh install of 0.2.5 never shows this dialog.
-
 Builds made without the Apple secrets (a fork, or a preview build) carry an ad
 hoc signature instead, and macOS refuses them at first launch. The permission
 is then granted from **System Settings**, **Privacy & Security**, **Security**,
@@ -67,8 +57,9 @@ is then granted from **System Settings**, **Privacy & Security**, **Security**,
 
 The release workflow signs with the `APPLE_CERTIFICATE` and
 `APPLE_CERTIFICATE_PASSWORD` secrets and notarises with `APPLE_ID`,
-`APPLE_PASSWORD` and `APPLE_TEAM_ID`. The application bundle is notarised and
-stapled; the DMG file around it is signed but not notarised on its own.
+`APPLE_PASSWORD` and `APPLE_TEAM_ID`. The application bundle and the DMG around
+it are both notarised, with their tickets stapled (the DMG since the release
+after 0.2.5).
 
 ### Windows
 
@@ -93,14 +84,14 @@ Linux shows no comparable platform signature warning for these files. For the
 AppImage, make it executable and run it:
 
 ```bash
-chmod +x Alice_0.2.6_*.AppImage
-./Alice_0.2.6_*.AppImage
+chmod +x Alice_0.2.7_*.AppImage
+./Alice_0.2.7_*.AppImage
 ```
 
 On Debian or Ubuntu, install the local package with:
 
 ```bash
-sudo apt install ./Alice_0.2.6_*.deb
+sudo apt install ./Alice_0.2.7_*.deb
 ```
 
 Alice keeps the key that encrypts your conversations in the desktop's keyring

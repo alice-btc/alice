@@ -9,7 +9,8 @@ import { ChainDataError } from '@/lib/explorer/provider';
 import type { NormalizedBlock, NormalizedTransaction } from '@/lib/explorer/types';
 import { buildBlockContext, buildFullBlockDescription, type PrivacySignal } from '@/lib/explorer/signals';
 import type { FullContext } from '@/lib/explorer/ask-alice';
-import { feeColor, formatBlockAge, formatBytes, formatDateTime, formatFeeRange } from '@/lib/explorer/blocks';
+import { feeColor, formatBlockAge, formatBytes, formatCount, formatDateTime, formatFeeRange } from '@/lib/explorer/blocks';
+import { useT } from '@/i18n';
 import { ExplorerBlockTreemap } from '@/components/ExplorerBlockTreemap';
 import { SectionPanel, Skeleton, SkeletonLines } from '@/components/ExplorerUI';
 import { Amount } from '@/components/AmountDisplay';
@@ -67,6 +68,7 @@ function hasConfidentialOutputs(tx: NormalizedTransaction): boolean {
 }
 
 function TxRow({ tx, badge, onOpen, selected, onSelect }: { tx: NormalizedTransaction; badge?: ReactNode; onOpen: () => void; selected?: boolean; onSelect?: () => void }) {
+  const t = useT();
   return (
     <button
       type="button"
@@ -79,17 +81,17 @@ function TxRow({ tx, badge, onOpen, selected, onSelect }: { tx: NormalizedTransa
     >
       <div className="flex flex-col min-w-0">
         <span className="font-numbers truncate" style={{ fontSize: 12, color: 'var(--alice-text)' }} title={tx.txid}>
-          {tx.isCoinbase ? 'Coinbase' : shortTxid(tx.txid)}
+          {tx.isCoinbase ? t('explorerBlocks.tab.coinbase') : shortTxid(tx.txid)}
         </span>
         <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-          {tx.inputs.length} in / {tx.outputs.length} out
+          {t('explorerBlocks.tab.inOut', { inputs: tx.inputs.length, outputs: tx.outputs.length })}
           {tx.feeRateSatVb !== null ? ` - ${tx.feeRateSatVb} sat/vB` : ''}
         </span>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {badge}
         {hasConfidentialOutputs(tx) ? (
-          <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>unknown</span>
+          <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>{t('explorerBlocks.unknown')}</span>
         ) : (
           <Amount sats={outputTotal(tx)} style={{ fontSize: 12, color: 'var(--alice-text)' }} />
         )}
@@ -116,6 +118,9 @@ export function ExplorerBlockTab({
    *  header and pins that transaction on top. Memoised by the caller. */
   marks?: ReadonlyArray<BlockMark>;
 }) {
+  const t = useT();
+  const tRef = useRef(t);
+  tRef.current = t;
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [selectedTxid, setSelectedTxid] = useState<string | null>(null);
   const [txs, setTxs] = useState<NormalizedTransaction[]>([]);
@@ -143,7 +148,7 @@ export function ExplorerBlockTab({
     setTxs([]);
     setPinned([]);
     if (typeof provider.getBlock !== 'function') {
-      setState({ kind: 'error', message: 'This data source cannot load a block.' });
+      setState({ kind: 'error', message: tRef.current('explorerBlocks.tab.noSource') });
       return;
     }
     provider.getBlock(height, { signal: controller.signal })
@@ -166,7 +171,7 @@ export function ExplorerBlockTab({
       })
       .catch((err) => {
         if (cancelled || (err instanceof ChainDataError && err.code === 'aborted')) return;
-        setState({ kind: 'error', message: err instanceof ChainDataError ? err.message : 'Could not load this block.' });
+        setState({ kind: 'error', message: err instanceof ChainDataError ? err.message : tRef.current('explorerBlocks.tab.loadFailed') });
       });
     return () => { cancelled = true; controller.abort(); };
   }, [height, provider, retryToken]);
@@ -205,7 +210,7 @@ export function ExplorerBlockTab({
     // The block page's structure from the first paint: map area, details card
     // and transaction list as skeletons, swapped in place once loaded.
     return (
-      <div className="flex flex-col gap-4" aria-label={`Reading block from ${provider.source.name}`}>
+      <div className="flex flex-col gap-4" aria-label={t('explorerBlocks.tab.reading', { source: provider.source.name })}>
         <div className="flex flex-col md:flex-row gap-4 md:items-start">
           <Skeleton width={300} height={300} style={{ maxWidth: '100%' }} />
           <div className="flex-1 flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3, backgroundColor: 'transparent' }}>
@@ -213,24 +218,24 @@ export function ExplorerBlockTab({
             <SkeletonLines lines={4} />
           </div>
         </div>
-        <SectionPanel title="TRANSACTIONS"><div className="px-3 py-3"><SkeletonLines lines={5} /></div></SectionPanel>
+        <SectionPanel title={t('explorerBlocks.tab.transactions')}><div className="px-3 py-3"><SkeletonLines lines={5} /></div></SectionPanel>
       </div>
     );
   }
   if (state.kind === 'error') {
     return (
       <div className="flex flex-col gap-2 px-4 py-3" style={{ border: '1px solid var(--alice-danger)', borderRadius: 3 }}>
-        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>COULD NOT LOAD</span>
+        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>{t('explorerBlocks.tab.couldNotLoad')}</span>
         <p className="font-numbers m-0" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{state.message}</p>
         <button
           type="button"
-          onClick={() => setRetryToken(t => t + 1)}
+          onClick={() => setRetryToken(n => n + 1)}
           className="alice-control alice-control--quiet font-numbers self-start cursor-pointer"
           style={{
             fontSize: 13, padding: '8px 16px', borderRadius: 3, color: 'var(--alice-primary)',
           }}
         >
-          RETRY
+          {t('explorerBlocks.tab.retry')}
         </button>
       </div>
     );
@@ -238,7 +243,7 @@ export function ExplorerBlockTab({
 
   const b = state.block;
   const color = feeColor(b.medianFee);
-  const range = formatFeeRange(b.feeRange);
+  const range = formatFeeRange(b.feeRange, t.locale);
 
   return (
     <div className="flex flex-col gap-4">
@@ -261,26 +266,26 @@ export function ExplorerBlockTab({
           style={{ borderTop: `3px solid ${color}`, borderRadius: 3, backgroundColor: 'transparent' }}
         >
           <div className="flex items-baseline gap-2 flex-wrap">
-            <span className="font-pixel" style={{ fontSize: 16, color: 'var(--alice-text)' }}>Block {b.height.toLocaleString('en-US')}</span>
+            <span className="font-pixel" style={{ fontSize: 16, color: 'var(--alice-text)' }}>{t('explorerBlocks.tab.title', { height: formatCount(b.height, t.locale) })}</span>
             <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-              {formatBlockAge(b.timestamp, now)} · {formatDateTime(b.timestamp)}
+              {formatBlockAge(b.timestamp, now, t.locale)} · {formatDateTime(b.timestamp, t.locale)}
             </span>
             {marks?.filter(m => m.byHeight.has(b.height)).map((m, i) => (
               <span key={i} className="rh-fade-in">{m.headerBadge}</span>
             ))}
           </div>
           {b.poolName && (
-            <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>Mined by {b.poolName}</span>
+            <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>{t('explorerBlocks.tab.minedBy', { pool: b.poolName })}</span>
           )}
-          <div className="flex items-start gap-2"><p className="font-numbers m-0 break-all min-w-0 flex-1" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{b.id}</p><ExplorerCopy value={b.id} label="block hash" /></div>
+          <div className="flex items-start gap-2"><p className="font-numbers m-0 break-all min-w-0 flex-1" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{b.id}</p><ExplorerCopy value={b.id} label={t('explorerBlocks.tab.copyHash')} /></div>
           <div className="grid grid-cols-2 gap-x-6 gap-y-3 mt-1">
-            <Metric label="TRANSACTIONS" value={b.txCount.toLocaleString('en-US')} />
-            <Metric label="SIZE" value={formatBytes(b.size)} />
-            <Metric label="WEIGHT" value={`${(b.weight / 1000).toFixed(0)} KWU`} />
-            {b.medianFee !== undefined && <Metric label="MEDIAN FEE" value={`${Math.round(b.medianFee)} sat/vB`} />}
-            {range && <Metric label="FEE RANGE" value={range} />}
+            <Metric label={t('explorerBlocks.tab.transactions')} value={formatCount(b.txCount, t.locale)} />
+            <Metric label={t('explorerBlocks.tab.size')} value={formatBytes(b.size, t.locale)} />
+            <Metric label={t('explorerBlocks.tab.weight')} value={`${(b.weight / 1000).toFixed(0)} KWU`} />
+            {b.medianFee !== undefined && <Metric label={t('explorerBlocks.tab.medianFee')} value={`${Math.round(b.medianFee)} sat/vB`} />}
+            {range && <Metric label={t('explorerBlocks.tab.feeRange')} value={range} />}
             {/* Fees stay in sats whatever the display unit. */}
-            {b.totalFees !== undefined && <Metric label="TOTAL FEES" value={`${b.totalFees.toLocaleString('en-US')} sats`} />}
+            {b.totalFees !== undefined && <Metric label={t('explorerBlocks.tab.totalFees')} value={`${formatCount(b.totalFees, t.locale)} sats`} />}
           </div>
         </div>
       </div>
@@ -288,9 +293,9 @@ export function ExplorerBlockTab({
       {/* Transaction list, paginated 25 at a time. */}
       <div className="flex flex-col" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3 }}>
         <div className="flex items-center justify-between px-3 py-2" style={{ backgroundColor: 'transparent' }}>
-          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>TRANSACTIONS</span>
+          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorerBlocks.tab.transactions')}</span>
           <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-            {txs.length.toLocaleString('en-US')} of {b.txCount.toLocaleString('en-US')}
+            {t('explorerBlocks.tab.shown', { shown: formatCount(txs.length, t.locale), total: formatCount(b.txCount, t.locale) })}
           </span>
         </div>
         {txs.length === 0 ? (
@@ -332,7 +337,7 @@ export function ExplorerBlockTab({
             opacity: loadingMore ? 0.5 : 1,
           }}
         >
-          {loadingMore ? 'LOADING' : `LOAD ${Math.min(PAGE, b.txCount - txs.length)} MORE`}
+          {loadingMore ? t('explorerBlocks.tab.loadingMore') : t('explorerBlocks.tab.loadMore', { count: Math.min(PAGE, b.txCount - txs.length) })}
         </button>
       )}
     </div>

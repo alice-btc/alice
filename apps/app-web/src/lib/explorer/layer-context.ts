@@ -19,8 +19,9 @@ import {
 } from './spark.ts';
 import type { SparkExitPath } from './spark-exit.ts';
 import type { SparkscanParty, SparkscanTx } from './sparkscan.ts';
-import { formatArkadeExitDelay, type ArkadeAddressInfo, type ArkadeInfo, type ArkadeVtxo } from './arkade.ts';
+import { arkadeStateOf, formatArkadeExitDelay, type ArkadeAddressInfo, type ArkadeInfo, type ArkadeVtxo } from './arkade.ts';
 import type { ArkadeExitPath } from './arkade-exit.ts';
+import { isDateExpired, pickExpiry, readExpiry, type ArkadeExpiry } from './arkade-expiry.ts';
 import type { BarkAddress, BarkInfo } from './bark.ts';
 import { arkoorHops, vtxoOrigin, type BarkVtxo } from './bark-vtxo.ts';
 import type { TxStatus } from './types.ts';
@@ -38,6 +39,13 @@ function sats(n: number): string {
 
 function when(sec?: number | null): string {
   return sec ? new Date(sec * 1000).toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : 'undated';
+}
+
+/** An Arkade expiry in the context's English: a date, a block (a height is
+ *  never turned into a date), or undated when unknown. */
+function expiryText(e: ArkadeExpiry): string {
+  const r = readExpiry(e);
+  return r.kind === 'date' ? when(r.sec) : r.kind === 'block' ? `at block ${r.height.toLocaleString('en-US')}` : 'undated';
 }
 
 function more(total: number, shown: number, noun: string): string[] {
@@ -315,9 +323,8 @@ export function sparkscanTxContext(t: SparkscanTx, nowSec = Math.floor(Date.now(
 /* --------------------------------- Arkade --------------------------------- */
 
 function arkadeState(v: ArkadeVtxo): string {
-  if (v.isSwept) return 'swept by the operator';
-  if (v.isSpent) return 'spent';
-  return v.isPreconfirmed ? 'preconfirmed' : 'settled';
+  const s = arkadeStateOf(v);
+  return s === 'swept' ? 'swept by the operator' : s;
 }
 
 export function arkadeAddressContext(info: ArkadeAddressInfo, nowSec = Math.floor(Date.now() / 1000)): LayerContext {
@@ -334,7 +341,7 @@ export function arkadeAddressContext(info: ArkadeAddressInfo, nowSec = Math.floo
       subjects.add('vtxo', id);
       for (const c of v.commitmentTxids) subjects.add('txid', c);
       const anchor = v.commitmentTxids.length ? `, commitment ${v.commitmentTxids.join(', ')}` : '';
-      lines.push(`- ${id}: ${sats(v.amountSats)}, ${arkadeState(v)}, created ${when(v.createdAt)}, expires ${when(v.expiresAt)}${anchor}`);
+      lines.push(`- ${id}: ${sats(v.amountSats)}, ${arkadeState(v)}, created ${when(v.createdAt)}, expires ${expiryText(v)}${anchor}`);
     }
     lines.push(...more(info.vtxos.length, LAYER_CONTEXT_MAX_ROWS, 'VTXOs'));
   } else {
@@ -372,20 +379,22 @@ export function arkadeVtxoContext(o: {
   const { vtxo, path } = o;
   const last = path.steps[path.steps.length - 1];
   const coinSats = vtxo?.amountSats ?? last?.branchSats ?? 0;
-  const expiresAt = vtxo?.expiresAt ?? last?.expiresAt;
+  // The coin's own expiry, or else the last step's, taken whole: a date and a
+  // height of two sources are never mixed.
+  const expiry = pickExpiry(vtxo, last);
   const subjects = new Subjects();
   subjects.add('vtxo', o.id);
   subjects.add('address', o.address);
   subjects.add('txid', path.commitmentTxid);
   const lines = [
     `Arkade VTXO ${o.id}`,
-    `${sats(coinSats)}, ${vtxo ? arkadeState(vtxo) : 'state not served by the indexer'}, expires ${when(expiresAt)}${o.address ? `, held by ${o.address}` : ''}.`,
+    `${sats(coinSats)}, ${vtxo ? arkadeState(vtxo) : 'state not served by the indexer'}, expires ${expiryText(expiry)}${o.address ? `, held by ${o.address}` : ''}.`,
     `Anchored by commitment transaction ${path.commitmentTxid}, batch output ${path.batchVout} (${sats(path.anchorSats)}).`,
     `Unilateral exit path: ${path.steps.length} pre-signed transaction${path.steps.length === 1 ? '' : 's'} to broadcast${o.info ? `, then wait ${formatArkadeExitDelay(o.info.unilateralExitDelay)}` : ''}.`,
   ];
   for (const s of path.steps.slice(0, LAYER_CONTEXT_MAX_ROWS)) {
     subjects.add('txid', s.txid);
-    lines.push(`- ${s.type} ${s.txid}: ${s.outputs.length} output${s.outputs.length === 1 ? '' : 's'}, branch ${sats(s.branchSats)}${s.expiresAt ? `, expires ${when(s.expiresAt)}` : ''}`);
+    lines.push(`- ${s.type} ${s.txid}: ${s.outputs.length} output${s.outputs.length === 1 ? '' : 's'}, branch ${sats(s.branchSats)}${readExpiry(s).kind !== 'unknown' ? `, expires ${expiryText(s)}` : ''}`);
   }
   lines.push(...more(path.steps.length, LAYER_CONTEXT_MAX_ROWS, 'transactions'));
   if (vtxo?.spentBy) { subjects.add('txid', vtxo.spentBy); lines.push(`Spent by checkpoint ${vtxo.spentBy}${vtxo.arkTxid ? ` (Ark transaction ${vtxo.arkTxid})` : ''}.`); subjects.add('txid', vtxo.arkTxid); }
@@ -407,7 +416,8 @@ export function arkadeVtxoContext(o: {
       preconfirmed: vtxo?.isPreconfirmed === true && !vtxo.isSpent && !vtxo.isSwept,
       spent: vtxo?.isSpent === true,
       swept: vtxo?.isSwept === true,
-      expired: typeof expiresAt === 'number' && expiresAt <= nowSec,
+      // Only a date can be judged by the clock; a height is not compared with it.
+      expired: isDateExpired(expiry, nowSec),
       ...(elapsed(nowSec, vtxo?.createdAt) !== undefined ? { elapsedSeconds: elapsed(nowSec, vtxo?.createdAt)! } : {}),
     },
   });

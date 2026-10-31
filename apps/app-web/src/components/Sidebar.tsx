@@ -6,6 +6,7 @@ import {
   type ChatSession,
   useAccount,
   useChat,
+  isTauriApp,
   isTauriDesktop,
 } from '@alice-wallet/alice-ai';
 import { MENU_ICON, PLUS_ICON, EXPLORE_ICON, LEARN_ICON, PLAY_ICON, SEARCH_ICON, DELETE_ICON, CLOSE_ICON } from '@/lib/atelier-icons';
@@ -16,6 +17,8 @@ import { FeedbackModal } from '@/components/FeedbackModal';
 import { SidebarAccountMenu } from '@/components/SidebarAccountMenu';
 import { useOpenSettings } from '@/lib/settings-url';
 import { consumeSearchRequest, onSearchRequest } from '@/lib/search-signal';
+import { isModShortcut, useModKey } from '@/lib/platform-keys';
+import { useT } from '@/i18n';
 import appWebPackage from '../../package.json';
 import appDesktopPackage from '../../../app-desktop/package.json';
 
@@ -78,12 +81,15 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
   const { sessions, openSession, removeSession, refreshSessions, clearMessages, activeSessionId } = useChat();
   const account = useAccount();
   const openSettings = useOpenSettings();
+  const t = useT();
+  const mod = useModKey();
   const [pendingDelete, setPendingDelete] = useState<ChatSession | null>(null);
   const searchTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [isApp, setIsApp] = useState(false);
   const [visibleSessionCount, setVisibleSessionCount] = useState(SESSION_PAGE_SIZE);
   const [panelWidth, setPanelWidth] = useState(260);
 
@@ -116,6 +122,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
 
   useEffect(() => {
     setIsDesktop(isTauriDesktop());
+    setIsApp(isTauriApp());
   }, []);
 
   useEffect(() => {
@@ -124,16 +131,16 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.metaKey && e.key === 'n') {
+      if (isModShortcut(e, 'n')) {
         e.preventDefault();
         clearMessages();
         router.push('/');
       }
-      if (e.metaKey && e.key === 'k') {
+      if (isModShortcut(e, 'k')) {
         e.preventDefault();
         setSearchOpen(prev => !prev);
       }
-      if (e.metaKey && e.key === ',') {
+      if (isModShortcut(e, ',')) {
         e.preventDefault();
         openSettings();
       }
@@ -169,7 +176,8 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
     await removeSession(sessionId);
   };
 
-  const version = isDesktop ? appDesktopPackage.version : appWebPackage.version;
+  // Desktop, Android and iOS are built from the same Tauri project.
+  const version = isApp ? appDesktopPackage.version : appWebPackage.version;
   const accountName = account.account?.username
     ?? account.account?.display_name
     ?? null;
@@ -179,8 +187,8 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
   const accountSubtitle = account.account?.email_masked
     ?? (account.cloudUsage
       ? account.cloudUsage.kind === 'paid'
-        ? `${account.cloudUsage.percentUsed}% of monthly usage`
-        : `${account.cloudUsage.remaining}/${account.cloudUsage.limit} cloud requests left`
+        ? t('sidebar.usage.paid', { percent: account.cloudUsage.percentUsed })
+        : t('sidebar.usage.free', { remaining: account.cloudUsage.remaining, limit: account.cloudUsage.limit })
       : null);
 
   const filteredSessions = searchQuery
@@ -217,14 +225,14 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
         <button
           onClick={onToggle}
           className="alice-control alice-control--tool"
-          aria-label="Expand sidebar"
+          aria-label={t('sidebar.expand')}
         >
           <SvgIcon svg={SIDEBAR_ICON_SVG} size={20} color="currentColor" />
         </button>
         <button
           onClick={() => { clearMessages(); router.push('/'); }}
           className="alice-control alice-control--tool"
-          aria-label="New chat"
+          aria-label={t('sidebar.newChatLabel')}
         >
           <SvgIcon svg={CHAT_ICON_SVG} size={20} color="currentColor" />
         </button>
@@ -253,7 +261,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
         <button
           onClick={() => { onToggle(); setSearchOpen(true); }}
           className="alice-control alice-control--tool"
-          aria-label="Search"
+          aria-label={t('sidebar.search')}
         >
           <SvgIcon svg={SEARCH_ICON_SVG} size={16} color="currentColor" />
         </button>
@@ -310,7 +318,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
           <button
             onClick={mobileOpen ? onMobileClose : onToggle}
             className="alice-control alice-control--tool"
-            aria-label={mobileOpen ? 'Close menu' : 'Collapse sidebar'}
+            aria-label={mobileOpen ? t('sidebar.closeMenu') : t('sidebar.collapse')}
           >
             <SvgIcon svg={mobileOpen ? CLOSE_ICON : SIDEBAR_ICON_SVG} size={20} color="currentColor" />
           </button>
@@ -320,7 +328,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
         <div className="flex flex-col shrink-0">
           <MenuItem
             icon={<SvgIcon svg={CHAT_ICON_SVG} size={20} color="currentColor" />}
-            label="New Chat"
+            label={t('sidebar.newChat')}
             onClick={() => { clearMessages(); router.push('/'); closeIfMobile(); }}
           />
           <MenuItem
@@ -352,16 +360,16 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
             className="font-numbers text-xs uppercase tracking-wider"
             style={{ color: 'var(--alice-muted)' }}
           >
-            Chats
+            {t('sidebar.chats')}
           </span>
           <button
             onClick={() => setSearchOpen(prev => !prev)}
             ref={searchTriggerRef}
             className="alice-control alice-control--tool shrink-0"
             style={{ opacity: 1 }}
-            aria-label="Search conversations"
+            aria-label={t('sidebar.searchConversations')}
             aria-expanded={searchOpen}
-            title="Search conversations (⌘ K)"
+            title={t('sidebar.searchTitle', { shortcut: `${mod}K` })}
           >
             <SvgIcon svg={SEARCH_ICON_SVG} size={16} color="currentColor" />
           </button>
@@ -370,7 +378,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
         {/* Search input (toggled from the Chats header) */}
         {searchOpen && (
           <div className="px-3 pt-1 pb-2 shrink-0">
-            <label htmlFor="sidebar-search" className="alice-field-label">Search conversations</label>
+            <label htmlFor="sidebar-search" className="alice-field-label">{t('sidebar.searchConversations')}</label>
             <input
               id="sidebar-search"
               autoFocus
@@ -380,7 +388,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
               onKeyDown={(e) => {
                 if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); searchTriggerRef.current?.focus(); }
               }}
-              placeholder="Search conversations..."
+              placeholder={t('sidebar.searchPlaceholder')}
               className="alice-field w-full font-numbers"
               style={{
                 minHeight: 40,
@@ -416,7 +424,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
               className="font-numbers text-center mt-6 px-3"
               style={{ fontSize: 15, color: 'var(--alice-muted)', opacity: 1 }}
             >
-              {searchQuery ? 'No results' : 'No conversations yet'}
+              {searchQuery ? t('sidebar.noResults') : t('sidebar.noConversations')}
             </p>
           ) : (
             visibleSessions.map((session) => {
@@ -461,7 +469,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
                     onClick={() => setPendingDelete(session)}
                     className="alice-control alice-control--tool alice-control--danger shrink-0 mr-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 alice-session-delete"
                     style={{ color: 'var(--alice-muted)', fontSize: 16 }}
-                    aria-label="Delete session"
+                    aria-label={t('sessions.delete')}
                   >
                     <SvgIcon svg={DELETE_ICON} size={16} color="currentColor" />
                   </button>
@@ -479,26 +487,29 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
               className="alice-control alice-control--quiet font-numbers mx-auto my-3"
               style={{ fontSize: 13, color: 'var(--alice-muted)', opacity: 1 }}
             >
-              LOAD {Math.min(SESSION_PAGE_SIZE, filteredSessions.length - visibleSessions.length)} MORE
+              {t('sessions.loadMore', { count: Math.min(SESSION_PAGE_SIZE, filteredSessions.length - visibleSessions.length) })}
             </button>
           ) : filteredSessions.length > SESSION_PAGE_SIZE ? (
             <p
               className="font-numbers text-center my-3"
               style={{ fontSize: 13, color: 'var(--alice-muted)', opacity: 1 }}
             >
-              {visibleSessions.length} OF {filteredSessions.length}
+              {t('sessions.shown', { shown: visibleSessions.length, total: filteredSessions.length })}
             </p>
           ) : null}
         </div>
 
+        {/* Settings, the account and the report open as dialogs over the
+            drawer, which stays behind them: closing the dialog lands back on
+            the menu, not on a page the user had not asked for. */}
         <SidebarAccountMenu
           collapsed={false}
           username={accountName}
           subtitle={accountSubtitle}
           version={version}
-          onSettings={() => { openSettings(); closeIfMobile(); }}
-          onAccount={() => { account.requestSignIn(); closeIfMobile(); }}
-          onReport={() => { setFeedbackOpen(true); closeIfMobile(); }}
+          onSettings={() => openSettings()}
+          onAccount={() => account.requestSignIn()}
+          onReport={() => setFeedbackOpen(true)}
         />
       </div>
 
@@ -506,9 +517,9 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
 
       {pendingDelete && (
         <ConfirmDialog
-          title="DELETE CONVERSATION"
-          body={`Delete “${pendingDelete.title}” from your history? This cannot be undone.`}
-          confirmLabel="Delete"
+          title={t('sessions.deleteTitle')}
+          body={t('sessions.deleteBody', { title: pendingDelete.title })}
+          confirmLabel={t('common.delete')}
           onCancel={() => setPendingDelete(null)}
           onConfirm={() => void confirmDelete()}
         />

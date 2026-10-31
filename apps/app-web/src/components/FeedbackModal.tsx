@@ -2,6 +2,7 @@
 
 import { SvgIcon } from '@/components/SvgIcon';
 import { CLOSE_ICON, COPY_ICON, CHECK_ICON, MAIL_ICON, EXTERNAL_ICON, ATTACHMENT_ICON, DELETE_ICON } from '@/lib/atelier-icons';
+import { finePointer } from '@/lib/pointer';
 
 import { type DragEvent, useEffect, useRef, useState } from 'react';
 import {
@@ -12,22 +13,27 @@ import {
   getActiveModelId,
   getCustomServer,
   getPreset,
-  isTauriDesktop,
+  tauriShell,
   useChat,
 } from '@alice-wallet/alice-ai';
 import { openExternalUrl } from '@/lib/open-external';
 import { buildFeedbackIssueUrl, getReportPageLabel } from '@/lib/feedback-context';
 import appWebPackage from '../../package.json';
 import appDesktopPackage from '../../../app-desktop/package.json';
+import { useT, type MessageKey } from '@/i18n';
+
+const APP_LABELS = { desktop: 'Desktop', android: 'Android', ios: 'iOS', web: 'Web' } as const;
 
 const FEEDBACK_EMAIL = 'support@alicebtc.com';
 
 type Category = 'bug' | 'alice-response' | 'knowledge';
 
-const CATEGORIES: { id: Category; label: string; placeholder: string }[] = [
-  { id: 'bug', label: 'Bug report', placeholder: 'What happened, and what did you expect instead?' },
-  { id: 'alice-response', label: 'Bad Alice response', placeholder: "What did Alice say that was wrong, unhelpful, or off? Paste the relevant part of the reply." },
-  { id: 'knowledge', label: 'Knowledge suggestion', placeholder: 'What should Alice know about, or explain better?' },
+// `label` names the category in the report itself, which the team reads in
+// English whatever the interface language; the screen shows `labelKey`.
+const CATEGORIES: { id: Category; label: string; labelKey: MessageKey; placeholderKey: MessageKey }[] = [
+  { id: 'bug', label: 'Bug report', labelKey: 'feedback.category.bug', placeholderKey: 'feedback.category.bug.placeholder' },
+  { id: 'alice-response', label: 'Bad Alice response', labelKey: 'feedback.category.response', placeholderKey: 'feedback.category.response.placeholder' },
+  { id: 'knowledge', label: 'Knowledge suggestion', labelKey: 'feedback.category.knowledge', placeholderKey: 'feedback.category.knowledge.placeholder' },
 ];
 
 const BACKEND_LABELS = {
@@ -55,6 +61,7 @@ interface FeedbackModalProps {
 }
 
 export function FeedbackModal({ onClose }: FeedbackModalProps) {
+  const t = useT();
   const { backendType, backendStatus } = useChat();
   const screenshotInput = useRef<HTMLInputElement>(null);
   const [aiContext, setAiContext] = useState<AIReportContext | null>(null);
@@ -116,7 +123,7 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
       trimmedDescription,
       '',
       'Context:',
-      `- App: ${isTauriDesktop() ? 'Desktop' : 'Web'} v${isTauriDesktop() ? appDesktopPackage.version : appWebPackage.version}`,
+      `- App: ${APP_LABELS[tauriShell() ?? 'web']} v${tauriShell() ? appDesktopPackage.version : appWebPackage.version}`,
       `- AI mode: ${BACKEND_LABELS[backendType]}`,
       // Private Cloud has a single model of the same name, so a Model line there
       // would just repeat the mode. Only say it when it adds something.
@@ -193,8 +200,9 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
   };
 
   return (
+    // Above the phone drawer (z-50) it may be opened from.
     <div
-      className="fixed inset-0 flex items-center justify-center px-6"
+      className="fixed inset-0 z-[75] flex items-center justify-center px-6"
       style={{ backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 50 }}
       onClick={onClose}
     >
@@ -221,22 +229,22 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
           className="font-pixel tracking-widest m-0"
           style={{ fontSize: 12, color: 'var(--alice-primary-dark)' }}
         >
-          REPORT
+          {t('feedback.title')}
         </h3>
         <p
           className="font-numbers m-0 mt-2"
           style={{ fontSize: 15, lineHeight: '19px', color: 'var(--alice-muted)' }}
         >
-          Report a bug, flag a bad Alice response, or suggest something Alice should know. You can copy the report, email it, or continue on GitHub.
+          {t('feedback.intro')}
         </p>
         <p
           className="font-numbers m-0 mt-2"
           style={{ fontSize: 14, lineHeight: '17px', color: 'var(--alice-primary-dark)' }}
         >
-          Never include your seed phrase, private keys, or sensitive screenshots.
+          {t('feedback.safety')}
         </p>
 
-        <div role="group" aria-label="Report category" className="flex flex-wrap gap-1.5 mt-4">
+        <div role="group" aria-label={t('feedback.categoryGroup')} className="flex flex-wrap gap-1.5 mt-4">
           {CATEGORIES.map((c) => (
             <button
               key={c.id}
@@ -245,19 +253,21 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
               className="alice-control alice-control--choice flex-1"
               style={{ lineHeight: '20px', padding: '8px 6px' }}
             >
-              {c.label}
+              {t(c.labelKey)}
             </button>
           ))}
         </div>
 
-        <label className="alice-field-label mt-4" htmlFor="feedback-summary">Summary</label>
+        <label className="alice-field-label mt-4" htmlFor="feedback-summary">{t('feedback.summary')}</label>
         <input
           id="feedback-summary"
-          autoFocus
+          // Focus only where a keyboard is physical: on a touch screen the
+          // on-screen keyboard would cover the form before it has been read.
+          autoFocus={finePointer()}
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Short summary"
+          placeholder={t('feedback.summaryPlaceholder')}
           maxLength={120}
           className="alice-field w-full"
           style={{
@@ -271,14 +281,14 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
           }}
         />
 
-        <label className="alice-field-label mt-3" htmlFor="feedback-description">Description <span style={{ color: 'var(--alice-muted)' }}>(required)</span></label>
+        <label className="alice-field-label mt-3" htmlFor="feedback-description">{t('feedback.description')} <span style={{ color: 'var(--alice-muted)' }}>{t('feedback.required')}</span></label>
         <textarea
           id="feedback-description"
           required
           aria-describedby="feedback-send-help"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder={active.placeholder}
+          placeholder={t(active.placeholderKey)}
           rows={4}
           className="alice-field w-full resize-y"
           style={{
@@ -320,26 +330,26 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
                 className="font-numbers m-0"
                 style={{ fontSize: 14, lineHeight: '17px', color: 'var(--alice-text)' }}
               >
-                Optional screenshot
+                {t('feedback.screenshot.title')}
               </p>
               <p
                 className="font-numbers m-0 mt-1"
                 style={{ fontSize: 13, lineHeight: '15px', color: 'var(--alice-muted)' }}
               >
-                Choose or drop an image to preview it. Attach it manually in your email or GitHub issue; it is not uploaded here.
+                {t('feedback.screenshot.hint')}
               </p>
             </div>
             <button type="button" className="alice-control alice-control--quiet" onClick={() => screenshotInput.current?.click()}>
-              <SvgIcon svg={ATTACHMENT_ICON} size={20} /> Choose image
+              <SvgIcon svg={ATTACHMENT_ICON} size={20} /> {t('feedback.screenshot.choose')}
             </button>
-            <input ref={screenshotInput} type="file" accept="image/*" className="hidden" aria-label="Choose screenshot" onChange={(event) => handleScreenshotChange(event.target.files?.[0] ?? null)} />
+            <input ref={screenshotInput} type="file" accept="image/*" className="hidden" aria-label={t('feedback.screenshot.chooseLabel')} onChange={(event) => handleScreenshotChange(event.target.files?.[0] ?? null)} />
           </div>
 
           {screenshotPreview && (
             <div className="mt-3">
               <img
                 src={screenshotPreview}
-                alt="Selected screenshot preview"
+                alt={t('feedback.screenshot.previewAlt')}
                 style={{
                   width: '100%',
                   maxHeight: 180,
@@ -362,21 +372,21 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
                   className="alice-control alice-control--quiet"
                   style={{ padding: '7px 8px' }}
                 >
-                  <SvgIcon svg={DELETE_ICON} size={16} /> Remove
+                  <SvgIcon svg={DELETE_ICON} size={16} /> {t('feedback.screenshot.remove')}
                 </button>
               </div>
             </div>
           )}
         </div>
 
-        <p id="feedback-send-help" className="font-numbers mt-3" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>Add a description to prepare a report. Email opens a private draft; GitHub opens a public issue form.</p>
+        <p id="feedback-send-help" className="font-numbers mt-3" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>{t('feedback.sendHelp')}</p>
         <div className="grid gap-2 mt-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
           <button
             onClick={onClose}
             className="alice-control alice-control--quiet flex-1"
             style={{ padding: '10px 12px' }}
           >
-            <SvgIcon svg={CLOSE_ICON} size={16} /> Cancel
+            <SvgIcon svg={CLOSE_ICON} size={16} /> {t('common.cancel')}
           </button>
           <button
             onClick={() => void handleCopy()}
@@ -384,7 +394,7 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
             className="alice-control alice-control--quiet flex-1 disabled:cursor-not-allowed"
             style={{ padding: '10px 12px' }}
           >
-            <SvgIcon svg={copied ? CHECK_ICON : COPY_ICON} size={16} /> <span aria-live="polite">{copied ? 'Copied' : 'Copy report'}</span>
+            <SvgIcon svg={copied ? CHECK_ICON : COPY_ICON} size={16} /> <span aria-live="polite">{copied ? t('common.copied') : t('feedback.copy')}</span>
           </button>
           <button
             onClick={() => void handleEmail()}
@@ -392,7 +402,7 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
             className="alice-control alice-control--quiet flex-1 disabled:cursor-not-allowed"
             style={{ padding: '10px 12px' }}
           >
-            <SvgIcon svg={MAIL_ICON} size={20} /> Prepare email
+            <SvgIcon svg={MAIL_ICON} size={20} /> {t('feedback.email')}
           </button>
           <button
             ref={githubButton}
@@ -402,7 +412,7 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
             className="alice-control alice-control--primary flex-1 disabled:cursor-not-allowed"
             style={{ padding: '10px 12px' }}
           >
-            <SvgIcon svg={EXTERNAL_ICON} size={16} /> Continue on GitHub
+            <SvgIcon svg={EXTERNAL_ICON} size={16} /> {t('feedback.github')}
           </button>
         </div>
       </div>
@@ -432,10 +442,10 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
             }}
           >
             <h4 id="feedback-github-title" className="font-pixel tracking-widest m-0" style={{ fontSize: 12, color: 'var(--alice-primary-dark)' }}>
-              GITHUB ISSUES ARE PUBLIC
+              {t('feedback.github.publicTitle')}
             </h4>
             <p id="feedback-github-text" className="font-numbers m-0" style={{ fontSize: 15, lineHeight: '21px', color: 'var(--alice-text)' }}>
-              Anyone can read what you post there. Remove anything personal, or send it by email instead: it stays private.
+              {t('feedback.github.publicText')}
             </p>
             <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
               <button
@@ -444,21 +454,21 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
                 className="alice-control alice-control--primary"
                 style={{ padding: '10px 12px' }}
               >
-                <SvgIcon svg={EXTERNAL_ICON} size={16} /> Continue on GitHub
+                <SvgIcon svg={EXTERNAL_ICON} size={16} /> {t('feedback.github')}
               </button>
               <button
                 onClick={() => { setGithubConfirm(false); void handleEmail(); }}
                 className="alice-control alice-control--quiet"
                 style={{ padding: '10px 12px' }}
               >
-                <SvgIcon svg={MAIL_ICON} size={20} /> Send by email instead
+                <SvgIcon svg={MAIL_ICON} size={20} /> {t('feedback.github.emailInstead')}
               </button>
               <button
                 onClick={closeGithubConfirm}
                 className="alice-control alice-control--quiet"
                 style={{ padding: '10px 12px' }}
               >
-                <SvgIcon svg={CLOSE_ICON} size={16} /> Cancel
+                <SvgIcon svg={CLOSE_ICON} size={16} /> {t('common.cancel')}
               </button>
             </div>
           </div>

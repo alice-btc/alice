@@ -7,6 +7,7 @@
 import type { EntityCategory } from './audit-core.ts';
 import type { EntityLabel } from './entities.ts';
 import type { PrivacySignal, SignalConfidence, SignalSeverity } from './signals.ts';
+import { t, type MessageKey } from '../../i18n/translate.ts';
 
 // A sanctioned, scam or darknet link is a serious exposure; an exchange, mixer,
 // gambling or payment link is medium; anything else is low.
@@ -38,10 +39,11 @@ export function detectEntityLink(address: string, labels: readonly EntityLabel[]
     ruleId: 'ENTITY_LINK',
     severity: severityFor(categories),
     confidence: confidenceFor(labels),
-    title: 'Known entity',
-    detail:
-      `This address is attributed to ${names.join(', ')} (${categories.join(', ')}). ` +
-      'Anyone using the same public sources can make the same link, so activity here is tied to that entity.',
+    title: t('explorer.entitySignal.title'),
+    detail: t('explorer.entitySignal.detail', {
+      names: names.join(', '),
+      categories: categories.map(c => t(`explorer.entitySignal.category.${c}` as MessageKey)).join(', '),
+    }),
     subjects: [address],
     // Categories only, never the name, so the projection stays de-identified.
     evidence: { categories: categories.join(','), labelCount: labels.length },

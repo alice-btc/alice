@@ -5,7 +5,9 @@ import { useAccount, type AliceBilling, type AliceCloudUsage } from '@alice-wall
 import { isBillingPreview, PREVIEW_ACCOUNT_NAME } from './billing-preview';
 import { PlanCheckout } from './PlanCheckout';
 import { RenewalReminders } from './RenewalReminders';
+import { useT, type Locale, type MessageKey } from '@/i18n';
 import { SectionHint, SectionLabel, sectionStyle } from './ui';
+import { sellsPlans } from '@/lib/store-rules';
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
@@ -14,25 +16,28 @@ const EXPIRY_WARNING_MS = 3 * DAY_MS;
 
 const AMBER = 'var(--alice-warning)';
 
-function formatDate(ms: number): string {
-  return new Date(ms).toLocaleDateString('en-US', {
+/** The calendar dates of each interface language. */
+const DATE_LOCALES: Record<Locale, string> = { en: 'en-US', fr: 'fr-FR' };
+
+function formatDate(ms: number, locale: Locale): string {
+  return new Date(ms).toLocaleDateString(DATE_LOCALES[locale], {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   });
 }
 
-const PLAN_LABELS: Record<string, string> = {
-  free: 'FREE',
-  cloud: 'CLOUD',
-  cloud_plus: 'CLOUD+',
+const PLAN_LABELS: Record<string, MessageKey> = {
+  free: 'settings.account.planFree',
+  cloud: 'settings.account.planCloud',
+  cloud_plus: 'settings.account.planCloudPlus',
 };
 
 /** The same names, cased for the middle of a sentence. */
-const PLAN_NAMES: Record<string, string> = {
-  free: 'Free',
-  cloud: 'Cloud',
-  cloud_plus: 'Cloud+',
+const PLAN_NAMES: Record<string, MessageKey> = {
+  free: 'settings.account.planNameFree',
+  cloud: 'settings.account.planNameCloud',
+  cloud_plus: 'settings.account.planNameCloudPlus',
 };
 
 /**
@@ -134,6 +139,7 @@ function previewState(now: number): { usage: AliceCloudUsage; billing: AliceBill
 }
 
 export function AccountTab() {
+  const t = useT();
   const account = useAccount();
 
   // The snapshot may be minutes old when the user opens settings, and this is
@@ -163,21 +169,21 @@ export function AccountTab() {
   const signedInAs = preview !== null
     ? PREVIEW_ACCOUNT_NAME
     : account.account
-      ? account.account.username ?? account.account.display_name ?? 'Signed in'
+      ? account.account.username ?? account.account.display_name ?? t('settings.account.signedIn')
       : null;
 
   return (
     <div>
       {/* What plan this account holds, and until when. */}
       <section style={sectionStyle}>
-        <SectionLabel>PLAN</SectionLabel>
+        <SectionLabel>{t('settings.account.plan')}</SectionLabel>
         <div className="mt-3 flex items-baseline justify-between">
           <span className="font-numbers" style={{ fontSize: 14 }}>
-            {PLAN_LABELS[paid ? paid.plan : 'free']}
+            {PLAN_LABELS[paid ? paid.plan : 'free'] ? t(PLAN_LABELS[paid ? paid.plan : 'free']) : undefined}
           </span>
           {paid && (
             <span className="font-numbers" style={{ fontSize: 14, opacity: 1 }}>
-              until {formatDate(paid.expiresAt)}
+              {t('settings.account.until', { date: formatDate(paid.expiresAt, t.locale) })}
             </span>
           )}
         </div>
@@ -185,72 +191,67 @@ export function AccountTab() {
         {paid && expiresSoon && (
           <p className="font-numbers m-0 mt-3" style={{ fontSize: 14, color: AMBER }}>
             {paid.expiresAt - now <= DAY_MS
-              ? 'Your plan ends today.'
-              : `Your plan ends on ${formatDate(paid.expiresAt)}.`}
-            {' '}Bitcoin payments cannot renew on their own, so nothing happens
-            unless you choose to renew.
+              ? t('settings.account.endsToday')
+              : t('settings.account.endsOn', { date: formatDate(paid.expiresAt, t.locale) })}
+            {sellsPlans() && <>{' '}{t('settings.account.noAutoRenew')}</>}
           </p>
         )}
 
         {lapsed && (
           <p className="font-numbers m-0 mt-3" style={{ fontSize: 14, opacity: 1 }}>
-            Your {PLAN_NAMES[billing.purchased_plan] ?? ''} plan ended
-            {billing.plan_expires_at ? ` on ${formatDate(billing.plan_expires_at)}` : ''}.
-            Your wallet, your local AI and your data are not affected. You are
-            back on the free allowance.
+            {(() => {
+              const planName = PLAN_NAMES[billing.purchased_plan];
+              const params = { plan: planName ? t(planName) : '' };
+              return billing.plan_expires_at
+                ? t('settings.account.lapsedOn', { ...params, date: formatDate(billing.plan_expires_at, t.locale) })
+                : t('settings.account.lapsed', params);
+            })()}
+            {' '}{t('settings.account.lapsedBody')}
           </p>
         )}
 
         {!paid && !lapsed && (
-          <SectionHint>
-            The wallet, the local AI and your data stay free. Paid plans only
-            add Private Cloud capacity.
-          </SectionHint>
+          <SectionHint>{t('settings.account.freeHint')}</SectionHint>
         )}
       </section>
 
       {/* How much of it has been used. */}
       <section style={sectionStyle}>
-        <SectionLabel>USAGE</SectionLabel>
+        <SectionLabel>{t('settings.account.usage')}</SectionLabel>
         <div className="mt-3">
           {paid ? (
             <>
-              <UsageBar percent={paid.percentUsed} label="THIS MONTH" />
+              <UsageBar percent={paid.percentUsed} label={t('settings.account.thisMonth')} />
               {paid.periodEndsAt !== null && (
                 <p className="font-numbers m-0 mt-2" style={{ fontSize: 13, opacity: 1 }}>
-                  Allowance resets on {formatDate(paid.periodEndsAt)}.
+                  {t('settings.account.resetsOn', { date: formatDate(paid.periodEndsAt, t.locale) })}
                 </p>
               )}
               <p className="font-numbers m-0 mt-4" style={{ fontSize: 13, opacity: 1 }}>
-                Usage is estimated from the volume of data exchanged. Your
-                messages are end-to-end encrypted: the Alice proxy cannot read
-                them or count their tokens. See the privacy notice for what
-                Venice does not yet let Alice verify.
+                {t('settings.account.usageEstimated')}
               </p>
             </>
           ) : free ? (
             <>
               <div className="flex items-baseline justify-between">
                 <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>
-                  PRIVATE CLOUD REQUESTS
+                  {t('settings.account.cloudRequests')}
                 </span>
                 <span className="font-numbers" style={{ fontSize: 15 }}>
-                  {free.remaining} / {free.limit} left
+                  {t('settings.account.requestsLeft', { remaining: free.remaining, limit: free.limit })}
                 </span>
               </div>
-              <SectionHint>
-                Free requests are counted exactly, and they work without an
-                account. Local AI is unlimited and never counted.
-              </SectionHint>
+              <SectionHint>{t('settings.account.freeCounted')}</SectionHint>
             </>
           ) : (
-            <SectionHint>Sign in to see your Private Cloud usage.</SectionHint>
+            <SectionHint>{t('settings.account.signInForUsage')}</SectionHint>
           )}
         </div>
       </section>
 
-      {/* Buying, renewing, or waiting for a payment to settle. */}
-      <PlanCheckout />
+      {/* Buying, renewing, or waiting for a payment to settle; never in the
+          phone apps (store-rules.ts). */}
+      {sellsPlans() && <PlanCheckout />}
 
       {/* Only once there is a plan to be reminded about. Offering this to
           someone on the free allowance would be asking for an address to warn
@@ -259,17 +260,17 @@ export function AccountTab() {
 
       {/* The account row: who is signed in, or the invitation to be. */}
       <section style={sectionStyle}>
-        <SectionLabel>ALICE ACCOUNT</SectionLabel>
+        <SectionLabel>{t('settings.account.aliceAccount')}</SectionLabel>
         <div className="mt-3 flex items-center justify-between gap-4">
           <span className="font-numbers truncate" style={{ fontSize: 15 }}>
-            {signedInAs ?? 'Not signed in'}
+            {signedInAs ?? t('settings.account.notSignedIn')}
           </span>
           <button
             type="button"
             className="alice-control alice-control--quiet font-numbers"
             onClick={() => account.requestSignIn()}
           >
-            {signedInAs ? 'MANAGE' : 'SIGN IN'}
+            {signedInAs ? t('settings.account.manage') : t('settings.account.signIn')}
           </button>
         </div>
         {account.account?.email_masked && (

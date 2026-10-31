@@ -7,7 +7,18 @@ export {
   type AIResponse,
   type SendMessageOptions,
 } from './ai-backend';
-export { createBackend, canUseLocal, isTauriDesktop } from './ai-backend-factory';
+export { createBackend, canUseLocal, hasKeychainCipher, hasLocalEngine, isTauriApp, isTauriDesktop, isTauriMobile, tauriShell } from './ai-backend-factory';
+export { createTauriChannel, tauriInvoke, type TauriChannel } from './tauri-runtime';
+export { getDeviceMemory, getMobileEngineStatus, type MobileEngineStatus } from './ai-backend-local-mobile';
+export {
+  type DeviceMemory,
+  MOBILE_MAX_MODEL_BYTES,
+  MOBILE_MAX_MODEL_PARAMETERS,
+  deviceMemoryShortfall,
+  localModelMemoryNeed,
+  mobileFileSizeRefusal,
+  mobileModelRefusal,
+} from './local-model-memory';
 export {
   PRIVATE_CLOUD_ENABLED,
   PRIVATE_CLOUD_DISABLED_MESSAGE,
@@ -48,6 +59,10 @@ export {
   setAliceInstructions,
   getResponseLanguagePreference,
   setResponseLanguagePreference,
+  getAppLanguage,
+  setAppLanguage,
+  currentInterfaceLanguage,
+  subscribeLanguagePreferences,
   getModelEntry,
   findModelEntry,
   getModelName,
@@ -79,15 +94,28 @@ export {
   getCustomServer,
   setCustomServer,
 } from './ai-preferences';
+export { probeCustomServer, type CustomServerProbe } from './ai-backend-custom';
 export {
   type SupportedLanguage,
   type ResponseLanguagePreference,
   type LanguageDecision,
+  type LanguageDecisionSource,
   detectExplicitResponseLanguage,
   detectTextLanguage,
   resolveResponseLanguage,
   isResponseLanguageAcceptable,
 } from './language-policy';
+export {
+  type LanguageDefinition,
+  type LanguageDistribution,
+  SUPPORTED_LANGUAGES,
+  SUPPORTED_LANGUAGE_CODES,
+  DEFAULT_LANGUAGE,
+  isSupportedLanguage,
+  languageDefinition,
+  languageFromLocale,
+} from './languages';
+export { GREETINGS, greetingFor } from './greeting';
 export {
   normalizeHuggingFaceRepo,
   parseHuggingFaceModelListing,
@@ -162,6 +190,14 @@ export { type ChatMsg, type MessageVariant, ChatProvider, useChat } from './chat
 export {
   type LocalCipher,
   type LocalKeyStore,
+  type KeychainFailure,
+  type LocalCipherStatus,
+  KeychainUnavailableError,
+  isKeychainUnavailableError,
+  checkLocalCipher,
+  retryLocalCipher,
+  localCipherStatus,
+  subscribeLocalCipherStatus,
   LOCAL_CIPHER_VERSION,
   isLocalCipherValue,
   getLocalCipher,
@@ -226,7 +262,7 @@ export {
 } from './app-update';
 export { isNewerVersion } from './app-update-format';
 export { RELEASE_NOTES_URL, WHATS_NEW, whatsNewFor, type WhatsNewEntry } from './whats-new';
-export { registerLearnContextProvider, type LearnTurnContext } from './learn-context';
+export { registerLearnContextProvider, type LearnSource, type LearnTurnContext } from './learn-context';
 export {
   registerPack,
   unregisterPack,

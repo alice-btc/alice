@@ -9,12 +9,15 @@ import {
   removeInstalledLanguage,
   type LearnLang,
 } from '@/lib/learn/language';
+import { useT } from '@/i18n';
 import { SectionLabel, sectionStyle } from './ui';
+import { WithBitcoinGlyph } from '@/components/AmountDisplay';
 
 // Course-language management mirrored in Settings: the same picker as the
 // Learn page's globe button, plus removal of downloaded languages (the
 // embedded pair stays).
 export function LearnLanguagesSection() {
+  const t = useT();
   const [installed, setInstalled] = useState<LearnLang[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -23,9 +26,9 @@ export function LearnLanguagesSection() {
 
   return (
     <div style={sectionStyle}>
-      <SectionLabel>COURSE LANGUAGES</SectionLabel>
+      <SectionLabel>{t('settings.courseLanguages.title')}</SectionLabel>
       <p className="font-numbers" style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--alice-muted)' }}>
-        Languages available in the Learn quick selector. Plan ₿ Academy content exists in {`${28}`} languages. This does not change Alice’s response language.
+        <WithBitcoinGlyph text={t('settings.courseLanguages.hint', { count: 28 })} />
       </p>
       <div className="flex flex-col" style={{ marginTop: 12 }}>
         {installed.map((lang, index) => (
@@ -41,7 +44,7 @@ export function LearnLanguagesSection() {
               {languageName(lang)}
             </span>
             {isEmbeddedLang(lang) ? (
-              <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>Built in · available</span>
+              <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>{t('settings.courseLanguages.builtIn')}</span>
             ) : (
               <button
                 type="button"
@@ -51,14 +54,14 @@ export function LearnLanguagesSection() {
                   refresh();
                 }}
               >
-                REMOVE
+                {t('settings.courseLanguages.remove')}
               </button>
             )}
           </div>
         ))}
       </div>
       <button className="alice-control alice-control--quiet font-numbers" type="button" style={{ marginTop: 12 }} onClick={() => setPickerOpen(true)}>
-        ADD A LANGUAGE
+        {t('settings.courseLanguages.add')}
       </button>
 
       {pickerOpen && (

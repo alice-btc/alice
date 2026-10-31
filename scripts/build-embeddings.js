@@ -1,7 +1,9 @@
 // Precomputes one embedding vector per knowledge chunk (the bundled curated
-// pack) using the same multilingual model the client will use for queries,
-// so query and passage vectors live in the same space. Run this after
-// build-curated-rag.mjs whenever the selected corpus changes.
+// pack, every locale variant: a translated fiche is its own row, fused back
+// onto its concept at retrieval) using the same multilingual model the client
+// will use for queries, so query and passage vectors live in the same space.
+// Run this after build-curated-rag.mjs whenever the selected corpus or one of
+// its translations changes: the index must list the generated chunks exactly.
 //
 // Output: apps/app-web/public/core-embeddings/index.json (chunk ids, dim,
 // model id) + embeddings.f32 (row-major Float32Array, L2-normalized rows).
@@ -32,7 +34,16 @@ async function createEmbedder(target) {
     const { pipeline, env } = await import('@huggingface/transformers');
     if (process.env.ALICE_EMBEDDING_MODEL_CACHE) env.cacheDir = process.env.ALICE_EMBEDDING_MODEL_CACHE;
     if (process.env.ALICE_EMBEDDING_OFFLINE === '1') env.allowRemoteModels = false;
-    const extractor = await pipeline('feature-extraction', target.modelId);
+    // A directory laid out like the shipped /semantic-model/ (prepare-semantic-model.mjs)
+    // embeds without any download, with the same quantized weights the browser
+    // uses for queries. ALICE_EMBEDDING_DTYPE names the ONNX file to load
+    // ("q8" is onnx/model_quantized.onnx); unset, the hub default applies.
+    if (process.env.ALICE_EMBEDDING_LOCAL_MODEL_DIR) {
+      env.allowLocalModels = true;
+      env.localModelPath = process.env.ALICE_EMBEDDING_LOCAL_MODEL_DIR;
+    }
+    const options = process.env.ALICE_EMBEDDING_DTYPE ? { dtype: process.env.ALICE_EMBEDDING_DTYPE } : {};
+    const extractor = await pipeline('feature-extraction', target.modelId, options);
     return async texts => {
       const output = await extractor(texts, { pooling: 'mean', normalize: true });
       const dim = output.dims[1];
@@ -72,7 +83,9 @@ async function main() {
   await loadRagCorpus();
 
   const chunks = getBundledKnowledgeChunks();
-  console.log(`Embedding ${chunks.length} chunks for ${TARGET} with ${target.modelId}...`);
+  const locales = {};
+  for (const chunk of chunks) locales[chunk.locale ?? 'unknown'] = (locales[chunk.locale ?? 'unknown'] ?? 0) + 1;
+  console.log(`Embedding ${chunks.length} chunks (${JSON.stringify(locales)}) for ${TARGET} with ${target.modelId}...`);
   const embed = await createEmbedder(target);
 
   const ids = [];

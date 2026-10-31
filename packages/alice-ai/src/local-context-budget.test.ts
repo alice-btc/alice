@@ -157,7 +157,7 @@ test('the mobile default stays 4096 while the desktop server takes its context f
   // replies mid-sentence). The Rust side must therefore accept a context size
   // rather than hardcode one, and clamp it to what llama-server can serve.
   assert.equal(LOCAL_CONTEXT_TOKENS, 4096);
-  const rustPath = decodeURIComponent(new URL('../../../apps/app-desktop/src-tauri/src/lib.rs', import.meta.url).pathname);
+  const rustPath = decodeURIComponent(new URL('../../../apps/app-desktop/src-tauri/src/local_ai.rs', import.meta.url).pathname);
   const rust = await readFile(rustPath, 'utf8');
   assert.match(rust, /ctx_size:\s*Option<u32>/);
   assert.match(rust, /ctx_size\.unwrap_or\(\d+\)\.clamp\(\d+,\s*\d+\)/);

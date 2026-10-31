@@ -4,6 +4,8 @@ import { SvgIcon } from '@/components/SvgIcon';
 import { CLOSE_ICON, CHECK_ICON } from '@/lib/atelier-icons';
 
 import { useState } from 'react';
+import { useLearnT } from './learn-locale';
+import { WithBitcoinGlyph } from '@/components/AmountDisplay';
 
 // First-open welcome for the Learn section, the twin of ExplorerIntroModal:
 // shown on every mount until the user ticks "don't show this again". It says
@@ -35,7 +37,7 @@ export function LearnIntroModal({
   onPickLanguage: () => void;
 }) {
   const [dontShowAgain, setDontShowAgain] = useState(false);
-  const fr = lang === 'fr';
+  const t = useLearnT(lang);
 
   function confirm() {
     if (dontShowAgain) {
@@ -78,19 +80,15 @@ export function LearnIntroModal({
           className="font-pixel tracking-widest m-0"
           style={{ fontSize: 12, lineHeight: 1.8, color: 'var(--alice-text)' }}
         >
-          {fr ? 'BIENVENUE DANS LEARN' : 'WELCOME TO LEARN'}
+          {t('learn.intro.title')}
         </h3>
-        <button type="button" autoFocus className="alice-control alice-control--tool" aria-label={fr ? 'Fermer' : 'Close'} onClick={onClose}><SvgIcon svg={CLOSE_ICON} size={16} /></button>
+        <button type="button" autoFocus className="alice-control alice-control--tool" aria-label={t('common.close')} onClick={onClose}><SvgIcon svg={CLOSE_ICON} size={16} /></button>
         </div>
         <p className="font-numbers m-0 mt-3" style={{ fontSize: 15, lineHeight: '21px', color: 'var(--alice-muted)' }}>
-          {fr
-            ? 'Une bibliothèque de cours et de tutoriels sur Bitcoin, du premier pas à la vie privée, au minage et au réseau Lightning. Chaque cours se lit chapitre par chapitre, avec des quiz et des liens vers la chaîne réelle dans l’Explorer.'
-            : 'A library of Bitcoin courses and tutorials, from the first steps to privacy, mining and the Lightning Network. Every course reads chapter by chapter, with quizzes and links into the real chain in the Explorer.'}
+          {t('learn.intro.library')}
         </p>
         <p className="font-numbers m-0 mt-2" style={{ fontSize: 15, lineHeight: '21px', color: 'var(--alice-muted)' }}>
-          {fr
-            ? 'Le contenu est celui de Plan ₿ Academy, sous licence CC BY-SA 4.0. Alice ne le réécrit pas : elle l’explique quand tu bloques.'
-            : 'The content is Plan ₿ Academy’s, licensed CC BY-SA 4.0. Alice never rewrites it: she explains it when you get stuck.'}
+          <WithBitcoinGlyph text={t('learn.intro.license')} />
         </p>
 
         <div className="flex flex-wrap items-center justify-between gap-3 mt-5">
@@ -102,7 +100,7 @@ export function LearnIntroModal({
               style={{ width: 14, height: 14, accentColor: 'var(--alice-primary)' }}
             />
             <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>
-              {fr ? 'Ne plus afficher' : 'Don’t show this again'}
+              {t('learn.intro.dontShow')}
             </span>
           </label>
           {/* The two actions wrap on a phone instead of running past the
@@ -114,7 +112,7 @@ export function LearnIntroModal({
               className="alice-control alice-control--quiet"
               style={{ padding: '10px 14px' }}
             >
-              {fr ? 'Choisir la langue' : 'Pick a language'}
+              {t('learn.intro.pickLanguage')}
             </button>
             <button
               type="button"
@@ -122,7 +120,7 @@ export function LearnIntroModal({
               className="alice-control alice-control--primary"
               style={{ padding: '10px 22px' }}
             >
-              <SvgIcon svg={CHECK_ICON} size={20} /> {fr ? 'Découvrir les cours' : 'Explore courses'}
+              <SvgIcon svg={CHECK_ICON} size={20} /> {t('learn.intro.explore')}
             </button>
           </div>
         </div>

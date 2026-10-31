@@ -13,8 +13,10 @@
 
 import { useId, useMemo, useRef, useState } from 'react';
 import { computeBowtie, type BowtieLine } from '@/lib/explorer/bowtie';
-import { formatAmount, useAmountState } from '@/components/AmountDisplay';
+import { formatAmount, useAmountState, WithBitcoinGlyph } from '@/components/AmountDisplay';
 import type { NormalizedOutspend, NormalizedTransaction } from '@/lib/explorer/types';
+import { formatCount } from '@/lib/explorer/blocks';
+import { useT, type Translator } from '@/i18n';
 
 // Gradient anchors: G0 at the outer edges, G1 at the knot, G2 the transparent
 // fade for connectors. HOT is the hover emphasis stop: the theme's text color,
@@ -28,13 +30,13 @@ const HOT = 'var(--alice-text)';
 type Side = 'input' | 'output';
 type Hover = { side: Side; index: number; connector: boolean };
 
-function lineLabel(n: BowtieLine): string {
-  if (n.kind === 'fee') return 'Miner fee';
-  if (n.aggregateCount > 0) return `${n.aggregateCount} more ${n.kind === 'input' ? 'inputs' : 'outputs'}`;
-  if (n.isCoinbase) return 'Coinbase (newly minted)';
+function lineLabel(n: BowtieLine, t: Translator): string {
+  if (n.kind === 'fee') return t('explorerTx.graph.minerFee');
+  if (n.aggregateCount > 0) return t(n.kind === 'input' ? 'explorerTx.graph.moreInputs' : 'explorerTx.graph.moreOutputs', { count: n.aggregateCount });
+  if (n.isCoinbase) return t('explorerTx.io.coinbase');
   if (n.address) return n.address;
-  if (n.scriptType && n.scriptType !== 'unknown') return `No address (${n.scriptType.toUpperCase()})`;
-  return 'Unknown script';
+  if (n.scriptType && n.scriptType !== 'unknown') return t('explorerTx.io.noAddress', { type: n.scriptType.toUpperCase() });
+  return t('explorerTx.io.unknownScript');
 }
 
 export function ExplorerTxGraph({
@@ -57,6 +59,7 @@ export function ExplorerTxGraph({
   /** Opens an address (clicking a ribbon that has one). */
   onOpenAddress?: (address: string) => void;
 }) {
+  const t = useT();
   const [expanded, setExpanded] = useState(false);
   const unit = useAmountState();
   const [hover, setHover] = useState<Hover | null>(null);
@@ -119,7 +122,7 @@ export function ExplorerTxGraph({
               onClick={() => { if (connectorTarget) onOpenTx?.(connectorTarget); }}
               role={connectorTarget && onOpenTx ? 'button' : undefined}
               tabIndex={connectorTarget && onOpenTx ? 0 : undefined}
-              aria-label={connectorTarget ? `Open transaction ${connectorTarget}` : undefined}
+              aria-label={connectorTarget ? t('explorerTx.graph.openTx', { txid: connectorTarget }) : undefined}
               onFocus={enter(true)}
               onBlur={leave}
               onKeyDown={event => { if (connectorTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onOpenTx?.(connectorTarget); } }}
@@ -147,7 +150,7 @@ export function ExplorerTxGraph({
             onClick={() => { if (addrTarget) onOpenAddress?.(addrTarget); }}
             role={addrTarget ? 'button' : undefined}
             tabIndex={addrTarget ? 0 : undefined}
-            aria-label={addrTarget ? `Open address ${addrTarget}` : undefined}
+            aria-label={addrTarget ? t('explorerTx.io.openAddress', { address: addrTarget }) : undefined}
             onFocus={enter(false)}
             onBlur={leave}
             onKeyDown={event => { if (addrTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onOpenAddress?.(addrTarget); } }}
@@ -168,7 +171,7 @@ export function ExplorerTxGraph({
           width="100%"
           style={{ display: 'block' }}
           role="group"
-          aria-label="Transaction flow diagram"
+          aria-label={t('explorerTx.graph.aria')}
         >
           <defs>
             <marker id={gid('arrow-in')} viewBox="-5 -5 10 10" refX={0} refY={0} markerUnits="strokeWidth" markerWidth={1.5} markerHeight={1} orient="auto">
@@ -265,44 +268,44 @@ export function ExplorerTxGraph({
             }}
           >
             <p className="font-pixel tracking-widest m-0" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-              {active.kind === 'fee' ? 'FEE' : active.kind === 'input' ? 'INPUT' : 'OUTPUT'}
+              {active.kind === 'fee' ? t('explorerTx.graph.fee') : active.kind === 'input' ? t('explorerTx.graph.input') : t('explorerTx.graph.output')}
             </p>
             <p className="font-numbers m-0 break-all" style={{ fontSize: 12, color: 'var(--alice-text)' }}>
-              {lineLabel(active)}
+              {lineLabel(active, t)}
             </p>
             {typeof active.valueSats === 'number' && (
               <p className="font-numbers m-0" style={{ fontSize: 12, color: 'var(--alice-text)' }}>
                 {/* The fee ribbon stays in sats; coin values follow the unit. */}
                 {active.kind === 'fee'
-                  ? `${active.valueSats.toLocaleString('en-US')} sats`
-                  : formatAmount(active.valueSats, unit)}
+                  ? `${formatCount(active.valueSats, t.locale)} sats`
+                  : <WithBitcoinGlyph text={formatAmount(active.valueSats, unit)} />}
               </p>
             )}
             {active.confidential && (
               <p className="font-numbers m-0" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-                Amount hidden (confidential)
+                {t('explorerTx.graph.confidential')}
               </p>
             )}
             {isFlagged(active) && (
               <p className="font-numbers m-0" style={{ fontSize: 11, color: FLAG }}>
-                Flagged by privacy analysis
+                {t('explorerTx.graph.flagged')}
               </p>
             )}
             {active.kind === 'output' && active.originalIndex >= 0 && outspends && (
               <p className="font-numbers m-0" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>
                 {outspendOf(active)?.spent
-                  ? hover?.connector ? 'Open the spending transaction' : 'Spent - the edge chevron opens the next tx'
-                  : 'Unspent'}
+                  ? hover?.connector ? t('explorerTx.graph.openSpending') : t('explorerTx.graph.spent')
+                  : t('explorerTx.graph.unspent')}
               </p>
             )}
             {active.kind === 'input' && hover?.connector && active.prevTxid && (
               <p className="font-numbers m-0" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>
-                Open the previous transaction
+                {t('explorerTx.graph.openPrevious')}
               </p>
             )}
             {active.address && onOpenAddress && !hover?.connector && (
               <p className="font-numbers m-0" style={{ fontSize: 11, color: 'var(--alice-primary)' }}>
-                Click to open this address
+                {t('explorerTx.graph.openThisAddress')}
               </p>
             )}
           </div>
@@ -313,7 +316,7 @@ export function ExplorerTxGraph({
         className="font-numbers m-0"
         style={{ fontSize: 12, color: 'var(--alice-muted)', textAlign: 'center' }}
       >
-        {layout.totalInputs} input(s) into {layout.totalOutputs} output(s). Hover a ribbon for detail.
+        {t('explorerTx.graph.summary', { inputs: layout.totalInputs, outputs: layout.totalOutputs })}
       </p>
 
       {layout.truncatable && (
@@ -329,8 +332,8 @@ export function ExplorerTxGraph({
           }}
         >
           {expanded
-            ? 'SHOW FEWER'
-            : `SHOW ALL ${Math.max(layout.totalInputs, layout.totalOutputs)} ENTRIES`}
+            ? t('explorerTx.graph.showFewer')
+            : t('explorerTx.graph.showAll', { count: Math.max(layout.totalInputs, layout.totalOutputs) })}
         </button>
       )}
     </div>

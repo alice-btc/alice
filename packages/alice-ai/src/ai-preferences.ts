@@ -2,11 +2,12 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isExpectedModelFileSize } from './model-file-validation';
 import type { ResponseLanguagePreference } from './language-policy';
+import { isSupportedLanguage, languageFromLocale, type SupportedLanguage } from './languages';
 import { isAllowedModelDownloadUrl, modelDownloadRefusal, parseStoredCustomModels, type LocalModelEntry, type LocalModelSource } from './local-model-registry';
 
 export type AIPreset = 'fast' | 'balanced' | 'deep';
 /** Ids of the default catalog; a legacy or custom entry carries any other string. */
-export type CatalogModelId = 'qwen3.5-2b' | 'qwen3.5-4b' | 'qwen3.5-9b';
+export type CatalogModelId = 'qwen3.5-0.8b' | 'qwen3.5-2b' | 'qwen3.5-4b' | 'qwen3.5-9b';
 export type LocalModelId = CatalogModelId | (string & {});
 export const DEFAULT_LOCAL_MODEL_ID: CatalogModelId = 'qwen3.5-4b';
 
@@ -50,13 +51,32 @@ export const MODEL_CATALOG: ModelEntry[] = [
   // metadata of that revision (tree API, matching the resolve URL's
   // X-Linked-Etag); the desktop rejects a download that does not hash to it.
   {
+    // Entry-level phones: on a Galaxy A15 (4 GB, MediaTek MT6789) the 2B
+    // answered correctly but took over 4 minutes to read Alice's prompt
+    // before its first word (2026-10-29); this one does the same work with
+    // 2.5 times fewer weights.
+    id: 'qwen3.5-0.8b',
+    parameters: 0.8,
+    name: 'Qwen3.5 0.8B',
+    filename: 'Qwen3.5-0.8B-Q4_K_M.gguf',
+    sizeBytes: 532_517_120,
+    sha256: 'bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517',
+    url: 'https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/6ab461498e2023f6e3c1baea90a8f0fe38ab64d0/Qwen3.5-0.8B-Q4_K_M.gguf',
+    description: 'Smallest model, for entry-level phones. Very short answers; it invents details often, verify everything.',
+    speed: 'Fastest',
+    ramNeeded: '3 GB',
+    source: 'catalog',
+    recommendation: 'Only for phones that cannot run the 2B: 4 GB of memory or a slow processor. Expect generic answers and invented details; Alice cannot vouch for them. Pick a larger model whenever the phone allows it.',
+  },
+  {
     id: 'qwen3.5-2b',
+    parameters: 2,
     name: 'Qwen3.5 2B',
     filename: 'Qwen3.5-2B-Q4_K_M.gguf',
     sizeBytes: 1_280_835_840,
     sha256: 'aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223',
     url: 'https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/f6d5376be1edb4d416d56da11e5397a961aca8ae/Qwen3.5-2B-Q4_K_M.gguf',
-    description: 'Lightest model for older phones. Short answers; it can hallucinate a lot, verify anything important.',
+    description: 'Light model for older phones. Short answers; it can hallucinate a lot, verify anything important.',
     speed: 'Fast',
     ramNeeded: '4 GB',
     source: 'catalog',
@@ -64,6 +84,7 @@ export const MODEL_CATALOG: ModelEntry[] = [
   },
   {
     id: 'qwen3.5-4b',
+    parameters: 4,
     name: 'Qwen3.5 4B',
     filename: 'Qwen3.5-4B-Q4_K_M.gguf',
     sizeBytes: 2_740_937_888,
@@ -77,6 +98,7 @@ export const MODEL_CATALOG: ModelEntry[] = [
   },
   {
     id: 'qwen3.5-9b',
+    parameters: 9,
     name: 'Qwen3.5 9B',
     filename: 'Qwen3.5-9B-Q4_K_M.gguf',
     sizeBytes: 5_680_522_464,
@@ -97,6 +119,7 @@ export const MODEL_CATALOG: ModelEntry[] = [
 export const LEGACY_MODELS: ModelEntry[] = [
   {
     id: 'qwen3-0.6b',
+    parameters: 0.6,
     name: 'Qwen3 0.6B',
     filename: 'qwen3-0.6b-q4_k_m.gguf',
     sizeBytes: 484_220_192,
@@ -109,6 +132,7 @@ export const LEGACY_MODELS: ModelEntry[] = [
   },
   {
     id: 'qwen3-1.7b',
+    parameters: 1.7,
     name: 'Qwen3 1.7B',
     filename: 'Qwen_Qwen3-1.7B-Q4_K_M.gguf',
     sizeBytes: 1_282_439_584,
@@ -121,6 +145,7 @@ export const LEGACY_MODELS: ModelEntry[] = [
   },
   {
     id: 'granite-3.3-2b',
+    parameters: 2,
     name: 'Granite 3.3 2B',
     filename: 'ibm-granite_granite-3.3-2b-instruct-Q4_K_M.gguf',
     sizeBytes: 1_545_303_616,
@@ -133,6 +158,7 @@ export const LEGACY_MODELS: ModelEntry[] = [
   },
   {
     id: 'smollm3-3b',
+    parameters: 3,
     name: 'SmolLM3 3B',
     filename: 'SmolLM3-Q4_K_M.gguf',
     sizeBytes: 1_915_305_312,
@@ -145,6 +171,7 @@ export const LEGACY_MODELS: ModelEntry[] = [
   },
   {
     id: 'qwen3-4b',
+    parameters: 4,
     name: 'Qwen3 4B',
     filename: 'Qwen_Qwen3-4B-Q4_K_M.gguf',
     sizeBytes: 2_497_280_960,
@@ -241,17 +268,60 @@ export async function setAliceInstructions(instructions: string): Promise<void> 
   }
 }
 
+/** Nothing stored means 'app': answer in the app language. */
 export async function getResponseLanguagePreference(): Promise<ResponseLanguagePreference> {
   const stored = await AsyncStorage.getItem(RESPONSE_LANGUAGE_KEY);
-  return stored === 'fr' || stored === 'en' ? stored : 'auto';
+  if (stored === 'auto' || isSupportedLanguage(stored)) return stored;
+  return 'app';
 }
 
 export async function setResponseLanguagePreference(preference: ResponseLanguagePreference): Promise<void> {
-  if (preference === 'auto') {
-    await AsyncStorage.removeItem(RESPONSE_LANGUAGE_KEY);
-    return;
+  if (preference === 'app') await AsyncStorage.removeItem(RESPONSE_LANGUAGE_KEY);
+  else await AsyncStorage.setItem(RESPONSE_LANGUAGE_KEY, preference);
+  notifyLanguagePreferences();
+}
+
+const APP_LANGUAGE_KEY = 'alice_app_language';
+
+/** The browser or OS locale: the app language until the user chooses one in Settings. */
+export function currentInterfaceLanguage(): string {
+  if (typeof navigator !== 'undefined' && navigator.language) return navigator.language;
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().locale;
+  } catch {
+    return 'en';
   }
-  await AsyncStorage.setItem(RESPONSE_LANGUAGE_KEY, preference);
+}
+
+/**
+ * The language Alice answers in by default. Until the user chooses one in
+ * Settings it follows the device: French for a French locale, English for
+ * every other, read on each start and never saved, so a device that changes
+ * language takes Alice with it. A choice in Settings is saved and wins.
+ */
+export async function getAppLanguage(): Promise<SupportedLanguage> {
+  const stored = await AsyncStorage.getItem(APP_LANGUAGE_KEY);
+  return isSupportedLanguage(stored) ? stored : languageFromLocale(currentInterfaceLanguage());
+}
+
+export async function setAppLanguage(language: SupportedLanguage): Promise<void> {
+  await AsyncStorage.setItem(APP_LANGUAGE_KEY, language);
+  notifyLanguagePreferences();
+}
+
+// The chat header shows the language of the next answer, so it follows a
+// change made in Settings without a reload.
+const languagePreferenceListeners = new Set<() => void>();
+
+export function subscribeLanguagePreferences(listener: () => void): () => void {
+  languagePreferenceListeners.add(listener);
+  return () => { languagePreferenceListeners.delete(listener); };
+}
+
+function notifyLanguagePreferences(): void {
+  for (const listener of [...languagePreferenceListeners]) {
+    try { listener(); } catch { /* a listener never blocks a save */ }
+  }
 }
 
 const CUSTOM_MODELS_KEY = 'alice_ai_custom_models';

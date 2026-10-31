@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ChatMsg } from './chat-context';
-import { reportBrowserStorageIssue } from './browser-storage-security.ts';
+import { reportBrowserStorageIssue, storageIssueFor } from './browser-storage-security.ts';
+import type { SupportedLanguage } from './languages.ts';
 
 const SESSION_INDEX_KEY = 'alice_chat_sessions';
 const SESSION_PREFIX = 'alice_chat_session_';
@@ -50,6 +51,8 @@ export interface ChatSession {
   createdAt: number;
   updatedAt: number;
   messageCount: number;
+  /** Answer language asked for in this conversation's messages. */
+  languageOverride?: SupportedLanguage;
 }
 
 const migrationPromises = new WeakMap<ChatStorageCipher, Promise<void>>();
@@ -89,7 +92,7 @@ export async function decodeChatStorageValue(
     throw new Error('Encrypted chat storage is unavailable without its encryption provider.');
   }
   try { return await cipher.decrypt(value.slice(ENCRYPTED_VALUE_PREFIX.length), context); }
-  catch (error) { reportBrowserStorageIssue('unreadable'); throw error; }
+  catch (error) { reportBrowserStorageIssue(storageIssueFor(error, 'unreadable')); throw error; }
 }
 
 async function readStorageValue(key: string, cipher?: ChatStorageCipher): Promise<string | null> {
@@ -172,6 +175,8 @@ export async function saveSession(
   messages: ChatMsg[],
   existingId?: string | null,
   cipher?: ChatStorageCipher,
+  /** Undefined keeps the stored override, null removes it. */
+  languageOverride?: SupportedLanguage | null,
 ): Promise<string | null> {
   const userMessages = messages.filter(m => m.role === 'user');
   if (userMessages.length === 0) return null;
@@ -187,6 +192,8 @@ export async function saveSession(
     updatedAt: Date.now(),
     messageCount: messages.length,
   };
+  const override = languageOverride === undefined ? existingSession?.languageOverride : languageOverride;
+  if (override) session.languageOverride = override;
 
   const serialized = messages.map(m => ({
     ...m,
@@ -203,6 +210,34 @@ export async function saveSession(
   return id;
 }
 
+/**
+ * Puts a conversation back under its own id, title and dates, merged into
+ * the stored index: for the conversations a session kept in memory while the
+ * device cipher was out of reach, once it is back. The index keeps its order
+ * by last update and its limit.
+ */
+export async function restoreSession(
+  session: ChatSession,
+  messages: ChatMsg[],
+  cipher?: ChatStorageCipher,
+): Promise<void> {
+  const sessions = await listSessions(cipher);
+  // Saved again since the key came back (a reply that ended meanwhile): the
+  // stored one is newer than this copy.
+  if (sessions.some(s => s.id === session.id && s.updatedAt >= session.updatedAt)) return;
+  const serialized = messages.map(m => ({
+    ...m,
+    time: m.time instanceof Date ? m.time.toISOString() : m.time,
+  }));
+  const nextSessions = [session, ...sessions.filter(s => s.id !== session.id)]
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  const removed = nextSessions.splice(MAX_CHAT_SESSIONS);
+  if (removed.some(s => s.id === session.id)) return; // older than every kept one
+  await writeStorageValue(SESSION_PREFIX + session.id, JSON.stringify(serialized), cipher);
+  await writeStorageValue(SESSION_INDEX_KEY, JSON.stringify(nextSessions), cipher);
+  await Promise.all(removed.map(s => backend.removeItem(SESSION_PREFIX + s.id)));
+}
+
 export async function loadSession(id: string, cipher?: ChatStorageCipher): Promise<ChatMsg[]> {
   await migrateChatStorage(cipher);
   const raw = await readStorageValue(SESSION_PREFIX + id, cipher);
@@ -213,6 +248,20 @@ export async function loadSession(id: string, cipher?: ChatStorageCipher): Promi
   } catch {
     return [];
   }
+}
+
+/** Records the answer language of a saved conversation, or removes it with null. */
+export async function setSessionLanguageOverride(
+  id: string,
+  languageOverride: SupportedLanguage | null,
+  cipher?: ChatStorageCipher,
+): Promise<void> {
+  const sessions = await listSessions(cipher);
+  const index = sessions.findIndex(session => session.id === id);
+  if (index === -1) return;
+  const { languageOverride: _previous, ...rest } = sessions[index];
+  sessions[index] = languageOverride ? { ...rest, languageOverride } : rest;
+  await writeStorageValue(SESSION_INDEX_KEY, JSON.stringify(sessions), cipher);
 }
 
 export async function deleteSession(id: string, cipher?: ChatStorageCipher): Promise<void> {

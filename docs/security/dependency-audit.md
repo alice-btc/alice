@@ -4,7 +4,40 @@ Alice uses a lockfile and runs `npm audit` in CI after a clean install. The CI
 fails on any critical vulnerability, any high-severity package or advisory not
 in the reviewed baseline, and when that baseline expires.
 
-## Current reviewed baseline, 2026-10-05
+## Current reviewed baseline, 2026-10-31
+
+Review brought forward from 2026-11-02: on 2026-10-31, 7 advisories published
+against node-forge 1.4.0 (GHSA-7wch-p9px-956x, GHSA-jc66-7q78-782g,
+GHSA-8hrf-8g6f-7xwp, GHSA-hqq3-7jhf-c5jx, GHSA-5x38-2vff-x55p and 2 lower ones)
+turned the gate red on every branch. Audit after the fix below, on a clean
+tree: 0 high / 27 moderate / 3 low / 0 critical. Expiration moves to
+**2026-11-28**.
+
+### What changed
+
+- **node-forge is fixed.** The registry published 1.4.1 and 1.4.2 on
+  2026-10-27, patching the 2026-10-01 advisory and the 7 new ones (all
+  `<=1.4.0`). Both dependants (`@expo/cli` and
+  `@expo/code-signing-certificates`) declare `^1.3.3`, so
+  `npm update node-forge --ignore-scripts` moved the single lockfile node to
+  1.4.2 with no override; the lockfile diff is that one entry, and no nested
+  copy exists. The exception, its advisory id (1240912) and its reviewed node
+  leave the gate.
+- **braces is no longer reported.** `npm audit` on this date lists no advisory
+  against braces 3.0.3, which is still the latest release. Its exception,
+  advisory id (1240992) and reviewed node leave the gate too; should the
+  advisory come back, the gate turns red and the 2026-10-04 analysis below
+  applies to the new review.
+- The reviewed sets in `scripts/check-npm-audit.mjs` are empty. The gate still
+  fails on any critical finding, any high finding, and on the expiry date.
+
+### Next review, by 2026-11-28
+
+Rerun the audit on a clean install. With no exception left, the review is a
+check that the sets are still empty and a new date; any high finding must be
+fixed or justified as the sections below did.
+
+## Baseline of 2026-10-05 (previous review)
 
 Review of the 2026-10-04 baseline before its 2026-10-20 expiry. Audit after a
 clean install: 25 high / 16 moderate / 2 low / 0 critical, down from 27 high.
@@ -43,7 +76,7 @@ their declared ranges; the lockfile diff is those two entries. Audit after the
 update: 25 high / 0 critical, no new package or advisory, baseline and expiry
 unchanged.
 
-### Next review, by 2026-11-02
+### Next review, by 2026-11-02 (done on 2026-10-31, see above)
 
 Rerun the audit, check `npm view braces version`, `npm view node-forge
 version` and both advisories for a patched version; install it through the

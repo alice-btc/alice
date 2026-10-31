@@ -6,6 +6,7 @@ import { NEXT_ICON } from '@/lib/atelier-icons';
 import { useRouter } from 'next/navigation';
 import { chaptersForConcept } from '@alice-wallet/alice-content/src/learn-anchors';
 import type { PrivacySignal, SignalSeverity, SignalConfidence } from '@/lib/explorer/signals';
+import { useT, type MessageKey, type Translator } from '@/i18n';
 
 const SEVERITY_COLOR: Record<SignalSeverity, string> = {
   info: 'var(--alice-muted)',
@@ -15,6 +16,7 @@ const SEVERITY_COLOR: Record<SignalSeverity, string> = {
 };
 
 function SignalCard({ signal }: { signal: PrivacySignal }) {
+  const t = useT();
   const color = SEVERITY_COLOR[signal.severity];
   return (
     <div
@@ -26,14 +28,14 @@ function SignalCard({ signal }: { signal: PrivacySignal }) {
           {signal.title}
         </span>
         <span className="font-numbers" style={{ fontSize: 10, padding: '3px 6px', border: `1px solid ${color}`, borderRadius: 3, color }}>
-          {severityLabel(signal.severity)}
+          {severityLabel(signal.severity, t)}
         </span>
         <span
           className="font-numbers"
           style={{ fontSize: 10, padding: '3px 6px', border: '1px solid var(--alice-muted)', borderRadius: 3, color: 'var(--alice-muted)' }}
-          title="How sure this is, independent of how serious it is."
+          title={t('explorerSignals.confidenceHint')}
         >
-          {confidenceLabel(signal.confidence)}
+          {confidenceLabel(signal.confidence, t)}
         </span>
       </div>
       <p className="font-numbers m-0" style={{ fontSize: 13, lineHeight: '19px', color: 'var(--alice-muted)' }}>
@@ -52,6 +54,7 @@ function SignalCard({ signal }: { signal: PrivacySignal }) {
 // Deterministic bridge to Learn: the curated concept table maps this rule to
 // the PlanB chapter that explains it. No table entry, no button.
 function LearnMoreLink({ ruleId }: { ruleId: string }) {
+  const t = useT();
   const router = useRouter();
   const chapter = chaptersForConcept(ruleId)[0];
   if (!chapter) return null;
@@ -61,17 +64,31 @@ function LearnMoreLink({ ruleId }: { ruleId: string }) {
       className="alice-control alice-control--quiet font-numbers self-start cursor-pointer hover:opacity-100 opacity-80 transition-opacity"
       style={{ fontSize: 13, border: 0, padding: 0, color: 'var(--alice-primary)' }}
     >
-      Learn more about this <SvgIcon svg={NEXT_ICON} size={16} />
+      {t('explorerSignals.learnMore')} <SvgIcon svg={NEXT_ICON} size={16} />
     </button>
   );
 }
 
-function severityLabel(s: SignalSeverity): string {
-  return s.toUpperCase();
+const SEVERITY_LABEL: Record<SignalSeverity, MessageKey> = {
+  info: 'explorerSignals.severity.info',
+  low: 'explorerSignals.severity.low',
+  medium: 'explorerSignals.severity.medium',
+  high: 'explorerSignals.severity.high',
+};
+
+const CONFIDENCE_LABEL: Record<SignalConfidence, MessageKey> = {
+  certain: 'explorerSignals.confidence.certain',
+  strong: 'explorerSignals.confidence.strong',
+  possible: 'explorerSignals.confidence.possible',
+  unknown: 'explorerSignals.confidence.unknown',
+};
+
+function severityLabel(s: SignalSeverity, t: Translator): string {
+  return t(SEVERITY_LABEL[s]);
 }
 
-function confidenceLabel(c: SignalConfidence): string {
-  return `${c.toUpperCase()} CONFIDENCE`;
+function confidenceLabel(c: SignalConfidence, t: Translator): string {
+  return t(CONFIDENCE_LABEL[c]);
 }
 
 export function ExplorerSignals({
@@ -83,27 +100,28 @@ export function ExplorerSignals({
   analyzing: boolean;
   degraded: boolean;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-col gap-3">
       <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-        PRIVACY SIGNALS
+        {t('explorerSignals.title')}
       </span>
 
       {analyzing ? (
         <p className="font-numbers m-0" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>
-          Checking addresses for reuse...
+          {t('explorerSignals.checking')}
         </p>
       ) : signals.length === 0 ? (
         <p className="font-numbers m-0" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>
-          No address reuse detected in this transaction.
-          {degraded ? ' Some address history could not be read, so this is not a guarantee.' : ''}
+          {t('explorerSignals.none')}
+          {degraded ? t('explorerSignals.noneDegraded') : ''}
         </p>
       ) : (
         <>
           {signals.map((s) => <SignalCard key={s.id} signal={s} />)}
           {degraded && (
             <p className="font-numbers m-0" style={{ fontSize: 12, color: 'var(--alice-muted)', opacity: 0.7 }}>
-              Some address history could not be read, so more reuse may exist than shown.
+              {t('explorerSignals.degraded')}
             </p>
           )}
         </>

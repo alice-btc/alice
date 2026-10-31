@@ -156,6 +156,7 @@ test('the Tauri reporting wrapper and web adapter use the same native cipher com
   Object.defineProperty(globalThis,'window',{configurable:true,value:{__TAURI_INTERNALS__:{
     invoke:async(command:string,args:Record<string,string>)=>{
       calls.push(command);
+      if(command==='chat_storage_status')return undefined;
       if(command==='chat_storage_encrypt')return nativeCipher.encrypt(args.plaintext,args.context);
       if(command==='chat_storage_decrypt')return nativeCipher.decrypt(args.ciphertext,args.context);
       throw new Error('Unexpected native command');

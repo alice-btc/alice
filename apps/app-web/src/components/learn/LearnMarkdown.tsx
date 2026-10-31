@@ -3,12 +3,22 @@
 import { SvgIcon } from '@/components/SvgIcon';
 import { NEXT_ICON, EXTERNAL_ICON } from '@/lib/atelier-icons';
 
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { useT, type Translator } from '@/i18n';
+import { useLearnT } from './learn-locale';
 import type { LearnBlock, LearnInline } from '@/lib/learn/markdown';
 import { normalizeLinkHref, parseMarkdown, resolveAssetUrl } from '@/lib/learn/markdown';
 import { openExternalUrl } from '@/lib/open-external';
 
 type AnchorClick = (anchorId: string) => void;
+
+// The chrome inside a course body (placeholders, titles) speaks the reading
+// language like the rest of Learn; the blocks get it from here.
+const MarkdownT = createContext<Translator | null>(null);
+function useMarkdownT(): Translator {
+  const app = useT();
+  return useContext(MarkdownT) ?? app;
+}
 
 // Renderer for PlanB course markdown. Media is online-only by decision: the
 // 14 GB of images/videos never ship with the app, so offline readers get an
@@ -30,6 +40,7 @@ export function useOnline(): boolean {
 }
 
 function InlineNodes({ nodes, assetBase, onAnchorClick }: { nodes: LearnInline[]; assetBase: string; onAnchorClick?: AnchorClick }) {
+  const t = useMarkdownT();
   return (
     <>
       {nodes.map((node, i) => {
@@ -40,7 +51,7 @@ function InlineNodes({ nodes, assetBase, onAnchorClick }: { nodes: LearnInline[]
                 key={i}
                 onClick={() => onAnchorClick?.(node.anchorId)}
                 className="alice-control alice-control--link"
-                title="See it in the Explorer"
+                title={t('learn.markdown.seeInExplorer')}
                 style={{
                   background: 'none',
                   display: 'inline',
@@ -107,7 +118,8 @@ function InlineNodes({ nodes, assetBase, onAnchorClick }: { nodes: LearnInline[]
 
 function CourseImage({ src, alt }: { src: string; alt: string }) {
   const [failed, setFailed] = useState(false);
-  if (failed) return <OfflineMediaCard title="IMAGE UNAVAILABLE" label={alt || 'This course image could not be loaded.'} />;
+  const t = useMarkdownT();
+  if (failed) return <OfflineMediaCard title={t('learn.markdown.imageUnavailable')} label={alt || t('learn.markdown.imageFailed')} />;
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} style={{
@@ -118,7 +130,8 @@ function CourseImage({ src, alt }: { src: string; alt: string }) {
   );
 }
 
-function OfflineMediaCard({ label, title = 'OFFLINE' }: { label: string; title?: string }) {
+function OfflineMediaCard({ label, title }: { label: string; title?: string }) {
+  const t = useMarkdownT();
   return (
     <div
       style={{
@@ -130,7 +143,7 @@ function OfflineMediaCard({ label, title = 'OFFLINE' }: { label: string; title?:
         textAlign: 'center',
       }}
     >
-      <div className="font-pixel" style={{ fontSize: 10 }}>{title}</div>
+      <div className="font-pixel" style={{ fontSize: 10 }}>{title ?? t('learn.markdown.offline')}</div>
       <p style={{ margin: '8px 0 0', fontSize: 14 }}>{label}</p>
     </div>
   );
@@ -149,6 +162,7 @@ function VideoBlock({
 }) {
   // Many courses only carry the fr YouTube id; fall back to whatever exists
   // rather than dropping the video.
+  const t = useMarkdownT();
   const byLang = videos[videoId] ?? {};
   const youtubeId = byLang[lang] ?? byLang.en ?? byLang.fr ?? Object.values(byLang)[0];
   if (!youtubeId) return null;
@@ -164,9 +178,9 @@ function VideoBlock({
           color: 'var(--alice-muted)',
         }}
       >
-        <div className="font-pixel" style={{ fontSize: 8 }}>VIDEO · OFFLINE</div>
+        <div className="font-pixel" style={{ fontSize: 8 }}>{t('learn.markdown.videoOffline')}</div>
         <p style={{ margin: '8px 0 0', fontSize: 14, wordBreak: 'break-all' }}>
-          Open it on a connected device:{' '}
+          {t('learn.markdown.videoOpenElsewhere')}{' '}
           <a
             href={url}
             target="_blank"
@@ -187,7 +201,7 @@ function VideoBlock({
           alone sends Alice's origin, never the page path or its query. */}
       <iframe
         src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
-        title="Course video"
+        title={t('learn.markdown.videoTitle')}
         allow="encrypted-media; picture-in-picture"
         allowFullScreen
         referrerPolicy="strict-origin"
@@ -215,15 +229,18 @@ export function LearnMarkdown({
 }) {
   const online = useOnline();
   const blocks = preparsed ?? parseMarkdown(markdown);
+  const t = useLearnT(lang);
 
   return (
-    // The page is declared English; a course in one of the 28 other languages
+    // The page is declared in the app language; a course in another language
     // says so here, which is what a screen reader needs to pronounce it.
+    <MarkdownT.Provider value={t}>
     <div lang={lang} className="font-numbers" style={{ fontSize: 16, lineHeight: '26px', color: 'var(--alice-text)' }}>
       {blocks.map((block, i) => (
         <Block key={i} block={block} assetBase={assetBase} videos={videos} lang={lang} online={online} onAnchorClick={onAnchorClick} />
       ))}
     </div>
+    </MarkdownT.Provider>
   );
 }
 
@@ -242,6 +259,7 @@ function Block({
   online: boolean;
   onAnchorClick?: AnchorClick;
 }) {
+  const t = useMarkdownT();
   switch (block.kind) {
     case 'heading': {
       const size = block.level <= 3 ? 12 : 10;
@@ -338,7 +356,7 @@ function Block({
         </div>
       );
     case 'image':
-      if (!online) return <OfflineMediaCard label="Connect to the internet to see this image." />;
+      if (!online) return <OfflineMediaCard label={t('learn.markdown.imageOffline')} />;
       return <CourseImage key={resolveAssetUrl(block.src, assetBase)} src={resolveAssetUrl(block.src, assetBase)} alt={block.alt} />;
     case 'video':
       return <VideoBlock videoId={block.videoId} videos={videos} lang={lang} online={online} />;

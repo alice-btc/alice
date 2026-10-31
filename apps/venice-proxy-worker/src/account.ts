@@ -1,5 +1,10 @@
 import type { Env } from './index.ts';
-import { accountEmailMasked, rememberAccountEmail, setProductUpdates } from './account-email.ts';
+import {
+  accountEmailMasked,
+  loadAccountEmail,
+  rememberAccountEmail,
+  setProductUpdates,
+} from './account-email.ts';
 import { maskEmail } from './email-vault.ts';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { scryptAsync } from '@noble/hashes/scrypt.js';
@@ -518,7 +523,28 @@ export async function rateLimit(
 export async function requestIpBucket(request: Request, env: Env, now: number): Promise<string> {
   const rawIp = request.headers.get('cf-connecting-ip') ?? 'unknown';
   const day = Math.floor(now / (24 * 60 * 60 * 1_000));
-  return hmac(env, `ip:${day}:${rawIp}`);
+  return hmac(env, `ip:${day}:${ipNetwork(rawIp)}`);
+}
+
+/**
+ * The unit an IP limit counts. An IPv4 address is one subscriber, but an IPv6
+ * subscriber is usually handed a whole /64 and can pick a fresh address from
+ * it for every request, so per-address limits counted nothing. The /64 is what
+ * one connection owns, so that is what is counted.
+ */
+export function ipNetwork(rawIp: string): string {
+  const ip = rawIp.trim().toLowerCase();
+  if (!ip.includes(':')) return ip;
+  // An IPv4 address written as IPv6 (::ffff:203.0.113.8) is still one address.
+  const embeddedV4 = /(\d{1,3}(?:\.\d{1,3}){3})$/.exec(ip);
+  if (embeddedV4) return embeddedV4[1];
+  const [head, tail] = ip.split('::');
+  const left = head ? head.split(':') : [];
+  const right = tail ? tail.split(':') : [];
+  const groups = tail === undefined
+    ? left
+    : [...left, ...Array<string>(Math.max(0, 8 - left.length - right.length)).fill('0'), ...right];
+  return `${groups.slice(0, 4).map(group => group.replace(/^0+(?=.)/, '')).join(':')}::/64`;
 }
 
 async function registerInstallation(
@@ -817,7 +843,9 @@ export function accountEmailConfigured(env: Env): boolean {
 
 async function sendLoginCode(env: Env, email: string, code: string): Promise<void> {
   await sendAccountEmail(env, email, {
-    subject: `${code} is your Alice login code`,
+    // The code stays out of the subject: a subject is what a locked phone
+    // shows in its notification, to whoever is holding it.
+    subject: 'Your Alice login code',
     text: `Your Alice login code is ${code}. It expires in 10 minutes. If you did not request it, you can ignore this email.`,
     html: `<p>Your Alice login code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p>It expires in 10 minutes. If you did not request it, you can ignore this email.</p>`,
   });
@@ -1186,6 +1214,10 @@ export async function verifyEmailLogin(
       now,
       now,
     ).run();
+    // Whoever was signed in with the old password is signed out now, before
+    // the session below is opened for the person who proved the inbox.
+    await revokeOtherSessions(env, identity.user_id, null, now);
+    await notifyPasswordChanged(env, identity.user_id);
   }
   // Written on every code login, not only at creation. Accounts made before
   // Alice kept an address repair themselves the next time their owner signs
@@ -1361,19 +1393,23 @@ export async function loginWithPassword(request: Request, env: Env) {
         salt: string;
       }>()
     : null;
+  // An unknown name still pays for a hash, so the answer takes as long as a
+  // wrong password would. It pays what a real account costs today, PBKDF2:
+  // the old scrypt stand-in was slower than any real check, which both burned
+  // CPU and told a stranger the name did not exist.
   const dummySalt = new Uint8Array(16);
-  const candidateHash = credential?.algorithm === 'pbkdf2-sha256'
+  const candidateHash = !credential || credential.algorithm === 'pbkdf2-sha256'
     ? await derivePasswordHash(
         password,
-        base64UrlToBytes(credential.salt),
-        credential.iterations ?? PASSWORD_ITERATIONS,
+        credential ? base64UrlToBytes(credential.salt) : dummySalt,
+        credential?.iterations ?? PASSWORD_ITERATIONS,
       )
     : await deriveScryptHash(
         password,
-        credential ? base64UrlToBytes(credential.salt) : dummySalt,
-        credential?.scrypt_n ?? SCRYPT_N,
-        credential?.scrypt_r ?? SCRYPT_R,
-        credential?.scrypt_p ?? SCRYPT_P,
+        base64UrlToBytes(credential.salt),
+        credential.scrypt_n ?? SCRYPT_N,
+        credential.scrypt_r ?? SCRYPT_R,
+        credential.scrypt_p ?? SCRYPT_P,
       );
   if (
     !userId
@@ -1418,6 +1454,23 @@ export async function setAccountPassword(request: Request, env: Env) {
   const now = Date.now();
   const body = await parseJsonBody(request);
   const password = validatePassword(body.password);
+  // Choosing a first password needs only the session that is creating the
+  // account. Replacing one needs the old one too: otherwise a stolen session,
+  // a phone left unlocked, was enough to lock the owner out of their own
+  // account. Forgetting it is what the code sent to the address is for.
+  const replacing = Boolean(await env.ACCOUNT_DB.prepare(`
+    SELECT user_id FROM password_credentials WHERE user_id = ?
+  `).bind(user.userId).first<{ user_id: string }>());
+  if (replacing) {
+    await rateLimit(env, user.userId, 'password_change', PASSWORD_LOGIN_LIMIT, now);
+    if (!(await verifyPasswordFor(env, user.userId, body.current_password))) {
+      throw new AccountHttpError(
+        403,
+        'current_password_required',
+        'Enter your current password to choose a new one, or reset it with a code sent to your email.',
+      );
+    }
+  }
   const current = await env.ACCOUNT_DB.prepare(`
     SELECT username, display_name FROM users WHERE id = ?
   `).bind(user.userId).first<{ username: string | null; display_name: string | null }>();
@@ -1471,7 +1524,49 @@ export async function setAccountPassword(request: Request, env: Env) {
       now,
     ),
   ]);
+  if (replacing) {
+    await revokeOtherSessions(env, user.userId, user.sessionId, now);
+    await notifyPasswordChanged(env, user.userId);
+  }
   return { account: await getAccountSnapshot(env, user.userId) };
+}
+
+/**
+ * A new password ends every other session at once, wherever it is open: the
+ * point of changing it is often that someone else got in. `keepSessionId` is
+ * the session that made the change, or null when a reset opens a fresh one.
+ */
+async function revokeOtherSessions(
+  env: Env,
+  userId: string,
+  keepSessionId: string | null,
+  now: number,
+): Promise<void> {
+  await env.ACCOUNT_DB.prepare(`
+    UPDATE sessions SET revoked_at = ?
+    WHERE user_id = ?
+      AND id != COALESCE(?, '')
+      AND revoked_at IS NULL
+  `).bind(now, userId, keepSessionId).run();
+}
+
+/**
+ * Tell the address on file that the password changed, so an owner who did not
+ * do it hears about it. Best effort: the change has already happened, and a
+ * mail provider having a bad minute must not turn it into an error.
+ */
+async function notifyPasswordChanged(env: Env, userId: string): Promise<void> {
+  try {
+    const recipient = await loadAccountEmail(env, userId);
+    if (!recipient) return;
+    await sendAccountEmail(env, recipient.email, {
+      subject: 'Your Alice password was changed',
+      text: 'The password of your Alice account was just changed, and every other device was signed out. If this was you, there is nothing to do. If it was not, reset your password now from the sign-in screen with a code sent to this address.',
+      html: '<p>The password of your Alice account was just changed, and every other device was signed out.</p><p>If this was you, there is nothing to do. If it was not, reset your password now from the sign-in screen with a code sent to this address.</p>',
+    });
+  } catch {
+    // Already changed; see above.
+  }
 }
 
 export async function updateAccountProfile(request: Request, env: Env) {

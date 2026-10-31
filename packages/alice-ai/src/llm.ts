@@ -44,7 +44,8 @@ function resolvePccsUrl(
 
 // Inlined rather than imported from ai-backend-factory, which imports the
 // backends, which import this module: taking that dependency would close a
-// cycle. Kept in sync with isTauriDesktop() there.
+// cycle. Kept in sync with isTauriApp() there: every Tauri build, desktop
+// or mobile, ships its own proxy configuration.
 function isPublicWebBuild(): boolean {
   if (typeof window === 'undefined') return false;
   if ('__TAURI_INTERNALS__' in window) return false;
@@ -191,6 +192,9 @@ async function sendE2EEMessage(
         || err.code === 'attestation_invalid'
       ) {
         throw new VeniceAPIError(err.code, err.message, err.status, err.detail);
+      }
+      if (err.code === 'request_too_large') {
+        throw new VeniceAPIError('request_too_large', err.message, err.status, err.detail);
       }
       // Surfaced as a normal provider error so the chat UI can render it, but
       // never downgraded into a plaintext retry.

@@ -1,13 +1,18 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { APP_URL, HERO_TITLE, appQuestionUrl } from '@/lib/site';
+import { APP_URL, appQuestionUrl } from '@/lib/site';
 import { useStepClip } from '@/lib/use-step-clip';
 import { AppCtas, ReleaseLinks } from '@/components/AppCtas';
 import { VerifyBlock } from '@/components/VerifyBlock';
 import { externalLinkProps } from '@/lib/links';
 import { ChevronDownIcon, SendIcon, ReceiveIcon, RefreshIcon } from '@/components/icons';
 import { rabbitPaths } from '@/lib/rabbit-paths';
+import type { HomeCopy } from '@/i18n/dictionaries/home';
+import type { CommonCopy } from '@/i18n/dictionaries/common';
+import type { Locale } from '@/i18n/config';
+
+type TourCopy = HomeCopy['tour'];
 
 /**
  * The hero and the app tour as one continuous object. On desktop, the right
@@ -26,41 +31,17 @@ import { rabbitPaths } from '@/lib/rabbit-paths';
 // Every step carries a real phone capture, used for each
 // app tour step on small screens.
 // Taken from a fresh headless profile, so no personal data can appear.
-const SCREENS: { src: string; alt: string; eyebrow: string; title: string; body: string; appHref: string }[] = [
-  {
-    src: '/screens/mobile/chat.webp',
-    alt: 'The updated Alice chat on a phone, with the rabbit beside its greeting and model controls below',
-    eyebrow: 'Ask Alice',
-    title: 'Chat with Alice',
-    body: 'The companion at the heart of the app. Ask in plain words, get answers at your level: Alice remembers what you are learning, on your device, and picks the next step with you.',
-    appHref: `${APP_URL}/`,
-  },
-  {
-    src: '/screens/mobile/explorer.webp',
-    alt: 'The block explorer screen on a phone, with live blocks and famous transactions',
-    eyebrow: 'Explorer',
-    title: 'See the chain for yourself',
-    body: 'Live blocks, fees, famous transactions, notorious addresses. Watch any address or xpub, and ask Alice to explain what you are looking at.',
-    appHref: `${APP_URL}/explorer`,
-  },
-  {
-    src: '/screens/mobile/learn.webp',
-    alt: 'The Learn screen on a phone, showing the Plan B Academy course catalogue',
-    eyebrow: 'Learn',
-    title: 'Courses that feed the conversation',
-    body: 'The school inside the app: the full Plan B Academy catalogue, from first steps to cryptography. Finish a chapter and Alice knows, so her answers keep up with you.',
-    appHref: `${APP_URL}/learn`,
-  },
-  {
-    src: '/screens/mobile/playground.webp',
-    alt: 'The Playground screen on a phone, a practice Bitcoin wallet on the Mutinynet test network',
-    eyebrow: 'Playground',
-    title: 'Practice with coins that cost nothing',
-    body: 'A sandbox with real rules. A real Bitcoin wallet on Mutinynet, a test network with free coins: send, receive, back up, and make every mistake here instead of on mainnet.',
-    appHref: `${APP_URL}/playground`,
-  },
-
+const SCREENS: { src: string; appHref: string }[] = [
+  { src: '/screens/mobile/chat.webp', appHref: `${APP_URL}/` },
+  { src: '/screens/mobile/explorer.webp', appHref: `${APP_URL}/explorer` },
+  { src: '/screens/mobile/learn.webp', appHref: `${APP_URL}/learn` },
+  { src: '/screens/mobile/playground.webp', appHref: `${APP_URL}/playground` },
 ];
+
+// The words for each screen come from the home dictionary, in the same order.
+function screensWithCopy(copy: TourCopy) {
+  return SCREENS.map((screen, i) => ({ ...screen, ...copy.screens[i] }));
+}
 
 function WindowFrame({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -106,17 +87,19 @@ function MiniIcon({ svg, size, color = 'var(--alice-primary)' }: { svg: string; 
   );
 }
 
-const SIDEBAR_ITEMS = [
-  { icon: ICONS.newChat, label: 'New Chat' },
-  { icon: ICONS.explorer, label: 'Explorer' },
-  { icon: ICONS.learn, label: 'Learn' },
-  { icon: ICONS.playground, label: 'Playground' },
-];
+function sidebarItems(copy: TourCopy) {
+  return [
+    { icon: ICONS.newChat, label: copy.sidebar.newChat },
+    { icon: ICONS.explorer, label: copy.sidebar.explorer },
+    { icon: ICONS.learn, label: copy.sidebar.learn },
+    { icon: ICONS.playground, label: copy.sidebar.playground },
+  ];
+}
 
 // Deliberately reduced to the four rooms, nothing else: no logo, no history,
 // no account row. This is an app in the page, not a shrunken screenshot, so
 // everything kept must stay readable.
-function MiniSidebar({ active }: { active: number }) {
+function MiniSidebar({ active, copy }: { active: number; copy: TourCopy }) {
   const activeItem = Math.max(active, 0);
   return (
     <div
@@ -124,7 +107,7 @@ function MiniSidebar({ active }: { active: number }) {
       style={{ backgroundColor: 'var(--alice-bg-soft)' }}
       aria-hidden
     >
-      {SIDEBAR_ITEMS.map((item, i) => (
+      {sidebarItems(copy).map((item, i) => (
         <span
           key={item.label}
           className="flex items-center gap-2.5 px-4 py-3 transition-colors duration-300"
@@ -155,30 +138,19 @@ function MiniPane({ visible, children }: { visible: boolean; children: ReactNode
 }
 
 // The welcome screen, working: same greeting, same four suggestions as the
-// app's, and asking really opens the app with the question autosent.
-const APP_SUGGESTIONS = [
-  'What is Bitcoin?',
-  'How do I secure my wallet?',
-  'Explain Lightning Network',
-  'What is self-custody?',
-];
+// app's, and asking really opens the app with the question autosent. Both
+// come from the home dictionary.
 
 // Questions the empty input "types" on its own, one character at a time, so a
 // visitor understands at a glance that this is a real input they can use, not
 // a picture of one. It stops the moment they focus or type, and it does not
 // run at all for people who asked their system for reduced motion.
-const TYPED_EXAMPLES = [
-  'What is self-custody?',
-  'Is my AI chat private?',
-  'How do I secure my Bitcoin?',
-  'What is the Ark protocol?',
-];
 const TYPE_MS = 55;
 const ERASE_MS = 22;
 const HOLD_MS = 1_800;
 const PAUSE_MS = 500;
 
-function useTypedPlaceholder(active: boolean): string {
+function useTypedPlaceholder(active: boolean, examples: string[]): string {
   const [text, setText] = useState('');
   useEffect(() => {
     if (!active) { setText(''); return; }
@@ -190,7 +162,7 @@ function useTypedPlaceholder(active: boolean): string {
     let erasing = false;
     const step = () => {
       if (cancelled) return;
-      const target = TYPED_EXAMPLES[example];
+      const target = examples[example];
       if (!erasing) {
         length += 1;
         setText(target.slice(0, length) + '|');
@@ -203,23 +175,23 @@ function useTypedPlaceholder(active: boolean): string {
       setText(target.slice(0, length) + '|');
       if (length > 0) { timer = setTimeout(step, ERASE_MS); return; }
       erasing = false;
-      example = (example + 1) % TYPED_EXAMPLES.length;
+      example = (example + 1) % examples.length;
       timer = setTimeout(step, PAUSE_MS);
     };
     timer = setTimeout(step, 900);
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [active]);
+  }, [active, examples]);
   return text;
 }
 
-function MiniChat({ visible }: { visible: boolean }) {
+function MiniChat({ visible, copy }: { visible: boolean; copy: TourCopy }) {
   const [value, setValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [focused, setFocused] = useState(false);
   const [typing, setTyping] = useState(false);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (typingTimer.current) clearTimeout(typingTimer.current); }, []);
-  const typed = useTypedPlaceholder(visible && !focused && value === '');
+  const typed = useTypedPlaceholder(visible && !focused && value === '', copy.typedExamples);
 
   const go = (question: string) => {
     setSubmitting(true);
@@ -240,10 +212,10 @@ function MiniChat({ visible }: { visible: boolean }) {
       <div className="flex flex-1 flex-col justify-end gap-3 px-5 pb-3">
         <div className="flex items-center gap-3">
           <svg width="28" height="32" viewBox="0 0 40 40" fill="currentColor" className="shrink-0 text-[var(--alice-primary)]" aria-hidden="true"><path d={typing ? rabbitPaths.attention : rabbitPaths.repos} /></svg>
-          <p className="text-[14px] leading-relaxed text-[var(--alice-heading)]">Hi! What would you like to learn about today?</p>
+          <p className="text-[14px] leading-relaxed text-[var(--alice-heading)]">{copy.greeting}</p>
         </div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 pl-10">
-          {APP_SUGGESTIONS.map((question) => (
+          {copy.suggestions.map((question) => (
             <button
               key={question}
               type="button"
@@ -271,16 +243,16 @@ function MiniChat({ visible }: { visible: boolean }) {
             disabled={submitting}
             onFocus={() => setFocused(true)}
             onBlur={() => { setFocused(false); setTyping(false); }}
-            placeholder={typed || 'Ask Alice something...'}
-            aria-label="Ask Alice a question"
+            placeholder={typed || copy.placeholder}
+            aria-label={copy.inputAria}
             className="w-full bg-transparent text-[14px] text-[var(--alice-heading)] placeholder:text-[var(--alice-muted)] focus:outline-none"
           />
           <div className="flex items-center justify-end gap-3">
-            <span className="inline-flex items-center gap-2 text-[10px] leading-none" aria-label="Model: Private. Reasoning: Medium."><span className="text-[var(--alice-heading)]">Private</span><span className="text-[var(--alice-muted)]">Medium</span></span>
+            <span className="inline-flex items-center gap-2 text-[10px] leading-none" aria-label={copy.modelAria}><span className="text-[var(--alice-heading)]">{copy.modelName}</span><span className="text-[var(--alice-muted)]">{copy.reasoning}</span></span>
             <button
               type="submit"
               disabled={submitting}
-              aria-label={submitting ? 'Opening Alice' : 'Ask Alice'}
+              aria-label={submitting ? copy.opening : copy.ask}
               className="cta-solid flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-[3px] text-[var(--alice-on-primary)] disabled:cursor-wait"
             >
               {submitting ? '·' : <SendIcon size={14} />}
@@ -295,20 +267,15 @@ function MiniChat({ visible }: { visible: boolean }) {
 // The explorer, reduced to its two signatures: the live block rail, and a
 // transaction drawn as an input/output flow, so the pane reads as a block
 // explorer at a glance.
-const BLOCK_TILES = [
-  { height: 'Next block', fee: '~2 sat/vB', tx: '4,338 tx', pending: true },
-  { height: '963,313', fee: '~3 sat/vB', tx: '3,300 tx' },
-  { height: '963,312', fee: '~1 sat/vB', tx: '5,029 tx' },
-  { height: '963,311', fee: '~1 sat/vB', tx: '5,319 tx' },
-];
-
-function MiniExplorer({ visible }: { visible: boolean }) {
+// The block tiles are written out in the home dictionary, numbers formatted
+// the way each language writes them.
+function MiniExplorer({ visible, copy }: { visible: boolean; copy: TourCopy['explorer'] }) {
   return (
     <MiniPane visible={visible}>
       <div className="px-5 pt-5">
-        <p className="font-pixel text-[10px] text-[var(--alice-muted)]">Live blocks</p>
+        <p className="font-pixel text-[10px] text-[var(--alice-muted)]">{copy.liveBlocks}</p>
         <div className="mt-3 grid grid-cols-3 gap-2">
-          {BLOCK_TILES.slice(0, 3).map((block) => (
+          {copy.blocks.slice(0, 3).map((block) => (
             <div key={block.height} className={`min-w-0 rounded-[4px] border px-2 py-2 ${block.pending ? 'border-dashed border-[var(--alice-border)]' : 'border-[var(--alice-border)] border-t-2 border-t-[var(--alice-primary)]'}`}>
               <p className="text-[11px] font-medium text-[var(--alice-heading)]">{block.height}</p>
               <p className="mt-1 text-[10px] text-[var(--alice-muted)]">{block.fee}</p>
@@ -316,12 +283,12 @@ function MiniExplorer({ visible }: { visible: boolean }) {
           ))}
         </div>
         <div className="mt-4 flex items-center gap-4 border-b border-[var(--alice-border)] pb-2 text-[11px]">
-          <span className="inline-flex items-center gap-1 text-[var(--alice-muted)]">Bitcoin <ChevronDownIcon size={10} /></span>
-          <span className="text-[var(--alice-heading)]">Transaction</span>
+          <span className="inline-flex items-center gap-1 text-[var(--alice-muted)]">{copy.network} <ChevronDownIcon size={10} /></span>
+          <span className="text-[var(--alice-heading)]">{copy.tab}</span>
         </div>
       </div>
       <div className="flex flex-1 flex-col justify-center px-5 pb-4">
-        <p className="text-[11px] text-[var(--alice-muted)]">Transaction flow</p>
+        <p className="text-[11px] text-[var(--alice-muted)]">{copy.flow}</p>
         <svg viewBox="0 0 420 150" className="mt-2 max-h-[110px] w-full" aria-hidden="true">
           <path d="M0,45 C120,45 130,72 205,72" fill="none" stroke="var(--alice-primary)" strokeOpacity="0.45" strokeWidth="14" />
           <path d="M0,110 C120,110 130,84 205,84" fill="none" stroke="var(--alice-primary)" strokeOpacity="0.45" strokeWidth="9" />
@@ -330,7 +297,7 @@ function MiniExplorer({ visible }: { visible: boolean }) {
           <path d="M215,86 C290,86 300,124 420,124" fill="none" stroke="var(--alice-primary)" strokeWidth="5" />
           <rect x="203" y="58" width="12" height="40" fill="var(--alice-heading)" />
         </svg>
-        <div className="mt-2 flex justify-between text-[10px] text-[var(--alice-muted)]"><span>2 inputs · 0.50 BTC</span><span>3 outputs</span></div>
+        <div className="mt-2 flex justify-between text-[10px] text-[var(--alice-muted)]"><span>{copy.inputs}</span><span>{copy.outputs}</span></div>
       </div>
     </MiniPane>
   );
@@ -338,26 +305,22 @@ function MiniExplorer({ visible }: { visible: boolean }) {
 
 // A course page rather than the catalogue: enough real text to read, so the
 // pane says "you learn here" instead of showing thumbnails.
-function MiniLearn({ visible }: { visible: boolean }) {
+function MiniLearn({ visible, copy }: { visible: boolean; copy: TourCopy['learn'] }) {
   return (
     <MiniPane visible={visible}>
       <div className="flex flex-1 flex-col justify-center px-5">
         <p className="font-pixel text-[10px] uppercase tracking-widest text-[var(--alice-primary)]">
-          BTC101
+          {copy.code}
         </p>
         <h4 className="mini-course-title mt-3 text-[19px] text-[var(--alice-heading)]">
-          The Bitcoin Journey
+          {copy.title}
         </h4>
         <p className="mt-3 text-[12px] leading-relaxed text-[var(--alice-text)]">
-          Money has changed shape many times: shells, gold, paper, plastic.
-          Bitcoin is the next step, the first money that lives on the internet
-          and belongs to no company and no state. In this course you will
-          follow its whole journey, from why it was invented to how you hold
-          it yourself.
+          {copy.body}
         </p>
         <div className="mt-5">
           <div className="mini-course-progress" aria-hidden="true">{Array.from({ length: 25 }, (_, i) => <span key={i} />)}</div>
-          <p className="mt-2 text-[11px] text-[var(--alice-muted)]">Chapter 1 of 25 · 7h</p>
+          <p className="mt-2 text-[11px] text-[var(--alice-muted)]">{copy.progress}</p>
         </div>
       </div>
     </MiniPane>
@@ -366,35 +329,35 @@ function MiniLearn({ visible }: { visible: boolean }) {
 
 // The wallet, reduced to balance and actions. Everything on Mutinynet, and
 // the pane says so the same way the app does.
-function MiniPlayground({ visible }: { visible: boolean }) {
+function MiniPlayground({ visible, copy }: { visible: boolean; copy: TourCopy['playground'] }) {
   return (
     <MiniPane visible={visible}>
       <div className="px-5 pt-5">
-        <div className="flex items-center justify-between gap-2"><p className="font-pixel text-[10px] text-[var(--alice-heading)]">Playground</p><span className="text-[10px] text-[var(--alice-muted)]">Mutinynet</span></div>
-        <p className="mt-3 text-[11px] leading-relaxed text-[var(--alice-muted)]">Learn by experimenting. These sats have no real value.</p>
+        <div className="flex items-center justify-between gap-2"><p className="font-pixel text-[10px] text-[var(--alice-heading)]">{copy.title}</p><span className="text-[10px] text-[var(--alice-muted)]">{copy.network}</span></div>
+        <p className="mt-3 text-[11px] leading-relaxed text-[var(--alice-muted)]">{copy.lead}</p>
       </div>
       <div className="flex flex-1 flex-col items-center justify-center gap-5 px-5">
-        <div className="text-center"><p className="font-pixel text-[21px] text-[var(--alice-primary)]">21,000</p><p className="mt-2 text-[11px] text-[var(--alice-muted)]">test sats</p></div>
-        <span className="inline-flex items-center gap-2 text-[11px] text-[var(--alice-muted)]"><RefreshIcon size={13} /> Refresh</span>
+        <div className="text-center"><p className="font-pixel text-[21px] text-[var(--alice-primary)]">{copy.balance}</p><p className="mt-2 text-[11px] text-[var(--alice-muted)]">{copy.unit}</p></div>
+        <span className="inline-flex items-center gap-2 text-[11px] text-[var(--alice-muted)]"><RefreshIcon size={13} /> {copy.refresh}</span>
         <div className="flex w-full justify-center gap-3 text-[11px] text-[var(--alice-primary)]">
-          <span className="inline-flex items-center gap-1.5 py-2"><SendIcon size={14} /> Send</span>
-          <span className="inline-flex items-center gap-1.5 py-2"><ReceiveIcon size={14} /> Receive</span>
-          <span className="inline-flex items-center py-2">Free sats</span>
+          <span className="inline-flex items-center gap-1.5 py-2"><SendIcon size={14} /> {copy.send}</span>
+          <span className="inline-flex items-center gap-1.5 py-2"><ReceiveIcon size={14} /> {copy.receive}</span>
+          <span className="inline-flex items-center py-2">{copy.faucet}</span>
         </div>
       </div>
     </MiniPane>
   );
 }
 
-function MiniApp({ active }: { active: number }) {
+function MiniApp({ active, copy }: { active: number; copy: TourCopy }) {
   return (
     <div className="mini-app absolute inset-0 flex">
-      <MiniSidebar active={active} />
+      <MiniSidebar active={active} copy={copy} />
       <div className="relative flex-1" style={{ backgroundColor: 'var(--alice-bg)' }}>
-        <MiniExplorer visible={active === 1} />
-        <MiniLearn visible={active === 2} />
-        <MiniPlayground visible={active === 3} />
-        <MiniChat visible={active <= 0} />
+        <MiniExplorer visible={active === 1} copy={copy.explorer} />
+        <MiniLearn visible={active === 2} copy={copy.learn} />
+        <MiniPlayground visible={active === 3} copy={copy.playground} />
+        <MiniChat visible={active <= 0} copy={copy} />
       </div>
     </div>
   );
@@ -403,14 +366,14 @@ function MiniApp({ active }: { active: number }) {
 // Small screens: a single phone pinned under the nav, its screen crossfading
 // as the steps scroll beneath it. A phone showing a desktop app would be the
 // one thing this section must not do.
-function MobilePhoneStack({ active }: { active: number }) {
+function MobilePhoneStack({ active, screens }: { active: number; screens: ReturnType<typeof screensWithCopy> }) {
   const current = Math.max(active, 0);
   return (
     <div
       className="relative h-[40vh] overflow-hidden rounded-[16px] border border-[var(--alice-border)] bg-[var(--alice-bg)]"
       style={{ aspectRatio: '390 / 844' }}
     >
-      {SCREENS.map((screen, i) => (
+      {screens.map((screen, i) => (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img
           key={screen.src}
@@ -426,7 +389,22 @@ function MobilePhoneStack({ active }: { active: number }) {
 }
 
 
-export function HeroTour() {
+export function HeroTour({
+  locale,
+  hero,
+  tour,
+  verify,
+  ctas,
+  noticeCopy,
+}: {
+  locale: Locale;
+  hero: HomeCopy['hero'];
+  tour: TourCopy;
+  verify: HomeCopy['verify'];
+  ctas: CommonCopy['ctas'];
+  noticeCopy: CommonCopy['downloadNotice'];
+}) {
+  const screens = screensWithCopy(tour);
   // -1 = the hero zone (mini ask interface); 0..3 = tour steps (captures).
   const [active, setActive] = useState(-1);
   const zoneRef = useRef<HTMLDivElement>(null);
@@ -459,30 +437,28 @@ export function HeroTour() {
         <div>
           <div data-step={-1}>
             <p className="font-pixel text-[12px] uppercase tracking-widest text-[var(--alice-primary)]">
-              Private AI · Open source
+              {hero.eyebrow}
             </p>
             <h1 className="mt-5 text-4xl font-semibold leading-[1.1] sm:text-5xl">
-              {HERO_TITLE}
+              {hero.title}
             </h1>
             <p className="mt-6 text-lg leading-relaxed text-[var(--alice-text)]">
-              Alice guides you all the way down the Bitcoin rabbit hole: she
-              explains in plain words, walks you into self-custody, and answers
-              every question locally on your device or end-to-end encrypted.{' '}
-              <span className="text-[var(--alice-heading)]">And she can never touch your keys.</span>
+              {hero.body}
+              <span className="text-[var(--alice-heading)]">{hero.highlight}</span>
             </p>
             <div className="mt-8">
-              <AppCtas size="md" />
-              <ReleaseLinks />
+              <AppCtas size="md" copy={ctas} noticeCopy={noticeCopy} />
+              <ReleaseLinks copy={ctas} />
             </div>
 
-            <VerifyBlock />
+            <VerifyBlock locale={locale} copy={verify} />
           </div>
 
           <p className="mt-16 font-pixel text-[12px] uppercase tracking-widest text-[var(--alice-primary)] sm:mt-20">
-            Inside the app
+            {tour.eyebrow}
           </p>
           <h2 className="mt-4 text-3xl font-semibold sm:text-4xl">
-            Take the tour without installing anything.
+            {tour.title}
           </h2>
 
           {/* Phone and tablet: the phone pins above the steps, the ask
@@ -490,12 +466,12 @@ export function HeroTour() {
               band: the page grid stays visible around the phone, and the
               step text is cut clean at an invisible line under it (useStepClip). */}
           <div ref={pinnedRef} className="sticky top-16 z-10 mt-8 flex justify-center lg:hidden">
-            <MobilePhoneStack active={active} />
+            <MobilePhoneStack active={active} screens={screens} />
           </div>
 
-          {SCREENS.map((screen, i) => (
+          {screens.map((screen, i) => (
             <div
-              key={screen.title}
+              key={screen.src}
               data-step={i}
               // The first step opens clear of the pinned phone's clip line,
               // or it would open half-cut before any scrolling happens.
@@ -526,7 +502,7 @@ export function HeroTour() {
             <WindowFrame
               label="app.alicebtc.com"
             >
-              <MiniApp active={active} />
+              <MiniApp active={active} copy={tour} />
             </WindowFrame>
           </div>
         </div>

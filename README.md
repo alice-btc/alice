@@ -76,8 +76,9 @@ can be stored or sent to any AI backend.
   encrypted end-to-end, every detailed explanation states this limit, and
   nothing ever displays "E2EE verified". Details:
   [docs/security/private-cloud-e2ee.md](docs/security/private-cloud-e2ee.md).
-- **E2EE turns are single-shot.** Venice does not encrypt assistant replies,
-  so Alice drops them from the context instead of leaking them back.
+- **E2EE covers the whole conversation.** Every turn sent to Private, Alice's
+  earlier replies included, is encrypted on the device; the enclave rejects
+  any plaintext turn.
 - **Semantic search runs on Alice App web and Desktop.** Retrieval is hybrid:
   keyword matching fused with an on-device embedding model, and it falls back
   to keywords alone, silently, whenever the model is not loaded.
@@ -105,6 +106,9 @@ Alice App is more than the chat:
   in the app; 26 more languages download on demand from
   [alice-learn-planb-packs](https://github.com/mariusoffchain/alice-learn-planb-packs).
   Alice never rewrites the teaching text; she explains it when you get stuck.
+  Learn also carries the [Dictionnaire de Bitcoin](https://github.com/LoicPandul/Dictionnaire-de-Bitcoin)
+  by Loïc Pandul (CC BY-NC-SA 4.0): 1 408 French definitions, A to Z, that
+  Alice quotes when a question names one of its terms.
 - **Playground**: a practice wallet on Mutinynet (a Bitcoin test network
   whose coins are worthless by design): real wallet mechanics, zero risk.
 

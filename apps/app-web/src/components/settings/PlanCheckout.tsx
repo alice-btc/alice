@@ -11,28 +11,33 @@ import {
   type AlicePlanQuotes,
 } from '@alice-wallet/alice-ai';
 import { isBillingPreview } from './billing-preview';
+import { translate, useT, type Locale, type MessageKey } from '@/i18n';
 import { SectionHint, SectionLabel, sectionStyle } from './ui';
+import { openExternalUrl } from '@/lib/open-external';
 
 const MONTH_CHOICES = [1, 3, 6, 12];
 
 const PLANS: {
   id: AlicePaidPlan;
   name: string;
-  pitch: string;
+  pitch: MessageKey;
 }[] = [
   {
     id: 'cloud',
     name: 'CLOUD',
-    pitch: '8M input and 2M output tokens of Private Cloud each month.',
+    pitch: 'settings.checkout.cloudPitch',
   },
 ];
+
+/** The digit grouping of each interface language. */
+const NUMBER_LOCALES: Record<Locale, string> = { en: 'en-US', fr: 'fr-FR' };
 
 /**
  * The price. Satoshis, because that is the unit the invoice is in and the unit
  * the buyer pays in.
  */
-function formatSats(sats: number): string {
-  return `${sats.toLocaleString('en-US')} SATS`;
+function formatSats(sats: number, locale: Locale): string {
+  return translate(locale, 'settings.checkout.sats', { amount: sats.toLocaleString(NUMBER_LOCALES[locale]) });
 }
 
 const CURRENCY_SYMBOL: Record<string, string> = { EUR: '\u20ac', USD: '$', CHF: 'CHF' };
@@ -46,10 +51,15 @@ const CURRENCY_SYMBOL: Record<string, string> = { EUR: '\u20ac', USD: '$', CHF: 
  * one dishonest thing this line could do. The day fiat payment exists, this
  * stops being a landmark and becomes a price the buyer can choose.
  */
-function formatAnchor(minor: number, currency: string): string {
+function formatAnchor(minor: number, currency: string, locale: Locale): string {
   const symbol = CURRENCY_SYMBOL[currency] ?? currency;
   const major = minor / 100;
-  const amount = minor % 100 === 0 ? String(major) : major.toFixed(2);
+  const digits = minor % 100 === 0 ? 0 : 2;
+  const amount = new Intl.NumberFormat(NUMBER_LOCALES[locale], {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+    useGrouping: false,
+  }).format(major);
   return `\u2248 ${amount} ${symbol}`;
 }
 
@@ -63,6 +73,7 @@ function formatAnchor(minor: number, currency: string): string {
  * account and concludes Alice took the money.
  */
 export function PlanCheckout() {
+  const t = useT();
   const account = useAccount();
   const [plan, setPlan] = useState<AlicePaidPlan>('cloud');
   const [months, setMonths] = useState(1);
@@ -135,13 +146,13 @@ export function PlanCheckout() {
       const checkout = await account.startCheckout(forPlan, forMonths);
       // A new tab, not a redirect: the app keeps running and keeps polling, so
       // the user comes back to a screen that already knows what happened.
-      window.open(checkout.checkout_url, '_blank', 'noopener,noreferrer');
+      void openExternalUrl(checkout.checkout_url);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Alice could not start the payment.');
+      setError(cause instanceof Error ? cause.message : t('settings.checkout.startFailed'));
     } finally {
       setBusy(false);
     }
-  }, [account]);
+  }, [account, t]);
 
   const handleBuy = async () => {
     // An anonymous session can hold a plan, but nothing can recover it: the
@@ -176,27 +187,22 @@ export function PlanCheckout() {
       // The status changes on its own once the payment confirms; a live
       // region is what lets a screen reader hear that happen.
       <section style={sectionStyle} role="status" aria-live="polite">
-        <SectionLabel>WAITING FOR CONFIRMATION</SectionLabel>
+        <SectionLabel>{t('settings.checkout.waiting')}</SectionLabel>
         <SvgIcon svg={CLOCK_ICON} size={20} color="currentColor" />
         <p className="font-numbers m-0 mt-3" style={{ fontSize: 15, lineHeight: '21px' }}>
-          Alice is waiting for your payment of {formatSats(pending.amount_sats)} to
-          confirm on the Bitcoin network. This can take a few minutes.
+          {t('settings.checkout.waitingBody', { amount: formatSats(pending.amount_sats, t.locale) })}
         </p>
         <p className="font-numbers m-0 mt-2" style={{ fontSize: 14, opacity: 1 }}>
-          You can close Alice. Your plan activates on its own as soon as the
-          payment settles, and nothing is lost if you leave this screen.
+          {t('settings.checkout.canClose')}
         </p>
         <button
           type="button"
           className="alice-control alice-control--quiet font-numbers mt-4"
           onClick={() => void account.dismissPendingCheckout()}
         >
-          Hide this notice
+          {t('settings.checkout.hideNotice')}
         </button>
-        <SectionHint>
-          This only hides the notice. It does not cancel the payment, and a
-          payment that arrives later is still credited.
-        </SectionHint>
+        <SectionHint>{t('settings.checkout.hideNoticeHint')}</SectionHint>
       </section>
     );
   }
@@ -209,11 +215,8 @@ export function PlanCheckout() {
 
   return (
     <section style={sectionStyle}>
-      <SectionLabel>GET MORE PRIVATE CLOUD</SectionLabel>
-      <SectionHint>
-        Paid in bitcoin. There is no card on file and no automatic renewal: a
-        plan runs out, and you decide whether to buy another.
-      </SectionHint>
+      <SectionLabel>{t('settings.checkout.title')}</SectionLabel>
+      <SectionHint>{t('settings.checkout.hint')}</SectionHint>
 
       <div className="flex flex-col gap-2">
         {PLANS.map(option => {
@@ -237,20 +240,20 @@ export function PlanCheckout() {
                   <span className="font-numbers block" style={{ fontSize: 15 }}>
                     {quote?.price_sats == null
                       ? '...'
-                      : `${formatSats(quote.price_sats)} / month`}
+                      : t('settings.checkout.perMonth', { price: formatSats(quote.price_sats, t.locale) })}
                   </span>
                   {quote && (
                     <span
                       className="font-numbers block"
                       style={{ fontSize: 12, opacity: 1 }}
                     >
-                      {formatAnchor(quote.price_minor, anchor)}
+                      {formatAnchor(quote.price_minor, anchor, t.locale)}
                     </span>
                   )}
                 </span>
               </div>
               <p className="font-numbers m-0 mt-1" style={{ fontSize: 13, opacity: 1 }}>
-                {option.pitch}
+                {t(option.pitch)}
               </p>
             </button>
           );
@@ -258,10 +261,8 @@ export function PlanCheckout() {
       </div>
 
       <div className="mt-4">
-        <SectionLabel>PAY AHEAD</SectionLabel>
-        <SectionHint>
-          Prepaid months are added to any time you have left, never instead of it.
-        </SectionHint>
+        <SectionLabel>{t('settings.checkout.payAhead')}</SectionLabel>
+        <SectionHint>{t('settings.checkout.payAheadHint')}</SectionHint>
         <div className="flex gap-2">
           {MONTH_CHOICES.map(choice => {
             const active = choice === months;
@@ -274,14 +275,14 @@ export function PlanCheckout() {
                 className="alice-control alice-control--choice font-numbers"
                 style={{ flex: 1 }}
               >
-                {choice} {choice === 1 ? 'MONTH' : 'MONTHS'}
+                {t.plural('settings.checkout.monthChoice', choice)}
               </button>
             );
           })}
         </div>
       </div>
 
-      <p className="font-numbers mt-4 text-sm">{months} {months === 1 ? 'month' : 'months'} · {total === null ? 'Price unavailable' : `Total ${formatSats(total)}`}</p>
+      <p className="font-numbers mt-4 text-sm">{t.plural('settings.checkout.months', months)} · {total === null ? t('settings.checkout.priceUnavailable') : t('settings.checkout.total', { amount: formatSats(total, t.locale) })}</p>
 
       {error && (
         <p className="font-numbers m-0 mt-3" style={{ fontSize: 14, color: 'var(--alice-danger)' }}>
@@ -296,12 +297,12 @@ export function PlanCheckout() {
         className="alice-control alice-control--primary font-numbers mt-4 w-full"
       >
         {busy
-          ? 'OPENING...'
+          ? t('settings.checkout.opening')
           : total === null
-            ? 'PRICE UNAVAILABLE'
+            ? t('settings.checkout.priceUnavailableButton')
             : needsAccount
-              ? `CREATE ACCOUNT AND PAY ${formatSats(total)}`
-              : `PAY ${formatSats(total)}`}
+              ? t('settings.checkout.createAndPay', { amount: formatSats(total, t.locale) })
+              : t('settings.checkout.pay', { amount: formatSats(total, t.locale) })}
       </button>
 
       {total !== null && totalAnchor !== null && (
@@ -309,16 +310,12 @@ export function PlanCheckout() {
           className="font-numbers m-0 mt-2 text-center"
           style={{ fontSize: 12, opacity: 1 }}
         >
-          {formatAnchor(totalAnchor, anchor)}
+          {formatAnchor(totalAnchor, anchor, t.locale)}
         </p>
       )}
 
       {needsAccount && (
-        <SectionHint>
-          A plan needs an account so it can follow you to another device.
-          Without one it would be tied to this installation, and reinstalling
-          Alice would lose what you paid for.
-        </SectionHint>
+        <SectionHint>{t('settings.checkout.needsAccount')}</SectionHint>
       )}
     </section>
   );

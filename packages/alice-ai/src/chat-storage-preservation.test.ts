@@ -12,6 +12,7 @@ import {
   MAX_CHAT_SESSIONS,
   saveSession,
   setChatStorageBackendForTests,
+  setSessionLanguageOverride,
   type ChatSession,
   type ChatStorageBackend,
 } from './chat-storage.ts';
@@ -169,4 +170,20 @@ test('delete all waits for an in-flight legacy migration so history cannot reapp
   await Promise.all([migrating, deleting]);
   assert.equal(values.has(INDEX), false);
   assert.equal(values.has(body('legacy-race')), false);
+});
+
+test('the answer language of a conversation survives later saves until it is removed', async () => {
+  disk();
+  const c = cipher();
+  const id = (await saveSession(conversation('first'), null, c, 'en'))!;
+  assert.equal((await listSessions(c))[0].languageOverride, 'en');
+  await saveSession([...conversation('first'), ...conversation('second')], id, c);
+  assert.equal((await listSessions(c))[0].languageOverride, 'en');
+  await setSessionLanguageOverride(id, 'fr', c);
+  assert.equal((await listSessions(c))[0].languageOverride, 'fr');
+  await setSessionLanguageOverride(id, null, c);
+  assert.equal('languageOverride' in (await listSessions(c))[0], false);
+  await saveSession(conversation('first'), id, c, 'fr');
+  await saveSession(conversation('first'), id, c, null);
+  assert.equal((await listSessions(c))[0].languageOverride, undefined);
 });

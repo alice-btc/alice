@@ -85,6 +85,9 @@ semantic search stack before `tauri build` wraps it:
 npm run build --workspace @alice-wallet/app-desktop
 ```
 
+Alice App, Android, is built from the same Tauri project; requirements,
+commands and signing are in [docs/ANDROID.md](docs/ANDROID.md).
+
 The website (`SITE_IS_PUBLIC` in `apps/site/src/lib/site.ts` gates the
 go-live surfaces):
 

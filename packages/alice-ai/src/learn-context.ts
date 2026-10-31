@@ -8,11 +8,33 @@
 // provider is bounded in time and size, and every failure reads as "no course
 // context", a broken pack can slow nothing and break nothing.
 
+/**
+ * One piece of Learn material the excerpt was drawn from, so the answer can
+ * say so and the reader can open it: the chapter of a course, a tutorial, a
+ * dictionary definition. The path is a route of the app's Learn section; the
+ * attribution is what the licence asks to be named.
+ */
+export type LearnSource = {
+  kind: 'course' | 'tutorial' | 'definition';
+  /** Shown to the reader, e.g. "BTC101 · Wallets and self-custody" or "UTXO". */
+  label: string;
+  /** App route, e.g. "/learn/?course=btc101&chapter=…" or "/learn/?definition=utxo". */
+  path: string;
+  /** Author and licence, e.g. "Plan ₿ Network, CC BY-SA 4.0". */
+  attribution: string;
+};
+
 export type LearnTurnContext = {
   /** e.g. "The Bitcoin Journey · Wallets and self-custody (Plan ₿ Academy)" */
   label: string;
   /** Course text, already trimmed to a context-sized excerpt. */
   excerpt: string;
+  /**
+   * Where the excerpt comes from, first the material whose label heads the
+   * excerpt, then any other quoted after it (its own label line inside the
+   * excerpt). Absent for a provider that predates sources.
+   */
+  sources?: LearnSource[];
 };
 
 export type LearnContextOptions = { targetLanguage?: 'fr' | 'en' };
@@ -48,6 +70,7 @@ export async function learnContextFor(query: string, options?: LearnContextOptio
     return {
       label: result.label,
       excerpt,
+      ...(result.sources && result.sources.length > 0 ? { sources: result.sources } : {}),
     };
   } catch {
     return null;

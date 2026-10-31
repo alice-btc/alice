@@ -157,6 +157,7 @@ export const ADMIN_DASHBOARD_HTML = `<!doctype html>
     line-height: 1.6; text-transform: uppercase;
   }
   .grid-3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
   .stat.hero .n { font-size: 44px; }
   /* The hint is what makes a number readable a month later: it says what is
      actually being counted, in words, not just a terse label. */
@@ -354,9 +355,12 @@ export const ADMIN_DASHBOARD_HTML = `<!doctype html>
 <header>
   <h1>ALICE · ADMIN</h1>
   <nav id="nav" style="display:none">
+    <button data-view="launch">Launch</button>
     <button data-view="overview">Overview</button>
     <button data-view="analytics">Analytics</button>
     <button data-view="events">Events</button>
+    <button data-view="downloads">Downloads</button>
+    <button data-view="site">Site</button>
     <button data-view="faucet">Faucet</button>
     <button data-view="accounts">Accounts</button>
     <button data-view="audit">Audit</button>
@@ -371,7 +375,7 @@ export const ADMIN_DASHBOARD_HTML = `<!doctype html>
 <script>
 (function () {
   var API = location.origin;
-  var state = { token: sessionStorage.getItem('alice_admin_token') || null, view: 'overview' };
+  var state = { token: sessionStorage.getItem('alice_admin_token') || null, view: 'launch' };
   var app = document.getElementById('app');
   var nav = document.getElementById('nav');
 
@@ -573,144 +577,6 @@ export const ADMIN_DASHBOARD_HTML = `<!doctype html>
       h('div', { class: 'hint', text: hint }),
       delta,
     ]);
-  }
-
-    function statusPill(status) {
-    return h('span', { class: 'pill ' + (status === 'active' ? 'active' : 'suspended'), text: status });
-  }
-
-  function renderAccounts() {
-    app.innerHTML = '';
-    var q = h('input', { placeholder: 'username, exact email, or support id', style: 'width:320px' });
-    var go = h('button', { class: 'btn primary', text: 'Search' });
-    var results = h('div');
-    var card = h('div', { class: 'card' }, [
-      h('h2', { text: 'Accounts' }),
-      h('div', { class: 'row', style: 'margin-bottom:12px' }, [q, go]),
-      results,
-    ]);
-    app.appendChild(card);
-
-    function load(offset) {
-      results.innerHTML = '<p class="muted">Loading…</p>';
-      var qs = '?offset=' + (offset || 0) + (q.value ? '&q=' + encodeURIComponent(q.value.trim()) : '');
-      api('/admin/api/accounts' + qs).then(function (data) {
-        results.innerHTML = '';
-        var table = h('table', {}, [
-          h('tr', {}, [
-            h('th', { text: 'Support id' }), h('th', { text: 'Display name' }), h('th', { text: 'Email' }),
-            h('th', { text: 'Status' }), h('th', { text: 'Plan' }), h('th', { text: 'Quota' }), h('th', { text: 'Created' }),
-          ]),
-        ]);
-        data.accounts.forEach(function (acc) {
-          var tr = h('tr', { class: 'clickable' }, [
-            h('td', { text: acc.support_id }),
-            h('td', { text: acc.display_name || '—' }),
-            h('td', { text: acc.email_masked || '—' }),
-            h('td', {}, [statusPill(acc.status)]),
-            h('td', { text: acc.plan }),
-            h('td', { text: acc.cloud_requests_used + ' / ' + acc.cloud_requests_limit }),
-            h('td', { text: fmtTime(acc.created_at) }),
-          ]);
-          tr.addEventListener('click', function () { state.view = 'account'; state.detail = acc.support_id; render(); });
-          table.appendChild(tr);
-        });
-        results.appendChild(table);
-        if (data.next_offset !== null) {
-          var more = h('button', { class: 'btn', text: 'Load more', style: 'margin-top:10px' });
-          more.addEventListener('click', function () { load(data.next_offset); });
-          results.appendChild(more);
-        }
-      }).catch(function (e) { results.innerHTML = ''; results.appendChild(h('p', { class: 'err', text: e.message })); });
-    }
-    go.addEventListener('click', function () { load(0); });
-    q.addEventListener('keydown', function (e) { if (e.key === 'Enter') load(0); });
-    load(0);
-  }
-
-  function renderAccountDetail(id) {
-    app.innerHTML = '<p class="muted">Loading…</p>';
-    api('/admin/api/accounts/' + encodeURIComponent(id)).then(function (a) {
-      app.innerHTML = '';
-      var msg = h('div');
-      function withMsg(promise) {
-        msg.textContent = '';
-        return promise.then(function () { msg.className = 'ok'; msg.textContent = 'Done.'; renderAccountDetail(id); })
-          .catch(function (e) { msg.className = 'err'; msg.textContent = e.message; });
-      }
-      var back = h('button', { class: 'btn', text: '← Back to accounts' });
-      back.addEventListener('click', function () { state.view = 'accounts'; render(); });
-      app.appendChild(back);
-
-      var identities = h('ul');
-      a.login_methods.forEach(function (m) {
-        identities.appendChild(h('li', { text: m.provider + ' — ' + m.label + ' (last used ' + fmtTime(m.last_used_at) + ')' }));
-      });
-
-      var errors = h('ul');
-      (a.recent_errors || []).forEach(function (e) {
-        errors.appendChild(h('li', { text: '[' + e.category + '] ' + e.code + ' (' + e.status + ') · ' + fmtTime(e.created_at) }));
-      });
-      if (!a.recent_errors || a.recent_errors.length === 0) errors.appendChild(h('li', { class: 'muted', text: 'None' }));
-
-      var reason = h('input', { placeholder: 'Reason (required)', style: 'width:260px' });
-      var suspendBtn = h('button', { class: 'btn danger', text: a.status === 'active' ? 'Suspend' : 'Reactivate' });
-      suspendBtn.addEventListener('click', function () {
-        if (!reason.value.trim()) { msg.className = 'err'; msg.textContent = 'A reason is required.'; return; }
-        var path = a.status === 'active' ? 'suspend' : 'reactivate';
-        withMsg(api('/admin/api/accounts/' + encodeURIComponent(id) + '/' + path, {
-          method: 'POST', body: JSON.stringify({ reason: reason.value.trim() }),
-        }));
-      });
-
-      var creditDelta = h('input', { type: 'number', placeholder: 'e.g. 10 or -5', style: 'width:120px' });
-      var creditReason = h('input', { placeholder: 'Reason (required)', style: 'width:260px' });
-      var creditBtn = h('button', { class: 'btn primary', text: 'Apply credit change' });
-      creditBtn.addEventListener('click', function () {
-        if (!creditReason.value.trim()) { msg.className = 'err'; msg.textContent = 'A reason is required.'; return; }
-        withMsg(api('/admin/api/accounts/' + encodeURIComponent(id) + '/credits', {
-          method: 'POST',
-          body: JSON.stringify({ delta: Number(creditDelta.value), reason: creditReason.value.trim() }),
-        }));
-      });
-
-      var confirmDelete = h('input', { placeholder: 'Type "' + a.support_id + '" to confirm', style: 'width:260px' });
-      var deletePassword = h('input', { type: 'password', placeholder: 'Your admin password', style: 'width:200px' });
-      var deleteBtn = h('button', { class: 'btn danger', text: 'Permanently delete account' });
-      deleteBtn.addEventListener('click', function () {
-        if (!confirm('This permanently deletes ' + a.support_id + ' and all server-side metadata. Continue?')) return;
-        api('/admin/api/accounts/' + encodeURIComponent(id), {
-          method: 'DELETE',
-          body: JSON.stringify({
-            confirm: confirmDelete.value.trim(),
-            admin_password: deletePassword.value,
-          }),
-        }).then(function () { state.view = 'accounts'; render(); })
-          .catch(function (e) { msg.className = 'err'; msg.textContent = e.message; });
-      });
-
-      app.appendChild(h('div', { class: 'card' }, [
-        h('h2', { text: a.support_id }),
-        h('p', {}, [statusPill(a.status)]),
-        h('table', {}, [
-          h('tr', {}, [h('td', { text: 'Display name' }), h('td', { text: a.display_name || '—' })]),
-          h('tr', {}, [h('td', { text: 'Email' }), h('td', { text: a.email_masked || '—' })]),
-          h('tr', {}, [h('td', { text: 'Plan' }), h('td', { text: a.plan })]),
-          h('tr', {}, [h('td', { text: 'Quota' }), h('td', { text: a.cloud_requests_used + ' / ' + a.cloud_requests_limit + ' (remaining ' + a.cloud_requests_remaining + ')' })]),
-          h('tr', {}, [h('td', { text: 'Last activity' }), h('td', { text: fmtTime(a.last_activity_at) })]),
-          h('tr', {}, [h('td', { text: 'Internal id' }), h('td', {}, [h('code', { text: a.internal_id })])]),
-        ]),
-      ]));
-      app.appendChild(h('div', { class: 'card' }, [h('h2', { text: 'Login methods' }), identities]));
-      app.appendChild(h('div', { class: 'card' }, [h('h2', { text: 'Recent technical errors' }), errors, h('p', { class: 'muted', text: 'No prompts, AI responses, IP addresses, or wallet data are ever stored here.' })]));
-      app.appendChild(h('div', { class: 'card' }, [
-        h('h2', { text: 'Operator tools' }),
-        h('div', { class: 'row', style: 'margin-bottom:10px' }, [reason, suspendBtn]),
-        h('div', { class: 'row', style: 'margin-bottom:10px' }, [creditDelta, creditReason, creditBtn]),
-        h('div', { class: 'row' }, [confirmDelete, deletePassword, deleteBtn]),
-        msg,
-      ]));
-    }).catch(function (e) { app.innerHTML = ''; app.appendChild(h('p', { class: 'err', text: e.message })); });
   }
 
   var BAR_CELLS = 40;
@@ -922,39 +788,6 @@ export const ADMIN_DASHBOARD_HTML = `<!doctype html>
         ]),
       ]));
 
-      // APK downloads, from GitHub's public release counters — the one
-      // figure Alice's own database cannot know. Read-only; a GitHub hiccup
-      // only costs the card its numbers.
-      var dlBody = h('p', { class: 'muted', text: 'Asking GitHub…' });
-      app.appendChild(h('div', { class: 'card' }, [
-        h('h2', { text: 'APK downloads (GitHub releases)' }),
-        dlBody,
-      ]));
-      fetch('https://api.github.com/repos/alice-btc/alice/releases')
-        .then(function (r) { if (!r.ok) throw new Error('GitHub answered ' + r.status); return r.json(); })
-        .then(function (releases) {
-          var table = h('table', {});
-          var total = 0;
-          releases.forEach(function (rel) {
-            (rel.assets || []).forEach(function (asset) {
-              if (!/\.apk$/.test(asset.name)) return;
-              total += asset.download_count;
-              table.appendChild(h('tr', {}, [
-                h('td', { text: rel.tag_name + ' · ' + asset.name }),
-                h('td', { class: 'num', text: String(asset.download_count) }),
-              ]));
-            });
-          });
-          table.appendChild(h('tr', {}, [
-            h('td', { text: 'Total APK downloads' }),
-            h('td', { class: 'num', text: String(total) }),
-          ]));
-          dlBody.replaceWith(table);
-        })
-        .catch(function (e) {
-          dlBody.textContent = 'GitHub unreachable: ' + e.message;
-        });
-
       var freeUse = h('table', {}, [
         h('tr', {}, [
           h('td', { text: 'AI requests today (24h)' }),
@@ -1083,13 +916,16 @@ export const ADMIN_DASHBOARD_HTML = `<!doctype html>
       });
       if (!a.recent_errors || a.recent_errors.length === 0) errors.appendChild(h('li', { class: 'muted', text: 'None' }));
 
+      // Suspending, reactivating and changing credits ask for the admin
+      // password again, like deletion: a left-open console is not enough.
+      var operatorPassword = h('input', { type: 'password', placeholder: 'Your admin password', style: 'width:200px' });
       var reason = h('input', { placeholder: 'Reason (required)', style: 'width:260px' });
       var suspendBtn = h('button', { class: 'btn danger', text: a.status === 'active' ? 'Suspend' : 'Reactivate' });
       suspendBtn.addEventListener('click', function () {
         if (!reason.value.trim()) { msg.className = 'err'; msg.textContent = 'A reason is required.'; return; }
         var path = a.status === 'active' ? 'suspend' : 'reactivate';
         withMsg(api('/admin/api/accounts/' + encodeURIComponent(id) + '/' + path, {
-          method: 'POST', body: JSON.stringify({ reason: reason.value.trim() }),
+          method: 'POST', body: JSON.stringify({ reason: reason.value.trim(), admin_password: operatorPassword.value }),
         }));
       });
 
@@ -1100,7 +936,7 @@ export const ADMIN_DASHBOARD_HTML = `<!doctype html>
         if (!creditReason.value.trim()) { msg.className = 'err'; msg.textContent = 'A reason is required.'; return; }
         withMsg(api('/admin/api/accounts/' + encodeURIComponent(id) + '/credits', {
           method: 'POST',
-          body: JSON.stringify({ delta: Number(creditDelta.value), reason: creditReason.value.trim() }),
+          body: JSON.stringify({ delta: Number(creditDelta.value), reason: creditReason.value.trim(), admin_password: operatorPassword.value }),
         }));
       });
 
@@ -1135,6 +971,7 @@ export const ADMIN_DASHBOARD_HTML = `<!doctype html>
       app.appendChild(h('div', { class: 'card' }, [h('h2', { text: 'Recent technical errors' }), errors, h('p', { class: 'muted', text: 'No prompts, AI responses, IP addresses, or wallet data are ever stored here.' })]));
       app.appendChild(h('div', { class: 'card' }, [
         h('h2', { text: 'Operator tools' }),
+        h('div', { class: 'row', style: 'margin-bottom:10px' }, [operatorPassword]),
         h('div', { class: 'row', style: 'margin-bottom:10px' }, [reason, suspendBtn]),
         h('div', { class: 'row', style: 'margin-bottom:10px' }, [creditDelta, creditReason, creditBtn]),
         h('div', { class: 'row' }, [confirmDelete, deletePassword, deleteBtn]),
@@ -1142,43 +979,6 @@ export const ADMIN_DASHBOARD_HTML = `<!doctype html>
       ]));
     }).catch(function (e) { app.innerHTML = ''; app.appendChild(h('p', { class: 'err', text: e.message })); });
   }
-
-  var BAR_CELLS = 40;
-
-  // A horizontal bar drawn as discrete cells. Rounding up means any non-zero
-  // value lights at least one cell, so a small-but-real number never renders
-  // as an empty row.
-  function allZero(values) {
-    return values.every(function (v) { return !v; });
-  }
-
-  function bar(label, value, max, tone) {
-    var filled = max > 0 ? Math.ceil((value / max) * BAR_CELLS) : 0;
-    var strip = h('div', { class: 'pxbar' });
-    for (var i = 0; i < BAR_CELLS; i += 1) {
-      strip.appendChild(h('div', {
-        class: 'pxcell' + (i < filled ? ' on' + (tone ? ' ' + tone : '') : ''),
-      }));
-    }
-    return h('div', { class: 'pxrow' }, [
-      h('div', { class: 'lbl' }, [
-        h('span', { text: label }),
-        h('span', { text: String(value) }),
-      ]),
-      strip,
-    ]);
-  }
-
-  // Turn a {day, count} series from the API into labelled chart points.
-  function toPoints(series) {
-    return (series || []).map(function (row) {
-      return {
-        label: new Date(row.day * 86400000).toISOString().slice(5, 10),
-        count: row.count,
-      };
-    });
-  }
-
 
   function renderAnalytics() {
     app.innerHTML = '<p class="muted">Loading…</p>';
@@ -1555,6 +1355,324 @@ export const ADMIN_DASHBOARD_HTML = `<!doctype html>
     }).catch(function (e) { app.innerHTML = ''; app.appendChild(h('p', { class: 'err', text: e.message })); });
   }
 
+  // A launch-day figure against the same span just before it. Absolute
+  // difference rather than a percentage: on day one, "+300%" off a base of 1
+  // says nothing, "+3" says exactly what happened.
+  function compareCard(value, previous, label, hint) {
+    var diff = value - previous;
+    return h('div', { class: 'stat hero' }, [
+      h('div', { class: 'n', text: String(value) }),
+      h('div', { class: 'l', text: label }),
+      h('div', { class: 'hint', text: hint }),
+      h('div', {
+        class: 'delta ' + (diff === 0 ? '' : (diff > 0 ? 'up' : 'down')),
+        text: (diff > 0 ? '▲ +' : (diff < 0 ? '▼ ' : '= ')) + diff + ' vs the 24 hours before (' + previous + ')',
+      }),
+    ]);
+  }
+
+  function hourPoints(series) {
+    return (series || []).map(function (row) {
+      var d = new Date(row.hour * 3600000);
+      return {
+        label: d.toLocaleDateString(undefined, { weekday: 'short' }) + ' ' + ('0' + d.getHours()).slice(-2) + ':00',
+        count: row.count,
+      };
+    });
+  }
+
+  // Release downloads, from GitHub's public counters: the one figure Alice's
+  // own database cannot know. Both repositories, every installer people
+  // download by hand. Checksums and signatures are left out: they are
+  // fetched to verify an installer, not to install Alice.
+  var DOWNLOAD_REPOS = [
+    { repo: 'alice-btc/alice', product: 'Alice' },
+    { repo: 'alice-btc/alice-wallet', product: 'Wallet' },
+  ];
+  var PLATFORMS = ['Mac', 'Windows', 'Linux', 'Android'];
+
+  function installerPlatform(name) {
+    var n = name.toLowerCase();
+    function ends(suffix) { return n.slice(-suffix.length) === suffix; }
+    if (ends('.dmg')) return 'Mac';
+    if (ends('.msi') || ends('.exe')) return 'Windows';
+    if (ends('.appimage') || ends('.deb') || ends('.rpm')) return 'Linux';
+    if (ends('.apk')) return 'Android';
+    return null;
+  }
+
+  function fetchDownloads() {
+    return Promise.all(DOWNLOAD_REPOS.map(function (source) {
+      return fetch('https://api.github.com/repos/' + source.repo + '/releases?per_page=100')
+        .then(function (r) { if (!r.ok) throw new Error('GitHub answered ' + r.status); return r.json(); })
+        .then(function (releases) {
+          var assets = [];
+          releases.forEach(function (rel) {
+            (rel.assets || []).forEach(function (asset) {
+              var platform = installerPlatform(asset.name);
+              if (!platform) return;
+              assets.push({
+                key: source.repo + '/' + rel.tag_name + '/' + asset.name,
+                product: source.product,
+                version: rel.tag_name,
+                platform: platform,
+                file: asset.name,
+                count: asset.download_count,
+              });
+            });
+          });
+          return { assets: assets, error: null };
+        })
+        .catch(function (e) { return { assets: [], error: source.product + ': ' + e.message }; });
+    })).then(function (parts) {
+      var assets = [];
+      var errors = [];
+      parts.forEach(function (p) { assets = assets.concat(p.assets); if (p.error) errors.push(p.error); });
+      return withDownloadDeltas({ assets: assets, errors: errors });
+    });
+  }
+
+  // GitHub only gives running totals. To say "new since yesterday", the
+  // console keeps one snapshot per day in this browser's storage: counts per
+  // file, nothing else. It only knows the days the console was opened, and
+  // says which day it compares with.
+  var DOWNLOAD_SNAPSHOTS = 'alice_admin_downloads_v1';
+
+  function withDownloadDeltas(result) {
+    var today = new Date().toISOString().slice(0, 10);
+    var snapshots = {};
+    try { snapshots = JSON.parse(localStorage.getItem(DOWNLOAD_SNAPSHOTS) || '{}') || {}; } catch (e) { snapshots = {}; }
+    var earlier = Object.keys(snapshots).filter(function (d) { return d < today; }).sort();
+    var baseDay = earlier.length ? earlier[earlier.length - 1] : null;
+    var base = baseDay ? snapshots[baseDay] : null;
+    var current = {};
+    result.assets.forEach(function (a) {
+      current[a.key] = a.count;
+      a.added = base ? a.count - (base[a.key] || 0) : null;
+    });
+    if (result.errors.length === 0) {
+      snapshots[today] = current;
+      var keep = Object.keys(snapshots).sort().slice(-30);
+      var trimmed = {};
+      keep.forEach(function (d) { trimmed[d] = snapshots[d]; });
+      try { localStorage.setItem(DOWNLOAD_SNAPSHOTS, JSON.stringify(trimmed)); } catch (e) {}
+    }
+    result.baseDay = baseDay;
+    return result;
+  }
+
+  function downloadTotals(result) {
+    var totals = {};
+    PLATFORMS.forEach(function (p) { totals[p] = { count: 0, added: result.baseDay ? 0 : null }; });
+    result.assets.forEach(function (a) {
+      totals[a.platform].count += a.count;
+      if (totals[a.platform].added !== null) totals[a.platform].added += a.added;
+    });
+    return totals;
+  }
+
+  function addedText(added, baseDay) {
+    if (added === null || added === undefined) return 'first check today, new downloads show from tomorrow';
+    return (added > 0 ? '+' + added : String(added)) + ' since ' + baseDay;
+  }
+
+  function renderLaunch() {
+    app.innerHTML = '<p class="muted">Loading…</p>';
+    api('/admin/api/launch').then(function (l) {
+      app.innerHTML = '';
+      app.appendChild(h('p', {
+        class: 'muted',
+        text: 'Rolling windows: the last 24 hours against the 24 before. Updated '
+          + fmtTime(l.generated_at) + '. Reload the tab to refresh.',
+      }));
+      app.appendChild(h('div', { class: 'grid grid-3' }, [
+        compareCard(
+          l.installations.last_24h, l.installations.previous_24h, 'New installations',
+          'Devices that opened Alice for the first time. ' + l.active_installations_24h + ' devices used Alice in the last 24 hours.',
+        ),
+        compareCard(
+          l.requests.last_24h, l.requests.previous_24h, 'AI requests',
+          'Private Cloud requests that reached Venice and succeeded.',
+        ),
+        compareCard(
+          l.accounts.last_24h, l.accounts.previous_24h, 'New accounts',
+          'People who tied an email or another login to Alice.',
+        ),
+      ]));
+
+      var dlCard = h('div', { class: 'card' }, [
+        h('h2', { text: 'Downloads' }),
+        h('p', { class: 'muted', text: 'Asking GitHub…' }),
+      ]);
+      var siteCard = h('div', { class: 'card' }, [
+        h('h2', { text: 'Site visits' }),
+        h('p', { class: 'muted', text: 'Asking Cloudflare…' }),
+      ]);
+      app.appendChild(h('div', { class: 'grid grid-2' }, [dlCard, siteCard]));
+
+      fetchDownloads().then(function (d) {
+        var totals = downloadTotals(d);
+        dlCard.lastChild.replaceWith(h('table', {}, PLATFORMS.map(function (p) {
+          return h('tr', {}, [
+            h('td', { text: p }),
+            h('td', { class: 'num', text: String(totals[p].count) }),
+            h('td', { class: 'muted', text: addedText(totals[p].added, d.baseDay) }),
+          ]);
+        }).concat(d.errors.map(function (e) {
+          return h('tr', {}, [h('td', { class: 'err', text: e })]);
+        }))));
+      });
+
+      api('/admin/api/site-analytics').then(function (s) {
+        siteCard.lastChild.replaceWith(siteSummary(s));
+      }).catch(function (e) {
+        siteCard.lastChild.replaceWith(h('p', { class: 'err', text: e.message }));
+      });
+
+      app.appendChild(h('div', { class: 'card' }, [
+        h('h2', { text: 'AI requests per hour · 48 hours' }),
+        columns(hourPoints(l.series.requests), 'requests'),
+      ]));
+      app.appendChild(h('div', { class: 'card' }, [
+        h('h2', { text: 'New installations per hour · 48 hours' }),
+        columns(hourPoints(l.series.installations), 'installations'),
+      ]));
+
+      var errDiff = l.errors.last_24h - l.errors.previous_24h;
+      app.appendChild(h('div', { class: 'card' }, [
+        h('h2', { text: 'Errors' }),
+        h('p', {
+          class: l.errors.last_24h > 0 ? '' : 'muted',
+          text: l.errors.last_24h + ' in the last 24 hours, '
+            + l.errors.previous_24h + ' the 24 before'
+            + (errDiff > 0 ? '. Details in Analytics, Errors by code.' : '.'),
+        }),
+      ]));
+
+      var evTable = h('table', {}, [h('tr', {}, [
+        h('th', { text: 'Event' }), h('th', { text: 'Today (UTC)' }), h('th', { text: 'Yesterday' }),
+      ])]);
+      (l.events || []).forEach(function (row) {
+        evTable.appendChild(h('tr', {}, [
+          h('td', { text: row.event_name }),
+          h('td', { class: 'num', text: String(row.today) }),
+          h('td', { class: 'num', text: String(row.yesterday) }),
+        ]));
+      });
+      app.appendChild(h('div', { class: 'card' }, [
+        h('h2', { text: 'App events' }),
+        h('p', { class: 'muted', text: 'Daily counters with no user or session attached. Stored by day only, so this compares calendar days in UTC.' }),
+        (l.events || []).length ? evTable : h('p', { class: 'muted', text: 'Nothing recorded today or yesterday.' }),
+      ]));
+    }).catch(function (e) { app.innerHTML = ''; app.appendChild(h('p', { class: 'err', text: e.message })); });
+  }
+
+  function renderDownloads() {
+    app.innerHTML = '<p class="muted">Asking GitHub…</p>';
+    fetchDownloads().then(function (d) {
+      app.innerHTML = '';
+      var totals = downloadTotals(d);
+      app.appendChild(h('div', { class: 'grid' }, PLATFORMS.map(function (p) {
+        return h('div', { class: 'stat' }, [
+          h('div', { class: 'n', text: String(totals[p].count) }),
+          h('div', { class: 'l', text: p }),
+          h('div', { class: 'hint', text: addedText(totals[p].added, d.baseDay) }),
+        ]);
+      })));
+      d.errors.forEach(function (e) { app.appendChild(h('p', { class: 'err', text: 'GitHub unreachable · ' + e })); });
+
+      var table = h('table', {}, [h('tr', {}, [
+        h('th', { text: 'Product' }), h('th', { text: 'Version' }), h('th', { text: 'Platform' }),
+        h('th', { text: 'File' }), h('th', { text: 'Downloads' }), h('th', { text: 'New' }),
+      ])]);
+      d.assets.forEach(function (a) {
+        table.appendChild(h('tr', {}, [
+          h('td', { text: a.product }),
+          h('td', { text: a.version }),
+          h('td', { text: a.platform }),
+          h('td', { text: a.file }),
+          h('td', { class: 'num', text: String(a.count) }),
+          h('td', { class: 'num', text: a.added === null ? '—' : (a.added > 0 ? '+' + a.added : String(a.added)) }),
+        ]));
+      });
+      app.appendChild(h('div', { class: 'card' }, [
+        h('h2', { text: 'Every installer, every release' }),
+        h('p', {
+          class: 'muted',
+          text: 'GitHub counts each download of a file, repeats included, and tells nobody who downloaded it. '
+            + (d.baseDay ? '"New" compares with ' + d.baseDay + ', the last day this console was opened.' : 'This is the first check: "New" starts tomorrow.'),
+        }),
+        d.assets.length ? table : h('p', { class: 'muted', text: 'No installer published yet.' }),
+      ]));
+    });
+  }
+
+  function siteSummary(s) {
+    if (!s.configured) {
+      return h('p', { class: 'muted', text: 'Not connected yet: add ' + s.missing.join(' and ') + ' to .dev.vars. See the Site tab.' });
+    }
+    if (s.error) return h('p', { class: 'err', text: s.error });
+    var days = s.daily || [];
+    var today = days.length ? days[days.length - 1] : null;
+    var yesterday = days.length > 1 ? days[days.length - 2] : null;
+    return h('table', {}, [
+      h('tr', {}, [h('td', { text: 'Visits today (' + (today ? today.key : '—') + ')' }), h('td', { class: 'num', text: String(today ? today.visits : 0) })]),
+      h('tr', {}, [h('td', { text: 'Visits yesterday' }), h('td', { class: 'num', text: String(yesterday ? yesterday.visits : 0) })]),
+      h('tr', {}, [h('td', { text: 'Page views today' }), h('td', { class: 'num', text: String(today ? today.page_views : 0) })]),
+    ]);
+  }
+
+  function renderSite() {
+    app.innerHTML = '<p class="muted">Asking Cloudflare…</p>';
+    api('/admin/api/site-analytics').then(function (s) {
+      app.innerHTML = '';
+      if (!s.configured) {
+        app.appendChild(h('div', { class: 'card' }, [
+          h('h2', { text: 'Connect Cloudflare Web Analytics' }),
+          h('p', { class: 'muted', text: 'alicebtc.com already counts visits with Cloudflare Web Analytics, without cookies. To show them here, add to apps/venice-proxy-worker/.dev.vars:' }),
+          h('ul', {}, [
+            h('li', { text: 'CF_ANALYTICS_API_TOKEN: a Cloudflare API token with only Account → Account Analytics → Read' }),
+            h('li', { text: 'CF_ACCOUNT_ID: the Cloudflare account id' }),
+          ]),
+          h('p', { class: 'muted', text: 'Then close and reopen Alice Console. Missing now: ' + s.missing.join(', ') + '.' }),
+        ]));
+        return;
+      }
+      if (s.error) {
+        app.appendChild(h('div', { class: 'card' }, [h('h2', { text: 'Site visits' }), h('p', { class: 'err', text: s.error })]));
+        return;
+      }
+      var points = (s.daily || []).map(function (d) { return { label: d.key.slice(5), count: d.visits }; });
+      var totalVisits = (s.daily || []).reduce(function (sum, d) { return sum + d.visits; }, 0);
+      var totalViews = (s.daily || []).reduce(function (sum, d) { return sum + d.page_views; }, 0);
+      app.appendChild(h('div', { class: 'grid' }, [
+        statCard(totalVisits, 'Visits · 30 days'),
+        statCard(totalViews, 'Page views · 30 days'),
+      ]));
+      app.appendChild(h('div', { class: 'card' }, [
+        h('h2', { text: 'Visits per day · 30 days' }),
+        columns(points, 'visits'),
+      ]));
+      function topTable(title, rows, empty) {
+        var t = h('table', {}, [h('tr', {}, [h('th', { text: title }), h('th', { text: 'Visits' }), h('th', { text: 'Page views' })])]);
+        rows.forEach(function (r) {
+          t.appendChild(h('tr', {}, [
+            h('td', { text: r.key || empty }),
+            h('td', { class: 'num', text: String(r.visits) }),
+            h('td', { class: 'num', text: String(r.page_views) }),
+          ]));
+        });
+        return h('div', { class: 'card' }, [h('h2', { text: title + ' · 7 days' }), rows.length ? t : h('p', { class: 'muted', text: 'No data yet.' })]);
+      }
+      app.appendChild(topTable('Pages', s.top_paths_7d || [], '—'));
+      app.appendChild(h('div', { class: 'grid grid-2' }, [
+        topTable('Countries', s.countries_7d || [], 'Unknown'),
+        topTable('Referrers', s.referers_7d || [], 'Direct or hidden'),
+      ]));
+      app.appendChild(h('p', { class: 'muted', text: 'Source: Cloudflare Web Analytics, aggregate and cookie-free. Cloudflare samples busy days, so small numbers can move slightly.' }));
+    }).catch(function (e) { app.innerHTML = ''; app.appendChild(h('p', { class: 'err', text: e.message })); });
+  }
+
   function render() {
     if (!state.token) { renderLogin(); return; }
     nav.style.display = 'flex';
@@ -1564,9 +1682,12 @@ export const ADMIN_DASHBOARD_HTML = `<!doctype html>
     Array.prototype.forEach.call(nav.querySelectorAll('button[data-view]'), function (b) {
       b.classList.toggle('active', b.getAttribute('data-view') === state.view || (state.view === 'account' && b.getAttribute('data-view') === 'accounts'));
     });
-    if (state.view === 'overview') renderOverview();
+    if (state.view === 'launch') renderLaunch();
+    else if (state.view === 'overview') renderOverview();
     else if (state.view === 'analytics') renderAnalytics();
     else if (state.view === 'events') renderEvents();
+    else if (state.view === 'downloads') renderDownloads();
+    else if (state.view === 'site') renderSite();
     else if (state.view === 'faucet') renderFaucet();
     else if (state.view === 'accounts') renderAccounts();
     else if (state.view === 'account') renderAccountDetail(state.detail);

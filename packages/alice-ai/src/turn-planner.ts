@@ -9,6 +9,12 @@ import {
   type AliceMemoryWrite,
 } from './alice-memory-core.ts';
 import type { AliceCapabilityId } from './alice-capabilities.ts';
+import type { SupportedLanguage } from './languages.ts';
+
+/** One text per supported language: a new language fails the type check until it has its own. */
+function localized(language: SupportedLanguage, texts: Record<SupportedLanguage, string>): string {
+  return texts[language];
+}
 
 export type AliceTurnKind = 'question' | 'personal-statement' | 'mixed' | 'conversation';
 
@@ -76,22 +82,25 @@ export type AliceTurnPlan = {
   requestedNote?: AliceRequestedNote | null;
 };
 
-export function directPersonalAcknowledgement(language: 'en' | 'fr'): string {
-  return language === 'fr'
-    ? "Compris. J'en tiendrai compte."
-    : "Got it. I'll take that into account.";
+export function directPersonalAcknowledgement(language: SupportedLanguage): string {
+  return localized(language, {
+    fr: "Compris. J'en tiendrai compte.",
+    en: "Got it. I'll take that into account.",
+  });
 }
 
-export function directWalletStateResponse(language: 'en' | 'fr'): string {
-  return language === 'fr'
-    ? "Cette conversation n'a pas accès au solde ni à l'historique des transactions de ton portefeuille en temps réel. Consulte directement l'application de ton portefeuille pour voir ces informations à jour."
-    : "This chat has no access to your wallet's current balance or transaction history. Please check your wallet app directly for that up-to-date information.";
+export function directWalletStateResponse(language: SupportedLanguage): string {
+  return localized(language, {
+    fr: "Cette conversation n'a pas accès au solde ni à l'historique des transactions de ton portefeuille en temps réel. Consulte directement l'application de ton portefeuille pour voir ces informations à jour.",
+    en: "This chat has no access to your wallet's current balance or transaction history. Please check your wallet app directly for that up-to-date information.",
+  });
 }
 
-export function directWalletActionResponse(language: 'en' | 'fr'): string {
-  return language === 'fr'
-    ? "Cette conversation ne peut pas accéder à tes comptes externes ni envoyer, signer ou diffuser des fonds en ton nom. Si tu souhaites effectuer ce paiement, utilise ton application de portefeuille et vérifie toi-même la destination, le montant et les frais avant de confirmer."
-    : "This chat cannot access your external accounts or send, sign, or broadcast funds on your behalf. If you choose to make this payment, use your wallet app and review the destination, amount, and fees yourself before confirming.";
+export function directWalletActionResponse(language: SupportedLanguage): string {
+  return localized(language, {
+    fr: "Cette conversation ne peut pas accéder à tes comptes externes ni envoyer, signer ou diffuser des fonds en ton nom. Si tu souhaites effectuer ce paiement, utilise ton application de portefeuille et vérifie toi-même la destination, le montant et les frais avant de confirmer.",
+    en: "This chat cannot access your external accounts or send, sign, or broadcast funds on your behalf. If you choose to make this payment, use your wallet app and review the destination, amount, and fees yourself before confirming.",
+  });
 }
 
 /**
@@ -101,25 +110,28 @@ export function directWalletActionResponse(language: 'en' | 'fr'): string {
  * failure all leave it out, and the answer says so instead of claiming a save
  * that did not happen.
  */
-export function directRequestedNoteResponse(result: AliceMemoryWrite, text: string, language: 'en' | 'fr'): string {
+export function directRequestedNoteResponse(result: AliceMemoryWrite, text: string, language: SupportedLanguage): string {
   if (!result.memory.enabled) {
-    return language === 'fr'
-      ? "La mémoire d'Alice est désactivée dans les réglages, rien n'a été retenu."
-      : "Alice's memory is turned off in Settings, nothing was kept.";
+    return localized(language, {
+      fr: "La mémoire d'Alice est désactivée dans les réglages, rien n'a été retenu.",
+      en: "Alice's memory is turned off in Settings, nothing was kept.",
+    });
   }
   if (isAliceMemoryCategoryPaused(result.memory, 'requested-note')) {
-    return language === 'fr'
-      ? "Les notes demandées sont en pause dans les réglages, rien n'a été retenu."
-      : 'Requested notes are paused in Settings, nothing was kept.';
+    return localized(language, {
+      fr: "Les notes demandées sont en pause dans les réglages, rien n'a été retenu.",
+      en: 'Requested notes are paused in Settings, nothing was kept.',
+    });
   }
   const kept = normalizeAliceMemoryText(text);
   const stored = result.memory.items.some(item => item.category === 'requested-note' && item.text === kept);
   if (!result.saved || !stored) {
-    return language === 'fr'
-      ? "Alice n'a pas pu enregistrer cette note sur cet appareil, rien n'a été retenu. Réessayez plus tard."
-      : 'Alice could not save this note on this device, nothing was kept. Please try again later.';
+    return localized(language, {
+      fr: "Alice n'a pas pu enregistrer cette note sur cet appareil, rien n'a été retenu. Réessayez plus tard.",
+      en: 'Alice could not save this note on this device, nothing was kept. Please try again later.',
+    });
   }
-  return language === 'fr' ? `Retenu : ${kept}` : `Noted: ${kept}`;
+  return localized(language, { fr: `Retenu : ${kept}`, en: `Noted: ${kept}` });
 }
 
 // An explicit request to remember a sentence, French and English, in the
@@ -188,7 +200,11 @@ const SHORT_TOPIC = /\b(bitcoin|btc|utxos?|lightning|ark|arkade|vtxos?|mining|pr
 const IMAGE_REQUEST = /\b(create|generate|make|draw|show|cree|crée|generer|générer|dessine|montre)\b[\s\S]*\b(image|illustration|picture)\b/i;
 const DIAGRAM_REQUEST = /\b(create|generate|make|draw|show|explain|cree|crée|generer|générer|dessine|montre|explique)\b[\s\S]*\b(diagram|schema|schéma|flowchart)\b/i;
 const CONTINUATION_REQUEST = /\b(tell me more|say more|go deeper|dig deeper|expand on (?:that|this)|elaborate|explain (?:that|this) further|explain (?:more|further)|continue|dis[- ]m['’]en plus|donne m['’]en plus|en savoir plus|approfondi[sr]|développe|developpe|explique (?:davantage|plus|encore)|(?:peux[- ]tu )?expliquer davantage|montre[- ]moi comment|show me how|(?:donne(?:[- ]moi)?|give me) (?:un |an? )?(?:exemple|example))\b/i;
-const CONTEXT_REFERENCE = /\b(that|this|it|those|these|them|its|the previous (?:answer|point)|(?:the )?(?:first|second|third|other) (?:case|one|point)|cela|ceci|ce point|cette reponse|la reponse precedente|le precedent|(?:premier|second|deuxieme|troisieme|autre) (?:cas|point)|par rapport|quelle difference avec)\b/i;
+// Person pronouns point back as much as "that" does ("what would you think
+// about her?"): a question about someone named 2 turns earlier is a follow-up
+// for retrieval. "il" and "they" are left out, both open autonomous French
+// and English questions far more often than they refer back.
+const CONTEXT_REFERENCE = /\b(that|this|it|those|these|them|its|she|he|her|him|his|hers|elle|lui|the previous (?:answer|point)|(?:the )?(?:first|second|third|other) (?:case|one|point)|cela|ceci|ce point|cette reponse|la reponse precedente|le precedent|(?:premier|second|deuxieme|troisieme|autre) (?:cas|point)|par rapport|quelle difference avec)\b/i;
 // An acknowledgement may precede the connector ("Oui, mais pourquoi ?",
 // "Ok, but how?"); it does not make the question stand on its own.
 const FOLLOW_UP_START = /^(?:(?:oui|yes|yeah|ok|okay|d['’]accord|bon|bien|right|sure|hmm|ah)[,\s]+)?(and|but|what about|and what about|et|mais|et pour|qu['’]en est[- ]il)\b/i;
@@ -423,21 +439,24 @@ export function planAliceTurn(message: string): AliceTurnPlan {
   };
 }
 
-export function turnResponseDirective(plan: AliceTurnPlan, language: 'en' | 'fr'): string {
+export function turnResponseDirective(plan: AliceTurnPlan, language: SupportedLanguage): string {
   if (plan.asksAboutUserMemory) {
-    return language === 'fr'
-      ? "Réponds uniquement à partir de la mémoire locale fournie. N'ajoute aucun sujet Bitcoin, aucune supposition et aucune information absente. Si la mémoire est vide, dis simplement que tu ne sais encore rien de pertinent sur l'utilisateur. Une demande de mémorisation n'est pas une confirmation de sauvegarde. Ne prétends pas avoir enregistré un nom ou un fait absent de la mémoire fournie."
-      : "Answer only from the provided local memory. Do not add a Bitcoin topic, make assumptions, or invent missing details. If memory is empty, simply say that you do not know anything relevant about the user yet. A request to remember is not confirmation of a save. Do not claim to have stored a name or fact absent from the provided memory.";
+    return localized(language, {
+      fr: "Réponds uniquement à partir de la mémoire locale fournie. N'ajoute aucun sujet Bitcoin, aucune supposition et aucune information absente. Si la mémoire est vide, dis simplement que tu ne sais encore rien de pertinent sur l'utilisateur. Une demande de mémorisation n'est pas une confirmation de sauvegarde. Ne prétends pas avoir enregistré un nom ou un fait absent de la mémoire fournie.",
+      en: "Answer only from the provided local memory. Do not add a Bitcoin topic, make assumptions, or invent missing details. If memory is empty, simply say that you do not know anything relevant about the user yet. A request to remember is not confirmation of a save. Do not claim to have stored a name or fact absent from the provided memory.",
+    });
   }
   if (plan.kind === 'personal-statement') {
-    return language === 'fr'
-      ? "Réponds uniquement par un bref accusé de réception. Ne définis aucun terme, ne donne aucun cours et ne présente pas le projet de l'utilisateur sans question explicite."
-      : "Reply only with a brief acknowledgement. Do not define any term, teach a topic, or introduce the user's project without an explicit question.";
+    return localized(language, {
+      fr: "Réponds uniquement par un bref accusé de réception. Ne définis aucun terme, ne donne aucun cours et ne présente pas le projet de l'utilisateur sans question explicite.",
+      en: "Reply only with a brief acknowledgement. Do not define any term, teach a topic, or introduce the user's project without an explicit question.",
+    });
   }
   if (plan.kind === 'mixed') {
-    return language === 'fr'
-      ? "Tiens compte de la déclaration personnelle, puis réponds uniquement à la question explicite."
-      : 'Honor the personal statement, then answer only the explicit question.';
+    return localized(language, {
+      fr: "Tiens compte de la déclaration personnelle, puis réponds uniquement à la question explicite.",
+      en: 'Honor the personal statement, then answer only the explicit question.',
+    });
   }
   return '';
 }

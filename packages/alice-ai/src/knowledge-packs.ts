@@ -110,31 +110,24 @@ export function getBundledKnowledgeChunks(): KnowledgeChunk[] {
     .flatMap(pack => pack.chunks);
 }
 
+/**
+ * One chunk per concept (conceptId, else id), in first-appearance order: the
+ * variant in the target locale, else the source variant, else the first one.
+ * Without a target the source variant is kept.
+ */
 export function preferKnowledgeLocale(
   chunks: KnowledgeChunk[],
   targetLanguage?: KnowledgeLocale,
 ): KnowledgeChunk[] {
-  if (!targetLanguage) return dedupeById(chunks);
-
   const groups = new Map<string, KnowledgeChunk[]>();
-  const order: string[] = [];
   for (const chunk of chunks) {
     const conceptId = chunk.conceptId ?? chunk.id;
-    if (!groups.has(conceptId)) order.push(conceptId);
-    groups.set(conceptId, [...(groups.get(conceptId) ?? []), chunk]);
+    const variants = groups.get(conceptId);
+    if (variants) variants.push(chunk);
+    else groups.set(conceptId, [chunk]);
   }
 
-  return order.map(conceptId => {
-    const variants = groups.get(conceptId)!;
-    return variants.find(chunk => chunk.locale === targetLanguage) ?? variants[0];
-  });
-}
-
-function dedupeById(chunks: KnowledgeChunk[]): KnowledgeChunk[] {
-  const seen = new Set<string>();
-  return chunks.filter(chunk => {
-    if (seen.has(chunk.id)) return false;
-    seen.add(chunk.id);
-    return true;
-  });
+  return [...groups.values()].map(variants => (targetLanguage && variants.find(chunk => chunk.locale === targetLanguage))
+    || variants.find(chunk => chunk.translationStatus === 'source')
+    || variants[0]);
 }

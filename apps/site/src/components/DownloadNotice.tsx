@@ -3,6 +3,7 @@
 import { CloseIcon } from '@/components/icons';
 
 import { useEffect, useRef, useState } from 'react';
+import type { CommonCopy } from '@/i18n/dictionaries/common';
 
 // What an unsigned build does to a first-time visitor, said before it happens
 // rather than after.
@@ -24,48 +25,22 @@ import { useEffect, useRef, useState } from 'react';
 
 export type DownloadPlatform = 'android' | 'windows';
 
-type Notice = {
-  title: string;
-  /** Verbatim, so the visitor recognises the screen when it appears. */
-  screen: string;
-  why: string;
-  steps: string[];
-};
-
-const NOTICES: Record<DownloadPlatform, Notice> = {
-  android: {
-    title: 'Android will warn you before installing',
-    screen: '“For your security, your phone is not allowed to install unknown apps from this source.”',
-    why: 'Alice is not on the Play Store yet, so you are installing the file directly. Android asks for permission the first time any app does that.',
-    steps: [
-      'Open the downloaded file.',
-      'When Android asks, allow installs from your browser or file manager.',
-      'Come back to the file and install.',
-    ],
-  },
-  windows: {
-    title: 'Windows will show a blue warning',
-    screen: '“Windows protected your PC”, with only a “Don’t run” button in sight.',
-    why: 'The installer is not signed with a paid certificate. That certificate proves who published the file, and nothing about what the file does, so its absence is not a verdict on Alice. We have not bought one yet.',
-    steps: [
-      'Click “More info”, the small grey link.',
-      'Then click “Run anyway”.',
-    ],
-  },
-};
-
 export function DownloadNotice({
   platform,
+  copy,
   href,
   verifyHref,
   onCancel,
 }: {
   platform: DownloadPlatform;
+  copy: CommonCopy['downloadNotice'];
   href: string;
   verifyHref: string;
   onCancel: () => void;
 }) {
-  const notice = NOTICES[platform];
+  // The dictionary quotes each system's warning verbatim, in the language
+  // that system shows it in, so the visitor recognises the screen.
+  const notice = copy[platform];
   // The steps are needed *after* the download, when the operating system puts
   // its warning on screen. Closing this dialog on the download click threw
   // them away at exactly the moment they became useful, so the click starts
@@ -114,7 +89,7 @@ export function DownloadNotice({
           ref={closeRef}
           type="button"
           onClick={onCancel}
-          aria-label="Close"
+          aria-label={copy.closeAria}
           className="absolute right-3 top-3 cursor-pointer bg-transparent px-2 py-1 text-lg leading-none text-[var(--alice-muted)]"
         >
           <CloseIcon size={16} />
@@ -122,7 +97,7 @@ export function DownloadNotice({
 
         <div className="shrink-0 px-6 pt-6">
           <p className="font-pixel text-[11px] uppercase tracking-widest text-[var(--alice-primary)] pr-8">
-            {started ? 'While it downloads' : 'Before you download'}
+            {started ? copy.eyebrowWhile : copy.eyebrowBefore}
           </p>
           <h2 className="mt-3 text-xl font-semibold text-[var(--alice-heading)] sm:text-2xl">
             {notice.title}
@@ -130,8 +105,7 @@ export function DownloadNotice({
 
           {started && (
             <p className="mt-3 text-sm leading-relaxed text-[var(--alice-primary)]">
-              Your download has started. These steps stay on screen until you
-              close them, because you will need them when the warning appears.
+              {copy.started}
             </p>
           )}
         </div>
@@ -157,9 +131,7 @@ export function DownloadNotice({
           </ol>
 
           <p className="mt-5 text-sm leading-relaxed text-[var(--alice-muted)]">
-            Alice is open source, and every release publishes the checksum of each
-            file. You can verify that what you downloaded is exactly what we
-            published:{' '}
+            {copy.verifyBefore}
             <a
               href={verifyHref}
               target="_blank"
@@ -167,9 +139,9 @@ export function DownloadNotice({
               className="underline"
               style={{ color: 'var(--alice-primary)' }}
             >
-              release notes and checksums
+              {copy.verifyLink}
             </a>
-            .
+            {copy.verifyAfter}
           </p>
         </div>
 
@@ -180,14 +152,14 @@ export function DownloadNotice({
                 href={href}
                 className="cursor-pointer px-3 py-2 text-sm text-[var(--alice-muted)] underline"
               >
-                Download again
+                {copy.downloadAgain}
               </a>
               <button
                 type="button"
                 onClick={onCancel}
                 className="cta cta-solid px-5 py-2.5 text-sm"
               >
-                Close
+                {copy.close}
               </button>
             </>
           ) : (
@@ -197,14 +169,14 @@ export function DownloadNotice({
                 onClick={onCancel}
                 className="cursor-pointer bg-transparent px-3 py-2 text-sm text-[var(--alice-muted)]"
               >
-                Cancel
+                {copy.cancel}
               </button>
               <a
                 href={href}
                 onClick={() => setStarted(true)}
                 className="cta cta-solid px-5 py-2.5 text-sm"
               >
-                Download anyway
+                {copy.downloadAnyway}
               </a>
             </>
           )}

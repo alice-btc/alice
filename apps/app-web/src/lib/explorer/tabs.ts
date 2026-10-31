@@ -4,6 +4,8 @@
 //
 // Pure data and helpers only: no React, no storage. The panel owns the array.
 
+import { t } from '../../i18n/translate.ts';
+
 export type TabKind = 'overview' | 'tx' | 'address' | 'block' | 'xpub' | 'vtxo';
 
 export type Tab = {
@@ -29,21 +31,21 @@ function newId(): string {
 
 /** A short, human label for a subject, so tabs stay narrow. */
 export function shortLabel(kind: TabKind, query?: string): string {
-  if (!query) return 'Home';
-  if (kind === 'block') return /^\d+$/.test(query) ? `Block ${query}` : `Block ${query.slice(0, 8)}...`;
+  if (!query) return t('explorer.tabs.home');
+  if (kind === 'block') return t('explorer.tabs.block', { block: /^\d+$/.test(query) ? query : `${query.slice(0, 8)}...` });
   if (kind === 'vtxo') {
     const id = /^([0-9a-f]{64}):(\d+)$/i.exec(query);
     if (id) return `${id[1].slice(0, 6)}...${id[1].slice(-4)}:${id[2]}`;
     // A Spark leaf, named by a UUID.
-    if (/^[0-9a-f]{8}-/i.test(query)) return `Leaf ${query.slice(0, 8)}`;
-    return 'VTXO export';
+    if (/^[0-9a-f]{8}-/i.test(query)) return t('explorer.tabs.leaf', { id: query.slice(0, 8) });
+    return t('explorer.tabs.vtxoExport');
   }
   if (query.length <= 14) return query;
   return `${query.slice(0, 6)}...${query.slice(-4)}`;
 }
 
 export function overviewTab(networkId: string): Tab {
-  return { id: newId(), kind: 'overview', label: 'Home', bookmarked: false, networkId };
+  return { id: newId(), kind: 'overview', label: t('explorer.tabs.home'), bookmarked: false, networkId };
 }
 
 export function makeTab(kind: TabKind, query: string, networkId: string): Tab {

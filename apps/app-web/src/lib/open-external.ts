@@ -1,15 +1,19 @@
-import { isTauriDesktop } from '@alice-wallet/alice-ai';
+import { isTauriApp, isTauriMobile, tauriInvoke } from '@alice-wallet/alice-ai';
 
-// Tauri 2's plugin-shell is invoked over the same raw IPC channel used by
-// isTauriDesktop()/tauriInvoke() in alice-ai, to avoid adding @tauri-apps/api
-// as a dependency just for this one call.
+// Tauri's plugins are invoked over the raw IPC channel, to avoid adding
+// @tauri-apps/api as a dependency just for this one call. The desktop opens
+// links through plugin-shell; Android and iOS through plugin-opener, which
+// also sends their target="_blank" links to the system browser. A
+// window.open() call does nothing in those webviews: use this instead.
 export async function openExternalUrl(url: string): Promise<void> {
-  if (isTauriDesktop()) {
-    const w = window as unknown as {
-      __TAURI_INTERNALS__?: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> };
-    };
-    await w.__TAURI_INTERNALS__?.invoke('plugin:shell|open', { path: url });
+  if (isTauriMobile()) {
+    await tauriInvoke('plugin:opener|open_url', { url });
+    return;
+  }
+  if (isTauriApp()) {
+    await tauriInvoke('plugin:shell|open', { path: url });
     return;
   }
   window.open(url, '_blank', 'noopener,noreferrer');
 }
+

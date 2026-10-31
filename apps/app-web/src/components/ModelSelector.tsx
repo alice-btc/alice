@@ -22,16 +22,17 @@ import {
   getCustomServer,
   getDesktopModelStatus,
   getPreset,
-  isTauriDesktop,
+  hasLocalEngine,
   setActiveCloudModelId,
   setActiveModelId,
   setPreset,
 } from '@alice-wallet/alice-ai';
+import { useT, type MessageKey } from '@/i18n';
 
-const REASONING_LABELS: Record<AIPreset, string> = {
-  fast: 'Light',
-  balanced: 'Medium',
-  deep: 'High',
+const REASONING_LABELS: Record<AIPreset, MessageKey> = {
+  fast: 'models.reasoning.fast',
+  balanced: 'models.reasoning.balanced',
+  deep: 'models.reasoning.deep',
 };
 
 const defaultLocalModelStatus = Object.fromEntries(
@@ -53,6 +54,7 @@ export function ModelSelector({
   compactLabel = false,
   placement = 'above',
 }: ModelSelectorProps) {
+  const t = useT();
   const openSettings = useOpenSettings();
   const popoverId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -67,7 +69,7 @@ export function ModelSelector({
   const [knownModels, setKnownModels] = useState<ModelEntry[]>(MODEL_CATALOG);
 
   const refreshLocalModels = async () => {
-    if (!isTauriDesktop()) return;
+    if (!hasLocalEngine()) return;
     const models = await listKnownLocalModels();
     setKnownModels(models);
     const statuses = await Promise.all(
@@ -144,8 +146,8 @@ export function ModelSelector({
     backendType === 'cloud'
       ? 'Private'
       : backendType === 'custom'
-        ? 'Custom server'
-        : activeLocalModel?.name ?? 'Local model';
+        ? t('models.customServer')
+        : activeLocalModel?.name ?? t('models.localModel');
 
   const handleReasoning = async (preset: AIPreset) => {
     if (backendType === 'cloud') {
@@ -195,7 +197,7 @@ export function ModelSelector({
     }}>
       <button
         type="button"
-        aria-label={`Model and reasoning: ${activeModelName}, ${REASONING_LABELS[activePreset]}`}
+        aria-label={t('models.trigger', { model: activeModelName, reasoning: t(REASONING_LABELS[activePreset]) })}
         ref={triggerRef}
         aria-expanded={open}
         aria-controls={open ? popoverId : undefined}
@@ -215,7 +217,7 @@ export function ModelSelector({
           {activeModelName}
         </span>
         {!compactLabel && (
-          <span className="shrink-0" style={{ color: 'var(--alice-muted)' }}>{REASONING_LABELS[activePreset]}</span>
+          <span className="shrink-0" style={{ color: 'var(--alice-muted)' }}>{t(REASONING_LABELS[activePreset])}</span>
         )}
         <SvgIcon svg={CHEVRON_DOWN_ICON} size={16} />
       </button>
@@ -224,7 +226,7 @@ export function ModelSelector({
         <div
           id={popoverId}
           role="group"
-          aria-label="Model and reasoning options"
+          aria-label={t('models.options')}
           className={
             placement === 'mobile-header' ? 'fixed'
               : placement === 'below' || placement === 'composer' ? 'absolute left-0'
@@ -258,12 +260,12 @@ export function ModelSelector({
             zIndex: 30,
           }}
         >
-          <MenuSection label="REASONING" />
+          <MenuSection label={t('models.section.reasoning')} />
           <div style={{ display: 'flex', gap: 6, padding: '2px 6px 4px' }}>
             {ALL_PRESETS.map((preset) => (
               <CompactChip
                 key={preset}
-                label={REASONING_LABELS[preset]}
+                label={t(REASONING_LABELS[preset])}
                 active={preset === activePreset}
                 onClick={() => handleReasoning(preset)}
               />
@@ -271,7 +273,7 @@ export function ModelSelector({
           </div>
 
           <MenuDivider />
-          <MenuSection label="LOCAL MODELS" />
+          <MenuSection label={t('models.section.local')} />
           {installedLocalModels.length > 0 ? installedLocalModels.map((model) => (
             <MenuItem
               key={model.id}
@@ -282,12 +284,12 @@ export function ModelSelector({
             />
           )) : (
             <div className="font-numbers" style={{ fontSize: 14, opacity: 1, padding: '8px 6px' }}>
-              No downloaded local model
+              {t('models.noLocal')}
             </div>
           )}
           <MenuItem
-            label="Add a new local model"
-            detail="Open Settings"
+            label={t('models.addLocal')}
+            detail={t('models.openSettings')}
             active={false}
             onClick={handleAddLocalModel}
           />
@@ -297,10 +299,10 @@ export function ModelSelector({
           {hasCustomServer && (
             <>
               <MenuDivider />
-              <MenuSection label="CUSTOM SERVER" />
+              <MenuSection label={t('models.section.custom')} />
               <MenuItem
-                label="Custom server"
-                detail="OpenAI-compatible"
+                label={t('models.customServer')}
+                detail={t('models.openaiCompatible')}
                 active={backendType === 'custom'}
                 onClick={handleCustomServer}
               />

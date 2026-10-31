@@ -2,12 +2,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const webSource = readFileSync(
-  decodeURIComponent(
-    new URL('../../../apps/app-web/src/components/AccountPasswordDialog.tsx', import.meta.url).pathname,
-  ),
-  'utf8',
-);
+// The dialog reads its words from the interface dictionary.
+const read = (relative: string) => readFileSync(decodeURIComponent(new URL(relative, import.meta.url).pathname), 'utf8');
+const webSource = read('../../../apps/app-web/src/components/AccountPasswordDialog.tsx')
+  + read('../../../apps/app-web/src/i18n/en.ts');
 
 for (const [surface, source] of [
   ['web', webSource],

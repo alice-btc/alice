@@ -8,6 +8,7 @@
 
 import type { TabKind } from './tabs.ts';
 import type { NetworkKind } from './networks.ts';
+import { t } from '../../i18n/translate.ts';
 
 const WHERE = "Alice's Explorer";
 
@@ -61,9 +62,9 @@ export function explorerPageNote(kind: TabKind, network: { kind: NetworkKind; la
  * share it); an off-chain coin is named by its network.
  */
 export function askContextLabel(kind: TabKind, query: string | undefined, networkKind: NetworkKind): string {
-  if (kind === 'tx' && query) return networkKind === 'spark' && !/^[0-9a-f]{64}$/i.test(query) ? `Spark transfer ...${query.slice(-5)}` : `Transaction ...${query.slice(-5)}`;
-  if (kind === 'address' && query) return `Address ...${query.slice(-5)}`;
-  if (kind === 'block' && query) return `Block ${query}`;
-  if (kind === 'vtxo') return networkKind === 'arkade' ? 'An Arkade VTXO' : networkKind === 'spark' ? 'A Spark leaf' : 'A Bark VTXO';
-  return 'This page';
+  if (kind === 'tx' && query) return t(networkKind === 'spark' && !/^[0-9a-f]{64}$/i.test(query) ? 'explorer.ask.chip.sparkTransfer' : 'explorer.ask.chip.transaction', { end: query.slice(-5) });
+  if (kind === 'address' && query) return t('explorer.ask.chip.address', { end: query.slice(-5) });
+  if (kind === 'block' && query) return t('explorer.ask.chip.block', { block: query });
+  if (kind === 'vtxo') return t(networkKind === 'arkade' ? 'explorer.ask.chip.arkadeVtxo' : networkKind === 'spark' ? 'explorer.ask.chip.sparkLeaf' : 'explorer.ask.chip.barkVtxo');
+  return t('explorer.ask.chip.page');
 }

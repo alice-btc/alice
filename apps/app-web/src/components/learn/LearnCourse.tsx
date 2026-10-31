@@ -5,13 +5,12 @@ import { NEXT_ICON, CHECK_ICON, LEARN_ICON, HELP_ICON } from '@/lib/atelier-icon
 
 import { useEffect, useState } from 'react';
 import type { LearnCoursePack } from '@alice-wallet/alice-content/src/learn-types';
-import { LEVEL_LABELS, findCourse } from '@/lib/learn/catalog';
+import { LEVEL_LABEL_KEYS, catalogLabel, findCourse } from '@/lib/learn/catalog';
 import type { LearnLang } from '@/lib/learn/language';
 import { fetchCoursePack } from '@/lib/learn/packs';
 import type { LearnProgress } from '@/lib/learn/progress';
 import type { LearnView } from '@/lib/learn/route';
-
-const ui = (lang: string): 'fr' | 'en' => (lang === 'fr' ? 'fr' : 'en');
+import { useLearnT } from './learn-locale';
 
 export function LearnCourse({
   code,
@@ -27,6 +26,7 @@ export function LearnCourse({
   const [pack, setPack] = useState<LearnCoursePack | null>(null);
   const [error, setError] = useState(false);
   const catalogEntry = findCourse(code);
+  const t = useLearnT(lang);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,9 +42,7 @@ export function LearnCourse({
     return (
       <div style={{ width: 'min(100% - 32px, 760px)', margin: '0 auto', padding: '48px 0' }}>
         <p className="font-numbers" style={{ color: 'var(--alice-muted)' }}>
-          {lang === 'fr'
-            ? 'Ce cours n’est pas disponible dans cette langue pour le moment.'
-            : 'This course is not available in this language yet.'}
+          {t('learn.course.unavailable')}
         </p>
       </div>
     );
@@ -52,7 +50,7 @@ export function LearnCourse({
   if (!pack) {
     return (
       <div style={{ width: 'min(100% - 32px, 760px)', margin: '0 auto', padding: '48px 0' }}>
-        <p className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }} role="status">{lang === 'fr' ? 'Chargement…' : 'Loading…'}</p>
+        <p className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }} role="status">{t('common.loading')}</p>
       </div>
     );
   }
@@ -63,7 +61,7 @@ export function LearnCourse({
   const firstUnread = allChapters.find((c) => c.chapterId && !read[c.chapterId]);
   const resumeTarget = lastChapterId ?? firstUnread?.chapterId ?? allChapters[0]?.chapterId;
   const started = Object.keys(read).length > 0;
-  const level = catalogEntry ? (LEVEL_LABELS[catalogEntry.level]?.[ui(lang)] ?? catalogEntry.level) : '';
+  const level = catalogEntry ? catalogLabel(t, LEVEL_LABEL_KEYS, catalogEntry.level) : '';
 
   return (
     <div className="font-numbers" style={{ width: 'min(100% - 32px, 760px)', margin: '0 auto', padding: '24px 0 72px', color: 'var(--alice-text)' }}>
@@ -88,12 +86,12 @@ export function LearnCourse({
           className="alice-control alice-control--primary"
           style={{ marginTop: 20, padding: '12px 18px' }}
         >
-          {started ? (lang === 'fr' ? 'Reprendre' : 'Resume') : (lang === 'fr' ? 'Commencer' : 'Start')} <SvgIcon svg={NEXT_ICON} size={16} />
+          {started ? t('learn.course.resume') : t('learn.course.start')} <SvgIcon svg={NEXT_ICON} size={16} />
         </button>
       )}
 
       <p role="status" style={{ marginTop: 24, color: 'var(--alice-muted)', fontSize: 14 }}>
-        {allChapters.filter((chapter) => chapter.chapterId && read[chapter.chapterId]).length}/{allChapters.length} {lang === 'fr' ? 'chapitres lus' : 'chapters read'}
+        {t('learn.course.chaptersRead', { read: allChapters.filter((chapter) => chapter.chapterId && read[chapter.chapterId]).length, total: allChapters.length })}
       </p>
       <div style={{ marginTop: 24 }}>
         {pack.parts.map((part, partIndex) => (
@@ -118,10 +116,10 @@ export function LearnCourse({
                   >
                     <SvgIcon svg={isRead ? CHECK_ICON : LEARN_ICON} size={20} />
                     <span style={{ fontSize: 15, flex: 1 }}>{chapter.title}</span>
-                    {isRead && <span className="font-numbers" style={{ fontSize: 12 }}>{lang === 'fr' ? 'Lu' : 'Read'}</span>}
+                    {isRead && <span className="font-numbers" style={{ fontSize: 12 }}>{t('learn.course.read')}</span>}
                     {isCurrent && (
                       <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-primary)' }}>
-                        {lang === 'fr' ? 'EN COURS' : 'CURRENT'}
+                        {t('learn.course.current')}
                       </span>
                     )}
                   </button>
@@ -134,7 +132,7 @@ export function LearnCourse({
                 className="alice-control alice-control--quiet"
                 style={{ marginTop: 8, padding: '8px 12px' }}
               >
-                <SvgIcon svg={HELP_ICON} size={20} /> {lang === 'fr' ? 'Quiz de la partie' : 'Part quiz'}
+                <SvgIcon svg={HELP_ICON} size={20} /> {t('learn.partQuiz')}
               </button>
             )}
           </section>

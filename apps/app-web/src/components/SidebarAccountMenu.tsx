@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { SvgIcon } from '@/components/SvgIcon';
 import { ACCOUNT_ICON, SETTINGS_ICON, HELP_ICON, EXTERNAL_ICON, GITHUB_ICON, GLOBE_ICON, CHEVRON_DOWN_ICON } from '@/lib/atelier-icons';
+import { openExternalUrl } from '@/lib/open-external';
+import { finePointer } from '@/lib/pointer';
+import { useT } from '@/i18n';
+import { useModKey } from '@/lib/platform-keys';
 
 export const ALICE_SITE_URL = 'https://alicebtc.com';
 export const ALICE_SOURCE_URL = 'https://github.com/alice-btc/alice';
@@ -79,6 +83,8 @@ export function SidebarAccountMenu({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const name = username ?? ANONYMOUS_NAME;
+  const t = useT();
+  const mod = useModKey();
 
   useEffect(() => {
     if (!open) return;
@@ -104,7 +110,7 @@ export function SidebarAccountMenu({
 
   const openExternal = (url: string) => () => {
     setOpen(false);
-    window.open(url, '_blank', 'noopener,noreferrer');
+    void openExternalUrl(url);
   };
 
   return (
@@ -122,7 +128,7 @@ export function SidebarAccountMenu({
         onClick={() => setOpen(value => !value)}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={username ? `Account: ${username}` : 'Account'}
+        aria-label={username ? t('sidebar.account.trigger', { name: username }) : t('sidebar.account.label')}
         title={collapsed ? name : undefined}
         ref={triggerRef}
         className={`alice-control alice-control--option flex items-center ${
@@ -151,7 +157,7 @@ export function SidebarAccountMenu({
         <div
           ref={menuRef}
           role="menu"
-          aria-label="Account menu"
+          aria-label={t('sidebar.account.menu')}
           onKeyDown={event => {
             if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
             event.preventDefault();
@@ -186,7 +192,7 @@ export function SidebarAccountMenu({
                 className="font-numbers m-0 truncate"
                 style={{ fontSize: 11, lineHeight: '15px', color: 'var(--alice-muted)', opacity: 1 }}
               >
-                {subtitle ?? (username ? 'Alice account' : 'Not signed in')}
+                {subtitle ?? (username ? t('sidebar.account.aliceAccount') : t('sidebar.account.notSignedIn'))}
               </p>
             </div>
           </div>
@@ -198,18 +204,18 @@ export function SidebarAccountMenu({
             // One entry either way: the dialog behind it offers both signing in
             // and creating, so naming one of the two here sends returning users
             // looking for a button that does not exist.
-            label="Account"
+            label={t('sidebar.account.label')}
             onClick={run(onAccount)}
           />
           <MenuRow
             icon={<SvgIcon svg={SETTINGS_ICON} size={16} color="currentColor" />}
-            label="Settings"
-            shortcut="⌘ ,"
+            label={t('sidebar.account.settings')}
+            shortcut={finePointer() ? `${mod},` : undefined}
             onClick={run(onSettings)}
           />
           <MenuRow
             icon={<SvgIcon svg={HELP_ICON} size={16} color="currentColor" />}
-            label="Report an issue"
+            label={t('sidebar.account.report')}
             onClick={run(onReport)}
           />
 
@@ -217,13 +223,13 @@ export function SidebarAccountMenu({
 
           <MenuRow
             icon={<SvgIcon svg={GLOBE_ICON} size={16} color="currentColor" />}
-            label="Alice website"
+            label={t('sidebar.account.website')}
             external
             onClick={openExternal(ALICE_SITE_URL)}
           />
           <MenuRow
             icon={<SvgIcon svg={GITHUB_ICON} size={16} color="currentColor" />}
-            label="Source on GitHub"
+            label={t('sidebar.account.source')}
             external
             onClick={openExternal(ALICE_SOURCE_URL)}
           />
@@ -234,7 +240,7 @@ export function SidebarAccountMenu({
             className="font-numbers m-0 px-3 py-2"
             style={{ fontSize: 11, color: 'var(--alice-muted)', opacity: 1 }}
           >
-            Alice v{version}
+            {t('sidebar.account.version', { version })}
           </p>
         </div>
       )}

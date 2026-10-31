@@ -18,6 +18,7 @@ import type { NormalizedOutspend, NormalizedTransaction, RibbonFocus } from '@/l
 import { buildFullTxDescription, buildTxContext, renderSignalsIdentified, type PrivacySignal } from '@/lib/explorer/signals';
 import type { FullContext } from '@/lib/explorer/ask-alice';
 import { SectionPanel, Skeleton, SkeletonLines } from '@/components/ExplorerUI';
+import { useT } from '@/i18n';
 
 type FetchState =
   | { kind: 'loading' }
@@ -71,6 +72,9 @@ export function ExplorerTxTab({
   /** Opens a Bark VTXO tab (a round's tree root). */
   onOpenVtxo?: (id: string, networkId?: string) => void;
 }) {
+  const t = useT();
+  const tRef = useRef(t);
+  tRef.current = t;
   const [state, setState] = useState<FetchState>({ kind: 'loading' });
   const [analysis, setAnalysis] = useState<AnalysisState>({ kind: 'idle' });
   const [outspends, setOutspends] = useState<NormalizedOutspend[] | undefined>(undefined);
@@ -139,7 +143,7 @@ export function ExplorerTxTab({
         if (cancelled) return;
         const message = err instanceof ChainDataError
           ? err.message
-          : 'Something went wrong reading this transaction.';
+          : tRef.current('explorerTx.readError');
         setState({ kind: 'error', message });
         onFocusRef.current?.(null);
         return;
@@ -213,16 +217,16 @@ export function ExplorerTxTab({
   if (commitment) {
     roundSignals.push({
       id: `ARK_SETTLEMENT:${txid}`, ruleId: 'ARK_SETTLEMENT', severity: 'info', confidence: 'certain',
-      title: 'Arkade commitment transaction',
-      detail: 'Not a payment between two people. This is a commitment transaction of the Arkade operator: its outputs are batch outputs, each the root of a VTXO tree holding the coins of every user settled in that batch, plus the operator\u2019s own change and connectors. The payment heuristics below (change detection, common ownership, amounts) do not apply to it: what is inside belongs to many people, hidden behind one output.',
+      title: t('explorerTx.arkadeCommitment.title'),
+      detail: t('explorerTx.arkadeCommitment.detail'),
       subjects: [], evidence: { txid, kind: 'arkade-commitment' },
     });
   }
   if (barkRoot) {
     roundSignals.push({
       id: `ARK_SETTLEMENT:${txid}`, ruleId: 'ARK_SETTLEMENT', severity: 'info', confidence: 'certain',
-      title: 'Bark round transaction',
-      detail: `Not a payment between two people. This transaction closed a round of Second\u2019s Bark server: its output #${barkRoot.anchor.vout} is the root of the round\u2019s VTXO tree, which holds the coins of every participant, and the rest is the server\u2019s own change. The payment heuristics below (change detection, common ownership, amounts) do not apply to it: what is inside belongs to many people, hidden behind one output.`,
+      title: t('explorerTx.barkRound.title'),
+      detail: t('explorerTx.barkRound.detail', { vout: barkRoot.anchor.vout }),
       subjects: [], evidence: { txid, kind: 'bark-round', treeSats: barkRoot.amountSats, expiryHeight: barkRoot.expiryHeight },
     });
   }
@@ -232,15 +236,15 @@ export function ExplorerTxTab({
       {state.kind === 'loading' && (
         // The transaction page's structure from the first paint: the flow
         // graph area, the details card and the in/out columns as skeletons.
-        <div className="flex flex-col gap-4" aria-label={`Reading transaction from ${provider.source.name}`}>
+        <div className="flex flex-col gap-4" aria-label={t('explorerTx.reading', { source: provider.source.name })}>
           <Skeleton height={150} />
           <div className="flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3, backgroundColor: 'transparent' }}>
             <Skeleton width="70%" />
             <SkeletonLines lines={2} />
           </div>
           <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1"><SectionPanel title="INPUTS"><div className="px-3 py-3"><SkeletonLines lines={3} /></div></SectionPanel></div>
-            <div className="flex-1"><SectionPanel title="OUTPUTS"><div className="px-3 py-3"><SkeletonLines lines={3} /></div></SectionPanel></div>
+            <div className="flex-1"><SectionPanel title={t('explorerTx.inputs')}><div className="px-3 py-3"><SkeletonLines lines={3} /></div></SectionPanel></div>
+            <div className="flex-1"><SectionPanel title={t('explorerTx.outputs')}><div className="px-3 py-3"><SkeletonLines lines={3} /></div></SectionPanel></div>
           </div>
         </div>
       )}
@@ -248,7 +252,7 @@ export function ExplorerTxTab({
       {state.kind === 'error' && (
         <div className="flex flex-col gap-1 px-4 py-3" style={{ border: '1px solid var(--alice-danger)', borderRadius: 3 }}>
           <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>
-            COULD NOT LOAD
+            {t('explorerBlocks.tab.couldNotLoad')}
           </span>
           <p className="font-numbers m-0" style={{ fontSize: 13, color: 'var(--alice-text)' }}>
             {state.message}

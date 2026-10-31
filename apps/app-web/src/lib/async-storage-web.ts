@@ -1,5 +1,5 @@
 import { getLocalCipher, type LocalCipher } from '../../../../packages/alice-ai/src/local-cipher.ts';
-import { reportBrowserStorageIssue } from '../../../../packages/alice-ai/src/browser-storage-security.ts';
+import { reportBrowserStorageIssue, storageIssueFor } from '../../../../packages/alice-ai/src/browser-storage-security.ts';
 
 // The chat-storage envelope around a local cipher value (see chat-storage.ts).
 const ENCRYPTED_CHAT_PREFIX = 'alice-chat-encrypted:v1:';
@@ -17,7 +17,7 @@ function memoryOnly(key: string): boolean {
 async function authenticateStored(key: string, value: string | null, cipher: LocalCipher): Promise<void> {
   if (value === null || !value.startsWith(ENCRYPTED_CHAT_PREFIX)) return;
   try { await cipher.decrypt(value.slice(ENCRYPTED_CHAT_PREFIX.length), key); }
-  catch (error) { reportBrowserStorageIssue('unreadable'); throw error; }
+  catch (error) { reportBrowserStorageIssue(storageIssueFor(error, 'unreadable')); throw error; }
 }
 async function writeChat(key: string, value: string): Promise<void> {
   const cipher = getLocalCipher();
@@ -45,6 +45,11 @@ async function writeChat(key: string, value: string): Promise<void> {
   }
   throw new Error('Local data changed during the write. Please retry.');
 }
+/** Forgets the chats this page kept in memory, once they are saved
+ *  encrypted (see storage-cipher.ts, when the keychain comes back). */
+export function clearTemporaryChats(): void {
+  temporaryChat.clear();
+}
 const AsyncStorage = {
   async getItem(key: string): Promise<string | null> {
     if (typeof window === 'undefined') return null;
@@ -58,7 +63,7 @@ const AsyncStorage = {
     try {
       if (isChat(key)) await writeChat(key, value);
       else localStorage.setItem(key, value);
-    } catch (error) { if (isChat(key)) reportBrowserStorageIssue('write-failed'); throw error; }
+    } catch (error) { if (isChat(key)) reportBrowserStorageIssue(storageIssueFor(error, 'write-failed')); throw error; }
   },
   async removeItem(key: string): Promise<void> {
     if (typeof window === 'undefined') return;

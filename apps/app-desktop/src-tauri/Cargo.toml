@@ -1,6 +1,6 @@
 [package]
 name = "alice-desktop"
-version = "0.2.6"
+version = "0.2.7"
 license = "AGPL-3.0-or-later"
 edition = "2021"
 
@@ -21,25 +21,68 @@ custom-protocol = ["tauri/custom-protocol"]
 
 [dependencies]
 tauri = { version = "2", features = [] }
-tauri-plugin-shell = "2"
-tauri-plugin-window-state = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# cookie 0.18.1 (transitively pulled by tauri/wry) calls time::parse() with 1
+# argument; time 0.3.52 changed that signature to require 2. Pin to last
+# compatible version to unblock the build on Rust 1.96.
+time = "=0.3.36"
+# Model downloads run in the shell, straight to disk, on every platform
+# (see local_ai_download_model_start in src/local_ai.rs).
+sha2 = "0.10"
+reqwest = "0.13"
+
+# Opens links in the system browser on Android and iOS, where the shell
+# plugin has nothing to open them with (see apps/app-web/src/lib/open-external.ts).
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+tauri-plugin-opener = "2"
+# llama.cpp inside the Android and iOS apps (src/local_ai_engine.rs): iOS
+# cannot start a llama-server process and Android ships none, so the engine
+# is linked into the app library. No default features: `openmp` has no
+# runtime on either platform and `common` pulls llama.cpp's tooling in.
+# Metal is on for iOS through llama.cpp's own Apple default; Android runs on
+# the CPU with libc++ linked statically into the one native library.
+llama-cpp-2 = { version = "0.1.160", default-features = false, features = ["android-static-stdcxx"] }
+
+# Removes the form bar above the iOS keyboard (see src/ios_keyboard.rs). Already
+# in the build through Tauri; this names it for the iOS target.
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+# The device memory check reads hw.memsize through sysctl (src/local_ai_engine.rs).
+libc = "0.2"
+
+# The keychain cipher (src/keychain_storage.rs) runs on the desktop and on iOS,
+# where `apple-native` reaches the iOS keychain. Android builds without it.
+[target.'cfg(not(target_os = "android"))'.dependencies]
 aes-gcm = "0.10"
 base64 = "0.22"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 rand = "0.8"
 zeroize = "1"
-sha2 = "0.10"
-# Model downloads run in the shell, straight to disk (see local_ai_download_model_start).
-reqwest = "0.13"
-# cookie 0.18.1 (transitively pulled by tauri/wry) calls time::parse() with 1
-# argument; time 0.3.52 changed that signature to require 2. Pin to last
-# compatible version to unblock the build on Rust 1.96.
-time = "=0.3.36"
+
+# The shell (links and llama-server) and window state exist on the desktop
+# only (see src/local_ai.rs). Android and iOS build without them.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-shell = "2"
+tauri-plugin-window-state = "2"
+
+# reqwest verifies TLS through rustls-platform-verifier, which on Android
+# needs a Java component the app does not ship; the model download client
+# uses the Mozilla root store instead (see android_tls_config in src/local_ai.rs).
+[target.'cfg(target_os = "android")'.dependencies]
+rustls = "0.23"
+webpki-roots = "1"
 
 [profile.dev]
 incremental = true
+
+# Debug builds keep our own code unoptimized but optimize the dependencies:
+# in a plain debug build on a Galaxy A15, rustls and the HTTP stack moved a
+# model download at 0.4 MB/s and SHA-256 over gigabytes took minutes.
+# llama.cpp itself is unaffected (its build script compiles it RelWithDebInfo
+# whatever the Cargo profile).
+[profile.dev.package."*"]
+opt-level = 3
 
 [profile.release]
 codegen-units = 1

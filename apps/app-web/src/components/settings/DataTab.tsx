@@ -1,13 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import {
   type ChatCleanupMode,
   type ChatStorageSummary,
-  isTauriDesktop,
+  hasKeychainCipher,
+  isTauriMobile,
+  localCipherStatus,
+  subscribeLocalCipherStatus,
   useChat,
   MAX_CHAT_SESSIONS,
 } from '@alice-wallet/alice-ai';
+import { useT } from '@/i18n';
 import { ConfirmDialog, SectionLabel, sectionStyle } from './ui';
 import { LearnLanguagesSection } from './LearnLanguagesSection';
 
@@ -18,6 +22,8 @@ function formatStorageSize(bytes: number): string {
 }
 
 export function DataTab() {
+  const t = useT();
+  const cipherStatus = useSyncExternalStore(subscribeLocalCipherStatus, localCipherStatus, () => 'pending' as const);
   const chat = useChat();
   const [chatStorage, setChatStorage] = useState<ChatStorageSummary | null>(null);
   const [confirmChatCleanup, setConfirmChatCleanup] = useState<ChatCleanupMode | null>(null);
@@ -37,12 +43,10 @@ export function DataTab() {
     try {
       const result = await chat.cleanSessionHistory(mode);
       setChatStorage(await chat.getSessionStorageSummary());
-      setCleanupNotice(
-        `${result.deletedCount} conversation${result.deletedCount === 1 ? '' : 's'} deleted.`,
-      );
+      setCleanupNotice(t.plural('settings.data.deleted', result.deletedCount));
     } catch (error) {
       console.warn('[settings] chat cleanup failed:', error);
-      setCleanupNotice('Unable to clean discussion history.');
+      setCleanupNotice(t('settings.data.cleanFailed'));
     } finally {
       setCleaningChat(false);
       setConfirmChatCleanup(null);
@@ -59,22 +63,29 @@ export function DataTab() {
   return (
     <>
       <div style={sectionStyle}>
-        <SectionLabel>CLEAN YOUR DISCUSSION HISTORY</SectionLabel>
+        <SectionLabel>{t('settings.data.cleanHistory')}</SectionLabel>
         <div className="flex items-center justify-between gap-3 mt-2">
           <span className="font-numbers" style={{ fontSize: 13 }}>
-            {count} / {MAX_CHAT_SESSIONS} CONVERSATIONS
+            {t('settings.data.conversationCount', { count, max: MAX_CHAT_SESSIONS })}
           </span>
           <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>
             {formatStorageSize(chatStorage?.estimatedBytes ?? 0)}
           </span>
         </div>
         <p className="font-numbers m-0 mt-3" style={{ fontSize: 14, lineHeight: '19px', opacity: 1 }}>
-          Conversations stay on this device. Alice keeps at most {MAX_CHAT_SESSIONS} and removes the oldest when the limit is reached.
+          {t('settings.data.storageNote', { max: MAX_CHAT_SESSIONS })}
         </p>
         <p className="font-numbers  m-0 mt-2" style={{ fontSize: 13, color: 'var(--alice-primary-dark)' }}>
-          {isTauriDesktop()
-            ? 'ENCRYPTED WITH THIS DEVICE’S SYSTEM KEYCHAIN'
-            : 'STORED LOCALLY IN THIS BROWSER'}
+          {hasKeychainCipher()
+            // Said encrypted only once the keychain has given its key.
+            ? t(cipherStatus === 'ok'
+              ? 'settings.data.keychain'
+              : cipherStatus === 'pending'
+                ? 'settings.data.keychainChecking'
+                : 'settings.data.keychainUnavailable')
+            : isTauriMobile()
+              ? t('settings.data.mobileStorage')
+              : t('settings.data.browser')}
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-4">
           <button
@@ -82,21 +93,21 @@ export function DataTab() {
             className="alice-control alice-control--quiet font-numbers"
             disabled={count === 0 || cleaningChat}
           >
-            DELETE 10 OLDEST
+            {t('settings.data.deleteOldest')}
           </button>
           <button
             onClick={() => setConfirmChatCleanup('keep-newest-10')}
             className="alice-control alice-control--quiet font-numbers"
             disabled={count <= 10 || cleaningChat}
           >
-            KEEP 10 NEWEST
+            {t('settings.data.keepNewest')}
           </button>
           <button
             onClick={() => setConfirmChatCleanup('all')}
             className="alice-control alice-control--danger font-numbers"
             disabled={cleaningChat}
           >
-            DELETE ALL
+            {t('settings.data.deleteAll')}
           </button>
         </div>
         {cleanupNotice && (
@@ -110,11 +121,11 @@ export function DataTab() {
 
       {confirmChatCleanup && (
         <ConfirmDialog
-          title="DELETE CONVERSATIONS"
+          title={t('settings.data.confirmTitle')}
           body={confirmChatCleanup === 'all'
-            ? 'Delete all conversations saved on this device, including any that cannot currently be read? This cannot be undone.'
-            : `Delete ${chatCleanupCount} conversation${chatCleanupCount === 1 ? '' : 's'} from this device? This cannot be undone.`}
-          confirmLabel={cleaningChat ? 'DELETING...' : 'DELETE'}
+            ? t('settings.data.confirmAll')
+            : t.plural('settings.data.confirmSome', chatCleanupCount)}
+          confirmLabel={cleaningChat ? t('settings.data.deleting') : t('settings.data.delete')}
           busy={cleaningChat}
           onCancel={() => setConfirmChatCleanup(null)}
           onConfirm={() => void handleChatCleanup(confirmChatCleanup)}

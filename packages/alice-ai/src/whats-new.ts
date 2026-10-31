@@ -12,6 +12,16 @@ export const RELEASE_NOTES_URL = 'https://github.com/alice-btc/alice/releases';
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.2.7',
+    highlights: [
+      'Private Cloud keeps the thread: every turn of the conversation reaches the enclave encrypted, so Alice reads your question against what was said before.',
+      'Alice speaks French: choose the app language in Settings › General, and ask for a language in a message to hold it for that conversation.',
+      'Learn has the Dictionnaire de Bitcoin, 1408 definitions, and Alice names her source when she leans on a course or a definition.',
+      'A custom AI server or Explorer node can be on another machine, an Umbrel or a VPS, and Settings says connected only once the server answered.',
+      'Explorer keeps up with Arkade: the newest commitment is found even when the operator funds it from new coins.',
+    ],
+  },
+  {
     version: '0.2.6',
     highlights: [
       'Downloading a local model works again on desktop: the bar no longer stops at a few percent, and the window stays usable while it runs.',

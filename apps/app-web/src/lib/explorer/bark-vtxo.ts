@@ -14,6 +14,7 @@
 // of its transaction, which is what the exit-tree view will draw.
 
 import { BarkError } from './bark.ts';
+import { t as tr } from '../../i18n/translate.ts';
 
 const ENCODING_V1 = 1; // before genesis items carried a fee amount
 const ENCODING_V2 = 2;
@@ -91,7 +92,7 @@ class Reader {
   constructor(buf: Uint8Array) { this.buf = buf; }
   get done(): boolean { return this.pos >= this.buf.length; }
   take(n: number): Uint8Array {
-    if (n < 0 || this.pos + n > this.buf.length) throw new BarkError('This VTXO data is truncated.');
+    if (n < 0 || this.pos + n > this.buf.length) throw new BarkError(tr('explorerBark.error.vtxoTruncated'));
     const out = this.buf.subarray(this.pos, this.pos + n);
     this.pos += n;
     return out;
@@ -111,7 +112,7 @@ class Reader {
   }
   pubkey(): string {
     const k = this.take(33);
-    if (k[0] !== 0x02 && k[0] !== 0x03) throw new BarkError('This VTXO data holds an invalid public key.');
+    if (k[0] !== 0x02 && k[0] !== 0x03) throw new BarkError(tr('explorerBark.error.vtxoPubkey'));
     return hex(k);
   }
   /** A consensus outpoint: txid in internal byte order, then vout. */
@@ -142,7 +143,7 @@ function readPolicy(r: Reader): BarkVtxoPolicy {
     case 0x06:
     case 0x0b: return { kind: 'hark-forfeit', userPubkey: r.pubkey(), unlockHash: hex(r.take(32)) };
     case 0x07: return { kind: 'server-owned' };
-    default: throw new BarkError(`This VTXO uses a spending policy Alice does not know yet (type ${type}).`);
+    default: throw new BarkError(tr('explorerBark.error.vtxoPolicy', { type }));
   }
 }
 
@@ -156,7 +157,7 @@ function readStep(r: Reader, version: number): BarkGenesisStep {
   if (type === 1) {
     kind = 'cosigned';
     signers = r.compact();
-    if (signers === 0) throw new BarkError('This VTXO data holds a tree node without signers.');
+    if (signers === 0) throw new BarkError(tr('explorerBark.error.vtxoSigners'));
     for (let i = 0; i < signers; i++) cosigners.push(r.pubkey());
     signed = r.signature();
   } else if (type === 2) {
@@ -171,15 +172,15 @@ function readStep(r: Reader, version: number): BarkGenesisStep {
     cosigners.push(r.pubkey());
     signed = r.signature();
     const unlock = r.u8();
-    if (unlock !== 0 && unlock !== 1) throw new BarkError('This VTXO data holds an unreadable round leaf.');
+    if (unlock !== 0 && unlock !== 1) throw new BarkError(tr('explorerBark.error.vtxoRoundLeaf'));
     preimageRevealed = unlock === 0;
     r.take(32); // the preimage, or its hash
   } else {
-    throw new BarkError(`This VTXO uses a transaction type Alice does not know yet (type ${type}).`);
+    throw new BarkError(tr('explorerBark.error.vtxoTxType', { type }));
   }
   const outputs = r.u8();
   const outputIndex = r.u8();
-  if (outputs === 0 || outputIndex >= outputs) throw new BarkError('This VTXO data holds an inconsistent transaction.');
+  if (outputs === 0 || outputIndex >= outputs) throw new BarkError(tr('explorerBark.error.vtxoInconsistent'));
   const siblings: BarkGenesisStep['siblings'] = [];
   for (let i = 0; i < outputs - 1; i++) {
     const amountSats = r.uint(8);
@@ -194,7 +195,7 @@ export function decodeBarkVtxo(data: Uint8Array): BarkVtxo {
   const r = new Reader(data);
   const encodingVersion = r.uint(2);
   if (encodingVersion !== ENCODING_V1 && encodingVersion !== ENCODING_V2) {
-    throw new BarkError(`Not a Bark VTXO, or a format version Alice does not know yet (${encodingVersion}).`);
+    throw new BarkError(tr('explorerBark.error.vtxoVersion', { version: encodingVersion }));
   }
   const amountSats = r.uint(8);
   const expiryHeight = r.uint(4);
@@ -202,12 +203,12 @@ export function decodeBarkVtxo(data: Uint8Array): BarkVtxo {
   const exitDeltaBlocks = r.uint(2);
   const anchor = r.outpoint();
   const count = r.compact();
-  if (count > 1000) throw new BarkError('This VTXO data claims an implausibly long exit path.');
+  if (count > 1000) throw new BarkError(tr('explorerBark.error.vtxoLongPath'));
   const genesis: BarkGenesisStep[] = [];
   for (let i = 0; i < count; i++) genesis.push(readStep(r, encodingVersion));
   const policy = readPolicy(r);
   const point = r.outpoint();
-  if (!r.done) throw new BarkError('This VTXO data has unexpected bytes at the end.');
+  if (!r.done) throw new BarkError(tr('explorerBark.error.vtxoTrailing'));
   return {
     encodingVersion, id: `${point.txid}:${point.vout}`, point, amountSats, expiryHeight,
     serverPubkey, exitDeltaBlocks, anchor, genesis, policy,
@@ -217,7 +218,7 @@ export function decodeBarkVtxo(data: Uint8Array): BarkVtxo {
 /** The 36-byte id the server expects: txid in internal byte order, then vout. */
 export function vtxoIdBytes(p: BarkOutPoint): Uint8Array {
   const txid = fromHex(p.txid);
-  if (!txid || txid.length !== 32) throw new BarkError('Not a valid VTXO id.');
+  if (!txid || txid.length !== 32) throw new BarkError(tr('explorerBark.error.vtxoId'));
   const out = new Uint8Array(36);
   out.set(txid.reverse(), 0);
   new DataView(out.buffer).setUint32(32, p.vout, true);

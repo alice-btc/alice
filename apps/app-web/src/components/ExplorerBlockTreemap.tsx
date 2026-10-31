@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChainDataProvider } from '@/lib/explorer/provider';
 import type { BlockAudit, BlockTxSummary } from '@/lib/explorer/types';
 import { packBlockGrid } from '@/lib/explorer/treemap';
-import { feeColorHex } from '@/lib/explorer/blocks';
-import { formatAmount, useAmountState } from '@/components/AmountDisplay';
+import { feeColorHex, formatFixed } from '@/lib/explorer/blocks';
+import { useT } from '@/i18n';
+import { formatAmount, useAmountState, WithBitcoinGlyph } from '@/components/AmountDisplay';
 import { Skeleton } from '@/components/ExplorerUI';
 
 const MAX_PX = 440; // the map never grows past this, so it stays compact
@@ -52,6 +53,7 @@ export function ExplorerBlockTreemap({
 }) {
   const [actual, setActual] = useState<BlockTxSummary[] | null>(null);
   const [audit, setAudit] = useState<BlockAudit | null>(null);
+  const t = useT();
   const [view, setView] = useState<View>('actual');
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'unsupported'>('loading');
   const [boxSize, setBoxSize] = useState(0);
@@ -198,11 +200,11 @@ export function ExplorerBlockTreemap({
         // label below where it will stay, so nothing shifts when it lands.
         <>
           <Skeleton width={300} height={300} style={{ maxWidth: '100%' }} />
-          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>BLOCK MAP</span>
+          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorerBlocks.map.title')}</span>
         </>
       )}
       {status === 'error' && (
-        <p className="font-numbers m-0" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>The block map could not be loaded.</p>
+        <p className="font-numbers m-0" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>{t('explorerBlocks.map.error')}</p>
       )}
 
       {status === 'ready' && (
@@ -212,7 +214,7 @@ export function ExplorerBlockTreemap({
             ref={canvasRef}
             tabIndex={0}
             role="group"
-            aria-label="Transaction map. Use arrow keys to inspect transactions and Enter to open. The transaction list follows below."
+            aria-label={t('explorerBlocks.map.aria')}
             onFocus={() => {
               const first = placedRef.current.find(p => p.tx.txid === selectedTxid) ?? placedRef.current[0];
               if (first) { onSelectTx?.(first.tx.txid); setHover({ x: first.px, y: first.py, tx: first.tx }); }
@@ -259,7 +261,7 @@ export function ExplorerBlockTreemap({
                 {Math.round(hover.tx.rate)} sat/vB - {Math.round(hover.tx.vsize)} vB
               </div>
               <div className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>
-                {formatAmount(hover.tx.valueSats, unit)}
+                <WithBitcoinGlyph text={formatAmount(hover.tx.valueSats, unit)} />
               </div>
             </div>
           )}
@@ -269,13 +271,13 @@ export function ExplorerBlockTreemap({
             top edge lines up with the block details panel beside it. */}
         <div className="flex items-center justify-between">
           <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-            {view === 'expected' ? 'EXPECTED BLOCK' : 'BLOCK MAP'}
+            {view === 'expected' ? t('explorerBlocks.map.expectedTitle') : t('explorerBlocks.map.title')}
           </span>
           {canToggle && (
             <div className="flex items-center gap-2">
               {view === 'expected' && (
                 <span className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>
-                  {audit!.matchRate.toFixed(1)}% match
+                  {t('explorerBlocks.map.match', { rate: formatFixed(audit!.matchRate, 1, t.locale) })}
                 </span>
               )}
               <button
@@ -287,7 +289,7 @@ export function ExplorerBlockTreemap({
                   color: 'var(--alice-primary)',
                 }}
               >
-                {view === 'actual' ? 'SHOW EXPECTED' : 'SHOW ACTUAL'}
+                {view === 'actual' ? t('explorerBlocks.map.showExpected') : t('explorerBlocks.map.showActual')}
               </button>
             </div>
           )}

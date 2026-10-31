@@ -9,7 +9,10 @@ export type LearnView =
   | { kind: 'course'; code: string }
   | { kind: 'chapter'; code: string; chapterId: string }
   | { kind: 'quiz'; code: string; partId: string }
-  | { kind: 'tutorial'; category: string; slug: string };
+  | { kind: 'tutorial'; category: string; slug: string }
+  // The Dictionnaire de Bitcoin: one letter of the index, or one definition.
+  | { kind: 'dictionary'; letter?: string }
+  | { kind: 'definition'; slug: string };
 
 export function parseLearnView(search: string): LearnView {
   const params = new URLSearchParams(search);
@@ -17,6 +20,15 @@ export function parseLearnView(search: string): LearnView {
   const chapter = params.get('chapter');
   const quiz = params.get('quiz');
   const tutorial = params.get('tutorial');
+  const dictionary = params.get('dictionary');
+  const definition = params.get('definition');
+  if (definition !== null) {
+    if (/^[a-z0-9-]+$/.test(definition)) return { kind: 'definition', slug: definition };
+    return { kind: 'dictionary' };
+  }
+  if (dictionary !== null) {
+    return /^[a-z]$/.test(dictionary) ? { kind: 'dictionary', letter: dictionary } : { kind: 'dictionary' };
+  }
   if (tutorial) {
     const [category, ...rest] = tutorial.split('/');
     if (category && rest.length) return { kind: 'tutorial', category, slug: rest.join('/') };
@@ -45,6 +57,12 @@ export function learnViewToSearch(view: LearnView): string {
       break;
     case 'tutorial':
       params.set('tutorial', `${view.category}/${view.slug}`);
+      break;
+    case 'dictionary':
+      params.set('dictionary', view.letter ?? '');
+      break;
+    case 'definition':
+      params.set('definition', view.slug);
       break;
   }
   const search = params.toString();

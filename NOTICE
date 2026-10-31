@@ -26,6 +26,20 @@ files are distributed under CC BY-SA 4.0, the same license; the generating
 scripts remain AGPL-3.0-or-later. Full attribution:
 https://github.com/mariusoffchain/alice-learn-planb-packs.
 
+The Learn dictionary pack generated into apps/app-web/public/dictionary/fr/
+is a derivative work of the "Dictionnaire de Bitcoin" by Loïc Pandul,
+Copyright (c) 2024 Loïc Morel (Pandul),
+https://github.com/LoicPandul/Dictionnaire-de-Bitcoin, licensed
+CC BY-NC-SA 4.0. Only the format was changed (YAML and Markdown parsed into
+JSON, image paths made absolute, formulas shown as code, cross-references
+resolved); no definition was rewritten. Those derived files are distributed
+under CC BY-NC-SA 4.0, the same license, with the author's attribution; the
+generating script (scripts/build-dictionary-pack.mjs) remains
+AGPL-3.0-or-later. The pack's README.md names the source commit. On
+17 October 2026 Loïc Pandul gave his agreement for the dictionary to be
+shipped in Alice and quoted in its replies, which covers the NonCommercial
+clause for this use.
+
 Bundled fonts: "Press Start 2P" by CodeMan38 and "Terminal Grotesque" by
 Raphaël Bastide are used under the SIL Open Font License 1.1, see
 licenses/ for the full texts.

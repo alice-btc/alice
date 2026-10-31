@@ -4,8 +4,21 @@
 // are the single place that rule is enforced, so it can be tested directly
 // (chat-context.tsx cannot: it pulls in React and react-native).
 
-export const GREETING = 'Hi! What would you like to learn about today?';
+import type { SupportedLanguage } from './languages';
+
+/** The greeting in each app language; it is typed in the one chosen when shown. */
+export const GREETINGS: Record<SupportedLanguage, string> = {
+  fr: 'Salut\u00a0! Que souhaites-tu apprendre aujourd’hui\u00a0?',
+  en: 'Hi! What would you like to learn about today?',
+};
+
+/** The English greeting, kept for callers that predate the app language. */
+export const GREETING = GREETINGS.en;
 export const GREETING_ID = 'greeting';
+
+export function greetingFor(language: SupportedLanguage): string {
+  return GREETINGS[language] ?? GREETING;
+}
 
 export const isGreeting = (m: { id: string }) => m.id === GREETING_ID;
 

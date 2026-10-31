@@ -29,7 +29,8 @@ const CONCEPT_TO_COURSE: Partial<Record<KnowledgeConcept, string>> = {
 export interface ForYouEntry {
   course: LearnCatalogCourse;
   concept: KnowledgeConcept;
-  reason: { fr: string; en: string };
+  /** The concept named in the reason line (learn.home.forYou.reason). */
+  conceptLabel: string;
 }
 
 export function buildForYou(
@@ -65,10 +66,7 @@ export function buildForYou(
     entries.push({
       course,
       concept,
-      reason: {
-        fr: `Parce que tu explores « ${label} » avec Alice`,
-        en: `Because you are exploring "${label}" with Alice`,
-      },
+      conceptLabel: label,
     });
   }
   return entries;

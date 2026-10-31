@@ -63,11 +63,13 @@ migrations_dir = "migrations-entities"
 [vars]
 # Comma-separated origin allowlist for CORS. Keep it as tight as the
 # deployment allows; an empty list means no cross-origin browser access.
-# This is the production list: Alice's own hosts and the desktop shell. The
-# local dev servers are not in it; `wrangler dev` reads them from the
-# git-ignored `.dev.vars`, which overrides this value on this machine only:
-#   ALLOWED_ORIGINS="https://alicebtc.com,...,tauri://localhost,http://localhost:3000,http://127.0.0.1:3000,http://localhost:3002,http://localhost:8100"
-ALLOWED_ORIGINS = "https://alicebtc.com,https://app.alicebtc.com,https://wallet.alicebtc.com,https://mutinynet.alicebtc.com,tauri://localhost"
+# This is the production list: Alice's own hosts and the app shells, which
+# Tauri serves from tauri://localhost on macOS, Linux and iOS and from
+# http://tauri.localhost on Windows and Android. The local dev servers are
+# not in it; `wrangler dev` reads them from the git-ignored `.dev.vars`,
+# which overrides this value on this machine only:
+#   ALLOWED_ORIGINS="https://alicebtc.com,...,tauri://localhost,http://tauri.localhost,http://localhost:3000,http://127.0.0.1:3000,http://localhost:3002,http://localhost:8100"
+ALLOWED_ORIGINS = "https://alicebtc.com,https://app.alicebtc.com,https://wallet.alicebtc.com,https://mutinynet.alicebtc.com,tauri://localhost,http://tauri.localhost"
 AUTH_EMAIL_FROM = "login@auth.alicebtc.com"
 AUTH_EMAIL_PROVIDER = "resend"
 FREE_CLOUD_MODELS = "e2ee-gpt-oss-120b-p"
@@ -162,9 +164,11 @@ BILLING_RETURN_URL = "https://app.alicebtc.com/?settings=account"
 
 [triggers]
 # Hourly: account and billing clean-up, expiry reminders, the satoshi price,
-# the payment-host probe. Every ten minutes: the Explorer's settlement anchor
-# (src/explorer-anchors.ts), and nothing else; `scheduled` tells them apart
-# by the cron expression, so keep the second one equal to ANCHOR_CRON there.
+# the payment-host probe. Every ten minutes: the Explorer's settlement anchors
+# (src/explorer-anchors.ts: the walk, then listening to the Arkade operator's
+# stream until the next run is due, ANCHOR_RUN_MS, within the 15 minutes a
+# scheduled invocation may live), and nothing else; `scheduled` tells them
+# apart by the cron expression, so keep the second one equal to ANCHOR_CRON.
 crons = ["17 * * * *", "*/10 * * * *"]
 
 [observability]

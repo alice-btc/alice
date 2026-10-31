@@ -10,6 +10,9 @@ describe('parseLearnView / learnViewToSearch', () => {
     { kind: 'chapter', code: 'btc101', chapterId: '27e3fb60-4b50-556b-9e70-c4f5475c121d' },
     { kind: 'quiz', code: 'btc101', partId: '3cd2ac82-026c-53e1-874a-baf5842adc6d' },
     { kind: 'tutorial', category: 'privacy', slug: 'ashigaru-whirlpool' },
+    { kind: 'dictionary' },
+    { kind: 'dictionary', letter: 'u' },
+    { kind: 'definition', slug: 'utxo' },
   ];
 
   it('round-trips every view kind', () => {
@@ -22,5 +25,11 @@ describe('parseLearnView / learnViewToSearch', () => {
     assert.deepEqual(parseLearnView('?tutorial=broken'), { kind: 'home' });
     assert.deepEqual(parseLearnView('?chapter=x'), { kind: 'home' });
     assert.deepEqual(parseLearnView(''), { kind: 'home' });
+  });
+
+  it('keeps a dictionary reader inside the dictionary on a bad letter or slug', () => {
+    assert.deepEqual(parseLearnView('?dictionary=UTXO'), { kind: 'dictionary' });
+    assert.deepEqual(parseLearnView('?definition=../x'), { kind: 'dictionary' });
+    assert.deepEqual(parseLearnView('?dictionary='), { kind: 'dictionary' });
   });
 });

@@ -149,6 +149,15 @@ test('memory context picks by relevance, not by recency', () => {
   assert.match(context, /Lightning routing node/);
 });
 
+test('the memory context says where its facts come from and dates each one', () => {
+  const items = [{ id: 'car', category: 'background' as const, text: 'Drives a red car', createdDay: '2026-10-29', updatedDay: '2026-10-29' }];
+  const context = aliceMemoryContext({ ...createAliceMemory(), items }, 'What colour is the car?');
+  assert.match(context, /earlier conversations on this device/);
+  assert.match(context, /always comes first/);
+  assert.match(context, /never ask the user to choose/);
+  assert.match(context, /^- \(noted 2026-10-29\) Drives a red car$/m);
+});
+
 test('preferences and constraints ride along whatever the topic', () => {
   const items = [
     { id: 'concise', category: 'preference' as const, text: 'Prefers concise answers', createdDay: '2026-06-01', updatedDay: '2026-06-01' },

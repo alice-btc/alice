@@ -6,6 +6,8 @@ import { CLOCK_ICON, CLOSE_ICON, NEXT_ICON } from '@/lib/atelier-icons';
 import { useEffect, useState } from 'react';
 import { useAccount } from '@alice-wallet/alice-ai';
 import { useOpenSettings } from '@/lib/settings-url';
+import { useT } from '@/i18n';
+import { sellsPlans } from '@/lib/store-rules';
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
@@ -31,6 +33,7 @@ const DISMISS_KEY = 'alice_expiry_notice_dismissed_v1';
  * something would be exactly the pressure Alice does not apply.
  */
 export function ExpiryBanner() {
+  const t = useT();
   const account = useAccount();
   const openSettings = useOpenSettings();
 
@@ -72,10 +75,10 @@ export function ExpiryBanner() {
   };
 
   const message = msLeft <= 0
-    ? 'Your plan has ended. You are back on the free allowance.'
+    ? t('expiry.ended')
     : msLeft <= DAY_MS
-      ? 'Your plan ends today. Nothing renews on its own.'
-      : `Your plan ends in ${Math.ceil(msLeft / DAY_MS)} days. Nothing renews on its own.`;
+      ? t('expiry.today')
+      : t('expiry.days', { days: Math.ceil(msLeft / DAY_MS) });
 
   return (
     <div
@@ -93,18 +96,18 @@ export function ExpiryBanner() {
       >
         {message}
       </span>
-      <button
+      {sellsPlans() && <button
         type="button"
         onClick={() => openSettings('account')}
         className="alice-control alice-control--primary shrink-0"
         style={{ padding: '6px 12px' }}
       >
-        Renew <SvgIcon svg={NEXT_ICON} size={16} />
-      </button>
+        {t('expiry.renew')} <SvgIcon svg={NEXT_ICON} size={16} />
+      </button>}
       <button
         type="button"
         onClick={dismiss}
-        aria-label="Dismiss plan expiry notice"
+        aria-label={t('expiry.dismiss')}
         className="alice-control alice-control--tool shrink-0"
         style={{ color: AMBER }}
       >

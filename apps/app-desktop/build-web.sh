@@ -35,8 +35,15 @@ node -e '
   console.log(`Learn embarqué: ${embed.join(", ")} (le reste vient de la base distante)`);
 ' "$SCRIPT_DIR/../app-web/out/learn"
 
-# The desktop app carries the semantic search stack (embedding model + ONNX
+# The desktop and iOS apps carry the semantic search stack (embedding model + ONNX
 # runtime, ~164 MB) inside the bundle, so an installed build reaches neither
 # Hugging Face nor jsDelivr for it: the webview finds /semantic-model/ on its
 # own origin. Web deploys skip this on purpose and keep fetching from the hub.
-node "$SCRIPT_DIR/../../scripts/prepare-semantic-model.mjs" "$SCRIPT_DIR/../app-web/out/semantic-model"
+# So does Android: its webview serves the app from http://tauri.localhost,
+# which semantic-runtime-browser.ts treats as the web, so a bundled copy would
+# never be read and would only add 164 MB to the APK.
+if [ "$TAURI_ENV_PLATFORM" = "android" ]; then
+  rm -rf "$SCRIPT_DIR/../app-web/out/semantic-model"
+else
+  node "$SCRIPT_DIR/../../scripts/prepare-semantic-model.mjs" "$SCRIPT_DIR/../app-web/out/semantic-model"
+fi

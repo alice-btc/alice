@@ -20,7 +20,7 @@
 // are instructions for the model and for the output guard, not retrievable
 // text, so they change neither the pack schema nor the corpus hash.
 
-import type { SupportedLanguage } from './language-policy.ts';
+import { SUPPORTED_LANGUAGE_CODES, type SupportedLanguage } from './languages.ts';
 
 type Localized = Record<SupportedLanguage, string>;
 
@@ -102,6 +102,10 @@ const NO_EXPIRY_INVERSION: Localized = {
   en: "that expiry unlocks unilateral recovery without the operator",
   fr: "que l’expiration débloque une récupération unilatérale sans opérateur",
 };
+const NO_LAYER_ONE: Localized = {
+  en: 'that Ark is a layer 1 or a base-layer protocol; it is built on top of Bitcoin, its rounds anchored in ordinary Bitcoin transactions',
+  fr: "qu'Ark est une couche 1 ou un protocole de la couche de base ; il est construit par-dessus Bitcoin, ses rounds ancrés dans des transactions Bitcoin ordinaires",
+};
 const NO_INSTANT_EXIT: Localized = {
   en: 'that exits are instant, free or identical across implementations',
   fr: 'que les sorties sont instantanées, gratuites ou identiques partout',
@@ -148,8 +152,8 @@ export const ANSWER_RULES: readonly AnswerRule[] = [
       fr: [EXIT_WITHOUT_OPERATOR.fr, EXIT_MECHANICS.fr, EXPIRY_RULE.fr],
     },
     neverClaim: {
-      en: [NO_OPERATOR_BLOCK.en, NO_FUNDS_LOST.en, NO_EXPIRY_INVERSION.en, NO_INSTANT_EXIT.en],
-      fr: [NO_OPERATOR_BLOCK.fr, NO_FUNDS_LOST.fr, NO_EXPIRY_INVERSION.fr, NO_INSTANT_EXIT.fr],
+      en: [NO_OPERATOR_BLOCK.en, NO_FUNDS_LOST.en, NO_EXPIRY_INVERSION.en, NO_INSTANT_EXIT.en, NO_LAYER_ONE.en],
+      fr: [NO_OPERATOR_BLOCK.fr, NO_FUNDS_LOST.fr, NO_EXPIRY_INVERSION.fr, NO_INSTANT_EXIT.fr, NO_LAYER_ONE.fr],
     },
   },
   {
@@ -163,8 +167,8 @@ export const ANSWER_RULES: readonly AnswerRule[] = [
       fr: [OPERATOR_POWERS.fr, EXIT_WITHOUT_OPERATOR.fr, EXIT_MECHANICS.fr, EXPIRY_RULE.fr],
     },
     neverClaim: {
-      en: [NO_OPERATOR_BLOCK.en, NO_FUNDS_LOST.en, NO_EXPIRY_INVERSION.en],
-      fr: [NO_OPERATOR_BLOCK.fr, NO_FUNDS_LOST.fr, NO_EXPIRY_INVERSION.fr],
+      en: [NO_OPERATOR_BLOCK.en, NO_FUNDS_LOST.en, NO_EXPIRY_INVERSION.en, NO_LAYER_ONE.en],
+      fr: [NO_OPERATOR_BLOCK.fr, NO_FUNDS_LOST.fr, NO_EXPIRY_INVERSION.fr, NO_LAYER_ONE.fr],
     },
   },
   {
@@ -232,11 +236,23 @@ export const ANSWER_RULES: readonly AnswerRule[] = [
 ];
 
 const ARK_NOTES = ['ark-rounds-exits', 'asp-operator'] as const;
+// A Dictionnaire de Bitcoin definition reaches the model as a Learn excerpt
+// headed by its label (knowledge-context-budget.ts), not as a "Topic:" note.
+// The Private Cloud model called Ark "a layer-1 scaling protocol" with the
+// definition, which says the opposite, in front of it (2026-10-30).
+const DICTIONARY_NOTE_LINES: readonly { noteId: string; line: RegExp }[] = [
+  { noteId: 'dictionary-ark', line: /^Dictionnaire de Bitcoin · ARK\b/m },
+];
+const ARK_LAYER_NOTES = [...ARK_NOTES, 'dictionary-ark'] as const;
 const RBF_NOTES = ['replace-by-fee', 'transaction-finality'] as const;
 
 const ARK_EXIT_CORRECTION: Localized = {
   en: "Correction: with valid exit data and enough time to complete the exit before expiry, a unilateral exit requires no operator approval. The wallet must publish the required transactions and allow for fees, confirmations and timelocks. The operator stopping cooperation alone does not remove this path. After expiry, or without the necessary data or time, recovery is not guaranteed and may depend on the operator. VTXO type and implementation matter, including the temporary non-collusion assumption for arkoor transfers.",
   fr: "Correction : avec les données valides et assez de temps pour achever la sortie avant expiration, une sortie unilatérale ne demande pas l’accord de l’opérateur. Le wallet doit publier les transactions et prévoir frais, confirmations et timelocks. Le seul arrêt de coopération ne supprime pas ce chemin. Après expiration, ou sans les données ou le temps nécessaires, la récupération n’est pas garantie et peut dépendre de l’opérateur. Le type de VTXO et l’implémentation comptent, notamment l’hypothèse temporaire de non-collusion pour les transferts arkoor.",
+};
+const ARK_LAYER_CORRECTION: Localized = {
+  en: 'Correction: Ark is not a layer 1 or a base-layer protocol. It is built on top of Bitcoin, like Lightning: its rounds are anchored in ordinary Bitcoin transactions, and the VTXOs it moves live off-chain between those rounds.',
+  fr: "Correction : Ark n'est pas une couche 1 ni un protocole de la couche de base. Il est construit par-dessus Bitcoin, comme Lightning : ses rounds sont ancrés dans des transactions Bitcoin ordinaires, et les VTXO qu'il déplace vivent hors chaîne entre ces rounds.",
 };
 const ARK_EXPIRY_CORRECTION: Localized = {
   en: "Correction: expiry does not unlock unilateral recovery. The vTXO must be renewed, or its exit fully confirmed, before the applicable deadline. After expiry recovery depends on the operator’s cooperation; without it, funds can be lost. Check the wallet and server version for exact timings.",
@@ -278,7 +294,23 @@ const ARK_EXIT_LIMITATION = /\b(?:(?:after|past) (?:its |the |a |vtxo )*(?:expir
 const ARK_LIMITED_SENTENCE = new RegExp(`${REFUTATION.source}|${ARK_EXIT_LIMITATION.source}`);
 const COOPERATIVE_EXPIRY_RECOVERY = /\b(?:with (?:the )?operator(?:'s)? cooperation|depends? on (?:the )?operator|requires? (?:the )?operator|avec (?:la cooperation|l'aide|l'accord) de l'operateur|depend de (?:la cooperation|l'operateur)|necessite (?:la cooperation|l'accord) de l'operateur)\b/;
 
+const LAYER_ONE = String.raw`(?:layer[- ]?(?:1|one)|base[- ]layer|first[- ]layer|couche (?:1|une|de base)|premiere couche)`;
+
 export const NEVER_CLAIM_CHECKS: readonly NeverClaimCheck[] = [
+  {
+    id: 'ark-layer-one',
+    notes: ARK_LAYER_NOTES,
+    patterns: [
+      // "Ark is a layer-1 scaling protocol", "Ark est un protocole de couche 1"
+      { test: new RegExp(String.raw`\b(?:ark|arkade)\b,? (?:is|est|which is|qui est|remains|reste|works as|fonctionne comme)(?: (?:considered|essentially|basically|considere|essentiellement|fondamentalement))?(?: (?:as|comme))? (?:a|an|un|une|le|la|the) (?:(?:bitcoin|new|nouveau|nouvelle|open-source|native|natif|scaling|batching|joinpool) ){0,2}(?:protocol(?:e)? (?:of|de|on|sur) (?:la |the )?)?${LAYER_ONE}\b`) },
+      // "a layer-1 protocol called Ark"
+      { test: new RegExp(String.raw`\b${LAYER_ONE}\b[^.!?]{0,30}\b(?:called|named|known as|appele|appelee|nomme|nommee|baptise)\b[^.!?]{0,12}\b(?:ark|arkade)\b`) },
+    ],
+    unless: new RegExp(String.raw`\b${NEGATION}\b`),
+    unlessScope: 'span',
+    unlessSentence: REFUTATION,
+    correction: ARK_LAYER_CORRECTION,
+  },
   {
     id: 'ark-operator-blocks-exit',
     notes: ARK_NOTES,
@@ -394,6 +426,28 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// Titles of the other locale variants of each rule's notes (an English
+// translation of a French fiche), filled from the corpus when it loads.
+const variantTitles = new Map<string, readonly string[]>();
+
+/**
+ * Lets a rule follow its notes into every locale: the corpus loader passes
+ * its chunks, and each rule also recognizes the titles of the variants that
+ * share the conceptId of its source note or of an additional source title.
+ */
+export function registerAnswerRuleVariantTitles(chunks: readonly { conceptId?: string; title: string }[]): void {
+  variantTitles.clear();
+  for (const rule of ANSWER_RULES) {
+    const known = new Set([rule.title, ...(rule.legacyTitles ?? []), ...(rule.additionalSourceTitles ?? [])]);
+    const concepts = new Set([rule.sourceConceptId, ...chunks
+      .filter(chunk => chunk.conceptId && (rule.additionalSourceTitles ?? []).includes(chunk.title))
+      .map(chunk => chunk.conceptId!)]);
+    const titles = [...new Set(chunks.filter(chunk => chunk.conceptId && concepts.has(chunk.conceptId) && !known.has(chunk.title))
+      .map(chunk => chunk.title))];
+    if (titles.length) variantTitles.set(rule.noteId, titles);
+  }
+}
+
 /**
  * The rule notes present in a retrieved-knowledge text, in the order the
  * retrieval wrote them. The detection reads the "Topic:" line the retrieval
@@ -404,12 +458,16 @@ export function answerRuleNoteIdsIn(text: string): string[] {
   if (!text) return [];
   const found: { index: number; noteId: string }[] = [];
   for (const rule of ANSWER_RULES) {
-    const matches = [rule.title, ...(rule.legacyTitles ?? []), ...(rule.additionalSourceTitles ?? [])]
+    const matches = [rule.title, ...(rule.legacyTitles ?? []), ...(rule.additionalSourceTitles ?? []), ...(variantTitles.get(rule.noteId) ?? [])]
       .flatMap(title => {
         const match = new RegExp(`^Topic: ${escapeRegExp(title)}$`, 'm').exec(text);
         return match ? [match.index] : [];
       });
     if (matches.length) found.push({ index: Math.min(...matches), noteId: rule.noteId });
+  }
+  for (const entry of DICTIONARY_NOTE_LINES) {
+    const match = entry.line.exec(text);
+    if (match) found.push({ index: match.index, noteId: entry.noteId });
   }
   return found.sort((a, b) => a.index - b.index).map(entry => entry.noteId);
 }
@@ -421,16 +479,24 @@ export function answerRuleNoteIdsInMessages(messages: readonly { role: string; c
 
 const BLOCK_HEADER = '[Answer rules]';
 
-function blockIntro(language: SupportedLanguage): string {
-  return language === 'fr'
-    ? "Les notes récupérées rendent obligatoires les points ci-dessous pour cette réponse. Formule chacun d'eux avec tes mots, dans l'ordre qui convient à la question, et n'affirme jamais l'inverse."
-    : 'The retrieved notes make the points below mandatory for this answer. State each of them in your own words, in the order that fits the question, and never claim the opposite.';
-}
+const BLOCK_TEXT: Readonly<Record<SupportedLanguage, { intro: string; state: string; never: string }>> = {
+  fr: {
+    intro: "Les notes récupérées rendent obligatoires les points ci-dessous pour cette réponse. Formule chacun d'eux avec tes mots, dans l'ordre qui convient à la question, et n'affirme jamais l'inverse.",
+    state: 'À dire :',
+    never: 'À ne jamais affirmer :',
+  },
+  en: {
+    intro: 'The retrieved notes make the points below mandatory for this answer. State each of them in your own words, in the order that fits the question, and never claim the opposite.',
+    state: 'State:',
+    never: 'Never claim:',
+  },
+};
 
 function renderBlock(language: SupportedLanguage, state: string[], never: string[]): string {
-  const parts = [BLOCK_HEADER, blockIntro(language)];
-  if (state.length > 0) parts.push(language === 'fr' ? 'À dire :' : 'State:', ...state.map(line => `- ${line}`));
-  if (never.length > 0) parts.push(language === 'fr' ? 'À ne jamais affirmer :' : 'Never claim:', ...never.map(line => `- ${line}`));
+  const text = BLOCK_TEXT[language];
+  const parts = [BLOCK_HEADER, text.intro];
+  if (state.length > 0) parts.push(text.state, ...state.map(line => `- ${line}`));
+  if (never.length > 0) parts.push(text.never, ...never.map(line => `- ${line}`));
   return parts.join('\n');
 }
 
@@ -462,7 +528,7 @@ function sentencesOf(text: string): string[] {
 export function answerRuleCorrectionsIn(answer: string): string[] {
   const found: string[] = [];
   for (const check of NEVER_CLAIM_CHECKS) {
-    for (const language of ['en', 'fr'] as const) {
+    for (const language of SUPPORTED_LANGUAGE_CODES) {
       const correction = check.correction[language];
       if (answer.includes(correction) && !found.includes(correction)) found.push(correction);
     }

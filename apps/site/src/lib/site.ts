@@ -28,7 +28,7 @@ export const ANDROID_APK_URL = `${SOURCE_URL}/releases/download/v${ANDROID_VERSI
 // number; the APK above does not have to follow, and the last Android build
 // published here is 0.2.0. File names are what the release workflow emits
 // (Tauri's naming), copied verbatim.
-export const DESKTOP_VERSION = '0.2.6';
+export const DESKTOP_VERSION = '0.2.7';
 export const DESKTOP_RELEASE_URL = `${SOURCE_URL}/releases/tag/v${DESKTOP_VERSION}`;
 const DESKTOP_DOWNLOAD_BASE = `${SOURCE_URL}/releases/download/v${DESKTOP_VERSION}`;
 export const DESKTOP_MAC_URL = `${DESKTOP_DOWNLOAD_BASE}/Alice_${DESKTOP_VERSION}_universal.dmg`;
@@ -80,11 +80,13 @@ export const SITE_TAGLINE =
 export const HERO_TITLE = 'Your Bitcoin questions are nobody’s business.';
 export const OG_ALT = HERO_TITLE;
 
+// Labels live in the common dictionary, by id; hrefs are the English routes,
+// localized where they are rendered.
 export const NAV_LINKS = [
-  { label: 'How it works', href: '/#sovereignty' },
-  { label: 'Trust', href: '/trust/' },
-  { label: 'Pricing', href: '/pricing/' },
-  { label: 'vs ChatGPT', href: '/vs/chatgpt/' },
+  { id: 'how', href: '/#sovereignty' },
+  { id: 'trust', href: '/trust/' },
+  { id: 'pricing', href: '/pricing/' },
+  { id: 'vs', href: '/vs/chatgpt/' },
 ] as const;
 
 // Pages that exist today, for the sitemap. Add entries here as pages ship.

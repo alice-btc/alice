@@ -2,7 +2,7 @@ import type { AIBackendType } from './ai-backend.ts';
 import { answerRuleNoteIdsIn, answerRulesBlock } from './answer-rules.ts';
 import { aliceMemoryRefusalMessage, type AliceMemory, type AliceMemoryCandidate, type AliceMemoryWrite } from './alice-memory-core.ts';
 import { composeGenerationHistory } from './generation-context.ts';
-import type { SupportedLanguage } from './language-policy.ts';
+import type { LanguageDecisionSource, SupportedLanguage } from './language-policy.ts';
 import type { Message } from './llm.ts';
 import { inferPedagogicalConcepts, type PedagogicalProfile } from './pedagogical-profile-core.ts';
 import { rewriteRetrievalQuery } from './rag-query-rewrite.ts';
@@ -18,6 +18,16 @@ import {
 } from './turn-planner.ts';
 import { liveNetworkValueResponse } from './live-network-request.ts';
 
+import type { LearnSource } from './learn-context';
+
+/** How the answer language was chosen. Never carries text from the turn. */
+export type TurnLanguageDiagnostics = {
+  target: SupportedLanguage;
+  source: LanguageDecisionSource;
+  /** Generations needed to get an answer in the target language; 0 before generating. */
+  attempts: number;
+};
+
 export type TurnPreparationDiagnostics = {
   kind: AliceTurnPlan['kind'];
   requestedCapability: AliceTurnPlan['requestedCapability'];
@@ -25,7 +35,11 @@ export type TurnPreparationDiagnostics = {
   retrievedChunkIds: string[];
   /** Rule notes (answer-rules.ts) present in the retrieved text of this turn. */
   answerRuleNoteIds: string[];
+  /** Learn material quoted in this turn's context: the answer names it and
+      the reply shows a way to open it. */
+  learnSources?: LearnSource[];
   ragTimingMs?: RagTimingMs;
+  language?: TurnLanguageDiagnostics;
   phaseMs: {
     plan: number;
     rewrite: number;
@@ -74,9 +88,13 @@ export async function prepareAliceTurn(input: {
   userMessage: string;
   backendType: AIBackendType;
   targetLanguage: SupportedLanguage;
-  assistantHistoryDropped?: boolean;
+  /** How targetLanguage was chosen, reported in the diagnostics. */
+  languageSource?: LanguageDecisionSource;
 }, services: TurnPreparationServices): Promise<PreparedAliceTurn> {
   const started = now();
+  const language = input.languageSource
+    ? { language: { target: input.targetLanguage, source: input.languageSource, attempts: 0 } }
+    : {};
   const planStarted = now();
   const plan = planAliceTurn(input.userMessage);
   const planMs = rounded(now() - planStarted);
@@ -106,6 +124,7 @@ export async function prepareAliceTurn(input: {
         retrieval: 'none',
         retrievedChunkIds: [],
         answerRuleNoteIds: [],
+        ...language,
         phaseMs: {
           plan: planMs,
           rewrite: 0,
@@ -145,6 +164,7 @@ export async function prepareAliceTurn(input: {
         retrieval: 'none',
         retrievedChunkIds: [],
         answerRuleNoteIds: [],
+        ...language,
         phaseMs: {
           plan: planMs,
           rewrite: 0,
@@ -205,7 +225,6 @@ export async function prepareAliceTurn(input: {
     plan.kind === 'personal-statement' || plan.asksAboutUserMemory
       ? ''
       : services.pedagogicalContext(pedagogy.value, conceptSource, input.targetLanguage),
-    input.assistantHistoryDropped,
     // Memory rides on every backend since 2026-08-20. It used to be injected
     // on the local model only, while the capture instruction still went to the
     // cloud: Alice was asked to extract memories there that she would never be
@@ -217,7 +236,6 @@ export async function prepareAliceTurn(input: {
     services.memoryContext(memory.value, input.userMessage),
     memory.value.enabled ? services.memoryCaptureInstruction : '',
     turnResponseDirective(plan, input.targetLanguage),
-    plan.needsConversationContext,
     answerRulesBlock(answerRuleNoteIds, input.targetLanguage),
   );
 
@@ -234,7 +252,9 @@ export async function prepareAliceTurn(input: {
       retrieval: retrievalQuery ? 'lexical-or-semantic' : 'none',
       retrievedChunkIds: retrieval.value.diagnostics?.map(chunk => chunk.id) ?? [],
       answerRuleNoteIds,
+      ...(retrieval.value.learnSources && retrieval.value.learnSources.length > 0 ? { learnSources: retrieval.value.learnSources } : {}),
       ...(retrieval.value.timingMs ? { ragTimingMs: retrieval.value.timingMs } : {}),
+      ...language,
       phaseMs: {
         plan: planMs,
         rewrite: rewriteMs,

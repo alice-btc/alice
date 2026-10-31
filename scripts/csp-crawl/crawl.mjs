@@ -2,9 +2,8 @@
 // Drive a browser through Alice's web surfaces and report two things: the
 // servers each surface contacted, and every Content Security Policy
 // violation the pages raised. A development tool, run by hand against a
-// local server or a preview deployment before the CSP goes from report-only
-// to enforced. Nothing here ships to users and no violation ever leaves the
-// machine that runs it.
+// local server or a preview deployment whenever a policy changes. Nothing
+// here ships to users and no violation ever leaves the machine that runs it.
 //
 // Install once (not a workspace, on purpose: Playwright stays out of the
 // app dependency tree):
@@ -20,8 +19,11 @@
 //   --channel chrome        use the installed Google Chrome instead of Playwright's Chromium
 //   --headed                show the browser
 //   --inject-csp            on a local server that sends no headers, add the repository's
-//                           report-only policy to every document response, so violations
-//                           can be observed against `next dev`
+//                           policy to every document response, under the header its
+//                           vercel.json uses (enforced or report-only), so violations can
+//                           be observed against `next dev` or a static server
+//   --no-send               on the app: open the chat without sending the question, so the
+//                           crawl makes no Private Cloud request
 //   --pay                   on the app: create a throwaway account and open the plan
 //                           checkout up to the BTCPay page (nothing is paid). Creates one
 //                           account on the target's Worker.
@@ -45,6 +47,7 @@ function parseArgs(argv) {
     headed: false,
     injectCsp: false,
     pay: false,
+    noSend: false,
     modelWait: 90,
     settle: 4000,
     json: null,
@@ -64,6 +67,7 @@ function parseArgs(argv) {
       case '--headed': options.headed = true; break;
       case '--inject-csp': options.injectCsp = true; break;
       case '--pay': options.pay = true; break;
+      case '--no-send': options.noSend = true; break;
       case '--model-wait': options.modelWait = Number(next()); break;
       case '--settle': options.settle = Number(next()); break;
       case '--json': options.json = next(); break;
@@ -206,12 +210,14 @@ async function openContext(browser, target, options, policy) {
     });
   });
   if (options.injectCsp && policy) {
-    // A local dev server sends no headers: add the repository's report-only
-    // policy to every document so the listener above has something to see.
+    // A local dev server sends no headers: add the repository's policy to
+    // every document, in the mode its vercel.json declares, so the listener
+    // above has something to see.
+    const header = policy.mode === 'enforced' ? 'content-security-policy' : 'content-security-policy-report-only';
     await context.route('**/*', async route => {
       if (route.request().resourceType() !== 'document') return route.continue();
       const response = await route.fetch();
-      const headers = { ...response.headers(), 'content-security-policy-report-only': policy };
+      const headers = { ...response.headers(), [header]: policy.csp };
       return route.fulfill({ response, headers });
     });
   }
@@ -249,7 +255,7 @@ async function crawlSite(browser, base, options, policy) {
   const target = 'site';
   const context = await openContext(browser, target, options, policy);
   const page = await context.newPage();
-  for (const path of ['/', '/memory', '/pricing', '/privacy', '/trust', '/credits']) {
+  for (const path of ['/', '/memory', '/pricing', '/privacy', '/trust', '/credits', '/vs/chatgpt']) {
     await step(target, `open ${path}`, async () => {
       const response = await page.goto(new URL(path, base).href, { waitUntil: 'domcontentloaded' });
       await settle(page, options);
@@ -276,6 +282,7 @@ async function crawlApp(browser, base, options, policy) {
     const status = await open('/');
     const input = page.getByLabel('Message Alice');
     await input.fill('What is a UTXO?', { timeout: 10_000 });
+    if (options.noSend) return `HTTP ${status}, question typed, not sent (--no-send)`;
     await input.press('Enter');
     await settle(page, options, 20_000);
     return `HTTP ${status}, one question sent`;
@@ -373,11 +380,11 @@ async function crawlApp(browser, base, options, policy) {
 async function loadRepositoryPolicies() {
   try {
     const { loadRepository } = await import('../check-csp-parity.mjs');
-    const { policies } = loadRepository();
+    const { policies, modes } = loadRepository();
     const render = directives => [...directives].map(([name, sources]) => `${name} ${sources.join(' ')}`).join('; ');
     return {
-      site: render(policies.site),
-      app: render(policies['app-web']),
+      site: { csp: render(policies.site), mode: modes.site },
+      app: { csp: render(policies['app-web']), mode: modes['app-web'] },
     };
   } catch (error) {
     log(`could not load the repository policies for --inject-csp: ${error instanceof Error ? error.message : error}`);

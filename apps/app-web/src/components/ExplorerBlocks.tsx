@@ -6,7 +6,8 @@ import { SWAP_ICON, BACK_ICON, RECEIVE_ICON } from '@/lib/atelier-icons';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ChainDataProvider } from '@/lib/explorer/provider';
 import type { NormalizedBlock, ProjectedBlock, RibbonFocus } from '@/lib/explorer/types';
-import { feeColor, formatBlockAgeOrDate, formatDateTime, formatFeeRange } from '@/lib/explorer/blocks';
+import { feeColor, formatBlockAgeOrDate, formatCount, formatDateTime, formatFeeRange } from '@/lib/explorer/blocks';
+import { useT } from '@/i18n';
 
 const POLL_MS = 20_000;
 const BLOCK_W = 122;
@@ -23,8 +24,9 @@ function ConfirmedBlock({ block, now, focused, marked, markColor, markSubject, o
   markSubject?: string;
   onClick: () => void;
 }) {
+  const t = useT();
   const color = feeColor(block.medianFee);
-  const range = formatFeeRange(block.feeRange);
+  const range = formatFeeRange(block.feeRange, t.locale);
   // The focused block (the one the open transaction or block tab is about) is
   // inverted: the accent as its background, the page background as its ink,
   // so it stands out along the row at a glance.
@@ -43,31 +45,33 @@ function ConfirmedBlock({ block, now, focused, marked, markColor, markSubject, o
         borderRadius: 3,
         backgroundColor: focused ? 'var(--alice-primary)' : 'var(--alice-bg-soft)',
       }}
-      title={`Block ${block.height} - ${block.poolName ?? 'unknown pool'} - ${formatDateTime(block.timestamp)}${marked ? ` - contains ${markSubject ?? 'a marked transaction'}` : ''}`}
+      title={t('explorerBlocks.ribbon.blockTitle', { height: block.height, pool: block.poolName ?? t('explorerBlocks.ribbon.unknownPool'), date: formatDateTime(block.timestamp, t.locale) })
+        + (marked ? t('explorerBlocks.ribbon.contains', { subject: markSubject ?? t('explorerBlocks.ribbon.markedTx') }) : '')}
     >
       <div className="font-pixel" style={{ fontSize: 10, color: ink ?? 'var(--alice-text)' }}>
-        {block.height.toLocaleString('en-US')}
+        {formatCount(block.height, t.locale)}
       </div>
       <div className="font-numbers" style={{ fontSize: 12, color: ink ?? color, marginTop: 3 }}>
-        {block.medianFee !== undefined ? `~${Math.round(block.medianFee)} sat/vB` : 'n/a'}
+        {block.medianFee !== undefined ? `~${Math.round(block.medianFee)} sat/vB` : t('explorerBlocks.notAvailable')}
       </div>
       {range && <div className="font-numbers" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)' }}>{range}</div>}
       <div className="font-numbers" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)', marginTop: 3 }}>
-        {block.txCount.toLocaleString('en-US')} tx
+        {t('explorerBlocks.txCount', { count: formatCount(block.txCount, t.locale) })}
       </div>
       {/* Fresh blocks read as an age; a week or older, the numeric date says
           more than a big "ago" count. Hover for the exact moment. */}
       <div className="font-numbers" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)', opacity: ink ? 0.85 : 0.7 }}>
-        {formatBlockAgeOrDate(block.timestamp, now)}
+        {formatBlockAgeOrDate(block.timestamp, now, t.locale)}
       </div>
     </button>
   );
 }
 
 function PendingBlock({ block, index, focused }: { block: ProjectedBlock; index: number; focused: boolean }) {
+  const t = useT();
   const color = feeColor(block.medianFee);
-  const range = formatFeeRange(block.feeRange);
-  const eta = index === 0 ? 'NEXT BLOCK' : `IN ~${(index + 1) * 10} MIN`;
+  const range = formatFeeRange(block.feeRange, t.locale);
+  const eta = index === 0 ? t('explorerBlocks.ribbon.nextBlock') : t('explorerBlocks.ribbon.inMinutes', { minutes: (index + 1) * 10 });
   // Inverted when focused, like a confirmed block.
   const ink = focused ? 'var(--alice-bg)' : undefined;
   return (
@@ -82,13 +86,13 @@ function PendingBlock({ block, index, focused }: { block: ProjectedBlock; index:
         borderRadius: 3,
         backgroundColor: focused ? 'var(--alice-primary)' : undefined,
       }}
-      title={focused ? 'This transaction is expected in this projected block' : 'Projected block, still in the mempool'}
+      title={focused ? t('explorerBlocks.ribbon.pendingFocused') : t('explorerBlocks.ribbon.pending')}
     >
       <div className="font-pixel" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)' }}>{eta}</div>
       <div className="font-numbers" style={{ fontSize: 12, color: ink ?? color, marginTop: 3 }}>~{Math.round(block.medianFee)} sat/vB</div>
       {range && <div className="font-numbers" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)' }}>{range}</div>}
       <div className="font-numbers" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)', marginTop: 3 }}>
-        {block.txCount.toLocaleString('en-US')} tx
+        {t('explorerBlocks.txCount', { count: formatCount(block.txCount, t.locale) })}
       </div>
     </div>
   );
@@ -98,12 +102,13 @@ function PendingBlock({ block, index, focused }: { block: ProjectedBlock; index:
 // old block's neighbourhood), so the gap reads as "blocks not shown" rather than
 // a wrong, jumped sequence.
 function GapChip({ delta }: { delta: number }) {
+  const t = useT();
   const label = delta > 999 ? `${Math.round(delta / 1000)}K` : String(delta);
   return (
     <div
       className="shrink-0 flex flex-col items-center justify-center px-1"
       style={{ minWidth: 34 }}
-      title={`${delta.toLocaleString('en-US')} block${delta > 1 ? 's' : ''} not shown`}
+      title={t.plural('explorerBlocks.ribbon.gap', delta, { count: formatCount(delta, t.locale) })}
     >
       <span className="font-numbers" style={{ fontSize: 16, lineHeight: '16px', color: 'var(--alice-muted)' }}>⋯</span>
       <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)', opacity: 0.7, marginTop: 2 }}>{label}</span>
@@ -146,6 +151,7 @@ export function ExplorerBlocks({
    *  walk is still catching up): the arrow gives way to a ring until then. */
   highlight?: { heights: ReadonlySet<number>; color: string; onColor: string; name: string; subject: string; busy?: boolean };
 }) {
+  const t = useT();
   const [blocks, setBlocks] = useState<NormalizedBlock[]>([]);
   const [pending, setPending] = useState<ProjectedBlock[]>([]);
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
@@ -366,8 +372,8 @@ export function ExplorerBlocks({
           width: dividerBtn, height: dividerBtn, minHeight: dividerBtn, padding: 2, borderRadius: 3,
           color: 'var(--alice-primary)', fontSize: 12, lineHeight: '12px',
         }}
-        aria-label="Swap confirmed and pending sides"
-        title="Swap sides"
+        aria-label={t('explorerBlocks.ribbon.swapAria')}
+        title={t('explorerBlocks.ribbon.swapTitle')}
       >
         <SvgIcon svg={SWAP_ICON} size={20} />
       </button>
@@ -380,10 +386,10 @@ export function ExplorerBlocks({
             width: dividerBtn, height: dividerBtn, minHeight: dividerBtn, padding: 2, borderRadius: 3, border: 0,
             backgroundColor: highlight!.color, color: highlight!.onColor,
           }}
-          aria-label={`Open the latest ${highlight!.name} block`}
+          aria-label={t('explorerBlocks.ribbon.jumpAria', { name: highlight!.name })}
           title={highlight!.busy
-            ? `Downloading the latest ${highlight!.subject}s from the Bitcoin chain. Block ${latestMarked.toLocaleString('en-US')} is the latest found so far.`
-            : `Open block ${latestMarked.toLocaleString('en-US')}, the latest with ${highlight!.subject}`}
+            ? t('explorerBlocks.ribbon.jumpBusy', { subject: highlight!.subject, height: formatCount(latestMarked, t.locale) })
+            : t('explorerBlocks.ribbon.jumpOpen', { height: formatCount(latestMarked, t.locale), subject: highlight!.subject })}
         >
           {/* An arrow sinking halfway into a square: the commitment landing
               inside a Bitcoin block. A ring while that block loads, and
@@ -405,10 +411,10 @@ export function ExplorerBlocks({
         width: 96, borderRadius: 3, color: 'var(--alice-muted)', fontSize: 13,
         opacity: loadingOlder ? 0.5 : 1,
       }}
-      aria-label="Load older blocks"
+      aria-label={t('explorerBlocks.ribbon.olderAria')}
     >
       <SvgIcon svg={BACK_ICON} size={16} />
-      {loadingOlder ? 'Loading…' : 'Older'}
+      {loadingOlder ? t('common.loading') : t('explorerBlocks.ribbon.older')}
     </button>
   ) : null;
 
@@ -455,15 +461,15 @@ export function ExplorerBlocks({
   return (
     <div className="flex flex-col gap-2 w-full">
       <div className="flex items-center justify-between px-5">
-        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>LIVE BLOCKS</span>
+        <span className="font-pixel tracking-widest hidden md:inline" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorerBlocks.ribbon.title')}</span>
         {errored && (
-          <span className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)', opacity: 0.7 }}>reconnecting...</span>
+          <span className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)', opacity: 0.7 }}>{t('explorerBlocks.ribbon.reconnecting')}</span>
         )}
       </div>
 
       {blocks.length === 0 && !errored ? (
         // Item 9: skeleton block cards instead of a bare "Loading..." string.
-        <div className="flex items-stretch gap-2 overflow-hidden px-5 pb-2" aria-label="Loading recent blocks">
+        <div className="flex items-stretch gap-2 overflow-hidden px-5 pb-2" aria-label={t('explorerBlocks.ribbon.loading')}>
           {Array.from({ length: 6 }, (_, i) => (
             <div key={i} className="rh-skeleton shrink-0" style={{ width: 92, height: 74, opacity: 1 - i * 0.12 }} />
           ))}

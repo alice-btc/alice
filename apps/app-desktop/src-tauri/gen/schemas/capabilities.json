@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Capability for the main window","local":true,"windows":["main"],"permissions":["shell:default"]}}
+{"default":{"identifier":"default","description":"Capability for the main window","local":true,"windows":["main"],"permissions":["shell:default"],"platforms":["linux","macOS","windows"]},"mobile":{"identifier":"mobile","description":"Opens links in the system browser on Android and iOS","local":true,"windows":["main"],"permissions":["opener:default"],"platforms":["android","iOS"]}}

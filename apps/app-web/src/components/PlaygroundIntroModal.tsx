@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { SvgIcon } from './SvgIcon';
 import { CLOSE_ICON, WALLET_ICON, CHECK_ICON } from '@/lib/atelier-icons';
+import { useT } from '@/i18n';
 
 // First-open welcome for the Playground, same shell and dismissal mechanics
 // as ExplorerIntroModal. This is the one place that says, calmly and once,
@@ -33,6 +34,7 @@ export function PlaygroundIntroModal({
   onClose: () => void;
   onCreate: () => void;
 }) {
+  const t = useT();
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   function persistDismissal() {
@@ -63,7 +65,7 @@ export function PlaygroundIntroModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Welcome to the Playground"
+        aria-label={t('playground.intro.label')}
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
@@ -77,28 +79,25 @@ export function PlaygroundIntroModal({
           color: 'var(--alice-text)',
         }}
       >
-        <button type="button" onClick={onClose} aria-label="Close introduction"
+        <button type="button" onClick={onClose} aria-label={t('playground.intro.close')}
           className="alice-control alice-control--tool float-right"><SvgIcon svg={CLOSE_ICON} size={16} /></button>
         <h3
           className="font-pixel tracking-widest m-0"
           style={{ fontSize: 12, lineHeight: 1.8, color: 'var(--alice-text)' }}
         >
-          WELCOME TO THE PLAYGROUND
+          {t('playground.intro.title')}
         </h3>
         <p
           className="font-numbers m-0 mt-3"
           style={{ fontSize: 15, lineHeight: '21px', color: 'var(--alice-muted)' }}
         >
-          A real Bitcoin wallet, on a network where coins are free and
-          worthless. Send, receive, back up: make every mistake here, and
-          Alice explains each step as you go.
+          {t('playground.intro.body')}
         </p>
         <p
           className="font-numbers m-0 mt-2"
           style={{ fontSize: 15, lineHeight: '21px', color: 'var(--alice-muted)' }}
         >
-          This is not your real wallet. Nothing here has value, so nothing
-          here can be lost.
+          {t('playground.intro.notReal')}
         </p>
 
         <div className="flex flex-wrap items-center justify-between gap-3 mt-5">
@@ -110,7 +109,7 @@ export function PlaygroundIntroModal({
               style={{ width: 14, height: 14, accentColor: 'var(--alice-primary)' }}
             />
             <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>
-              Don&apos;t show this again
+              {t('playground.intro.dontShow')}
             </span>
           </label>
           <button
@@ -119,7 +118,7 @@ export function PlaygroundIntroModal({
             className="alice-control alice-control--primary"
           >
             <SvgIcon svg={hasWallet ? CHECK_ICON : WALLET_ICON} size={20} />
-            {hasWallet ? 'OK' : 'Create my practice wallet'}
+            {hasWallet ? t('playground.intro.ok') : t('playground.intro.create')}
           </button>
         </div>
       </div>

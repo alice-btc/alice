@@ -21,6 +21,7 @@ import { HISTORY_PAGE, noteSeenSettlement, settlementRegistry, type KnownSettlem
 import type { SettlementSync } from '@/lib/explorer/use-settlement-sync';
 import { buildArkadeBalanceSeries, buildArkadeTxHistory, virtualTxOutspends, virtualTxToNormalized } from '@/lib/explorer/arkade-insights';
 import { averageUtxoAge } from '@/lib/explorer/address-insights';
+import { readExpiry, type ArkadeExpiry } from '@/lib/explorer/arkade-expiry';
 import { arkadeAddressContext } from '@/lib/explorer/layer-context';
 import type { PrivacySignal } from '@/lib/explorer/signals';
 import type { FullContext } from '@/lib/explorer/ask-alice';
@@ -31,6 +32,7 @@ import { Analyzing, Badge, EmptyState, ExplorerCopy, FieldLabel, Metric, Section
 import { ExplorerTxGraph } from '@/components/ExplorerTxGraph';
 import { ExplorerBalanceChart } from '@/components/ExplorerBalanceChart';
 import { ExplorerUtxoBubbles } from '@/components/ExplorerUtxoBubbles';
+import { formatLocale, type Translator, useT } from '@/i18n';
 
 // How many settlements the overview lists at first: the registry's identified
 // history, newest first, extended in real time by the ASP stream; a SHOW MORE
@@ -44,32 +46,40 @@ export const ARKADE_ACCENT = getNetwork('arkade').color;
  *  violet itself would be illegible. Fills keep the accent, text gets this. */
 export const ARKADE_ACCENT_SOFT = '#9b86ff';
 
-function agoLabel(ms: number): string {
+function agoLabel(ms: number, t: Translator): string {
   const s = Math.floor((Date.now() - ms) / 1000);
-  if (s < 5) return 'just now';
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  return `${Math.floor(s / 3600)}h ago`;
+  if (s < 5) return t('explorerArk.ago.now');
+  if (s < 60) return t('explorerArk.ago.seconds', { count: s });
+  if (s < 3600) return t('explorerArk.ago.minutes', { count: Math.floor(s / 60) });
+  return t('explorerArk.ago.hours', { count: Math.floor(s / 3600) });
 }
 
 function shortHex(s: string, head = 10, tail = 8): string {
   return s.length > head + tail + 1 ? `${s.slice(0, head)}…${s.slice(-tail)}` : s;
 }
-function fmtDuration(sec: number): string {
+function fmtDuration(sec: number, t: Translator): string {
   if (!sec) return '-';
-  if (sec < 60) return `${sec}s`;
-  if (sec < 3600) return `${Math.round(sec / 60)}m`;
-  return `${Math.round(sec / 3600)}h`;
+  if (sec < 60) return t('explorerArk.duration.seconds', { count: sec });
+  if (sec < 3600) return t('explorerArk.duration.minutes', { count: Math.round(sec / 60) });
+  return t('explorerArk.duration.hours', { count: Math.round(sec / 3600) });
 }
 function fmtTime(sec?: number): string {
   if (!sec) return '-';
   return new Date(sec * 1000).toISOString().replace('T', ' ').slice(0, 19);
 }
+/** " · expires <date>" or " · expires at block 950,000"; an explicit unknown when absent. */
+function expiryNote(e: ArkadeExpiry, t: Translator): string {
+  const r = readExpiry(e);
+  if (r.kind === 'date') return ` · ${t('explorerArk.vtxo.expires', { time: fmtTime(r.sec) })}`;
+  if (r.kind === 'block') return ` · ${t('explorerArk.vtxo.expiresBlock', { height: r.height.toLocaleString(formatLocale()) })}`;
+  return ` · ${t('explorerArk.expiry.unknown')}`;
+}
 
 /** The commitment-transaction marker, identical wherever one is pointed at.
  *  White text always: the fill is the deep Arkade violet in both themes, and
  *  any theme token here could land dark-on-dark. */
-export function SettlementBadge({ children = 'ARKADE COMMITMENT TX' }: { children?: React.ReactNode }) {
+export function SettlementBadge({ children }: { children?: React.ReactNode }) {
+  const t = useT();
   return (
     <span
       className="font-pixel tracking-widest inline-flex items-center shrink-0"
@@ -79,12 +89,13 @@ export function SettlementBadge({ children = 'ARKADE COMMITMENT TX' }: { childre
         backgroundColor: ARKADE_ACCENT, whiteSpace: 'nowrap',
       }}
     >
-      {children}
+      {children ?? t('explorerArk.badge.commitment')}
     </span>
   );
 }
 
 function VtxoRow({ v, onOpenTx, onOpenVtxo }: { v: ArkadeVtxo; onOpenTx?: (txid: string) => void; onOpenVtxo?: (id: string) => void }) {
+  const t = useT();
   const spent = v.isSpent || v.isSwept;
   const anchor = v.commitmentTxids[0];
   return (
@@ -92,8 +103,8 @@ function VtxoRow({ v, onOpenTx, onOpenVtxo }: { v: ArkadeVtxo; onOpenTx?: (txid:
       <div className="flex flex-col min-w-0">
         <span className="font-numbers truncate" style={{ fontSize: 12, color: 'var(--alice-text)' }} title={`${v.txid}:${v.vout}`}>{shortHex(v.txid, 12, 6)}:{v.vout}</span>
         <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-          {v.isPreconfirmed ? 'preconfirmed' : 'confirmed'}
-          {v.expiresAt ? ` · expires ${fmtTime(v.expiresAt)}` : ''}
+          {v.isPreconfirmed ? t('explorerArk.vtxo.preconfirmed') : t('explorerArk.vtxo.confirmed')}
+          {expiryNote(v, t)}
         </span>
         {anchor && (
           onOpenTx ? (
@@ -104,12 +115,12 @@ function VtxoRow({ v, onOpenTx, onOpenVtxo }: { v: ArkadeVtxo; onOpenTx?: (txid:
               onClick={() => { noteSeenSettlement(anchor); onOpenTx(anchor); }}
               className="alice-control alice-control--quiet font-numbers text-left cursor-pointer bg-transparent p-0"
               style={{ fontSize: 13, color: 'var(--alice-primary)' }}
-              title="Open the commitment transaction anchoring this VTXO"
+              title={t('explorerArk.vtxo.openCommitmentTitle')}
             >
-              anchored in {shortHex(anchor, 8, 6)}
+              {t('explorerArk.vtxo.anchoredIn', { txid: shortHex(anchor, 8, 6) })}
             </button>
           ) : (
-            <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>anchored in {shortHex(anchor, 8, 6)}</span>
+            <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorerArk.vtxo.anchoredIn', { txid: shortHex(anchor, 8, 6) })}</span>
           )
         )}
       </div>
@@ -120,12 +131,12 @@ function VtxoRow({ v, onOpenTx, onOpenVtxo }: { v: ArkadeVtxo; onOpenTx?: (txid:
             onClick={() => onOpenVtxo(`${v.txid}:${v.vout}`)}
             className="alice-control alice-control--quiet font-numbers cursor-pointer bg-transparent"
             style={{ fontSize: 11, padding: '3px 8px', borderRadius: 3, color: 'var(--alice-primary)' }}
-            title="Open this VTXO: its exit tree, from the commitment transaction down to the coin"
+            title={t('explorerArk.vtxo.openExitTitle')}
           >
-            exit tree
+            {t('explorerArk.vtxo.exitTree')}
           </button>
         )}
-        {v.isSwept ? <Badge tone="neutral">SWEPT</Badge> : v.isSpent ? <Badge tone="neutral">SPENT</Badge> : null}
+        {v.isSpent ? <Badge tone="neutral">{t('explorerArk.vtxo.spent')}</Badge> : v.isSwept ? <Badge tone="neutral">{t('explorerArk.vtxo.swept')}</Badge> : null}
         <Amount sats={v.amountSats} style={{ fontSize: 12, color: spent ? 'var(--alice-muted)' : 'var(--alice-text)' }} />
       </div>
     </div>
@@ -133,6 +144,7 @@ function VtxoRow({ v, onOpenTx, onOpenVtxo }: { v: ArkadeVtxo; onOpenTx?: (txid:
 }
 
 function AddressCard({ info, onOpenTx, onOpenVtxo }: { info: ArkadeAddressInfo; onOpenTx?: (txid: string) => void; onOpenVtxo?: (id: string) => void }) {
+  const t = useT();
   // The lists open short and page out on demand, like the on-chain view.
   const [txLimit, setTxLimit] = useState(FEED_INITIAL);
   const [vtxoLimit, setVtxoLimit] = useState(FEED_INITIAL);
@@ -147,18 +159,18 @@ function AddressCard({ info, onOpenTx, onOpenVtxo }: { info: ArkadeAddressInfo; 
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderLeft: `3px solid ${ARKADE_ACCENT}`, borderRadius: 3, backgroundColor: 'transparent' }}>
         <div className="flex items-center gap-2 flex-wrap">
-          <SettlementBadge>ARKADE ADDRESS</SettlementBadge>
-          <span className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>off-chain, from the operator&rsquo;s indexer</span>
+          <SettlementBadge>{t('explorerArk.address.badge')}</SettlementBadge>
+          <span className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{t('explorerArk.address.source')}</span>
         </div>
         <div className="flex items-start gap-2">
           <p className="font-numbers m-0 break-all min-w-0 flex-1" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{info.address}</p>
-          <ExplorerCopy value={info.address} label="address" />
+          <ExplorerCopy value={info.address} label={t('explorerArk.address.copy')} />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
-          <Metric label="SPENDABLE" value={<Amount sats={info.spendableSats} style={{ fontSize: 14, color: 'var(--alice-text)' }} />} />
-          <Metric label="SPENDABLE VTXOS" value={info.spendableCount.toLocaleString('en-US')} />
-          <Metric label="TOTAL VTXOS" value={info.totalCount.toLocaleString('en-US')} />
-          {age && <Metric label="AVG COIN AGE" value={age.days < 1 ? `${Math.round(age.days * 24)}h` : `${age.days.toFixed(1)}d`} />}
+          <Metric label={t('explorerArk.address.spendable')} value={<Amount sats={info.spendableSats} style={{ fontSize: 14, color: 'var(--alice-text)' }} />} />
+          <Metric label={t('explorerArk.address.spendableVtxos')} value={info.spendableCount.toLocaleString(formatLocale())} />
+          <Metric label={t('explorerArk.address.totalVtxos')} value={info.totalCount.toLocaleString(formatLocale())} />
+          {age && <Metric label={t('explorerArk.address.avgAge')} value={age.days < 1 ? t('explorerArk.address.ageHours', { count: Math.round(age.days * 24) }) : t('explorerArk.address.ageDays', { count: age.days.toFixed(1) })} />}
         </div>
       </div>
 
@@ -174,7 +186,7 @@ function AddressCard({ info, onOpenTx, onOpenVtxo }: { info: ArkadeAddressInfo; 
       {spendable.length > 0 && (
         <ExplorerUtxoBubbles
           utxos={spendable.map(v => ({ valueSats: v.amountSats, blockTime: v.createdAt }))}
-          title="SPENDABLE VTXOS"
+          title={t('explorerArk.address.spendableVtxos')}
         />
       )}
 
@@ -184,9 +196,9 @@ function AddressCard({ info, onOpenTx, onOpenVtxo }: { info: ArkadeAddressInfo; 
       {txHistory.length > 0 && (
         <div className="flex flex-col" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3 }}>
           <div className="flex items-center justify-between px-3 py-2" style={{ backgroundColor: 'transparent' }}>
-            <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>TRANSACTIONS</span>
+            <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorerArk.address.transactions')}</span>
             <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-              {Math.min(txLimit, txHistory.length).toLocaleString('en-US')} of {txHistory.length.toLocaleString('en-US')}
+              {t('explorerArk.address.shownOf', { shown: Math.min(txLimit, txHistory.length).toLocaleString(formatLocale()), total: txHistory.length.toLocaleString(formatLocale()) })}
             </span>
           </div>
           {txHistory.slice(0, txLimit).map(e => (
@@ -204,7 +216,7 @@ function AddressCard({ info, onOpenTx, onOpenVtxo }: { info: ArkadeAddressInfo; 
                   {shortHex(e.txid, 12, 6)}
                 </span>
                 <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-                  {e.time !== undefined ? fmtTime(e.time) : 'time unknown'}
+                  {e.time !== undefined ? fmtTime(e.time) : t('explorerArk.address.timeUnknown')}
                 </span>
               </div>
               <span className="font-numbers shrink-0 flex items-center gap-1" style={{ fontSize: 12, color: e.deltaSats >= 0 ? 'var(--alice-success)' : 'var(--alice-text)' }}>
@@ -222,7 +234,7 @@ function AddressCard({ info, onOpenTx, onOpenVtxo }: { info: ArkadeAddressInfo; 
                 fontSize: 13, padding: '8px 16px', color: 'var(--alice-primary)',
               }}
             >
-              SHOW MORE
+              {t('explorerArk.address.showMore')}
             </button>
           )}
         </div>
@@ -231,9 +243,9 @@ function AddressCard({ info, onOpenTx, onOpenVtxo }: { info: ArkadeAddressInfo; 
       {info.vtxos.length > 0 ? (
         <div className="flex flex-col" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3 }}>
           <div className="flex items-center justify-between px-3 py-2" style={{ backgroundColor: 'transparent' }}>
-            <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>VTXOS</span>
+            <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorerArk.address.vtxos')}</span>
             <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-              {Math.min(vtxoLimit, info.vtxos.length).toLocaleString('en-US')} of {info.vtxos.length.toLocaleString('en-US')}
+              {t('explorerArk.address.shownOf', { shown: Math.min(vtxoLimit, info.vtxos.length).toLocaleString(formatLocale()), total: info.vtxos.length.toLocaleString(formatLocale()) })}
             </span>
           </div>
           {info.vtxos.slice(0, vtxoLimit).map(v => <VtxoRow key={`${v.txid}:${v.vout}`} v={v} onOpenTx={onOpenTx} onOpenVtxo={onOpenVtxo} />)}
@@ -246,12 +258,12 @@ function AddressCard({ info, onOpenTx, onOpenVtxo }: { info: ArkadeAddressInfo; 
                 fontSize: 13, padding: '8px 16px', color: 'var(--alice-primary)',
               }}
             >
-              SHOW MORE
+              {t('explorerArk.address.showMore')}
             </button>
           )}
         </div>
       ) : (
-        <EmptyState title="No VTXOs on this address" hint="This Arkade address holds no off-chain coins that the operator knows about." />
+        <EmptyState title={t('explorerArk.address.emptyTitle')} hint={t('explorerArk.address.emptyHint')} />
       )}
     </div>
   );
@@ -261,6 +273,7 @@ function AddressCard({ info, onOpenTx, onOpenVtxo }: { info: ArkadeAddressInfo; 
  *  and anywhere a commitment is inspected. `onOpenTx` renders the txid as a link; omit it on the
  *  transaction's own page. */
 export function CommitmentCard({ c, onOpenTx }: { c: ArkadeCommitment; onOpenTx?: (txid: string) => void }) {
+  const t = useT();
   const window = c.startedAt && c.endedAt ? c.endedAt - c.startedAt : undefined;
   return (
     <div className="flex flex-col gap-4">
@@ -269,14 +282,14 @@ export function CommitmentCard({ c, onOpenTx }: { c: ArkadeCommitment; onOpenTx?
         style={{ borderTop: '1px solid var(--alice-border)', borderLeft: `3px solid ${ARKADE_ACCENT}`, borderRadius: 3, backgroundColor: 'transparent' }}
       >
         <div className="flex items-center gap-2 flex-wrap">
-          <SettlementBadge>ARKADE COMMITMENT TRANSACTION</SettlementBadge>
+          <SettlementBadge>{t('explorerArk.commitment.badge')}</SettlementBadge>
           {onOpenTx ? (
             <button
               type="button"
               onClick={() => { noteSeenSettlement(c.txid); onOpenTx(c.txid); }}
               className="alice-control alice-control--quiet font-numbers break-all text-left cursor-pointer bg-transparent"
               style={{ fontSize: 11, color: 'var(--alice-primary)' }}
-              title="Open the on-chain transaction"
+              title={t('explorerArk.commitment.openOnchain')}
             >
               {c.txid}
             </button>
@@ -285,21 +298,21 @@ export function CommitmentCard({ c, onOpenTx }: { c: ArkadeCommitment; onOpenTx?
           )}
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
-          <Metric label="INPUT" value={<Amount sats={c.totalInputAmountSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
-          <Metric label="INPUT VTXOS" value={c.totalInputVtxos.toLocaleString('en-US')} />
-          <Metric label="OUTPUT" value={<Amount sats={c.totalOutputAmountSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
-          <Metric label="OUTPUT VTXOS" value={c.totalOutputVtxos.toLocaleString('en-US')} />
-          <Metric label="STARTED" value={fmtTime(c.startedAt)} />
-          <Metric label="ENDED" value={fmtTime(c.endedAt)} />
-          {window !== undefined && <Metric label="DURATION" value={fmtDuration(window)} />}
-          <Metric label="BATCHES" value={c.batches.length.toLocaleString('en-US')} />
+          <Metric label={t('explorerArk.commitment.input')} value={<Amount sats={c.totalInputAmountSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
+          <Metric label={t('explorerArk.commitment.inputVtxos')} value={c.totalInputVtxos.toLocaleString(formatLocale())} />
+          <Metric label={t('explorerArk.commitment.output')} value={<Amount sats={c.totalOutputAmountSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
+          <Metric label={t('explorerArk.commitment.outputVtxos')} value={c.totalOutputVtxos.toLocaleString(formatLocale())} />
+          <Metric label={t('explorerArk.commitment.started')} value={fmtTime(c.startedAt)} />
+          <Metric label={t('explorerArk.commitment.ended')} value={fmtTime(c.endedAt)} />
+          {window !== undefined && <Metric label={t('explorerArk.commitment.duration')} value={fmtDuration(window, t)} />}
+          <Metric label={t('explorerArk.commitment.batches')} value={c.batches.length.toLocaleString(formatLocale())} />
         </div>
       </div>
 
       {c.batches.length > 0 && (
         <div className="flex flex-col" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3 }}>
           <div className="flex items-center justify-between px-3 py-2" style={{ backgroundColor: 'transparent' }}>
-            <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>BATCHES</span>
+            <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorerArk.commitment.batches')}</span>
             <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>{c.batches.length}</span>
           </div>
           {c.batches.map(b => (
@@ -307,12 +320,12 @@ export function CommitmentCard({ c, onOpenTx }: { c: ArkadeCommitment; onOpenTx?
               <div className="flex flex-col min-w-0">
                 <span className="font-numbers truncate" style={{ fontSize: 12, color: 'var(--alice-text)' }} title={b.key}>{shortHex(b.key, 14, 8)}</span>
                 <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-                  {b.totalOutputVtxos.toLocaleString('en-US')} vtxo{b.totalOutputVtxos === 1 ? '' : 's'}
-                  {b.expiresAt ? ` · expires ${fmtTime(b.expiresAt)}` : ''}
+                  {t.plural('explorerArk.commitment.vtxoCount', b.totalOutputVtxos, { count: b.totalOutputVtxos.toLocaleString(formatLocale()) })}
+                  {expiryNote(b, t)}
                 </span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                {b.swept && <Badge tone="neutral">SWEPT</Badge>}
+                {b.swept && <Badge tone="neutral">{t('explorerArk.vtxo.swept')}</Badge>}
                 <Amount sats={b.totalOutputAmountSats} style={{ fontSize: 12, color: 'var(--alice-text)' }} />
               </div>
             </div>
@@ -338,6 +351,7 @@ function byNewest(a: KnownSettlement, b: KnownSettlement): number {
  * has) and serves the older pages on request.
  */
 export function ArkadeLiveSettlements({ apiBaseUrl, sync, onOpenTx }: { apiBaseUrl: string; sync?: SettlementSync; onOpenTx: (txid: string) => void }) {
+  const t = useT();
   const [known, setKnown] = useState<KnownSettlement[]>(() => [...settlementRegistry.all()].sort(byNewest));
   const [live, setLive] = useState(false);
   const [limit, setLimit] = useState(FEED_INITIAL);
@@ -380,19 +394,19 @@ export function ArkadeLiveSettlements({ apiBaseUrl, sync, onOpenTx }: { apiBaseU
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>COMMITMENT TRANSACTIONS</span>
+        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorerArk.settlements.title')}</span>
         <span className="flex items-center gap-1.5">
           {sync && !catchingUp && sync.tipHeight !== null && (
             <span
               className="font-pixel tracking-widest"
               style={{ fontSize: 10, color: 'var(--alice-muted)' }}
-              title="The walk of the operator's wallet has reached the live tip: the newest commitment shown is the newest there is."
+              title={t('explorerArk.settlements.upToDateTitle')}
             >
-              UP TO DATE · BLOCK {sync.tipHeight.toLocaleString('en-US')} ·
+              {t('explorerArk.settlements.upToDate', { height: sync.tipHeight.toLocaleString(formatLocale()) })}
             </span>
           )}
           <span style={{ width: 7, height: 7, borderRadius: 7, backgroundColor: live ? 'var(--alice-success)' : 'var(--alice-muted)' }} />
-          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{live ? 'LIVE' : 'CONNECTING'}</span>
+          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{live ? t('explorerArk.settlements.live') : t('explorerArk.settlements.connecting')}</span>
         </span>
       </div>
       <div className="flex flex-col" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3 }}>
@@ -400,12 +414,12 @@ export function ArkadeLiveSettlements({ apiBaseUrl, sync, onOpenTx }: { apiBaseU
           <div className="flex items-center gap-2 px-3 py-2" style={{ color: 'var(--alice-muted)' }} role="status">
             <span className="rh-spinner shrink-0" aria-hidden="true" />
             <span className="font-numbers" style={{ fontSize: 12, lineHeight: '16px' }}>
-              Downloading the latest commitment transactions from the Bitcoin chain. The newest shown may not be the newest yet.
+              {t('explorerArk.settlements.catchingUp')}
             </span>
           </div>
         )}
         {shown.length === 0 ? (
-          !catchingUp && <Analyzing label="identifying commitment transactions on the Bitcoin chain…" />
+          !catchingUp && <Analyzing label={t('explorerArk.settlements.identifying')} />
         ) : (
           shown.map((s, i) => (
             <button
@@ -418,8 +432,8 @@ export function ArkadeLiveSettlements({ apiBaseUrl, sync, onOpenTx }: { apiBaseU
               <div className="flex flex-col min-w-0">
                 <span className="font-numbers truncate" style={{ fontSize: 12, color: 'var(--alice-primary)' }} title={s.txid}>{shortHex(s.txid, 12, 8)}</span>
                 <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-                  {s.height !== undefined ? `block ${s.height.toLocaleString('en-US')}` : 'in the mempool'}
-                  {s.timestamp !== undefined ? ` · ${agoLabel(s.timestamp * 1000)} · ${formatDateTime(s.timestamp)}` : ''}
+                  {s.height !== undefined ? t('explorerArk.settlements.block', { height: s.height.toLocaleString(formatLocale()) }) : t('explorerArk.settlements.mempool')}
+                  {s.timestamp !== undefined ? ` · ${agoLabel(s.timestamp * 1000, t)} · ${formatDateTime(s.timestamp)}` : ''}
                 </span>
               </div>
               <SettlementBadge />
@@ -436,7 +450,7 @@ export function ArkadeLiveSettlements({ apiBaseUrl, sync, onOpenTx }: { apiBaseU
             fontSize: 13, padding: '8px 16px', borderRadius: 3, color: 'var(--alice-primary)',
           }}
         >
-          SHOW {Math.min(FEED_STEP, known.length - shown.length)} MORE
+          {t('explorerArk.settlements.showMore', { count: Math.min(FEED_STEP, known.length - shown.length) })}
         </button>
       ) : sync && known.length > 0 && !catchingUp && sync.exhausted === null ? (
         <button
@@ -445,16 +459,16 @@ export function ArkadeLiveSettlements({ apiBaseUrl, sync, onOpenTx }: { apiBaseU
           disabled={sync.loadingOlder}
           className="alice-control alice-control--quiet font-numbers self-center cursor-pointer disabled:cursor-not-allowed flex items-center gap-2"
           style={{ fontSize: 13, padding: '8px 16px', borderRadius: 3, color: 'var(--alice-primary)' }}
-          title="Walk the operator's wallet further back on Bitcoin, one page of commitment transactions at a time"
+          title={t('explorerArk.settlements.olderTitle')}
         >
           {sync.loadingOlder && <span className="rh-spinner" aria-hidden="true" />}
-          {sync.loadingOlder ? 'LOADING OLDER…' : `LOAD ${HISTORY_PAGE} OLDER`}
+          {sync.loadingOlder ? t('explorerArk.settlements.loadingOlder') : t('explorerArk.settlements.loadOlder', { count: HISTORY_PAGE })}
         </button>
       ) : sync?.exhausted ? (
         <span className="font-numbers self-center text-center" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
           {sync.exhausted === 'origin'
-            ? 'Back to the first transaction of the operator’s wallet: nothing older.'
-            : 'Nothing older found: this funding line ends in wallet transactions the walk cannot cross.'}
+            ? t('explorerArk.settlements.origin')
+            : t('explorerArk.settlements.stuck')}
         </span>
       ) : null}
     </div>
@@ -463,6 +477,7 @@ export function ArkadeLiveSettlements({ apiBaseUrl, sync, onOpenTx }: { apiBaseU
 
 /** The ASP's advertised parameters, as a section of the Arkade overview. */
 export function ArkadeAspInfo({ apiBaseUrl }: { apiBaseUrl: string }) {
+  const t = useT();
   const [info, setInfo] = useState<ArkadeInfo | null>(null);
   const [infoErr, setInfoErr] = useState('');
 
@@ -474,38 +489,38 @@ export function ArkadeAspInfo({ apiBaseUrl }: { apiBaseUrl: string }) {
       .catch(e => {
         // A cancelled fetch (re-render/unmount) is not an error to show.
         if (e instanceof DOMException && e.name === 'AbortError') return;
-        setInfoErr(e instanceof ArkadeError ? e.message : 'Could not reach the operator.');
+        setInfoErr(e instanceof ArkadeError ? e.message : t('explorerArk.asp.unreachableError'));
       });
     return () => controller.abort();
   }, [apiBaseUrl]);
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>OPERATOR</span>
+      <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorerArk.asp.title')}</span>
       {infoErr ? (
         <div className="flex flex-col gap-1 px-4 py-3" style={{ border: '1px solid var(--alice-danger)', borderRadius: 3 }}>
-          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>OPERATOR UNREACHABLE</span>
+          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>{t('explorerArk.asp.unreachable')}</span>
           <p className="font-numbers m-0" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{infoErr}</p>
         </div>
       ) : info ? (
         <div className="flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderLeft: `3px solid ${ARKADE_ACCENT}`, borderRadius: 3, backgroundColor: 'transparent' }}>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
-            <Metric label="BATCH EVERY" value={fmtDuration(info.sessionDurationSec)} title="How often the operator runs a batch session and commits it to Bitcoin." />
-            <Metric label="DUST" value={<Amount sats={info.dustSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
-            <Metric label="VTXO MIN" value={<Amount sats={info.vtxoMinSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
-            <Metric label="VTXO MAX" value={<Amount sats={info.vtxoMaxSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
-            <Metric label="EXIT DELAY" value={formatArkadeExitDelay(info.unilateralExitDelay)} title="The wait after a unilateral exit before the coin can be spent on-chain." />
-            <Metric label="MAX TX WEIGHT" value={info.maxTxWeight.toLocaleString('en-US')} />
-            <Metric label="VERSION" value={info.version || '-'} />
-            <Metric label="SETTLES ON" value={info.network || '-'} />
+            <Metric label={t('explorerArk.asp.batchEvery')} value={fmtDuration(info.sessionDurationSec, t)} title={t('explorerArk.asp.batchEveryTitle')} />
+            <Metric label={t('explorerArk.asp.dust')} value={<Amount sats={info.dustSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
+            <Metric label={t('explorerArk.asp.vtxoMin')} value={<Amount sats={info.vtxoMinSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
+            <Metric label={t('explorerArk.asp.vtxoMax')} value={<Amount sats={info.vtxoMaxSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
+            <Metric label={t('explorerArk.asp.exitDelay')} value={formatArkadeExitDelay(info.unilateralExitDelay, t.locale)} title={t('explorerArk.asp.exitDelayTitle')} />
+            <Metric label={t('explorerArk.asp.maxTxWeight')} value={info.maxTxWeight.toLocaleString(formatLocale())} />
+            <Metric label={t('explorerArk.asp.version')} value={info.version || '-'} />
+            <Metric label={t('explorerArk.asp.settlesOn')} value={info.network || '-'} />
           </div>
           <div className="flex flex-col gap-1">
-            <FieldLabel>SIGNER PUBKEY</FieldLabel>
+            <FieldLabel>{t('explorerArk.asp.signerPubkey')}</FieldLabel>
             <span className="font-numbers break-all" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{info.signerPubkey || '-'}</span>
           </div>
           {info.forfeitAddress && (
             <div className="flex flex-col gap-1">
-              <FieldLabel>FORFEIT ADDRESS</FieldLabel>
+              <FieldLabel>{t('explorerArk.asp.forfeitAddress')}</FieldLabel>
               <span className="font-numbers break-all" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{info.forfeitAddress}</span>
             </div>
           )}
@@ -522,6 +537,7 @@ export function ArkadeAspInfo({ apiBaseUrl }: { apiBaseUrl: string }) {
 /** The Arkade address an input spends from or an output pays, shortened,
  *  opening the address view when the card can. */
 function ArkadeAddressLine({ address, onOpenAddress }: { address?: string; onOpenAddress?: (address: string) => void }) {
+  const t = useT();
   if (!address) return null;
   const short = `${address.slice(0, 14)}…${address.slice(-8)}`;
   return onOpenAddress ? (
@@ -530,7 +546,7 @@ function ArkadeAddressLine({ address, onOpenAddress }: { address?: string; onOpe
       onClick={() => onOpenAddress(address)}
       className="alice-control alice-control--quiet font-numbers truncate text-left cursor-pointer bg-transparent p-0 self-start"
       style={{ fontSize: 11, color: 'var(--alice-primary)' }}
-      title={`Open ${address}`}
+      title={t('explorerArk.virtual.open', { address })}
     >
       {short}
     </button>
@@ -552,6 +568,7 @@ export function ArkadeVirtualTxCard({ vtx, onOpenTx, onOpenAddress }: {
 }) {
   // The commitment transactions anchoring this transaction's outputs on
   // Bitcoin, as the indexer reports them per VTXO (one batch, usually).
+  const t = useT();
   const commitments = [...new Set(vtx.outputs.flatMap(o => o.vtxo?.commitmentTxids ?? []))];
   return (
     <div className="flex flex-col gap-4">
@@ -560,7 +577,7 @@ export function ArkadeVirtualTxCard({ vtx, onOpenTx, onOpenAddress }: {
         style={{ borderTop: '1px solid var(--alice-border)', borderLeft: `3px solid ${ARKADE_ACCENT}`, borderRadius: 3, backgroundColor: 'transparent' }}
       >
         <div className="flex items-center gap-2 flex-wrap">
-          <SettlementBadge>ARKADE VIRTUAL TX</SettlementBadge>
+          <SettlementBadge>{t('explorerArk.virtual.badge')}</SettlementBadge>
           <span className="font-numbers break-all" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{vtx.txid}</span>
         </div>
         {onOpenTx && commitments.length > 0 && (
@@ -574,16 +591,15 @@ export function ArkadeVirtualTxCard({ vtx, onOpenTx, onOpenAddress }: {
               className="alice-control alice-control--quiet font-pixel tracking-widest cursor-pointer"
               style={{ fontSize: 10, lineHeight: 1, minHeight: 0, padding: '5px 8px', borderRadius: 3, color: 'var(--alice-primary)' }}
               title={commitments.length === 1
-                ? `Open the commitment transaction anchoring this transaction's outputs on Bitcoin: ${commitments[0]}`
-                : `Open the first of the ${commitments.length} commitment transactions anchoring this transaction's outputs on Bitcoin`}
+                ? t('explorerArk.virtual.openCommitmentOne', { txid: commitments[0] })
+                : t('explorerArk.virtual.openCommitmentMany', { count: commitments.length })}
             >
-              OPEN COMMITMENT TX
+              {t('explorerArk.virtual.openCommitment')}
             </button>
           </div>
         )}
         <p className="font-numbers m-0" style={{ fontSize: 12.5, lineHeight: '18px', color: 'var(--alice-muted)' }}>
-          An Ark transaction: it lives off-chain, held by the Arkade operator, and is not recorded
-          on Bitcoin. Its outputs are VTXOs, each anchored on-chain by a commitment transaction.
+          {t('explorerArk.virtual.explain')}
         </p>
       </div>
 
@@ -599,7 +615,7 @@ export function ArkadeVirtualTxCard({ vtx, onOpenTx, onOpenAddress }: {
       <div className="flex flex-col md:flex-row gap-4">
         <div className="flex-1 flex flex-col" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3 }}>
           <div className="px-3 py-2" style={{ backgroundColor: 'transparent' }}>
-            <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>INPUTS ({vtx.inputs.length})</span>
+            <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorerArk.virtual.inputs', { count: vtx.inputs.length })}</span>
           </div>
           {vtx.inputs.map((inp, i) => (
             <div key={`${inp.txid}:${inp.vout}:${i}`} className="flex items-center justify-between gap-3 px-3 py-2" style={{ borderTop: '1px solid var(--alice-border)' }}>
@@ -619,8 +635,8 @@ export function ArkadeVirtualTxCard({ vtx, onOpenTx, onOpenAddress }: {
                 )}
                 <ArkadeAddressLine address={inp.address} onOpenAddress={onOpenAddress} />
                 {inp.viaCheckpoint && (
-                  <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }} title="The input is a checkpoint transaction's output; the address is the coin's, one transaction up.">
-                    through a checkpoint
+                  <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }} title={t('explorerArk.virtual.checkpointTitle')}>
+                    {t('explorerArk.virtual.throughCheckpoint')}
                   </span>
                 )}
               </div>
@@ -631,19 +647,19 @@ export function ArkadeVirtualTxCard({ vtx, onOpenTx, onOpenAddress }: {
 
         <div className="flex-1 flex flex-col" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3 }}>
           <div className="px-3 py-2" style={{ backgroundColor: 'transparent' }}>
-            <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>OUTPUTS ({vtx.outputs.length})</span>
+            <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorerArk.virtual.outputs', { count: vtx.outputs.length })}</span>
           </div>
           {vtx.outputs.map(o => (
             <div key={o.index} className="flex items-center justify-between gap-3 px-3 py-2" style={{ borderTop: '1px solid var(--alice-border)' }}>
               <div className="flex flex-col min-w-0">
                 <span className="font-numbers truncate" style={{ fontSize: 12, color: 'var(--alice-text)' }} title={o.scriptHex}>
-                  #{o.index}{o.isAnchor ? ' · anchor' : ''}
+                  #{o.index}{o.isAnchor ? ` · ${t('explorerArk.virtual.anchor')}` : ''}
                 </span>
                 <ArkadeAddressLine address={o.address} onOpenAddress={onOpenAddress} />
                 {o.vtxo && (
                   <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-                    {o.vtxo.isSwept ? 'swept' : o.vtxo.isSpent ? 'spent' : o.vtxo.isPreconfirmed ? 'preconfirmed' : 'settled'}
-                    {o.vtxo.expiresAt ? ` · expires ${fmtTime(o.vtxo.expiresAt)}` : ''}
+                    {o.vtxo.isSpent ? t('explorerArk.virtual.spent') : o.vtxo.isSwept ? t('explorerArk.virtual.swept') : o.vtxo.isPreconfirmed ? t('explorerArk.vtxo.preconfirmed') : t('explorerArk.virtual.settled')}
+                    {expiryNote(o.vtxo, t)}
                   </span>
                 )}
                 {o.vtxo?.commitmentTxids[0] && (
@@ -653,12 +669,12 @@ export function ArkadeVirtualTxCard({ vtx, onOpenTx, onOpenAddress }: {
                       onClick={() => { noteSeenSettlement(o.vtxo!.commitmentTxids[0]); onOpenTx(o.vtxo!.commitmentTxids[0]); }}
                       className="alice-control alice-control--quiet font-numbers text-left cursor-pointer bg-transparent p-0"
                       style={{ fontSize: 13, color: 'var(--alice-primary)' }}
-                      title="Open the commitment transaction anchoring this VTXO"
+                      title={t('explorerArk.vtxo.openCommitmentTitle')}
                     >
-                      anchored in {shortHex(o.vtxo.commitmentTxids[0], 8, 6)}
+                      {t('explorerArk.vtxo.anchoredIn', { txid: shortHex(o.vtxo.commitmentTxids[0], 8, 6) })}
                     </button>
                   ) : (
-                    <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>anchored in {shortHex(o.vtxo.commitmentTxids[0], 8, 6)}</span>
+                    <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorerArk.vtxo.anchoredIn', { txid: shortHex(o.vtxo.commitmentTxids[0], 8, 6) })}</span>
                   )
                 )}
               </div>
@@ -691,6 +707,7 @@ export function ExplorerArkadeAddressTab({ apiBaseUrl, address, onOpenTx, onOpen
       (shape only, de-identified) and the full description for identified mode. */
   onSignals?: (signals: PrivacySignal[], full?: FullContext) => void;
 }) {
+  const t = useT();
   const [state, setState] = useState<AddressTabState>({ kind: 'loading' });
   const [retryToken, setRetryToken] = useState(0);
   // The page's context for Ask Alice, once the address is on screen.
@@ -707,8 +724,13 @@ export function ExplorerArkadeAddressTab({ apiBaseUrl, address, onOpenTx, onOpen
     const controller = new AbortController();
     setState({ kind: 'loading' });
     getArkadeAddressVtxos(apiBaseUrl, address, { signal: controller.signal })
-      .then(info => setState({ kind: 'loaded', info }))
+      .then(info => {
+        // A slow answer for address A must not replace the page of address B.
+        if (controller.signal.aborted) return;
+        setState({ kind: 'loaded', info });
+      })
       .catch(e => {
+        if (controller.signal.aborted) return;
         if (e instanceof DOMException && e.name === 'AbortError') return;
         // The Arkade tools load on demand: when that load itself fails (the
         // page's server was down or restarting), say so rather than blaming
@@ -718,8 +740,8 @@ export function ExplorerArkadeAddressTab({ apiBaseUrl, address, onOpenTx, onOpen
         setState({
           kind: 'error',
           message: e instanceof ArkadeError ? e.message
-            : chunkFailed ? 'The Arkade tools could not be loaded. Reload the page, then try again.'
-              : 'Could not load this Arkade address. Retry, or reload the page if it keeps failing.',
+            : chunkFailed ? t('explorerArk.tab.chunkFailed')
+              : t('explorerArk.tab.loadFailed'),
         });
       });
     return () => controller.abort();
@@ -733,7 +755,7 @@ export function ExplorerArkadeAddressTab({ apiBaseUrl, address, onOpenTx, onOpen
         <div className="flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3, backgroundColor: 'transparent' }}>
           <Skeleton width="60%" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
-            {['SPENDABLE', 'SPENDABLE VTXOS', 'TOTAL VTXOS', 'AVG COIN AGE'].map(l => (
+            {[t('explorerArk.address.spendable'), t('explorerArk.address.spendableVtxos'), t('explorerArk.address.totalVtxos'), t('explorerArk.address.avgAge')].map(l => (
               <div key={l} className="flex flex-col gap-1">
                 <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{l}</span>
                 <Skeleton width="60%" />
@@ -741,33 +763,33 @@ export function ExplorerArkadeAddressTab({ apiBaseUrl, address, onOpenTx, onOpen
             ))}
           </div>
         </div>
-        <SectionPanel title="BALANCE"><div className="px-3 py-3"><Skeleton height={110} /></div></SectionPanel>
-        <SectionPanel title="SPENDABLE VTXOS">
+        <SectionPanel title={t('explorerArk.tab.balance')}><div className="px-3 py-3"><Skeleton height={110} /></div></SectionPanel>
+        <SectionPanel title={t('explorerArk.address.spendableVtxos')}>
           <div className="flex items-center justify-center gap-3 px-3 py-4">
             <Skeleton width={64} height={64} style={{ borderRadius: '50%' }} />
             <Skeleton width={40} height={40} style={{ borderRadius: '50%' }} />
             <Skeleton width={26} height={26} style={{ borderRadius: '50%' }} />
           </div>
         </SectionPanel>
-        <SectionPanel title="TRANSACTIONS"><Analyzing label="reading VTXOs from the Arkade operator…" /></SectionPanel>
-        <SectionPanel title="VTXOS"><div className="px-3 py-3"><SkeletonLines lines={5} /></div></SectionPanel>
+        <SectionPanel title={t('explorerArk.address.transactions')}><Analyzing label={t('explorerArk.tab.reading')} /></SectionPanel>
+        <SectionPanel title={t('explorerArk.address.vtxos')}><div className="px-3 py-3"><SkeletonLines lines={5} /></div></SectionPanel>
       </div>
     );
   }
   if (state.kind === 'error') {
     return (
       <div className="flex flex-col gap-2 px-4 py-3" style={{ border: '1px solid var(--alice-danger)', borderRadius: 3 }}>
-        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>COULD NOT LOAD</span>
+        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>{t('explorerArk.tab.couldNotLoad')}</span>
         <p className="font-numbers m-0" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{state.message}</p>
         <button
           type="button"
-          onClick={() => setRetryToken(t => t + 1)}
+          onClick={() => setRetryToken(n => n + 1)}
           className="alice-control alice-control--quiet font-numbers self-start cursor-pointer"
           style={{
             fontSize: 13, padding: '8px 16px', borderRadius: 3, color: 'var(--alice-primary)',
           }}
         >
-          RETRY
+          {t('explorerArk.tab.retry')}
         </button>
       </div>
     );

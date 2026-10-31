@@ -1,12 +1,8 @@
-import { fitLocalModelRoles, usesAnswerOnlyLocalMode } from './local-model-message-policy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AIBackend, AIBackendStatus, AIResponse, SendMessageOptions, TokenUsage } from './ai-backend';
 import type { Message } from './llm';
 import { tauriInvoke } from './tauri-runtime';
 import {
-  getPreset,
-  PRESETS,
-  getAliceInstructions,
   getActiveModelId,
   getModelEntry,
   listKnownLocalModels,
@@ -14,15 +10,10 @@ import {
   type LocalModelId,
   type ModelStatus,
 } from './ai-preferences';
-import {
-  applyAliceResponseConstraints,
-  buildAliceSystemPrompt,
-  requiresBufferedAliceResponse,
-  withAliceInstructionReminder,
-} from './ai-system-prompt';
-import { fitMessagesToEstimatedLocalContext } from './local-context-budget';
+import { applyAliceResponseConstraints } from './ai-system-prompt';
+import { prepareLocalRequest } from './local-request';
 import { modelDownloadRefusal } from './local-model-registry';
-import { DESKTOP_DOWNLOAD_POLL_MS, interpretDesktopDownloadStatus, type DesktopModelDownloadPhase } from './local-model-download-progress';
+import { DESKTOP_DOWNLOAD_POLL_MS, DESKTOP_DOWNLOAD_POLL_TIMEOUT_MS, interpretDesktopDownloadStatus, type DesktopModelDownloadPhase } from './local-model-download-progress';
 import { modelFilenameFromPath } from './model-file-validation';
 
 const LLAMA_BASE = 'http://localhost:11435';
@@ -69,6 +60,15 @@ export async function getDesktopInstalledModelPath(id: LocalModelId): Promise<st
   }
 }
 
+const POLL_TIMED_OUT = Symbol('poll timed out');
+
+function withinPollTimeout<T>(answer: Promise<T>): Promise<T | typeof POLL_TIMED_OUT> {
+  return new Promise(resolve => {
+    const timer = setTimeout(() => resolve(POLL_TIMED_OUT), DESKTOP_DOWNLOAD_POLL_TIMEOUT_MS);
+    answer.then(value => { clearTimeout(timer); resolve(value); }, () => { clearTimeout(timer); resolve(POLL_TIMED_OUT); });
+  });
+}
+
 /**
  * Installs a catalog or custom model. `onProgress` is called with the
  * fraction of the current phase: the transfer, then `verifying` while the
@@ -94,9 +94,12 @@ export async function installDesktopModel(
   onProgress?.(0, 'downloading');
   while (true) {
     await new Promise<void>(resolve => setTimeout(resolve, DESKTOP_DOWNLOAD_POLL_MS));
-    const status = await tauriInvoke<unknown>('local_ai_download_model_progress', {
+    // An answer the bridge loses would otherwise hold this loop forever, and
+    // the bar with it; the next poll asks again.
+    const status = await withinPollTimeout(tauriInvoke<unknown>('local_ai_download_model_progress', {
       filename: entry.filename,
-    });
+    }));
+    if (status === POLL_TIMED_OUT) continue;
     const step = interpretDesktopDownloadStatus(status);
     if (step.kind === 'progress') {
       onProgress?.(step.fraction, step.phase);
@@ -212,45 +215,21 @@ export class LocalDesktopAIBackend implements AIBackend {
   async sendMessage(messages: Message[], onChunk?: (chunk: string) => void, options?: SendMessageOptions): Promise<AIResponse> {
     if (this._status.state !== 'ready') throw new Error('Local AI is not ready.');
 
-    const [preset, instructions, activeModelId] = await Promise.all([
-      getPreset('local'),
-      getAliceInstructions(),
-      getActiveModelId(),
-    ]);
-    const params = PRESETS[preset];
-    const shouldBuffer = requiresBufferedAliceResponse(instructions);
-    const streamFn = shouldBuffer ? undefined : onChunk;
+    const prepared = await prepareLocalRequest(messages, options, DESKTOP_CONTEXT_TOKENS);
+    const streamFn = prepared.buffered ? undefined : onChunk;
 
-    // Qwen3 and SmolLM3 models reason by default and the <think> block eats the whole
-    // max_tokens budget, truncating the visible answer mid-sentence. Disable
-    // thinking through both channels: the official /no_think soft switch (any
-    // llama-server) and the chat-template kwarg (recent builds).
-    const disableThinking = usesAnswerOnlyLocalMode(activeModelId);
-    const systemPrompt =
-      buildAliceSystemPrompt(instructions, options?.responseLanguage ?? 'en') +
-      (disableThinking ? ' /no_think' : '');
-
-    const fullMessages = [
-      { role: 'system' as const, content: systemPrompt },
-      ...withAliceInstructionReminder(messages, instructions, options?.responseLanguage ?? 'en', options?.strictLanguageRetry),
-    ];
-
-    const fitted = fitMessagesToEstimatedLocalContext(
-      fullMessages,
-      params.maxTokens,
-      DESKTOP_CONTEXT_TOKENS,
-      candidate => fitLocalModelRoles(candidate, activeModelId),
-    );
     const streaming = Boolean(streamFn);
     const payload: Record<string, unknown> = {
       model: 'local',
-      messages: fitted.messages,
-      temperature: options?.temperatureOverride ?? params.temperature,
-      max_tokens: fitted.responseTokens,
+      messages: prepared.messages,
+      temperature: prepared.temperature,
+      max_tokens: prepared.maxTokens,
       stream: streaming,
     };
     if (streaming) payload.stream_options = { include_usage: true };
-    if (disableThinking) payload.chat_template_kwargs = { enable_thinking: false };
+    // The chat-template kwarg of recent llama-server builds; the prompt
+    // already carries the /no_think soft switch any build understands.
+    if (prepared.disableThinking) payload.chat_template_kwargs = { enable_thinking: false };
 
     const t0 = Date.now();
     const response = await globalThis.fetch(`${LLAMA_BASE}/v1/chat/completions`, {
@@ -315,8 +294,8 @@ export class LocalDesktopAIBackend implements AIBackend {
       }
     }
 
-    const constrained = applyAliceResponseConstraints(instructions, result);
-    if (shouldBuffer && onChunk) onChunk(constrained);
+    const constrained = applyAliceResponseConstraints(prepared.instructions, result);
+    if (prepared.buffered && onChunk) onChunk(constrained);
     return { content: constrained, usage, durationMs: Date.now() - t0, truncated };
   }
 

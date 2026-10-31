@@ -28,6 +28,11 @@ import {
   type AssuranceLevel,
   type ChainPolicy,
 } from './venice-attestation-chain.ts';
+import {
+  buildE2EEPayload,
+  fitE2EEMessages,
+  normalizeE2EEMessages,
+} from './venice-e2ee-request-budget.ts';
 import { failureDetail } from './venice-failure.ts';
 import type { Message } from './llm';
 
@@ -55,17 +60,19 @@ export type AttestationResult = {
   tcbStatus: string;
 };
 
-/**
- * How conversation history is handled under E2EE.
+/*
+ * Conversation history under E2EE.
  *
- * Venice encrypts `user` and `system` messages only, `assistant` messages
- * travel as plaintext. Sending prior Alice replies would therefore leak them to
- * the proxy and to Venice, which is exactly what this mode exists to prevent.
- * 'drop' is the safe default: E2EE turns are single-shot, with no assistant
- * history leaving the device. 'plaintext' is offered for an explicit, informed
- * product decision, never as a silent fallback.
+ * Every role is encrypted, `assistant` included. Venice's documentation only
+ * says that `user` and `system` messages must be encrypted, and its examples
+ * leave the other roles untouched; the enclave in fact decrypts an encrypted
+ * `assistant` turn like any other and rejects a plaintext one (verified on
+ * 2026-10-29 through the production proxy: HTTP 200 with the prior turn used
+ * by the model, HTTP 400 "E2EE decryption failed" for the same turn in clear).
+ * Until then Alice dropped every assistant turn and re-encoded only the last
+ * exchange as a user-role transcript, which is why Private Cloud forgot the
+ * conversation after 2 turns. No plaintext content ever leaves the device.
  */
-export type AssistantHistoryPolicy = 'drop' | 'plaintext';
 
 function normalizeBase(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, '');
@@ -231,40 +238,22 @@ export async function fetchAndVerifyAttestation(
 }
 
 /**
- * Build the request message list. Encrypts every user/system message, Venice
- * rejects the request outright if any of them is left in the clear while the
- * E2EE headers are present.
+ * Build the request message list. Encrypts every message whatever its role,
+ * Venice rejects the request outright if any content is left in the clear
+ * while the E2EE headers are present.
  */
 export function buildEncryptedMessages(
   messages: Message[],
   modelPublicKey: Uint8Array,
-  assistantHistory: AssistantHistoryPolicy,
 ): { role: Message['role']; content: string }[] {
   // Venice currently rejects E2EE requests containing more than one `system`
-  // message, returning the misleading error "E2EE decryption failed". Alice
-  // legitimately has several system fragments (base policy, transient RAG,
-  // pedagogy and output-language reminder), so preserve their order while
-  // combining them into the single leading system envelope Venice accepts.
-  const systemContent = messages
-    .filter(message => message.role === 'system')
-    .map(message => message.content)
-    .filter(Boolean)
-    .join('\n\n');
-  const normalized: Message[] = [
-    ...(systemContent ? [{ role: 'system' as const, content: systemContent }] : []),
-    ...messages.filter(message => message.role !== 'system'),
-  ];
-  const out: { role: Message['role']; content: string }[] = [];
-  for (const message of normalized) {
-    if (message.role === 'assistant') {
-      if (assistantHistory === 'drop') continue;
-      // Plaintext by protocol: Venice does not decrypt assistant turns.
-      out.push({ role: 'assistant', content: message.content });
-      continue;
-    }
-    out.push({ role: message.role, content: encryptToEnvelope(modelPublicKey, message.content) });
-  }
-  return out;
+  // message, returning the misleading error "E2EE decryption failed". The
+  // fragments are combined into the single leading system envelope it accepts,
+  // by the same normalization the byte budget measures.
+  return normalizeE2EEMessages(messages).map(message => ({
+    role: message.role,
+    content: encryptToEnvelope(modelPublicKey, message.content),
+  }));
 }
 
 export type E2EEStreamResult = {
@@ -281,7 +270,6 @@ export type E2EERequestOptions = {
   messages: Message[];
   temperature?: number;
   maxTokens?: number;
-  assistantHistory?: AssistantHistoryPolicy;
   attestationPolicy: ChainPolicy;
 };
 
@@ -294,9 +282,17 @@ export async function streamE2EEChatCompletion(
   options: E2EERequestOptions,
   onChunk?: (chunk: string) => void,
 ): Promise<E2EEStreamResult> {
-  const { transport, model, messages } = options;
+  const { transport, model } = options;
   assertVeniceCryptoRuntime();
-  const assistantHistory = options.assistantHistory ?? 'drop';
+  const params = {
+    model,
+    temperature: options.temperature ?? 0.7,
+    maxTokens: options.maxTokens ?? 1024,
+  };
+  // Fit the plaintext to the byte budget first: an unsendable request is
+  // refused before any attestation round trip, and only the messages that
+  // survive are ever encrypted.
+  const messages = fitE2EEMessages(options.messages, params);
   // A new nonce and quote are fetched for every call. Only public collateral
   // may be cached by the DCAP adapter.
   const attestationStarted = Date.now();
@@ -310,16 +306,9 @@ export async function streamE2EEChatCompletion(
 
   try {
     const encryptionStarted = Date.now();
-    const payload = {
-      model,
-      messages: buildEncryptedMessages(messages, attestation.modelPublicKey, assistantHistory),
-      temperature: options.temperature ?? 0.7,
-      max_tokens: options.maxTokens ?? 1024,
-      // Never configurable: E2EE is streaming-only.
-      stream: true,
-      stream_options: { include_usage: true },
-    };
-    const requestBody = JSON.stringify(payload);
+    const requestBody = JSON.stringify(
+      buildE2EEPayload(params, buildEncryptedMessages(messages, attestation.modelPublicKey)),
+    );
     const requestEncryptionMs = Date.now() - encryptionStarted;
 
     let response: any;

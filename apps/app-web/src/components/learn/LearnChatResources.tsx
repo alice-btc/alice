@@ -10,6 +10,8 @@ import { openAnchorFromChat } from '@/lib/learn/explorer-link';
 import { loadProgress, readCount } from '@/lib/learn/progress';
 import { requestPlaygroundView } from '@/lib/playground-open';
 import type { LearnChatResources as Resources } from '@/lib/learn/suggest-catalog';
+import { useT } from '@/i18n';
+import { anchorTypeLabel } from './learn-locale';
 
 // The "Pour aller plus loin" block, visually attached to the end of Alice's
 // reply: a hairline, a small label, then one compact row per resource (course
@@ -33,6 +35,7 @@ export function LearnChatResources({
   lang: 'fr' | 'en';
 }) {
   const router = useRouter();
+  const t = useT(lang);
   if (!resources || busy) return null;
   const { learn, chapter, anchors, playground } = resources;
   if (!learn && !chapter && anchors.length === 0 && !playground) return null;
@@ -54,7 +57,7 @@ export function LearnChatResources({
       }}
     >
       <span className="font-pixel" style={{ fontSize: 9, letterSpacing: 0, color: 'var(--alice-muted)' }}>
-        {lang === 'fr' ? 'POUR ALLER PLUS LOIN' : 'TO GO FURTHER'}
+        {t('learn.resources.title')}
       </span>
 
       {learn && (
@@ -72,9 +75,9 @@ export function LearnChatResources({
           <span className="font-numbers shrink-0" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
             {learn.kind === 'course'
               ? started
-                ? (lang === 'fr' ? `${learn.code.toUpperCase()} · REPRENDRE` : `${learn.code.toUpperCase()} · RESUME`)
+                ? t('learn.resources.resume', { code: learn.code.toUpperCase() })
                 : learn.code.toUpperCase()
-              : (lang === 'fr' ? 'TUTORIEL' : 'TUTORIAL')}
+              : t('learn.resources.tutorial')}
           </span>
           <span className="ml-auto"><SvgIcon svg={NEXT_ICON} size={16} /></span>
         </button>
@@ -110,7 +113,7 @@ export function LearnChatResources({
             PLAYGROUND
           </span>
           <span className="font-numbers min-w-0 truncate" style={{ fontSize: 14 }}>
-            {lang === 'fr' ? 'Essayez-le avec des sats d’entraînement' : 'Try it with training sats'}
+            {t('learn.resources.playground')}
           </span>
           <span className="ml-auto"><SvgIcon svg={NEXT_ICON} size={16} /></span>
         </button>
@@ -128,7 +131,7 @@ export function LearnChatResources({
           </span>
           <span className="font-numbers min-w-0 truncate" style={{ fontSize: 14 }}>{anchor.label[lang]}</span>
           <span className="font-numbers shrink-0" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-            {anchor.type === 'block' ? `${lang === 'fr' ? 'BLOC' : 'BLOCK'} ${anchor.id}` : anchor.type.toUpperCase()}
+            {anchorTypeLabel(t, anchor)}
           </span>
           <span className="ml-auto"><SvgIcon svg={NEXT_ICON} size={16} /></span>
         </button>

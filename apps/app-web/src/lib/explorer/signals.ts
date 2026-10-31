@@ -5,6 +5,7 @@
 // facts. The AbstractSignal projection (for sending to Alice) is added later.
 
 import type { NormalizedBlock, NormalizedTransaction } from './types.ts';
+import { t } from '../../i18n/translate.ts';
 
 export type SignalSeverity = 'info' | 'low' | 'medium' | 'high';
 
@@ -92,14 +93,10 @@ export function detectAddressReuse(
 
     const reasons: string[] = [];
     if (historyReuse) {
-      reasons.push(
-        `This address has received funds ${stats!.fundedCount} times on-chain. Reusing it publicly ties all those payments to the same owner.`,
-      );
+      reasons.push(t('explorerSignals.reuse.history', { count: stats!.fundedCount }));
     }
     if (intraReuse) {
-      reasons.push(
-        `It appears ${withinTxCount} times in this transaction (${e.inInputs} input(s), ${e.inOutputs} output(s)), directly linking these coins.`,
-      );
+      reasons.push(t('explorerSignals.reuse.intra', { count: withinTxCount, inputs: e.inInputs, outputs: e.inOutputs }));
     }
 
     signals.push({
@@ -107,7 +104,7 @@ export function detectAddressReuse(
       ruleId: 'ADDRESS_REUSE',
       severity: 'medium',
       confidence: 'certain',
-      title: 'Address reuse',
+      title: t('explorerSignals.reuse.title'),
       detail: reasons.join(' '),
       subjects: [address],
       evidence: {
@@ -124,6 +121,10 @@ export function detectAddressReuse(
   // Most severe first; within a rule, keep deterministic order by subject.
   return signals.sort((a, b) => a.subjects[0].localeCompare(b.subjects[0]));
 }
+
+// The signal cards show a finding's title and detail in the interface
+// language. The descriptions and page-context signals below are only read by
+// Alice, never shown: they stay in English, like the rest of her context.
 
 // Identified-mode descriptions: the page's REAL details as plain text, with
 // identifiers and values. Deterministic renderings of already-fetched data,
@@ -268,8 +269,8 @@ export function detectAddressReuseForAddress(stats: AddressStats): PrivacySignal
     ruleId: 'ADDRESS_REUSE',
     severity: 'medium',
     confidence: 'certain',
-    title: 'Address reuse',
-    detail: `This address has received funds ${stats.fundedCount} times on-chain. Reusing it publicly ties all those payments to the same owner.`,
+    title: t('explorerSignals.reuse.title'),
+    detail: t('explorerSignals.reuse.history', { count: stats.fundedCount }),
     subjects: [stats.address],
     evidence: {
       address: stats.address,

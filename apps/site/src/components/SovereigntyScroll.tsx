@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { LaptopIcon, CloudIcon, KeyIcon } from '@/components/icons';
 import { useStepClip } from '@/lib/use-step-clip';
+import type { HomeCopy } from '@/i18n/dictionaries/home';
 
 // Pinned scrollytelling. The left panel stays fixed while three steps scroll
 // past; the matching row lights up as each step reaches the centre of the
@@ -13,29 +14,15 @@ import { useStepClip } from '@/lib/use-step-clip';
 
 type Layer = { label: string; icon: ReactNode };
 
-const LAYERS: Layer[] = [
-  { label: 'Local, on your device', icon: <LaptopIcon size={20} /> },
-  { label: 'Private Cloud, encrypted', icon: <CloudIcon size={20} /> },
-  { label: 'Self-custody, your keys', icon: <KeyIcon size={20} /> },
-];
+function layers(copy: HomeCopy['sovereignty']): Layer[] {
+  return [
+    { label: copy.layers.local, icon: <LaptopIcon size={20} /> },
+    { label: copy.layers.cloud, icon: <CloudIcon size={20} /> },
+    { label: copy.layers.custody, icon: <KeyIcon size={20} /> },
+  ];
+}
 
-const STEPS: { eyebrow: string; title: string; body: string }[] = [
-  {
-    eyebrow: 'Option 1 · On your device',
-    title: 'Local runs on your device',
-    body: 'Local runs the model on your own device in the installed app; the web app has no local inference. Custom AI is different: it points Alice at your own server through its API, so questions travel to that server. Downloads and other network features still use the network.',
-  },
-  {
-    eyebrow: 'Option 2 · When you need power',
-    title: 'Private Cloud, encrypted end-to-end',
-    body: 'Ask anything about Bitcoin. When you need a bigger model, your messages travel end-to-end encrypted to confidential hardware (a TEE). Its hardware is verified before every message; the exact program inside cannot be verified yet, pending Venice’s reference values. On installed apps, you can switch between Local and Private Cloud.',
-  },
-  {
-    eyebrow: 'Whichever you pick',
-    title: 'One companion, from the first question to the first payment',
-    body: 'Learn in the app and practise in the Playground, with coins that cost nothing. However she runs, your keys stay yours: you hold them, and Alice never can.',
-  },
-];
+// The three steps are in the home dictionary.
 
 function LayerRow({ layer, on }: { layer: Layer; on: boolean }) {
   return (
@@ -53,7 +40,9 @@ function LayerRow({ layer, on }: { layer: Layer; on: boolean }) {
   );
 }
 
-export function SovereigntyScroll() {
+export function SovereigntyScroll({ copy }: { copy: HomeCopy['sovereignty'] }) {
+  const layerRows = layers(copy);
+  const steps = copy.steps;
   const [active, setActive] = useState(0);
   const stepsRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef<HTMLDivElement>(null);
@@ -81,7 +70,7 @@ export function SovereigntyScroll() {
   return (
     <section id="sovereignty" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-12">
       <h2 className="sr-only">
-        How Alice runs, Local or Private Cloud, and how your Bitcoin stays self-custody
+        {copy.srTitle}
       </h2>
       <div className="grid gap-8 md:grid-cols-2">
         {/* Pinned visual, on every viewport. On mobile the wrapper stays
@@ -90,32 +79,32 @@ export function SovereigntyScroll() {
         <div ref={pinnedRef} className="sticky top-16 z-10 self-start md:top-24">
           <div className="rounded-[4px] border border-[var(--alice-border)] bg-[var(--alice-card-bg)] p-6">
             <p className="font-pixel text-[12px] uppercase tracking-widest text-[var(--alice-primary)]">
-              How Alice runs, you choose
+              {copy.panelTitle}
             </p>
             <div className="mt-4 flex flex-col gap-2">
-              <LayerRow layer={LAYERS[0]} on={active === 0} />
+              <LayerRow layer={layerRows[0]} on={active === 0} />
               <div className="flex items-center gap-3 py-0.5" aria-hidden>
                 <span className="h-px flex-1 bg-[var(--alice-border)]" />
                 <span className="font-pixel text-[12px] uppercase tracking-widest text-[var(--alice-muted)]">
-                  or
+                  {copy.or}
                 </span>
                 <span className="h-px flex-1 bg-[var(--alice-border)]" />
               </div>
-              <LayerRow layer={LAYERS[1]} on={active === 1} />
+              <LayerRow layer={layerRows[1]} on={active === 1} />
             </div>
 
             <p className="mt-6 font-pixel text-[12px] uppercase tracking-widest text-[var(--alice-primary)]">
-              Your Bitcoin, always
+              {copy.always}
             </p>
             <div className="mt-4">
-              <LayerRow layer={LAYERS[2]} on={active === 2} />
+              <LayerRow layer={layerRows[2]} on={active === 2} />
             </div>
           </div>
         </div>
 
         {/* Scrolling steps */}
         <div ref={stepsRef}>
-          {STEPS.map((step, i) => (
+          {steps.map((step, i) => (
             <div
               key={step.title}
               data-step={i}

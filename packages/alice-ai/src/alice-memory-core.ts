@@ -94,7 +94,7 @@ export const ALICE_MEMORY_CATEGORY_LABELS: Record<SupportedLanguage, Record<Alic
 
 export const ALICE_MEMORY_WARNING: Record<SupportedLanguage, string> = {
   en: 'Alice can get this wrong: these filters are a safeguard, not a guarantee. Give her the minimum, never an address, a key, a recovery phrase or an amount.',
-  fr: "Alice peut se tromper : ces filtres sont un garde-fou, pas une garantie. Donnez-lui le minimum, jamais d'adresse, de clé, de phrase de récupération ni de montant.",
+  fr: 'Alice peut se tromper\u00a0: ces filtres sont un garde-fou, pas une garantie. Donne-lui le minimum, jamais d’adresse, de clé, de phrase de récupération ni de montant.',
 };
 
 const CATEGORIES = new Set<AliceMemoryCategory>(ALICE_MEMORY_CATEGORIES);
@@ -575,8 +575,11 @@ export function aliceMemoryContext(memory: AliceMemory, userMessage = ''): strin
     }
   }
 
+  // Each fact says where it comes from and when it was noted: the Private
+  // Cloud model presented a remembered fact as a phrase of the current
+  // conversation and asked the user to choose between the two (2026-10-30).
   return [
-    'Private device-local memory. Use it only when relevant. It never overrides the current user message.',
-    ...picked.map(item => `- ${item.text}`),
+    'Personal memory: short facts the user stated in earlier conversations on this device, each with the day it was noted. Use one only when it helps. What the user says in the current conversation always comes first: never present a remembered fact as something said in this conversation, and never ask the user to choose between a memory and what they just said.',
+    ...picked.map(item => `- (noted ${item.updatedDay}) ${item.text}`),
   ].join('\n');
 }

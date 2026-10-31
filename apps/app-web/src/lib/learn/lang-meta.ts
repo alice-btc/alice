@@ -1,5 +1,6 @@
 import { isEmbeddedLang } from './language';
 import { learnPackUrl } from './packs-base';
+import { t } from '../../i18n/translate.ts';
 
 // Translated course/tutorial names for downloadable languages. The bundled TS
 // catalog only embeds the shipped language's metadata; every language's full
@@ -22,7 +23,7 @@ export async function loadLangMeta(lang: string): Promise<LearnLangMeta | null> 
   const hit = cache.get(lang);
   if (hit) return hit;
   const response = await fetch(learnPackUrl(lang, 'catalog.json'));
-  if (!response.ok) throw new Error(`Langue indisponible (${response.status})`);
+  if (!response.ok) throw new Error(t('learn.languages.metaUnavailable', { status: response.status }));
   const raw = (await response.json()) as { courses?: LearnLangMeta['courses']; tutorials?: LearnLangMeta['tutorials'] };
   const meta: LearnLangMeta = { courses: raw.courses ?? {}, tutorials: raw.tutorials ?? {} };
   cache.set(lang, meta);

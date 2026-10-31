@@ -9,6 +9,7 @@
 
 import { magnitudeBucket } from './audit-core.ts';
 import type { AddressStats, PrivacySignal } from './signals.ts';
+import { t } from '../../i18n/translate.ts';
 
 export type AddressType = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2tr' | 'unknown';
 
@@ -59,18 +60,15 @@ export function detectQuantumExposure(address: string, stats: AddressStats): Pri
   const q = analyzeQuantumExposure(address, stats);
   if (!q.exposed || q.balanceSats <= 0) return [];
   const why = q.exposedBySpend
-    ? 'because it has already been spent from'
-    : 'because a Taproot output publishes its key';
+    ? t('explorer.quantumSignal.whySpent')
+    : t('explorer.quantumSignal.whyTaproot');
   return [{
     id: `QUANTUM_EXPOSURE:${address}`,
     ruleId: 'QUANTUM_EXPOSURE',
     severity: 'low',
     confidence: 'certain',
-    title: 'Quantum-exposed key',
-    detail:
-      `This address's public key is already visible on-chain, ${why}. Funds left on a ` +
-      'key-exposed address are the ones a future large-scale quantum computer could target ' +
-      'first. Moving them to a fresh, never-spent, non-Taproot address hides the key again.',
+    title: t('explorer.quantumSignal.title'),
+    detail: t('explorer.quantumSignal.detail', { why }),
     subjects: [address],
     evidence: {
       exposedBySpend: q.exposedBySpend,

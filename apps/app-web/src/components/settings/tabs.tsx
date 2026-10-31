@@ -1,5 +1,6 @@
 'use client';
 
+import type { MessageKey } from '@/i18n';
 import { SETTINGS_ICON, PALETTE_ICON, MODEL_ICON, ACCOUNT_ICON, EXPLORE_ICON, DATA_ICON } from '@/lib/atelier-icons';
 import { GeneralTab } from './GeneralTab';
 import { AppearanceTab } from './AppearanceTab';
@@ -10,8 +11,8 @@ import { DataTab } from './DataTab';
 
 export interface SettingsTab {
   id: string;
-  /** Rail label. Kept to one word so the rail stays narrow. */
-  label: string;
+  /** Rail label, a dictionary key. Kept to one word so the rail stays narrow. */
+  labelKey: MessageKey;
   /** SVG source with a {{COLOR}} placeholder, as SvgIcon expects. */
   icon: string;
   /** Rail grouping. 'alice' is how Alice behaves and looks, 'data' is what
@@ -26,12 +27,12 @@ export interface SettingsTab {
  * dialog and the /settings route pick it up.
  */
 export const SETTINGS_TABS: SettingsTab[] = [
-  { id: 'general', label: 'General', icon: SETTINGS_ICON, group: 'alice', Component: GeneralTab },
-  { id: 'appearance', label: 'Appearance', icon: PALETTE_ICON, group: 'alice', Component: AppearanceTab },
-  { id: 'ai', label: 'AI', icon: MODEL_ICON, group: 'alice', Component: AiTab },
-  { id: 'account', label: 'Account', icon: ACCOUNT_ICON, group: 'alice', Component: AccountTab },
-  { id: 'explorer', label: 'Explorer', icon: EXPLORE_ICON, group: 'data', Component: ExplorerTab },
-  { id: 'data', label: 'Data', icon: DATA_ICON, group: 'data', Component: DataTab },
+  { id: 'general', labelKey: 'settings.tabs.general', icon: SETTINGS_ICON, group: 'alice', Component: GeneralTab },
+  { id: 'appearance', labelKey: 'settings.tabs.appearance', icon: PALETTE_ICON, group: 'alice', Component: AppearanceTab },
+  { id: 'ai', labelKey: 'settings.tabs.ai', icon: MODEL_ICON, group: 'alice', Component: AiTab },
+  { id: 'account', labelKey: 'settings.tabs.account', icon: ACCOUNT_ICON, group: 'alice', Component: AccountTab },
+  { id: 'explorer', labelKey: 'settings.tabs.explorer', icon: EXPLORE_ICON, group: 'data', Component: ExplorerTab },
+  { id: 'data', labelKey: 'settings.tabs.data', icon: DATA_ICON, group: 'data', Component: DataTab },
 ];
 
 export const DEFAULT_SETTINGS_TAB = SETTINGS_TABS[0].id;

@@ -235,6 +235,18 @@ describe('arkadeAddressContext and arkadeVtxoContext', () => {
     assert.deepEqual(a.shape, { addresses: 1, txs: 2, utxos: 1, inputCount: undefined, outputCount: undefined });
   });
 
+  it('calls a coin spent then swept "spent", never "swept by the operator"', () => {
+    const both: ArkadeVtxo = { ...vtxo, isSpent: true, isSwept: true, isPreconfirmed: true, spentBy: hex('6') };
+    const addr = arkadeAddressContext({ ...info, spendableSats: 0, spendableCount: 0, totalCount: 1, vtxos: [both] }, NOW);
+    assert.match(addr.full.description, /- 3{64}:1: 21,000 sats, spent,/);
+    assert.ok(!addr.full.description.includes('swept by the operator'));
+    const sweptOnly = arkadeAddressContext({ ...info, vtxos: [{ ...vtxo, isSwept: true }] }, NOW);
+    assert.match(sweptOnly.full.description, /- 3{64}:1: 21,000 sats, swept by the operator,/);
+    const path: ArkadeExitPath = { commitmentTxid: hex('4'), batchVout: 0, anchorSats: 100_000, steps: [{ txid: hex('7'), type: 'tree', outputs: [{ amountSats: 21_000, ours: true }], ourIndex: 0, branchSats: 21_000 }] };
+    const coin = arkadeVtxoContext({ id: `${hex('3')}:1`, vtxo: both, path, info: null, address: ARK }, NOW);
+    assert.match(coin.full.description, /21,000 sats, spent, expires/);
+  });
+
   it('says when the indexer did not serve the coin itself', () => {
     const path: ArkadeExitPath = { commitmentTxid: hex('4'), batchVout: 0, anchorSats: 100_000, steps: [{ txid: hex('7'), type: 'tree', outputs: [{ amountSats: 50_000, ours: true }], ourIndex: 0, branchSats: 50_000, expiresAt: NOW - 10 }] };
     const ctx = arkadeVtxoContext({ id: `${hex('3')}:1`, vtxo: null, path, info: null, address: null }, NOW);
@@ -242,6 +254,63 @@ describe('arkadeAddressContext and arkadeVtxoContext', () => {
     assert.ok(!ctx.full.description.includes('then wait'));
     const a = toAbstractSignal(ctx.signal)!;
     assert.deepEqual(a.flags, { arkade: true, vtxo: true, expired: true });
+  });
+});
+
+// A VTXO's expiry can be a block height with no date at all. The context then
+// says the block, as the Bark one does, and never a date in January 1970 (a
+// height read as unix seconds), nor an "expired" flag judged against the clock.
+describe('Arkade context when the expiry is a block height', () => {
+  const ARK = 'ark1qexampleaddressexampleaddressexampleaddressexampleaddressexampleaddr';
+  const HEIGHT = 850_123;
+  const blockOf = /expires[^\n,]*\b(?:block|height)\b[^\n,]*850,?123/i;
+  const base: ArkadeVtxo = { txid: hex('3'), vout: 1, amountSats: 21_000, isSpent: false, isSwept: false, isPreconfirmed: false, createdAt: NOW - 86_400 * 40, commitmentTxids: [hex('4')] };
+  // Fields the production types gain with the fix; set through a cast so this file reads the same before it.
+  const withHeight = { ...base, expiresAtHeight: HEIGHT } as ArkadeVtxo;
+  const exitPath = (stepExpiry: Record<string, number>): ArkadeExitPath => ({
+    commitmentTxid: hex('4'), batchVout: 0, anchorSats: 100_000,
+    steps: [{ txid: hex('7'), type: 'tree', outputs: [{ amountSats: 50_000, ours: true }], ourIndex: 0, branchSats: 50_000, ...stepExpiry }] as ArkadeExitPath['steps'],
+  });
+
+  it('writes the block in the address page row, not a date', () => {
+    const info: ArkadeAddressInfo = { address: ARK, scriptHex: '5120' + hex('5'), spendableSats: 21_000, spendableCount: 1, totalCount: 1, vtxos: [withHeight] };
+    const text = arkadeAddressContext(info, NOW).full.description;
+    assert.match(text, blockOf);
+    assert.ok(!/1970/.test(text), 'no date in 1970');
+    assert.ok(!/expires undated/.test(text), 'the expiry is known');
+  });
+
+  it('still writes a date for a date expiry', () => {
+    const dated: ArkadeVtxo = { ...base, expiresAt: NOW + 86_400 * 20 };
+    const info: ArkadeAddressInfo = { address: ARK, scriptHex: '5120' + hex('5'), spendableSats: 21_000, spendableCount: 1, totalCount: 1, vtxos: [dated] };
+    assert.match(arkadeAddressContext(info, NOW).full.description, /expires \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC/);
+  });
+
+  it('writes the block for a coin page, and does not judge a height against the clock', () => {
+    const ctx = arkadeVtxoContext({ id: `${hex('3')}:1`, vtxo: withHeight, path: exitPath({}), info: null, address: null }, NOW);
+    assert.match(ctx.full.description, blockOf);
+    assert.ok(!/1970/.test(ctx.full.description), 'no date in 1970');
+    // 850,123 is below the clock's seconds, yet no tip is known: not expired.
+    assert.equal(toAbstractSignal(ctx.signal)!.flags!.expired, undefined);
+  });
+
+  it('writes the block of the exit path steps too', () => {
+    const ctx = arkadeVtxoContext({ id: `${hex('3')}:1`, vtxo: withHeight, path: exitPath({ expiresAtHeight: HEIGHT }), info: null, address: null }, NOW);
+    const stepLine = ctx.full.description.split('\n').find(l => l.startsWith(`- tree ${hex('7')}`))!;
+    assert.match(stepLine, /expires[^\n,]*\b(?:block|height)\b[^\n,]*850,?123/i);
+    assert.ok(!/1970/.test(ctx.full.description));
+  });
+
+  it('takes the height from the last step when the indexer does not serve the coin', () => {
+    const ctx = arkadeVtxoContext({ id: `${hex('3')}:1`, vtxo: null, path: exitPath({ expiresAtHeight: HEIGHT }), info: null, address: null }, NOW);
+    assert.match(ctx.full.description, blockOf);
+    assert.ok(!/1970/.test(ctx.full.description));
+    assert.equal(toAbstractSignal(ctx.signal)!.flags!.expired, undefined);
+  });
+
+  it('still flags a date expiry in the past as expired', () => {
+    const ctx = arkadeVtxoContext({ id: `${hex('3')}:1`, vtxo: { ...base, expiresAt: NOW - 10 }, path: exitPath({}), info: null, address: null }, NOW);
+    assert.equal(toAbstractSignal(ctx.signal)!.flags!.expired, true);
   });
 });
 

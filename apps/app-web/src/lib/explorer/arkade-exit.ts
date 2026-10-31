@@ -11,6 +11,8 @@
 // and Ark transaction (off-chain, preconfirmed by the operator).
 
 import { ArkadeError, getArkadeVirtualTx, type ArkadeVirtualTx } from './arkade.ts';
+import { parseScalarExpiry } from './arkade-expiry.ts';
+import { t as tr } from '../../i18n/translate.ts';
 
 export type ArkadeChainTxType = 'commitment' | 'tree' | 'checkpoint' | 'ark' | 'unknown';
 
@@ -19,8 +21,10 @@ export type ArkadeChainTxType = 'commitment' | 'tree' | 'checkpoint' | 'ark' | '
 export type ArkadeChainTx = {
   txid: string;
   type: ArkadeChainTxType;
-  /** Unix seconds, when the indexer gives it. */
+  /** Unix seconds, when the indexer gives a date. */
   expiresAt?: number;
+  /** A block height, when the indexer's scalar is one. */
+  expiresAtHeight?: number;
   /** The transactions this one spends (its parents). */
   spends: string[];
 };
@@ -32,22 +36,18 @@ const CHAIN_TYPES: Record<string, ArkadeChainTxType> = {
   INDEXER_CHAINED_TX_TYPE_ARK: 'ark',
 };
 
-function num(v: unknown): number {
-  const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : NaN;
-  return Number.isFinite(n) ? n : 0;
-}
-
 /** Read the indexer's chain reply (GET /v1/indexer/vtxo/{txid}/{vout}/chain). */
 export function parseArkadeChain(j: unknown): ArkadeChainTx[] {
   const raw = (j as { chain?: unknown })?.chain;
-  if (!Array.isArray(raw)) throw new ArkadeError('The operator answered without a chain.');
+  if (!Array.isArray(raw)) throw new ArkadeError(tr('explorerArk.error.noChain'));
   return raw.map(e => {
     const r = (e ?? {}) as Record<string, unknown>;
-    const expires = num(r.expiresAt);
+    const expiry = parseScalarExpiry(r.expiresAt);
     return {
       txid: String(r.txid ?? ''),
       type: CHAIN_TYPES[String(r.type)] ?? 'unknown',
-      expiresAt: expires > 0 ? expires : undefined,
+      expiresAt: expiry.expiresAt,
+      ...(expiry.expiresAtHeight !== undefined ? { expiresAtHeight: expiry.expiresAtHeight } : {}),
       spends: Array.isArray(r.spends) ? r.spends.map(String) : [],
     };
   }).filter(e => /^[0-9a-f]{64}$/i.test(e.txid));
@@ -59,10 +59,10 @@ export async function getArkadeVtxoChain(base: string, txid: string, vout: numbe
     headers: { accept: 'application/json' },
     signal: opts.signal,
   });
-  if (res.status === 404) throw new ArkadeError('The operator does not know this VTXO.');
-  if (!res.ok) throw new ArkadeError(`The operator answered ${res.status}.`);
+  if (res.status === 404) throw new ArkadeError(tr('explorerArk.error.unknownVtxo'));
+  if (!res.ok) throw new ArkadeError(tr('explorerArk.error.operatorStatus', { status: res.status }));
   const j = await res.json();
-  if ((j as { code?: unknown })?.code === 5) throw new ArkadeError('The operator does not know this VTXO.');
+  if ((j as { code?: unknown })?.code === 5) throw new ArkadeError(tr('explorerArk.error.unknownVtxo'));
   return parseArkadeChain(j);
 }
 
@@ -77,6 +77,7 @@ export type ArkadeExitStep = {
   /** The branch's amount after this transaction. */
   branchSats: number;
   expiresAt?: number;
+  expiresAtHeight?: number;
 };
 
 export type ArkadeExitPath = {
@@ -104,20 +105,20 @@ export function buildArkadeExitPath(
   coin: { txid: string; vout: number },
 ): ArkadeExitPath {
   const commitment = chain.find(c => c.type === 'commitment');
-  if (!commitment) throw new ArkadeError('This VTXO’s chain names no commitment transaction.');
+  if (!commitment) throw new ArkadeError(tr('explorerArk.error.noCommitment'));
   // Anchor first, the coin's transaction last, the commitment left out.
   const ordered = [...chain].reverse().filter(c => c.type !== 'commitment');
-  if (ordered.length === 0) throw new ArkadeError('This VTXO’s chain holds no off-chain transaction.');
+  if (ordered.length === 0) throw new ArkadeError(tr('explorerArk.error.noOffchain'));
   const steps: ArkadeExitStep[] = [];
   for (let i = 0; i < ordered.length; i++) {
     const c = ordered[i];
     const tx = txs.get(c.txid);
-    if (!tx) throw new ArkadeError(`The operator did not serve transaction ${c.txid.slice(0, 12)}…`);
+    if (!tx) throw new ArkadeError(tr('explorerArk.error.notServed', { txid: c.txid.slice(0, 12) }));
     const outs = tx.outputs.filter(o => !o.isAnchor);
     const next = i + 1 < ordered.length ? txs.get(ordered[i + 1].txid) : undefined;
     const ourVout = next ? spentVout(next, c.txid) : coin.vout;
     const ourIndex = outs.findIndex(o => o.index === ourVout);
-    if (ourIndex < 0) throw new ArkadeError(`Transaction ${c.txid.slice(0, 12)}… has no output leading to this coin.`);
+    if (ourIndex < 0) throw new ArkadeError(tr('explorerArk.error.noOutput', { txid: c.txid.slice(0, 12) }));
     steps.push({
       txid: c.txid,
       type: c.type === 'tree' || c.type === 'checkpoint' ? c.type : 'ark',
@@ -125,6 +126,7 @@ export function buildArkadeExitPath(
       ourIndex,
       branchSats: outs[ourIndex].amountSats,
       expiresAt: c.expiresAt,
+      ...(c.expiresAtHeight !== undefined ? { expiresAtHeight: c.expiresAtHeight } : {}),
     });
   }
   const root = txs.get(ordered[0].txid)!;

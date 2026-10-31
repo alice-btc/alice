@@ -6,6 +6,7 @@
 //
 // Pure orchestration: no derivation maths (that is wallet-derive), no UI.
 
+import { t } from '../../i18n/translate.ts';
 import type { ChainDataProvider, RequestOptions } from './provider.ts';
 import { ChainDataError } from './provider.ts';
 import type { AddressStats } from './signals.ts';
@@ -123,7 +124,7 @@ async function scanChain(
   // concurrency, so this stays polite while making progress in chunks.
   while (index < maxAddresses && trailingGap < gapLimit) {
     // A cancelled scan stops dead: the caller's view is gone.
-    if (callerSignal?.aborted) throw new ChainDataError('aborted', 'The scan was cancelled.');
+    if (callerSignal?.aborted) throw new ChainDataError('aborted', t('explorer.provider.scanCancelled'));
     // Stop if we have blown the overall time budget (a stalling endpoint).
     if (Date.now() >= deadline) { throttled = true; degraded = true; break; }
     const windowSize = Math.min(SCAN_WINDOW, maxAddresses - index);
