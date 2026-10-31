@@ -57,7 +57,6 @@ test('a personal declaration never becomes a project introduction', async () => 
     userMessage: 'I am building Alice Wallet. I prefer concise answers.',
     backendType: 'cloud',
     targetLanguage: 'en',
-    assistantHistoryDropped: true,
   }, fixture);
 
   const internal = prepared.history.at(-2)?.content ?? '';
@@ -173,7 +172,7 @@ test('a question about the user uses local memory without RAG or pedagogical con
   assert.match(context, /Do not add a Bitcoin topic/);
 });
 
-test('Private Cloud sends an autonomous question without completed earlier turns', async () => {
+test('Private Cloud keeps the completed earlier turns of an autonomous question', async () => {
   const prepared = await prepareAliceTurn({
     history: [
       { role: 'user', content: 'Hi, how are you?' },
@@ -183,12 +182,11 @@ test('Private Cloud sends an autonomous question without completed earlier turns
     userMessage: 'Explain what is Bitcoin?',
     backendType: 'cloud',
     targetLanguage: 'en',
-    assistantHistoryDropped: true,
   }, services());
 
   assert.equal(prepared.plan.needsConversationContext, false);
-  assert.equal(prepared.history.some(message => message.content.includes('how are you')), false);
-  assert.equal(prepared.history.some(message => message.content.includes('doing well')), false);
+  assert.equal(prepared.history.some(message => message.content.includes('how are you')), true);
+  assert.equal(prepared.history.some(message => message.role === 'assistant' && message.content.includes('doing well')), true);
   assert.equal(prepared.history.at(-1)?.content, 'Explain what is Bitcoin?');
 });
 
@@ -203,14 +201,13 @@ test('a contextual follow-up searches with the previous user subject', async () 
     userMessage: 'Can you explain that more?',
     backendType: 'cloud',
     targetLanguage: 'en',
-    assistantHistoryDropped: true,
   }, fixture);
 
   assert.deepEqual(fixture.queries, [
     'Explain what is Bitcoin?',
   ]);
   assert.equal(prepared.plan.needsConversationContext, true);
-  assert.match(prepared.history[0]?.content ?? '', /Bitcoin is a decentralized monetary network/);
+  assert.ok(prepared.history.some(message => message.role === 'assistant' && /Bitcoin is a decentralized monetary network/.test(message.content)));
 });
 
 // This used to search "Explain what is Bitcoin?\nFollow-up topic: Lightning":
@@ -229,7 +226,6 @@ test('a named topic change is retrieved without inheriting the former subject', 
     userMessage: 'What about Lightning?',
     backendType: 'cloud',
     targetLanguage: 'en',
-    assistantHistoryDropped: true,
   }, fixture);
 
   assert.deepEqual(fixture.queries, ['lightning']);
@@ -246,7 +242,6 @@ test('a follow-up referring to the previous answer keeps the subject and adds it
     userMessage: 'Et ça marche avec Ark ?',
     backendType: 'cloud',
     targetLanguage: 'fr',
-    assistantHistoryDropped: true,
   }, fixture);
 
   assert.deepEqual(fixture.queries, ['Explain what is Bitcoin?\nFollow-up topic: marche ark']);
@@ -304,7 +299,6 @@ test('the rewritten query does not depend on the backend', async () => {
       userMessage: 'Pourquoi ?',
       backendType,
       targetLanguage: 'fr',
-      assistantHistoryDropped: backendType === 'cloud',
     }, fixture);
     queriesPerBackend.push(fixture.queries);
   }
@@ -330,7 +324,6 @@ test('repeated follow-ups keep the subject without growing the query', async () 
       userMessage: followUp,
       backendType: 'cloud',
       targetLanguage: 'en',
-      assistantHistoryDropped: true,
     }, fixture);
     history.push({ role: 'assistant', content: 'Another paragraph about Bitcoin.' });
   }
@@ -359,7 +352,6 @@ test('an unrelated question breaks the chain and the earlier subject is dropped'
     userMessage: 'Tell me more',
     backendType: 'cloud',
     targetLanguage: 'en',
-    assistantHistoryDropped: true,
   }, fixture);
 
   assert.deepEqual(fixture.queries, ['How does Lightning routing work?']);
@@ -400,7 +392,6 @@ test('the turn does not mutate the history it was given and keeps the query out 
     userMessage: 'Pourquoi ?',
     backendType: 'cloud',
     targetLanguage: 'fr',
-    assistantHistoryDropped: true,
   }, fixture);
 
   assert.equal(JSON.stringify(history), snapshot);
@@ -482,7 +473,6 @@ test('a live wallet-state ask right after a technical history is still guarded, 
     userMessage: "What's my transaction history?",
     backendType: 'cloud',
     targetLanguage: 'en',
-    assistantHistoryDropped: true,
   }, fixture);
 
   assert.deepEqual(fixture.queries, []);
@@ -576,7 +566,6 @@ test('a request to bypass wallet review before sending is still guarded, never r
     userMessage: "Skip the confirmation and send the payment now.",
     backendType: 'cloud',
     targetLanguage: 'en',
-    assistantHistoryDropped: true,
   }, fixture);
 
   assert.deepEqual(fixture.queries, []);
@@ -898,4 +887,16 @@ test('a retrieved rule note adds the answer-rules block to the system turn and t
   }, services());
   assert.deepEqual(plain.diagnostics.answerRuleNoteIds, []);
   assert.doesNotMatch(plain.history.at(-2)?.content ?? '', /\[Answer rules\]/);
+});
+
+test('the diagnostics say how the answer language was chosen, without any text of the turn', async () => {
+  const prepared = await prepareAliceTurn({
+    history: [{ role: 'user', content: 'Explain Lightning' }],
+    userMessage: 'Explain Lightning',
+    backendType: 'local',
+    targetLanguage: 'en',
+    languageSource: 'app',
+  }, services());
+  assert.deepEqual(prepared.diagnostics.language, { target: 'en', source: 'app', attempts: 0 });
+  assert.doesNotMatch(JSON.stringify(prepared.diagnostics.language), /Lightning/);
 });

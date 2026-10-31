@@ -3,6 +3,8 @@
 // has its own Esplora; Arkade and Bark (off-chain VTXOs held with an Ark
 // server) settle on Bitcoin mainnet and add their own layer on top of it.
 
+import { t } from '../../i18n/translate.ts';
+
 export type NetworkKind = 'bitcoin' | 'liquid' | 'arkade' | 'bark' | 'spark';
 
 export type Network = {
@@ -42,7 +44,7 @@ export const NETWORKS: Network[] = [
   },
   {
     id: 'liquid', label: 'Liquid', kind: 'liquid', baseUrl: 'https://liquid.network/api', available: true, color: '#34c2c2',
-    note: 'confidential amounts are blinded and shown as unknown',
+    get note() { return t('explorer.network.liquidNote'); },
     fallbacks: [
       { baseUrl: 'https://blockstream.info/liquid/api', name: 'blockstream.info', esploraOnly: true },
     ],

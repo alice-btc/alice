@@ -6,6 +6,8 @@
 // user sees the limit next to the claim. It is the second line behind the
 // deterministic reply for detected present-value questions.
 
+import { SUPPORTED_LANGUAGE_CODES, type SupportedLanguage } from './languages.ts';
+
 const LIVE_CUE = /\b(?:right now|currently|at the moment|as of (?:my last update|today|now)|today|current(?:ly)?|live|real[- ]time|en ce moment|actuellement|actuel(?:le)?s?|aujourd'hui|a l'instant|en temps reel|a ce jour)\b/;
 // A figure with a network unit, a current rate wording or a present mempool
 // state. Hypothetical examples ("if you choose 50 sat/vB") are excluded by
@@ -28,23 +30,26 @@ export function assertsLiveNetworkValue(answer: string): boolean {
   return false;
 }
 
-export function liveValueCaveat(language: 'en' | 'fr'): string {
-  return language === 'fr'
-    ? "Attention : cette conversation n'a aucune donnée en direct sur le réseau Bitcoin, le mempool ou les frais. Tout chiffre ou état « actuel » ci-dessus n'est pas une observation réelle ; vérifie l'estimation affichée par ton portefeuille avant de confirmer."
-    : "Note: this chat has no live data about the Bitcoin network, the mempool or fees. Any \"current\" figure or state above is not an actual observation; check the estimate shown in your wallet before confirming.";
+const LIVE_VALUE_CAVEATS: Readonly<Record<SupportedLanguage, string>> = {
+  fr: "Attention : cette conversation n'a aucune donnée en direct sur le réseau Bitcoin, le mempool ou les frais. Tout chiffre ou état « actuel » ci-dessus n'est pas une observation réelle ; vérifie l'estimation affichée par ton portefeuille avant de confirmer.",
+  en: "Note: this chat has no live data about the Bitcoin network, the mempool or fees. Any \"current\" figure or state above is not an actual observation; check the estimate shown in your wallet before confirming.",
+};
+
+export function liveValueCaveat(language: SupportedLanguage): string {
+  return LIVE_VALUE_CAVEATS[language];
 }
 
 /** Appends the caveat once when the answer asserts a live network value. */
 /** The caveat an answer already carries, in either language, or null. */
 export function liveValueCaveatIn(answer: string): string | null {
-  for (const language of ['en', 'fr'] as const) {
+  for (const language of SUPPORTED_LANGUAGE_CODES) {
     const caveat = liveValueCaveat(language);
     if (answer.includes(caveat)) return caveat;
   }
   return null;
 }
 
-export function withLiveValueCaveat(answer: string, language: 'en' | 'fr'): string {
+export function withLiveValueCaveat(answer: string, language: SupportedLanguage): string {
   if (!answer.trim() || !assertsLiveNetworkValue(answer)) return answer;
   const caveat = liveValueCaveat(language);
   if (answer.includes(caveat)) return answer;

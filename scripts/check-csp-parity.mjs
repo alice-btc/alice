@@ -1,11 +1,14 @@
 #!/usr/bin/env node
-// Compare the Content Security Policies of the three Vercel hosts with each
-// other and with the desktop app's policy, and fail when a source is present
-// on one side and missing on another without a documented reason.
+// Compare the Content Security Policies of the Vercel hosts with each other
+// and with the policies of the desktop and Android apps, and fail when a
+// source is present on one side and missing on another without a documented
+// reason.
 //
-// The web policies live in the `vercel.json` of each app (enforced on Alice
-// Web, report-only on the site); the desktop policy lives in
-// `apps/app-desktop/src-tauri/tauri.conf.json` under `app.security.csp`.
+// The web policies live in the `vercel.json` of each app (both enforced
+// since the site left report-only); the app policies live under
+// `app.security.csp` in `apps/app-desktop/src-tauri/tauri.conf.json` and in
+// its Android and iOS overrides `tauri.android.conf.json` and
+// `tauri.ios.conf.json`.
 // Legitimate differences (the desktop's `tauri:` scheme, the site's
 // analytics) are listed with a reason in
 // `scripts/csp-parity-exceptions.json`. Every other difference, and every
@@ -22,11 +25,13 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** The four policies, by the name the exceptions file uses. */
+/** The five policies, by the name the exceptions file uses. */
 export const POLICY_FILES = {
   site: 'apps/site/vercel.json',
   'app-web': 'apps/app-web/vercel.json',
   desktop: 'apps/app-desktop/src-tauri/tauri.conf.json',
+  android: 'apps/app-desktop/src-tauri/tauri.android.conf.json',
+  ios: 'apps/app-desktop/src-tauri/tauri.ios.conf.json',
 };
 
 export const EXCEPTIONS_FILE = 'scripts/csp-parity-exceptions.json';
@@ -55,7 +60,7 @@ export function parseCsp(value) {
  */
 export function extractCsp(json) {
   if (json && json.app && json.app.security && typeof json.app.security.csp === 'string') {
-    return { csp: json.app.security.csp, mode: 'desktop' };
+    return { csp: json.app.security.csp, mode: 'tauri' };
   }
   for (const rule of json?.headers ?? []) {
     for (const header of rule.headers ?? []) {
@@ -154,7 +159,7 @@ export function compareCsp(policies, exceptions) {
   return findings;
 }
 
-/** Load the four policies and the exceptions from the repository. */
+/** Load the five policies and the exceptions from the repository. */
 export function loadRepository(root = ROOT) {
   const policies = {};
   const modes = {};

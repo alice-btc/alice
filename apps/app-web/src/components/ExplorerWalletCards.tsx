@@ -4,6 +4,7 @@ import { SvgIcon } from '@/components/SvgIcon';
 import { PLUS_ICON, CLOSE_ICON, DELETE_ICON, QR_ICON, DOWNLOAD_ICON, WALLET_ICON } from '@/lib/atelier-icons';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { t as translateNow, useT, type Translator } from '@/i18n';
 import type { ChainDataProvider } from '@/lib/explorer/provider';
 import { ChainDataError, type RequestOptions } from '@/lib/explorer/provider';
 import { classifySearch } from '@/lib/explorer/search';
@@ -25,7 +26,7 @@ import { localVault } from '@/lib/local-vault';
 // the highest number already used for that kind, so a new import is never just
 // another anonymous "Wallet".
 function nextLabel(wallets: SavedWallet[], kind: SavedKind): string {
-  const prefix = kind === 'address' ? 'Address' : 'Wallet';
+  const prefix = kind === 'address' ? translateNow('explorer.wallets.autoAddress') : translateNow('explorer.wallets.autoWallet');
   const re = new RegExp(`^${prefix} (\\d+)$`);
   let max = 0;
   for (const w of wallets) {
@@ -44,14 +45,14 @@ const CARD_HISTORY_BUDGET_MS = 20_000;
 function btc(sats: number): string {
   return `${(sats / 1e8).toFixed(8).replace(/0+$/, '').replace(/\.$/, '') || '0'} BTC`;
 }
-function agoLabel(ms: number): string {
+function agoLabel(t: Translator, ms: number): string {
   const s = Math.floor((Date.now() - ms) / 1000);
-  if (s < 90) return 'just now';
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  if (s < 60 * 86400) return `${Math.floor(s / 86400)}d ago`;
-  if (s < 2 * 365 * 86400) return `${Math.floor(s / (30.44 * 86400))}mo ago`;
-  return `${Math.floor(s / (365 * 86400))}y ago`;
+  if (s < 90) return t('explorer.ago.justNow');
+  if (s < 3600) return t('explorer.ago.minutes', { count: Math.floor(s / 60) });
+  if (s < 86400) return t('explorer.ago.hours', { count: Math.floor(s / 3600) });
+  if (s < 60 * 86400) return t('explorer.ago.days', { count: Math.floor(s / 86400) });
+  if (s < 2 * 365 * 86400) return t('explorer.ago.months', { count: Math.floor(s / (30.44 * 86400)) });
+  return t('explorer.ago.years', { count: Math.floor(s / (365 * 86400)) });
 }
 
 // A tiny inline balance sparkline for a saved-wallet card. Flat (single value)
@@ -83,8 +84,9 @@ function WalletCard({
   onOpen: () => void;
   onRemove: () => void;
 }) {
+  const t = useT();
   const snap = wallet.snapshot;
-  const meta = snap && (wallet.kind === 'address' ? `${snap.txTotal} tx` : `${snap.usedCount} addr`);
+  const meta = snap && (wallet.kind === 'address' ? t('explorer.wallets.txMeta', { count: snap.txTotal }) : t('explorer.wallets.addrMeta', { count: snap.usedCount }));
   return (
     // The whole card is the door. It used to be three clickable islands
     // (title, balance, sparkline) with dead gaps between them, and a click in
@@ -95,7 +97,7 @@ function WalletCard({
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onOpen(); } }}
-      aria-label={`Open ${wallet.label}`}
+      aria-label={t('explorer.wallets.open', { label: wallet.label })}
       className="rh-card focus-visible:outline-2 focus-visible:outline-offset-2 flex flex-col gap-2 px-4 py-4 cursor-pointer"
       style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 'var(--alice-radius-control)', backgroundColor: 'transparent', minHeight: 200 }}
     >
@@ -109,7 +111,7 @@ function WalletCard({
           {/* Only the exception gets a badge. The section is already titled
               WALLETS, so stamping WALLET on each card said nothing; ADDR on a
               watched single address is the one distinction worth ink. */}
-          {wallet.kind === 'address' && <Badge tone="neutral">ADDR</Badge>}
+          {wallet.kind === 'address' && <Badge tone="neutral">{t('explorer.wallets.addrBadge')}</Badge>}
         </span>
         {/* Secondary actions: revealed on hover / focus / touch (item 7).
             No rescan button any more: the cards keep themselves fresh, and a
@@ -117,15 +119,15 @@ function WalletCard({
             scanning state still shows in the footer line. */}
         <div className="rh-hover-actions flex items-center gap-1 shrink-0">
           {scanning && (
-            <span className="font-pixel" style={{ fontSize: 10, color: 'var(--alice-muted)' }} aria-label={`Scanning ${wallet.label}`}>…</span>
+            <span className="font-pixel" style={{ fontSize: 10, color: 'var(--alice-muted)' }} aria-label={t('explorer.wallets.scanningLabel', { label: wallet.label })}>…</span>
           )}
           <button
             type="button"
             onClick={event => { event.stopPropagation(); onRemove(); }}
-            aria-label={`Remove ${wallet.label}`}
+            aria-label={t('explorer.wallets.removeLabel', { label: wallet.label })}
             className="alice-control alice-control--tool alice-control--danger rh-touch font-numbers cursor-pointer bg-transparent inline-flex items-center justify-center"
             style={{ fontSize: 13, padding: '4px 8px', color: 'var(--alice-muted)' }}
-            title="Remove"
+            title={t('explorer.wallets.remove')}
           >
             <SvgIcon svg={DELETE_ICON} size={16} />
           </button>
@@ -136,12 +138,12 @@ function WalletCard({
       {snap ? (
         <span className="flex flex-col items-start gap-1 text-left">
           <Amount sats={snap.balanceSats} style={{ fontSize: 24, color: 'var(--alice-text)' }} />
-          <span className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{meta} · scanned {agoLabel(snap.scannedAt)}</span>
+          <span className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{t('explorer.wallets.scanned', { meta: meta ?? '', ago: agoLabel(t, snap.scannedAt) })}</span>
         </span>
       ) : scanning ? (
         <div className="flex flex-col gap-1">
           <Skeleton width="55%" height={24} />
-          <Analyzing label="scanning this wallet on-chain…" />
+          <Analyzing label={t('explorer.wallets.scanning')} />
         </div>
       ) : (
         <span className="font-numbers" style={{ fontSize: 24, color: 'var(--alice-muted)' }}>-</span>
@@ -149,7 +151,7 @@ function WalletCard({
       {/* Balance over time fills the middle of the card; the last on-chain
           movement anchors the bottom. */}
       {snap?.sparkline && snap.sparkline.length >= 2 ? (
-        <span className="w-full flex-1" title="Balance over time" style={{ minHeight: 44, display: 'block' }}>
+        <span className="w-full flex-1" title={t('explorer.wallets.balanceOverTime')} style={{ minHeight: 44, display: 'block' }}>
           <Sparkline values={snap.sparkline} height={44} />
         </span>
       ) : (
@@ -157,8 +159,8 @@ function WalletCard({
       )}
       {snap?.lastMovementAt && (
         <div className="flex items-baseline gap-2">
-          <span className="font-pixel tracking-widest shrink-0" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>LAST MOVE</span>
-          <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>{agoLabel(snap.lastMovementAt * 1000)}</span>
+          <span className="font-pixel tracking-widest shrink-0" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorer.wallets.lastMove')}</span>
+          <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>{agoLabel(t, snap.lastMovementAt * 1000)}</span>
           {snap.lastMovementSats !== undefined && (
             <span className="ml-auto">
               <Amount
@@ -185,6 +187,7 @@ export function ExplorerWalletCards({
   onOpenXpub: (input: string, label: string, networkId: string) => void;
   onOpenAddress: (address: string) => void;
 }) {
+  const t = useT();
   const [wallets, setWallets] = useState<SavedWallet[]>([]);
   const [scanning, setScanning] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
@@ -343,7 +346,7 @@ export function ExplorerWalletCards({
   async function handleAdd() {
     setError('');
     const trimmed = input.trim();
-    if (!trimmed) { setError('Paste an address, an extended key (xpub, ypub, zpub) or a descriptor.'); return; }
+    if (!trimmed) { setError(t('explorer.wallets.error.empty')); return; }
 
     // A plain address is saved as an address item (opens the address view).
     if (classifySearch(trimmed).kind === 'address') {
@@ -360,15 +363,15 @@ export function ExplorerWalletCards({
     try {
       parsedNetwork = derive.parseWalletInput(trimmed, derive.deriveNetworkFor(activeNetworkId)).network;
     } catch (err) {
-      setError(err instanceof derive.WalletInputError ? err.message : 'Could not read this input.');
+      setError(err instanceof derive.WalletInputError ? err.message : t('explorer.wallets.error.unreadable'));
       return;
     }
     // The key's own network must match the tab's network, or scans query the
     // wrong chain. Guide the user to switch rather than silently mis-scan.
     if (parsedNetwork !== derive.deriveNetworkFor(activeNetworkId)) {
       setError(parsedNetwork === 'bitcoin'
-        ? 'This is a mainnet key. Switch to Bitcoin to add it.'
-        : 'This is a testnet key. Switch to a test network to add it.');
+        ? t('explorer.wallets.error.mainnetKey')
+        : t('explorer.wallets.error.testnetKey'));
       return;
     }
     const finalLabel = label.trim() || nextLabel(wallets, 'wallet');
@@ -385,15 +388,15 @@ export function ExplorerWalletCards({
         const decoded = await decodeQrFromFile(file);
         const token = decoded ? extractWalletInput(decoded) : null;
         if (token) { setInput(token); setAdding(true); }
-        else setError('No wallet QR code was found in that image.');
+        else setError(t('explorer.wallets.error.noQrInImage'));
         return;
       }
       const text = await file.text();
       const token = extractWalletInput(text);
       if (token) { setInput(token); setAdding(true); }
-      else setError('No address, extended key or descriptor found in that file.');
+      else setError(t('explorer.wallets.error.nothingInFile'));
     } catch {
-      setError('Could not read that file.');
+      setError(t('explorer.wallets.error.fileUnreadable'));
     }
   }
 
@@ -401,7 +404,7 @@ export function ExplorerWalletCards({
     setScanningQr(false);
     const token = extractWalletInput(payload);
     if (token) { setInput(token); setError(''); setAdding(true); }
-    else setError('That QR code was not an address, extended key or descriptor.');
+    else setError(t('explorer.wallets.error.qrNotWallet'));
   }
 
   function handleRemove(id: string) {
@@ -411,7 +414,7 @@ export function ExplorerWalletCards({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>WALLETS</span>
+        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorer.wallets.title')}</span>
         <button
           type="button"
           onClick={() => { setAdding(a => !a); setError(''); }}
@@ -420,13 +423,13 @@ export function ExplorerWalletCards({
           style={{ fontSize: 13, padding: '6px 12px', borderRadius: 'var(--alice-radius-control)', color: 'var(--alice-primary)' }}
         >
           <SvgIcon svg={adding ? CLOSE_ICON : PLUS_ICON} size={16} />
-          {adding ? 'Cancel' : 'Add a watch'}
+          {adding ? t('common.cancel') : t('explorer.wallets.addWatch')}
         </button>
       </div>
 
       {adding && (
         <div className="flex flex-col gap-2 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 'var(--alice-radius-control)' }}>
-          <label htmlFor="explorer-watch-input" className="font-numbers text-sm">Address, extended key or descriptor</label>
+          <label htmlFor="explorer-watch-input" className="font-numbers text-sm">{t('explorer.wallets.inputLabel')}</label>
           <input
             id="explorer-watch-input"
             aria-describedby="explorer-watch-privacy explorer-watch-error"
@@ -434,7 +437,7 @@ export function ExplorerWalletCards({
             type="text"
             value={input}
             onChange={e => setInput(e.target.value)}
-            placeholder="Address, xpub / ypub / zpub, or a descriptor like wpkh(xpub.../<0;1>/*)"
+            placeholder={t('explorer.wallets.inputPlaceholder')}
             className="alice-field font-numbers w-full"
             style={{ fontSize: 13, padding: '8px 12px', backgroundColor: 'var(--alice-bg)', border: '1px solid var(--alice-control-border)', borderRadius: 'var(--alice-radius-control)', color: 'var(--alice-text)', boxSizing: 'border-box' }}
           />
@@ -453,7 +456,7 @@ export function ExplorerWalletCards({
               className="alice-control alice-control--quiet font-numbers cursor-pointer bg-transparent"
               style={{ fontSize: 13, padding: '7px 12px', borderRadius: 'var(--alice-radius-control)', color: 'var(--alice-primary)' }}
             >
-              <SvgIcon svg={DOWNLOAD_ICON} size={20} /> Import a file
+              <SvgIcon svg={DOWNLOAD_ICON} size={20} /> {t('explorer.wallets.importFile')}
             </button>
             <button
               type="button"
@@ -461,18 +464,18 @@ export function ExplorerWalletCards({
               disabled={!qrDecodingSupported()}
               className="alice-control alice-control--quiet font-numbers cursor-pointer bg-transparent disabled:cursor-not-allowed"
               style={{ fontSize: 13, padding: '7px 12px', borderRadius: 'var(--alice-radius-control)', color: 'var(--alice-primary)', opacity: qrDecodingSupported() ? 1 : 0.4 }}
-              title={qrDecodingSupported() ? 'Scan a QR with the camera' : 'QR scanning is not supported by this browser'}
+              title={qrDecodingSupported() ? t('explorer.wallets.scanQrTitle') : t('explorer.wallets.qrUnsupported')}
             >
-              <SvgIcon svg={QR_ICON} size={20} /> Scan a QR
+              <SvgIcon svg={QR_ICON} size={20} /> {t('explorer.wallets.scanQr')}
             </button>
           </div>
-          <label htmlFor="explorer-watch-label" className="font-numbers text-sm">Watch name <span style={{ color: 'var(--alice-muted)' }}>(optional)</span></label>
+          <label htmlFor="explorer-watch-label" className="font-numbers text-sm">{t('explorer.wallets.nameLabel')} <span style={{ color: 'var(--alice-muted)' }}>{t('explorer.wallets.optional')}</span></label>
           <input
             id="explorer-watch-label"
             type="text"
             value={label}
             onChange={e => setLabel(e.target.value)}
-            placeholder="Label (optional)"
+            placeholder={t('explorer.wallets.namePlaceholder')}
             className="alice-field font-numbers w-full"
             style={{ fontSize: 13, padding: '8px 12px', backgroundColor: 'var(--alice-bg)', border: '1px solid var(--alice-control-border)', borderRadius: 'var(--alice-radius-control)', color: 'var(--alice-text)', boxSizing: 'border-box' }}
           />
@@ -483,10 +486,10 @@ export function ExplorerWalletCards({
             className="alice-control alice-control--primary font-numbers self-start cursor-pointer"
             style={{ fontSize: 10, padding: '8px 16px', borderRadius: 'var(--alice-radius-control)',  }}
           >
-            <SvgIcon svg={PLUS_ICON} size={20} /> Add the watch
+            <SvgIcon svg={PLUS_ICON} size={20} /> {t('explorer.wallets.addTheWatch')}
           </button>
           <p id="explorer-watch-privacy" className="font-numbers m-0" style={{ fontSize: 11, color: 'var(--alice-muted)', opacity: 0.8 }}>
-            Public keys and addresses only, stored on this device. An xpub reveals every address of the wallet, keep it private.
+            {t('explorer.wallets.privacy')}
           </p>
         </div>
       )}
@@ -495,8 +498,8 @@ export function ExplorerWalletCards({
         <div style={{ border: '1px dashed var(--alice-border)', borderRadius: 'var(--alice-radius-control)' }}>
           <EmptyState
             icon={WALLET_ICON}
-            title="No wallets yet"
-            hint="Add an address, xpub or descriptor to watch it at a glance."
+            title={t('explorer.wallets.emptyTitle')}
+            hint={t('explorer.wallets.emptyHint')}
           />
         </div>
       )}

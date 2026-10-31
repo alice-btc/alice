@@ -1,14 +1,18 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { SvgIcon } from '@/components/SvgIcon';
 import { COPY_ICON, CHECK_ICON, EDIT_ICON, DELETE_ICON, CHEVRON_LEFT_ICON, CHEVRON_RIGHT_ICON } from '@/lib/atelier-icons';
 import { AliceIcon } from '@/components/AliceIcon';
 import { splitAskAliceMessage, type MessageAttachment } from '@/lib/explorer/ask-alice';
 import { useOpenSettings } from '@/lib/settings-url';
+import { useRouter } from 'next/navigation';
 import { useChat } from '@alice-wallet/alice-ai';
 import { relativeTime, type RelativeTimeLang } from '@/lib/relative-time';
-import type { TokenUsage, MessageVariant } from '@alice-wallet/alice-ai';
+import type { TokenUsage, MessageVariant, LearnSource } from '@alice-wallet/alice-ai';
+import { NEXT_ICON } from '@/lib/atelier-icons';
+import { useT, type Translator } from '@/i18n';
+import { sellsPlans } from '@/lib/store-rules';
 
 interface ChatMessageProps {
   /** Panel mode (the Explorer sidebar): no left avatar (narrow column), a
@@ -16,10 +20,14 @@ interface ChatMessageProps {
   compact?: boolean;
   /** The main chat has a single fixed mascot outside its message history. */
   showAvatar?: boolean;
+  /** Shown at the start of the action row, before the time: on a phone the
+      main chat puts its mascot there, on Alice's last reply. */
+  leading?: ReactNode;
   /** True while this assistant reply is still being written: shows the
       blinking terminal cursor at the end of the streamed text. */
   streaming?: boolean;
-  /** Language of the surface the chat sits in, for the message time. */
+  /** Language of the surface the chat sits in (Learn's course language);
+      the app language otherwise. */
   lang?: RelativeTimeLang;
   message: {
     id: string;
@@ -32,7 +40,38 @@ interface ChatMessageProps {
     variants?: MessageVariant[];
     activeVariant?: number;
     quotaBlocked?: 'free' | 'plan';
+    sources?: LearnSource[];
+    cloudRetry?: boolean;
   };
+}
+
+// What a reply drew on, named under it with a way to open it: the chapter,
+// tutorial or dictionary definition that was quoted in the model's context.
+// Deterministic, from the turn itself, never from what the model claims; the
+// source page carries the author, the licence and the link to the original.
+function SourcesNotice({ sources, t }: { sources: LearnSource[]; t: Translator }) {
+  const router = useRouter();
+  const tag = (source: LearnSource) => (source.kind === 'definition' ? t('chat.sources.dictionary') : source.kind === 'tutorial' ? t('chat.sources.tutorial') : 'LEARN');
+  return (
+    <div className="flex flex-col" style={{ margin: '10px 0 2px', paddingTop: 8, borderTop: '1px solid var(--alice-border)', maxWidth: 480 }} aria-label={t('chat.sources.label')}>
+      <span className="font-pixel" style={{ fontSize: 9, letterSpacing: 0, color: 'var(--alice-muted)' }}>{t('chat.sources.heading')}</span>
+      {sources.map((source) => (
+        <button
+          key={`${source.kind}:${source.path}`}
+          type="button"
+          onClick={() => router.push(source.path)}
+          className="alice-control alice-control--row flex items-center gap-3 text-left"
+          style={{ padding: '6px 2px' }}
+          title={source.attribution}
+        >
+          <span className="font-numbers shrink-0" style={{ fontSize: 12, color: 'var(--alice-primary)' }}>{tag(source)}</span>
+          <span className="font-numbers min-w-0 truncate" style={{ fontSize: 14 }}>{source.label}</span>
+          <span className="font-numbers shrink-0 hidden sm:inline" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>{source.attribution}</span>
+          <span className="ml-auto"><SvgIcon svg={NEXT_ICON} size={16} /></span>
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function renderInlineMarkdown(text: string): React.ReactNode[] {
@@ -131,7 +170,7 @@ function ChatMarkdownText({ content, streaming = false }: { content: string; str
 
 // Shown when the provider stopped on max_tokens: the answer ends mid-thought,
 // so say so rather than letting it look like Alice finished.
-function TruncatedNotice() {
+function TruncatedNotice({ t }: { t: Translator }) {
   return (
     <div
       className="font-numbers mt-2"
@@ -143,8 +182,7 @@ function TruncatedNotice() {
         borderTop: '1px solid var(--alice-border)',
       }}
     >
-      This answer is unusually long and still isn&apos;t finished. Ask Alice to continue and
-      she&apos;ll pick up where she stopped.
+      {t('chat.message.truncated')}
     </div>
   );
 }
@@ -167,17 +205,33 @@ function TruncatedNotice() {
  * the other does and has spent this month's runs. Only the first of each pair
  * is an occasion to sell anything.
  */
-function QuotaNotice({ kind }: { kind: 'free' | 'plan' }) {
+// Alice Local could not hold the answer language twice in a row; Private
+// Cloud can, so the same question is offered there, on the user's click.
+function CloudRetryNotice({ messageId, t }: { messageId: string; t: Translator }) {
+  const { retryWithPrivateCloud, busy } = useChat();
+  return (
+    <div className="mt-2" style={{ paddingTop: 8, borderTop: '1px solid var(--alice-border)' }}>
+      <button
+        type="button"
+        onClick={() => retryWithPrivateCloud(messageId)}
+        disabled={busy}
+        className="alice-control alice-control--primary"
+      >
+        {t('chat.message.cloudRetry')}
+      </button>
+    </div>
+  );
+}
+
+function QuotaNotice({ kind, t }: { kind: 'free' | 'plan'; t: Translator }) {
   const openSettings = useOpenSettings();
   const copy: Record<typeof kind, { body: string; action: string | null }> = {
-    free: {
-      body: 'A paid plan adds Private Cloud capacity each month. The wallet and Alice Local stay free either way.',
-      action: 'SEE PLANS',
-    },
-    plan: {
-      body: 'You can buy months ahead if you would rather not wait for the reset.',
-      action: 'BUY MORE MONTHS',
-    },
+    free: sellsPlans()
+      ? { body: t('chat.quota.free.body'), action: t('chat.quota.free.action') }
+      : { body: t('chat.quota.free.bodyPhone'), action: null },
+    plan: sellsPlans()
+      ? { body: t('chat.quota.plan.body'), action: t('chat.quota.plan.action') }
+      : { body: t('chat.quota.plan.bodyPhone'), action: null },
   };
   const { body, action } = copy[kind];
   return (
@@ -284,7 +338,7 @@ function ChevronRightIcon() {
   return <SvgIcon svg={CHEVRON_RIGHT_ICON} size={16} />;
 }
 
-function VariantNav({ messageId, variants, activeVariant }: { messageId: string; variants: MessageVariant[]; activeVariant: number }) {
+function VariantNav({ messageId, variants, activeVariant, t }: { messageId: string; variants: MessageVariant[]; activeVariant: number; t: Translator }) {
   const { setMessageVariant } = useChat();
   if (variants.length < 2) return null;
 
@@ -294,8 +348,8 @@ function VariantNav({ messageId, variants, activeVariant }: { messageId: string;
         onClick={() => setMessageVariant(messageId, activeVariant - 1)}
         disabled={activeVariant === 0}
         type="button"
-        aria-label="Previous version"
-        title="Previous version"
+        aria-label={t('chat.variant.previous')}
+        title={t('chat.variant.previous')}
         className="alice-control alice-control--tool"
       >
         <ChevronLeftIcon />
@@ -307,8 +361,8 @@ function VariantNav({ messageId, variants, activeVariant }: { messageId: string;
         onClick={() => setMessageVariant(messageId, activeVariant + 1)}
         disabled={activeVariant === variants.length - 1}
         type="button"
-        aria-label="Next version"
-        title="Next version"
+        aria-label={t('chat.variant.next')}
+        title={t('chat.variant.next')}
         className="alice-control alice-control--tool"
       >
         <ChevronRightIcon />
@@ -351,7 +405,7 @@ function MetricRow({ icon, label, value, unit, primary }: { icon: React.ReactNod
   );
 }
 
-function TokenTooltip({ usage, durationMs }: { usage?: TokenUsage; durationMs?: number }) {
+function TokenTooltip({ usage, durationMs, t }: { usage?: TokenUsage; durationMs?: number; t: Translator }) {
   const [show, setShow] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -411,13 +465,13 @@ function TokenTooltip({ usage, durationMs }: { usage?: TokenUsage; durationMs?: 
           }}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {speed && <MetricRow icon={<BoltIcon />} label="Speed" value={speed} unit="tokens/s" primary />}
-            {duration && <MetricRow icon={<ClockIcon />} label="Duration" value={duration} unit="s" primary />}
+            {speed && <MetricRow icon={<BoltIcon />} label={t('chat.metrics.speed')} value={speed} unit="tokens/s" primary />}
+            {duration && <MetricRow icon={<ClockIcon />} label={t('chat.metrics.duration')} value={duration} unit="s" primary />}
             {(usage?.promptTokens != null || usage?.completionTokens != null) && (
               <div style={{ borderTop: '1px solid var(--alice-border, rgba(255,255,255,0.1))', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {usage?.promptTokens != null && <MetricRow icon={<ArrowUpIcon />} label="Prompt" value={String(usage.promptTokens)} unit="tokens" />}
-                {usage?.completionTokens != null && <MetricRow icon={<ArrowDownIcon />} label="Completion" value={String(usage.completionTokens)} unit="tokens" />}
-                {usage?.totalTokens != null && <MetricRow icon={<SigmaIcon />} label="Total" value={String(usage.totalTokens)} unit="tokens" primary />}
+                {usage?.promptTokens != null && <MetricRow icon={<ArrowUpIcon />} label={t('chat.metrics.prompt')} value={String(usage.promptTokens)} unit="tokens" />}
+                {usage?.completionTokens != null && <MetricRow icon={<ArrowDownIcon />} label={t('chat.metrics.completion')} value={String(usage.completionTokens)} unit="tokens" />}
+                {usage?.totalTokens != null && <MetricRow icon={<SigmaIcon />} label={t('chat.metrics.total')} value={String(usage.totalTokens)} unit="tokens" primary />}
               </div>
             )}
           </div>
@@ -441,7 +495,7 @@ function TokenTooltip({ usage, durationMs }: { usage?: TokenUsage; durationMs?: 
 
 // --- Edit mode inline ---
 
-function EditableContent({ content, onSave, onCancel }: { content: string; onSave: (text: string) => void; onCancel: () => void }) {
+function EditableContent({ content, onSave, onCancel, t }: { content: string; onSave: (text: string) => void; onCancel: () => void; t: Translator }) {
   const [text, setText] = useState(content);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -465,7 +519,7 @@ function EditableContent({ content, onSave, onCancel }: { content: string; onSav
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
       <textarea
-        aria-label="Edit message"
+        aria-label={t('chat.edit.label')}
         ref={textareaRef}
         value={text}
         onChange={e => {
@@ -492,13 +546,13 @@ function EditableContent({ content, onSave, onCancel }: { content: string; onSav
           onClick={onCancel}
           className="alice-control alice-control--quiet"
         >
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           onClick={() => onSave(text)}
           className="alice-control alice-control--primary"
         >
-          Save
+          {t('common.save')}
         </button>
       </div>
     </div>
@@ -511,14 +565,16 @@ function MessageActions({
   message,
   onEdit,
   compact = false,
-  lang = 'en',
+  t,
+  leading,
 }: {
   message: ChatMessageProps['message'];
   onEdit: () => void;
   compact?: boolean;
-  lang?: RelativeTimeLang;
+  t: Translator;
   /** The main chat has a single fixed mascot outside its message history. */
   showAvatar?: boolean;
+  leading?: ReactNode;
 }) {
   const { deleteMessage } = useChat();
   const [copied, setCopied] = useState(false);
@@ -546,8 +602,9 @@ function MessageActions({
         justifyContent: isUser ? 'flex-end' : 'flex-start',
       }}
     >
+      {leading}
       <span style={{ fontSize: 10, color: 'var(--alice-muted)', opacity: 1, marginRight: 4, fontFamily: 'var(--font-numbers, monospace)' }}>
-        {relativeTime(time, lang)}
+        {relativeTime(time, t.locale)}
       </span>
 
       {message.variants && message.variants.length > 1 && (
@@ -555,23 +612,24 @@ function MessageActions({
           messageId={message.id}
           variants={message.variants}
           activeVariant={message.activeVariant ?? 0}
+          t={t}
         />
       )}
 
-      <ActionButton onClick={handleCopy} title={copied ? "Copied" : "Copy"}>
+      <ActionButton onClick={handleCopy} title={copied ? t('common.copied') : t('common.copy')}>
         {copied ? <CheckIcon /> : <CopyIcon />}
       </ActionButton>
 
-      <ActionButton onClick={onEdit} title="Edit">
+      <ActionButton onClick={onEdit} title={t('chat.actions.edit')}>
         <EditIcon />
       </ActionButton>
 
-      <ActionButton onClick={() => deleteMessage(message.id)} title="Delete" danger>
+      <ActionButton onClick={() => deleteMessage(message.id)} title={t('common.delete')} danger>
         <TrashIcon />
       </ActionButton>
 
       {!isUser && (
-        <TokenTooltip usage={message.usage} durationMs={message.durationMs} />
+        <TokenTooltip usage={message.usage} durationMs={message.durationMs} t={t} />
       )}
     </div>
   );
@@ -594,13 +652,14 @@ function MiniLinkIcon({ size = 12 }: { size?: number }) {
 // stored message keeps the full text; only the presentation folds it.
 function SentAttachment({ att }: { att: MessageAttachment }) {
   const [open, setOpen] = useState(false);
+  const t = useT();
   return (
     <div className="flex flex-col items-end gap-1">
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
-        title="Show the exact text sent to the model"
+        title={t('chat.attachment.showExact')}
         className="alice-control alice-control--quiet flex items-center gap-1.5"
         style={{ padding: '4px 8px' }}
       >
@@ -610,7 +669,7 @@ function SentAttachment({ att }: { att: MessageAttachment }) {
         <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-text)' }}>{att.label}</span>
         {att.kind === 'identified' && (
           <span className="font-pixel tracking-widest shrink-0" style={{ fontSize: 10, padding: '2px 4px', border: '1px solid var(--alice-primary)', borderRadius: 2, color: 'var(--alice-primary)' }}>
-            FULL
+            {t('chat.attachment.full')}
           </span>
         )}
       </button>
@@ -640,8 +699,9 @@ function UserMessageBody({ content }: { content: string }) {
   );
 }
 
-export function ChatMessage({ message, compact = false, streaming = false, showAvatar = true, lang = 'en' }: ChatMessageProps) {
+export function ChatMessage({ message, compact = false, streaming = false, showAvatar = true, lang, leading }: ChatMessageProps) {
   const { editMessage } = useChat();
+  const t = useT(lang);
   const [editing, setEditing] = useState(false);
 
   if (message.role === 'system') {
@@ -687,6 +747,7 @@ export function ChatMessage({ message, compact = false, streaming = false, showA
               content={message.content}
               onSave={handleSave}
               onCancel={() => setEditing(false)}
+              t={t}
             />
           ) : isUser ? (
             <UserMessageBody content={message.content} />
@@ -696,14 +757,16 @@ export function ChatMessage({ message, compact = false, streaming = false, showA
               style={{ color: 'var(--alice-text)' }}
             >
               <ChatMarkdownText content={message.content} streaming={streaming} />
-              {message.truncated && <TruncatedNotice />}
-              {message.quotaBlocked && <QuotaNotice kind={message.quotaBlocked} />}
+              {message.truncated && <TruncatedNotice t={t} />}
+              {message.quotaBlocked && <QuotaNotice kind={message.quotaBlocked} t={t} />}
+              {message.cloudRetry && <CloudRetryNotice messageId={message.id} t={t} />}
+              {!streaming && message.sources && message.sources.length > 0 && <SourcesNotice sources={message.sources} t={t} />}
             </div>
           )}
         </div>
       </div>
       {!editing && message.content && message.id !== 'greeting' && (
-        <MessageActions message={message} onEdit={() => setEditing(true)} compact={compact || !showAvatar} lang={lang} />
+        <MessageActions message={message} onEdit={() => setEditing(true)} compact={compact || !showAvatar} t={t} leading={leading} />
       )}
     </div>
   );

@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  GREETING,
+  GREETINGS,
   GREETING_ID,
+  greetingFor,
   createGreetingMessage,
   isGreeting,
   isPersistableSession,
@@ -135,5 +138,14 @@ describe('greeting is shown but never persisted, replayed, or counted', () => {
     assert.equal(isPersistableSession(real), true);
     assert.equal(stripGreeting(real).some(isGreeting), false);
     assert.equal(toHistory(real).some(m => (m as { id?: string }).id === GREETING_ID), false);
+  });
+});
+
+describe('greetingFor', () => {
+  it('keeps the English greeting and greets in French in French', () => {
+    assert.equal(GREETING, 'Hi! What would you like to learn about today?');
+    assert.equal(greetingFor('en'), GREETING);
+    assert.equal(greetingFor('fr'), 'Salut\u00a0! Que souhaites-tu apprendre aujourd’hui\u00a0?');
+    assert.deepEqual(Object.keys(GREETINGS).sort(), ['en', 'fr']);
   });
 });

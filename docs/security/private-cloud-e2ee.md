@@ -208,8 +208,11 @@ measurement never passes (refuse, never "present so trust it"). The list ships
   the observed binding as mandatory and fails closed if it differs.
 - DCAP verification and the collateral relay reduce, but do not remove, trust in
   Phala's PCCS availability and Intel's/NVIDIA's roots.
-- Assistant history is **dropped** in Private (Venice does not encrypt assistant
-  turns); Private turns are single-shot and auto-continuation is disabled.
+- Conversation history is sent in full (within a window) and every turn,
+  assistant replies included, is encrypted with the same envelope. Venice's
+  documentation only requires `user` and `system` turns to be encrypted; the
+  enclave decrypts an encrypted `assistant` turn and rejects a plaintext one
+  (verified 2026-10-29). Until then Private turns were single-shot.
 
 ## Reproducing the checks (developers)
 

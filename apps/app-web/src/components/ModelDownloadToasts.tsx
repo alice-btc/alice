@@ -11,6 +11,7 @@ import {
   getModelDownloads,
   isModelDownloadRunning,
 } from '@/lib/model-downloads';
+import { useT } from '@/i18n';
 
 // Lateral notification for background model downloads: mounted once at the
 // app root, so "model ready" (or "download failed") reaches the user wherever
@@ -25,6 +26,7 @@ interface Toast {
 }
 
 export function ModelDownloadToasts() {
+  const t = useT();
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   useEffect(() => {
@@ -40,9 +42,9 @@ export function ModelDownloadToasts() {
           kind: state.status,
           detail: state.status === 'error' ? state.error : undefined,
         };
-        setToasts((current) => [...current.filter((t) => t.id !== id), toast]);
+        setToasts((current) => [...current.filter((item) => item.id !== id), toast]);
         window.setTimeout(() => {
-          setToasts((current) => current.filter((t) => t !== toast));
+          setToasts((current) => current.filter((item) => item !== toast));
           clearModelDownload(id);
           seen.delete(key);
         }, AUTO_DISMISS_MS);
@@ -64,11 +66,11 @@ export function ModelDownloadToasts() {
             key={`${toast.id}:${toast.kind}`}
             type="button"
             onClick={() => {
-              setToasts((current) => current.filter((t) => t !== toast));
+              setToasts((current) => current.filter((item) => item !== toast));
               clearModelDownload(toast.id);
             }}
             className="alice-control alice-control--row"
-            aria-label={`Dismiss ${toast.kind === 'installed' ? 'model ready' : 'download failed'} notice for ${name}`}
+            aria-label={t(toast.kind === 'installed' ? 'models.toast.dismissReady' : 'models.toast.dismissFailed', { name })}
             style={{
               maxWidth: 320, display: 'block',
               padding: '10px 14px',
@@ -86,13 +88,13 @@ export function ModelDownloadToasts() {
               }}
             >
               <SvgIcon svg={toast.kind === 'installed' ? CHECK_ICON : DOWNLOAD_ICON} size={16} />
-              {toast.kind === 'installed' ? 'MODEL READY' : 'DOWNLOAD FAILED'}
+              {toast.kind === 'installed' ? t('models.toast.ready') : t('models.toast.failedTitle')}
               <span className="ml-auto"><SvgIcon svg={CLOSE_ICON} size={16} /></span>
             </div>
             <div className="font-numbers" style={{ fontSize: 13, marginTop: 6 }}>
               {toast.kind === 'installed'
-                ? `${name} is installed and set as your local model.`
-                : `${name}: ${toast.detail ?? 'download failed'}. Try again from Settings.`}
+                ? t('models.toast.installed', { name })
+                : t('models.toast.failed', { name, detail: toast.detail ?? t('models.toast.failedDetail') })}
             </div>
           </button>
         );

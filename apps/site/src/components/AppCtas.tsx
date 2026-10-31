@@ -15,12 +15,17 @@ import {
   GlobeIcon,
   DownloadIcon,
   AppleGlyph,
+  AndroidGlyph,
   WindowsGlyph,
   LinuxGlyph,
   ChevronDownIcon,
   ShieldCheckIcon,
 } from '@/components/icons';
 import { externalLinkProps } from '@/lib/links';
+import type { CommonCopy } from '@/i18n/dictionaries/common';
+
+type CtaCopy = CommonCopy['ctas'];
+type NoticeCopy = CommonCopy['downloadNotice'];
 
 type Size = 'sm' | 'md';
 
@@ -38,36 +43,50 @@ export type PlatformItem = {
 };
 
 // Companion platforms shared by the desktop and mobile download menus.
-export const APP_PLATFORM_ITEMS: PlatformItem[] = [
-  { icon: <GlobeIcon size={18} />, label: 'Web app', href: APP_URL },
-  // The Mac build is signed with a Developer ID and notarised since 0.2.5, so
-  // macOS only asks the standard "downloaded from the Internet" question that
-  // every app outside the App Store gets; nothing worth a notice.
-  { icon: <AppleGlyph size={18} />, label: 'Mac', href: DESKTOP_MAC_URL },
-  { icon: <WindowsGlyph size={16} />, label: 'Windows', href: DESKTOP_WINDOWS_URL, notice: 'windows' },
-  // Desktop rows carry no version: every installer on the release page is the
-  // same version, and the app updates itself from there. The APK keeps its
-  // number because a sideloaded file is chosen by hand, with no update channel.
-  // Linux raises no platform warning, so both packages link straight through.
-  { icon: <LinuxGlyph size={18} />, label: 'Linux AppImage', href: DESKTOP_LINUX_APPIMAGE_URL },
-  { icon: <LinuxGlyph size={18} />, label: 'Linux Debian', href: DESKTOP_LINUX_DEB_URL },
-  { icon: <DownloadIcon size={18} />, label: 'Release & checksum', href: DESKTOP_RELEASE_URL },
-];
+export function appPlatformItems(copy: CtaCopy): PlatformItem[] {
+  return [
+    { icon: <GlobeIcon size={18} />, label: copy.webApp, href: APP_URL },
+    // The Mac build is signed with a Developer ID and notarised since 0.2.5, so
+    // macOS only asks the standard "downloaded from the Internet" question that
+    // every app outside the App Store gets; nothing worth a notice.
+    { icon: <AppleGlyph size={18} />, label: copy.mac, href: DESKTOP_MAC_URL },
+    { icon: <WindowsGlyph size={16} />, label: copy.windows, href: DESKTOP_WINDOWS_URL, notice: 'windows' },
+    // Desktop rows carry no version: every installer on the release page is the
+    // same version, and the app updates itself from there. The APK keeps its
+    // number because a sideloaded file is chosen by hand, with no update channel.
+    // Linux raises no platform warning, so both packages link straight through.
+    { icon: <LinuxGlyph size={18} />, label: copy.linuxAppImage, href: DESKTOP_LINUX_APPIMAGE_URL },
+    { icon: <LinuxGlyph size={18} />, label: copy.linuxDebian, href: DESKTOP_LINUX_DEB_URL },
+    // The phone apps are on their way to the stores; until then the rows
+    // stay unlinked and read "Coming soon", and phones use the web app.
+    { icon: <AppleGlyph size={18} />, label: copy.ios },
+    { icon: <AndroidGlyph size={18} />, label: copy.android },
+    { icon: <DownloadIcon size={18} />, label: copy.release, href: DESKTOP_RELEASE_URL },
+  ];
+}
 
 // `note` is a one-line caveat under the group title, for what the reader
 // should know before clicking any row in it, not just one.
 export type PlatformGroup = { label: string; items: PlatformItem[]; note?: string };
 
 // Experimental wallet access is intentionally outside the primary downloads.
-export const DOWNLOAD_GROUPS: PlatformGroup[] = [
-  { label: 'Alice App', items: APP_PLATFORM_ITEMS },
-];
+export function downloadGroups(copy: CtaCopy): PlatformGroup[] {
+  return [{ label: copy.appGroup, items: appPlatformItems(copy) }];
+}
 
 // Available items get a real link; items with no href (not yet distributed)
 // render as plain, non-interactive rows labelled "Coming soon", the same
 // honesty pattern used on /trust rather than a dead or invented link.
 // Compact rows remain available for constrained placements.
-export function PlatformRow({ icon, label, href, notice, compact }: PlatformItem & { compact?: boolean }) {
+export function PlatformRow({
+  icon,
+  label,
+  href,
+  notice,
+  compact,
+  comingSoon,
+  noticeCopy,
+}: PlatformItem & { compact?: boolean; comingSoon: string; noticeCopy: NoticeCopy }) {
   // An unsigned build is about to scare this person. Say it first: the dialog
   // takes the click, explains the exact screen coming, and only then hands
   // over the file.
@@ -81,13 +100,13 @@ export function PlatformRow({ icon, label, href, notice, compact }: PlatformItem
         <span className="shrink-0 text-[var(--alice-primary)]">{icon}</span>
         <span className="text-[13px] font-semibold text-[var(--alice-heading)]">{label}</span>
       </span>
-      {!href && <span className="pl-[26px] text-[10px] text-[var(--alice-muted)]">Coming soon</span>}
+      {!href && <span className="pl-[26px] text-[10px] text-[var(--alice-muted)]">{comingSoon}</span>}
     </>
   ) : (
     <>
       <span className="text-[var(--alice-primary)]">{icon}</span>
       <span className="flex-1 text-[14px] font-semibold text-[var(--alice-heading)]">{label}</span>
-      {!href && <span className="text-[11px] text-[var(--alice-muted)]">Coming soon</span>}
+      {!href && <span className="text-[11px] text-[var(--alice-muted)]">{comingSoon}</span>}
     </>
   );
   if (href && notice) {
@@ -103,6 +122,7 @@ export function PlatformRow({ icon, label, href, notice, compact }: PlatformItem
         {showNotice && (
           <DownloadNotice
             platform={notice}
+            copy={noticeCopy}
             href={href}
             verifyHref={notice === 'android' ? ANDROID_RELEASE_URL : DESKTOP_RELEASE_URL}
             onCancel={() => setShowNotice(false)}
@@ -139,10 +159,14 @@ function PlatformMenu({
   groups,
   placement,
   label,
+  copy,
+  noticeCopy,
 }: {
   groups: PlatformGroup[];
   placement: { width: number; left: number; compact: boolean };
   label: string;
+  copy: CtaCopy;
+  noticeCopy: NoticeCopy;
 }) {
   return (
     <div
@@ -175,7 +199,13 @@ function PlatformMenu({
               )}
             </div>
             {group.items.map((item) => (
-              <PlatformRow key={`${group.label}:${item.label}`} {...item} compact={placement.compact} />
+              <PlatformRow
+                key={`${group.label}:${item.label}`}
+                {...item}
+                compact={placement.compact}
+                comingSoon={copy.comingSoon}
+                noticeCopy={noticeCopy}
+              />
             ))}
           </div>
         ))}
@@ -192,7 +222,9 @@ export function PlatformSelector({
   trigger,
   className,
   groups,
-  menuLabel = 'Downloads',
+  copy,
+  noticeCopy,
+  menuLabel,
   ariaLabel,
   chevron = true,
   menuWidth = 300,
@@ -200,6 +232,9 @@ export function PlatformSelector({
   trigger: ReactNode;
   className: string;
   groups: PlatformGroup[];
+  copy: CtaCopy;
+  noticeCopy: NoticeCopy;
+  /** Accessible name of the menu; the downloads one when unset. */
   menuLabel?: string;
   /** For a trigger that shows only an icon. */
   ariaLabel?: string;
@@ -263,7 +298,13 @@ export function PlatformSelector({
         {trigger}
         {chevron && <ChevronDownIcon size={14} />}
       </button>
-      <PlatformMenu groups={groups} placement={placement} label={menuLabel} />
+      <PlatformMenu
+        groups={groups}
+        placement={placement}
+        label={menuLabel ?? copy.downloadsAria}
+        copy={copy}
+        noticeCopy={noticeCopy}
+      />
     </div>
   );
 }
@@ -272,31 +313,41 @@ export function PlatformSelector({
 // visitor: open the companion, which runs in any browser, phone included.
 // Alice App is the main product and the whole page says so; the wallet is
 // presented separately as an experimental project below the main content.
-export function OpenAliceButton({ size = 'md' }: { size?: Size }) {
+export function OpenAliceButton({ size = 'md', copy }: { size?: Size; copy: CtaCopy }) {
   return (
     <a href={APP_URL} {...externalLinkProps(APP_URL)} className={`cta cta-solid ${sizes[size]}`}>
-      Open web app
+      {copy.openWebApp}
     </a>
   );
 }
 
 // Main downloads are for Alice App; the experimental wallet has its own section.
-export function DownloadButton({ size = 'md' }: { size?: Size }) {
+export function DownloadButton({
+  size = 'md',
+  copy,
+  noticeCopy,
+}: {
+  size?: Size;
+  copy: CtaCopy;
+  noticeCopy: NoticeCopy;
+}) {
   return (
     <PlatformSelector
       className={`cta ${sizes[size]}`}
       trigger={
         <>
           <DownloadIcon size={size === 'sm' ? 16 : 18} />
-          Download
+          {copy.download}
         </>
       }
-      groups={DOWNLOAD_GROUPS}
+      groups={downloadGroups(copy)}
+      copy={copy}
+      noticeCopy={noticeCopy}
     />
   );
 }
 
-export function ReleaseLinks() {
+export function ReleaseLinks({ copy }: { copy: CtaCopy }) {
   return (
     <div className="mt-3 flex items-center text-sm">
       <a
@@ -306,7 +357,7 @@ export function ReleaseLinks() {
         className="inline-flex items-center gap-2 text-[var(--alice-muted)] hover:text-[var(--alice-primary)] hover:underline"
       >
         <ShieldCheckIcon size={16} />
-        Release notes & checksum →
+        {copy.releaseLinks}
       </a>
     </div>
   );
@@ -314,11 +365,19 @@ export function ReleaseLinks() {
 
 // The pair: open the companion (filled, the action most visitors want) and
 // everything installable (outline).
-export function AppCtas({ size = 'md' }: { size?: Size }) {
+export function AppCtas({
+  size = 'md',
+  copy,
+  noticeCopy,
+}: {
+  size?: Size;
+  copy: CtaCopy;
+  noticeCopy: NoticeCopy;
+}) {
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <OpenAliceButton size={size} />
-      <DownloadButton size={size} />
+      <OpenAliceButton size={size} copy={copy} />
+      <DownloadButton size={size} copy={copy} noticeCopy={noticeCopy} />
     </div>
   );
 }

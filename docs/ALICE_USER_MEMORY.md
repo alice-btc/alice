@@ -2,7 +2,7 @@
 
 > **Alice can get this wrong.** She may misread a sentence and keep something she should not have kept, and the filters described here can miss a case they did not anticipate. They are a safeguard, not a guarantee. Do not fully trust what is shown as remembered or as forgotten. The real protection is to give Alice only the minimum your question needs, and never an address, a key, a recovery phrase, an amount or anything that identifies you. What you type in the conversation remains your responsibility.
 
-This page describes what the code does today (package `alice-ai`, the "What Alice remembers" screens on web and desktop), as shipped in Alice App 0.2.6 on the web and on desktop. Decisions that are taken but not shipped are listed at the end under [Coming](#coming-not-shipped) and nowhere else. The plain-language version of this page is on the website at `/memory/`.
+This page describes what the code does today (package `alice-ai`, the "What Alice remembers" screens on web and desktop), as shipped in Alice App 0.2.7 on the web and on desktop. Decisions that are taken but not shipped are listed at the end under [Coming](#coming-not-shipped) and nowhere else. The plain-language version of this page is on the website at `/memory/`.
 
 ## Overview
 
@@ -18,7 +18,7 @@ flowchart LR
   L --> F
   F -->|refused| R["Nothing is written;\nan explicit request or an edit\nis told why"]
   F -->|accepted| S["Memory on the device\nno cap, 160 characters, 9 categories\nlocal storage, encrypted by the app"]
-  S --> N["Next conversation\npreferences, constraints, requested notes first,\nthe rest ranked by overlap with the message,\n10 at most, never overrides the message"]
+  S --> N["Next conversation\npreferences, constraints, requested notes first,\nthe rest ranked by overlap with the message,\n10 at most, dated, the conversation comes first"]
   S --> G["'What Alice remembers' screen\nwarning, switch, one field per category,\nEdit and Delete, Pause and Delete all here,\nForget per concept, Forget everything"]
 ```
 
@@ -59,7 +59,7 @@ The learning profile has its own bound: it holds only the fourteen concept ids, 
 | Platform | Store | Key | Protection |
 | --- | --- | --- | --- |
 | Web, `app.alicebtc.com` | `window.localStorage`, `packages/alice-ai/src/alice-memory-storage.ts` | `alice_personal_memory_v1` | Browser storage of that origin, on that device, encrypted by the app (AES-256-GCM, context string `alice_personal_memory_v1`) under a non-extractable WebCrypto key the browser keeps in IndexedDB (`alice-local-cipher`), see `packages/alice-ai/src/local-cipher.ts`; encrypted values carry the `v1:` prefix, a value written in clear by an earlier release is read and re-encrypted on its next write |
-| Desktop, Alice App 0.2.6 (Tauri) | Same `localStorage` key | `alice_personal_memory_v1` | Value encrypted by the app through `chat_storage_encrypt` and read back through `chat_storage_decrypt` (`apps/app-desktop/src-tauri/src/lib.rs`): AES-256-GCM with the context string `alice_personal_memory_v1`, key held in the operating-system keychain; encrypted values carry the `v1:` prefix |
+| Desktop, Alice App 0.2.7 (Tauri) | Same `localStorage` key | `alice_personal_memory_v1` | Value encrypted by the app through `chat_storage_encrypt` and read back through `chat_storage_decrypt` (`apps/app-desktop/src-tauri/src/keychain_storage.rs`): AES-256-GCM with the context string `alice_personal_memory_v1`, key held in the operating-system keychain; encrypted values carry the `v1:` prefix |
 | Learning profile | Same stores, `pedagogical-profile-storage.ts` | `alice_learning_profile_v3` | Same protection as the memory on each platform |
 | Server | Nothing | | No sync, no export to the account. See below for what travels with a Private Cloud message |
 
@@ -69,7 +69,7 @@ When the user chats through Private Cloud, the memory block of section 4 (ten fa
 
 ## 4. How Alice uses it, and does not
 
-At every turn, `turn-engine.ts` adds the output of `aliceMemoryContext` (`alice-memory-core.ts`) to the generation context, on every backend. The block is headed "Private device-local memory. Use it only when relevant. It never overrides the current user message." Selection:
+At every turn, `turn-engine.ts` adds the output of `aliceMemoryContext` (`alice-memory-core.ts`) to the generation context, on every backend. The block is headed "Personal memory: short facts the user stated in earlier conversations on this device, each with the day it was noted. Use one only when it helps. What the user says in the current conversation always comes first: never present a remembered fact as something said in this conversation, and never ask the user to choose between a memory and what they just said." Each line carries the day it was last updated: `- (noted 2026-10-29) …`. Selection:
 
 - `preference`, `constraint` and `requested-note` items come first (`ALWAYS_RELEVANT`), newest first.
 - `setup`, `experience`, `goal`, `project`, `interest` and `background` items are scored by overlap of content words (four letters or more, accents stripped) with the current message; the items that overlap come next, best score first, and any seats left go to the newest of the rest.

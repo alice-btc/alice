@@ -513,7 +513,10 @@ export async function updateSettlements(
   // later. Its tip stays watched as long as it is unspent.
   const stored = loadFrontier(storage, FRONTIER_KEY);
   let start: Outpoint[] = stored?.outpoints ?? [];
-  if (!stored || stored.base !== newest.txid) {
+  // The newest settlement's own outputs are watched on every pass, whatever
+  // the stored frontier holds: a frontier that lost them (a detour, an older
+  // version) heals here.
+  if (!stored || stored.base !== newest.txid || !start.some(o => o.txid === newest.txid)) {
     let tx: NormalizedTransaction;
     try {
       tx = await chain.getTransaction(newest.txid, { signal, priority: BULK });

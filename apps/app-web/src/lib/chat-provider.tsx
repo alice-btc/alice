@@ -3,7 +3,7 @@
 // First of all: hand the device cipher to the local vault, so every store
 // encrypts from its first write.
 import '@/lib/local-vault-setup';
-import { getWebStorageCipher } from '@/lib/storage-cipher';
+import { getWebStorageCipher, onWebStorageCipherRecovered, whenWebStorageCipherSettled } from '@/lib/storage-cipher';
 import { Suspense, useEffect, useState } from 'react';
 import {
   AccountProvider,
@@ -22,6 +22,7 @@ import { AccountPasswordDialog } from '@/components/AccountPasswordDialog';
 import { PaymentConfirmedDialog } from '@/components/PaymentConfirmedDialog';
 import { SettingsDialog } from '@/components/SettingsDialog';
 import { initThemeFromStorage } from '@/lib/theme-init';
+import { startMobileShell } from '@/lib/mobile-shell';
 import { registerLearnTurnContext } from '@/lib/learn/turn-context';
 
 export function ChatProviderWrapper({
@@ -31,13 +32,27 @@ export function ChatProviderWrapper({
 }) {
   // The conversations rest encrypted on every device that has a cipher: the
   // keychain key on Alice Desktop, a non-extractable WebCrypto key in a
-  // browser (see alice-ai's local-cipher.ts).
-  const [storageCipher] = useState<ChatStorageCipher | undefined>(
+  // browser (see alice-ai's local-cipher.ts). On Alice Desktop the keychain
+  // check runs meanwhile: the cipher waits for it, and when the keychain
+  // cannot give its key the conversations turn memory-only until it is back.
+  const [storageCipher, setStorageCipher] = useState<ChatStorageCipher | undefined>(
     () => getWebStorageCipher() ?? undefined,
   );
+  useEffect(() => {
+    let live = true;
+    whenWebStorageCipherSettled(() => {
+      if (live) setStorageCipher(getWebStorageCipher() ?? undefined);
+    });
+    // The keychain came back after a failure (the banner's Retry).
+    const unsubscribe = onWebStorageCipherRecovered(() => {
+      if (live) setStorageCipher(getWebStorageCipher() ?? undefined);
+    });
+    return () => { live = false; unsubscribe(); };
+  }, []);
   // Desktop and web have the headroom to load the corpus right away, so the
   // first question never waits for it.
   useEffect(() => { void loadRagCorpus(); }, []);
+  useEffect(() => startMobileShell(), []);
 
   useEffect(() => {
     initThemeFromStorage();
@@ -75,6 +90,7 @@ export function ChatProviderWrapper({
               wherever the user happens to be. */}
           <PaymentConfirmedDialog />
           <AppUpdateNotices />
+          {/* Above everything: the first launch asks the language before anything else. */}
         </div>
       </ChatProvider>
     </AccountProvider>

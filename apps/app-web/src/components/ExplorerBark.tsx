@@ -28,6 +28,7 @@ import { EXTERNAL_ICON } from '@/lib/atelier-icons';
 import { Amount } from '@/components/AmountDisplay';
 import { SvgIcon } from '@/components/SvgIcon';
 import { ExplorerCopy, FieldLabel, Metric, SkeletonLines } from '@/components/ExplorerUI';
+import { formatLocale, type Translator, useT } from '@/i18n';
 
 /** The Bark accent, for its round markers: the theme's text colour, so white
  *  on a dark theme and black on a light one (see networks.ts). */
@@ -49,29 +50,30 @@ function agoLabel(ms: number): string {
   if (s < 86_400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86_400)}d ago`;
 }
-function fmtDuration(sec: number): string {
+function fmtDuration(sec: number, t: Translator): string {
   if (!sec) return '-';
-  if (sec < 60) return `${sec}s`;
-  if (sec < 3600) return `${Math.round(sec / 60)}m`;
-  return `${Math.round(sec / 3600)}h`;
+  if (sec < 60) return t('explorerBark.duration.seconds', { count: sec });
+  if (sec < 3600) return t('explorerBark.duration.minutes', { count: Math.round(sec / 60) });
+  return t('explorerBark.duration.hours', { count: Math.round(sec / 3600) });
 }
 /** Blocks as days when they divide evenly (144 a day), raw blocks otherwise. */
-function days(blocks: number): string {
-  if (blocks % BLOCKS_PER_DAY !== 0) return `${blocks.toLocaleString('en-US')} blocks`;
+function days(blocks: number, t: Translator): string {
+  if (blocks % BLOCKS_PER_DAY !== 0) return t('explorerBark.blocks', { blocks: blocks.toLocaleString(formatLocale()) });
   const d = blocks / BLOCKS_PER_DAY;
-  return `${d} day${d === 1 ? '' : 's'}`;
+  return t.plural('explorerBark.days', d);
 }
-function blocksAndDays(blocks: number): string {
+function blocksAndDays(blocks: number, t: Translator): string {
   if (!blocks) return '-';
-  return `${blocks.toLocaleString('en-US')} blocks (~${Math.max(1, Math.round(blocks / BLOCKS_PER_DAY))} d)`;
+  return t('explorerBark.blocksAndDays', { blocks: blocks.toLocaleString(formatLocale()), days: Math.max(1, Math.round(blocks / BLOCKS_PER_DAY)) });
 }
-function pct(ppm: number): string {
-  return `${(ppm / 10_000).toLocaleString('en-US', { maximumFractionDigits: 2 })}%`;
+function pct(ppm: number, t: Translator): string {
+  return t('explorerBark.percent', { value: (ppm / 10_000).toLocaleString(formatLocale(), { maximumFractionDigits: 2 }) });
 }
 
 /** The round marker: the accent filled, the page background as text, so it
  *  inverts with the theme (white on black, black on white). */
-export function BarkRoundBadge({ children = 'BARK ROUND' }: { children?: React.ReactNode }) {
+export function BarkRoundBadge({ children }: { children?: React.ReactNode }) {
+  const t = useT();
   return (
     <span
       className="font-pixel tracking-widest inline-flex items-center shrink-0"
@@ -81,7 +83,7 @@ export function BarkRoundBadge({ children = 'BARK ROUND' }: { children?: React.R
         backgroundColor: BARK_ACCENT, whiteSpace: 'nowrap',
       }}
     >
-      {children}
+      {children ?? t('explorerBark.badge.round')}
     </span>
   );
 }
@@ -92,16 +94,16 @@ function Label({ children }: { children: React.ReactNode }) {
 
 /* --------------------------------- rounds --------------------------------- */
 
-function lastEventLine(e: BarkRoundEvent | null): string | null {
+function lastEventLine(e: BarkRoundEvent | null, t: Translator): string | null {
   if (!e) return null;
   switch (e.kind) {
     case 'attempt':
     case 'proposal':
-      return e.attemptSeq > 0 ? `Round in progress (attempt ${e.attemptSeq + 1}).` : 'Round in progress.';
+      return e.attemptSeq > 0 ? t('explorerBark.event.attempt', { attempt: e.attemptSeq + 1 }) : t('explorerBark.event.progress');
     case 'finished':
-      return 'Last round completed, its round transaction broadcast on Bitcoin.';
+      return t('explorerBark.event.finished');
     case 'failed':
-      return 'Last round closed without a round transaction.';
+      return t('explorerBark.event.failed');
     default:
       return null;
   }
@@ -122,6 +124,7 @@ export function BarkLiveRounds({ serverUrl, rounds, sync, onOpenTx }: {
   sync?: SettlementSync;
   onOpenTx: (txid: string, networkId?: string) => void;
 }) {
+  const t = useT();
   const [last, setLast] = useState<BarkRoundEvent | null>(null);
   const [live, setLive] = useState(false);
   const [nextAt, setNextAt] = useState<number | null>(null);
@@ -144,7 +147,7 @@ export function BarkLiveRounds({ serverUrl, rounds, sync, onOpenTx }: {
             // resolved by the next walk pass once the transaction confirms.
             if (e.kind === 'finished' && e.txid) noteSeenBarkRound(e.txid);
             // A round just ended: the server has scheduled the next one.
-            if (e.kind === 'finished' || e.kind === 'failed') setNextToken(t => t + 1);
+            if (e.kind === 'finished' || e.kind === 'failed') setNextToken(n => n + 1);
           }, { signal: controller.signal });
         } catch {
           /* dropped or unreachable: fall through to backoff and retry */
@@ -162,7 +165,7 @@ export function BarkLiveRounds({ serverUrl, rounds, sync, onOpenTx }: {
   useEffect(() => {
     const controller = new AbortController();
     getBarkNextRoundTime(serverUrl, { signal: controller.signal })
-      .then(t => setNextAt(t > 0 ? t : null))
+      .then(at => setNextAt(at > 0 ? at : null))
       .catch(() => { /* the countdown is a nicety; the feed works without it */ });
     return () => controller.abort();
   }, [serverUrl, nextToken]);
@@ -176,11 +179,11 @@ export function BarkLiveRounds({ serverUrl, rounds, sync, onOpenTx }: {
   useEffect(() => {
     if (nextAt === null) return;
     const wait = Math.max(nextAt * 1000 - Date.now() + 60_000, 60_000);
-    const id = setTimeout(() => setNextToken(t => t + 1), wait);
+    const id = setTimeout(() => setNextToken(n => n + 1), wait);
     return () => clearTimeout(id);
   }, [nextAt]);
 
-  const status = lastEventLine(last);
+  const status = lastEventLine(last, t);
   const minutesLeft = nextAt !== null ? Math.max(0, Math.round((nextAt * 1000 - now) / 60_000)) : null;
   // Newest first; a round just seen on the feed, not yet confirmed, comes
   // before every confirmed one.
@@ -200,21 +203,21 @@ export function BarkLiveRounds({ serverUrl, rounds, sync, onOpenTx }: {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <Label>ROUNDS</Label>
+        <Label>{t('explorerBark.rounds.title')}</Label>
         <span className="flex items-center gap-1.5">
           {sync && !catchingUp && sync.tipHeight !== null && (
-            <span title="The walk of the server's wallet has reached the live tip: the newest round shown is the newest there is.">
-              <Label>UP TO DATE · BLOCK {sync.tipHeight.toLocaleString('en-US')} ·</Label>
+            <span title={t('explorerBark.rounds.upToDateTitle')}>
+              <Label>{t('explorerBark.rounds.upToDate', { height: sync.tipHeight.toLocaleString(formatLocale()) })}</Label>
             </span>
           )}
           <span style={{ width: 7, height: 7, borderRadius: 7, backgroundColor: live ? 'var(--alice-success)' : 'var(--alice-muted)' }} />
-          <Label>{live ? 'LIVE' : 'CONNECTING'}</Label>
+          <Label>{live ? t('explorerBark.rounds.live') : t('explorerBark.rounds.connecting')}</Label>
         </span>
       </div>
       <div className="flex flex-col gap-1 px-3 py-2" style={{ borderTop: '1px solid var(--alice-border)' }}>
         {nextAt !== null && minutesLeft !== null && (
           <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-text)' }}>
-            {minutesLeft === 0 ? 'Next round starting now' : `Next round in ${minutesLeft} min`}
+            {minutesLeft === 0 ? t('explorerBark.rounds.nextNow') : t('explorerBark.rounds.nextIn', { minutes: minutesLeft })}
             {' · '}
             {new Date(nextAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
@@ -226,15 +229,14 @@ export function BarkLiveRounds({ serverUrl, rounds, sync, onOpenTx }: {
           <div className="flex items-center gap-2 px-3 py-2" style={{ color: 'var(--alice-muted)' }} role="status">
             <span className="rh-spinner shrink-0" aria-hidden="true" />
             <span className="font-numbers" style={{ fontSize: 12, lineHeight: '16px' }}>
-              Downloading the latest rounds from the Bitcoin chain. The newest shown may not be the newest yet.
+              {t('explorerBark.rounds.catchingUp')}
             </span>
           </div>
         )}
         {shown.length === 0 ? (
           !catchingUp && (
             <p className="font-numbers m-0 px-3 py-3" style={{ fontSize: 12.5, lineHeight: '18px', color: 'var(--alice-muted)' }}>
-              Looking for the latest round. A Bark server keeps no public round history: Alice asks it for its
-              last round, follows the server&rsquo;s wallet on Bitcoin from there, and listens to the live feed.
+              {t('explorerBark.rounds.empty')}
             </p>
           )
         ) : (
@@ -245,18 +247,18 @@ export function BarkLiveRounds({ serverUrl, rounds, sync, onOpenTx }: {
               onClick={() => onOpenTx(r.txid, 'mainnet')}
               className="alice-control alice-control--quiet flex items-center justify-between gap-3 w-full text-left cursor-pointer bg-transparent px-3 py-2"
               style={{ borderTop: i > 0 || catchingUp ? '1px solid var(--alice-border)' : undefined, justifyContent: 'space-between' }}
-              title={i === 0 ? 'The latest round found: opens its transaction and the block confirming it' : undefined}
+              title={i === 0 ? t('explorerBark.rounds.latestTitle') : undefined}
             >
               <div className="flex flex-col min-w-0">
                 <span className="font-numbers truncate" style={{ fontSize: 12, color: 'var(--alice-primary)' }} title={r.txid}>{shortHex(r.txid, 12, 8)}</span>
                 <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
                   {r.height !== undefined
-                    ? `block ${r.height.toLocaleString('en-US')}${r.timestamp ? ` · ${formatDateTime(r.timestamp)}` : ''}`
-                    : 'round transaction broadcast, awaiting confirmation'}
+                    ? `${t('explorerBark.rounds.block', { height: r.height.toLocaleString(formatLocale()) })}${r.timestamp ? ` · ${formatDateTime(r.timestamp)}` : ''}`
+                    : t('explorerBark.rounds.unconfirmed')}
                 </span>
               </div>
               <span className="flex items-center gap-2 shrink-0">
-                {i === 0 && <Label>LATEST</Label>}
+                {i === 0 && <Label>{t('explorerBark.rounds.latest')}</Label>}
                 <BarkRoundBadge />
               </span>
             </button>
@@ -270,7 +272,7 @@ export function BarkLiveRounds({ serverUrl, rounds, sync, onOpenTx }: {
           className="alice-control alice-control--quiet font-numbers self-center cursor-pointer"
           style={{ fontSize: 13, padding: '8px 16px', borderRadius: 3, color: 'var(--alice-primary)' }}
         >
-          SHOW {Math.min(FEED_STEP, sorted.length - shown.length)} MORE
+          {t('explorerBark.rounds.showMore', { count: Math.min(FEED_STEP, sorted.length - shown.length) })}
         </button>
       ) : sync && sorted.length > 0 && !catchingUp && sync.exhausted === null ? (
         <button
@@ -279,16 +281,16 @@ export function BarkLiveRounds({ serverUrl, rounds, sync, onOpenTx }: {
           disabled={sync.loadingOlder}
           className="alice-control alice-control--quiet font-numbers self-center cursor-pointer disabled:cursor-not-allowed flex items-center gap-2"
           style={{ fontSize: 13, padding: '8px 16px', borderRadius: 3, color: 'var(--alice-primary)' }}
-          title="Walk the server's wallet further back on Bitcoin, one page of rounds at a time"
+          title={t('explorerBark.rounds.olderTitle')}
         >
           {sync.loadingOlder && <span className="rh-spinner" aria-hidden="true" />}
-          {sync.loadingOlder ? 'LOADING OLDER…' : `LOAD ${HISTORY_PAGE} OLDER`}
+          {sync.loadingOlder ? t('explorerBark.rounds.loadingOlder') : t('explorerBark.rounds.loadOlder', { count: HISTORY_PAGE })}
         </button>
       ) : sync?.exhausted ? (
         <span className="font-numbers self-center text-center" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
           {sync.exhausted === 'origin'
-            ? 'Back to the first transaction of the server’s wallet: nothing older.'
-            : 'Nothing older found: the server funded this round from transactions the walk cannot cross, or no longer recognises (a round’s tree expires after about four weeks).'}
+            ? t('explorerBark.rounds.origin')
+            : t('explorerBark.rounds.stuck')}
         </span>
       ) : null}
     </div>
@@ -310,31 +312,31 @@ export function BarkRoundCard({ root, tx, tip, onOpenVtxo }: {
   tip: number | null;
   onOpenVtxo?: (id: string) => void;
 }) {
+  const t = useT();
   const blocksLeft = tip !== null ? root.expiryHeight - tip : null;
-  const server = arkIdFor(root.serverPubkey) === SECOND_ARK_ID ? 'Second' : 'Another server';
+  const server = arkIdFor(root.serverPubkey) === SECOND_ARK_ID ? 'Second' : t('explorerBark.server.other');
+  const height = root.expiryHeight.toLocaleString(formatLocale());
   const expires = blocksLeft === null
-    ? `block ${root.expiryHeight.toLocaleString('en-US')}`
+    ? t('explorerBark.round.expiresBlock', { height })
     : blocksLeft <= 0
-      ? `block ${root.expiryHeight.toLocaleString('en-US')}, expired`
-      : `block ${root.expiryHeight.toLocaleString('en-US')}, in ${blocksAndDays(blocksLeft)}`;
+      ? t('explorerBark.round.expiredBlock', { height })
+      : t('explorerBark.round.expiresIn', { height, left: blocksAndDays(blocksLeft, t) });
   return (
     <div className="flex flex-col gap-3 px-4 py-3" style={{ borderTop: `3px solid ${BARK_ACCENT}`, borderRadius: 3 }}>
       <div className="flex items-center gap-2 flex-wrap">
         <BarkRoundBadge />
         <span className="font-numbers" style={{ fontSize: 12.5, color: 'var(--alice-text)' }}>
-          A round of {server}&rsquo;s Bark server: this is its round transaction.
+          {t('explorerBark.round.intro', { server })}
         </span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
-        <Metric label="ROUND TREE" value={<Amount sats={root.amountSats} />} title="The sum of every coin the round created" />
-        <Metric label="TREE EXPIRES" value={expires} />
-        <Metric label="EXIT DELAY" value={blocksAndDays(root.exitDeltaBlocks)} />
-        <Metric label="OUTPUTS" value={`${tx.outputs.length}, the tree root ${root.anchor.vout === 0 ? 'first' : `at #${root.anchor.vout}`}`} />
+        <Metric label={t('explorerBark.round.tree')} value={<Amount sats={root.amountSats} />} title={t('explorerBark.round.treeTitle')} />
+        <Metric label={t('explorerBark.round.treeExpires')} value={expires} />
+        <Metric label={t('explorerBark.metric.exitDelay')} value={blocksAndDays(root.exitDeltaBlocks, t)} />
+        <Metric label={t('explorerBark.round.outputs')} value={root.anchor.vout === 0 ? t('explorerBark.round.outputsFirst', { count: tx.outputs.length }) : t('explorerBark.round.outputsAt', { count: tx.outputs.length, vout: root.anchor.vout })} />
       </div>
       <p className="font-numbers m-0" style={{ fontSize: 12.5, lineHeight: '18px', color: 'var(--alice-muted)' }}>
-        Output #{root.anchor.vout} is the root of the round&rsquo;s VTXO tree, the sum of every coin the round
-        created. The server keeps the root until the tree expires; until then, each holder can take
-        their coin on-chain from it without the server.
+        {t('explorerBark.round.explain', { vout: root.anchor.vout })}
       </p>
       {onOpenVtxo && (
         <button
@@ -343,7 +345,7 @@ export function BarkRoundCard({ root, tx, tip, onOpenVtxo }: {
           className="alice-control alice-control--quiet font-numbers self-start cursor-pointer"
           style={{ fontSize: 12.5, padding: '6px 10px', borderRadius: 3, color: 'var(--alice-primary)' }}
         >
-          Open the tree root as a VTXO
+          {t('explorerBark.round.openRoot')}
         </button>
       )}
     </div>
@@ -353,20 +355,20 @@ export function BarkRoundCard({ root, tx, tip, onOpenVtxo }: {
 /* ------------------------------- server info ------------------------------ */
 
 /** "0% with under 2 days left · 0.2% from 2 days · …" for a tiered fee. */
-function tierLine(tiers: FeeTier[]): string {
-  return tiers.map((t, i) => {
+function tierLine(tiers: FeeTier[], t: Translator): string {
+  return tiers.map((tier, i) => {
     const next = tiers[i + 1];
-    if (t.fromBlocksLeft === 0 && next) return `${pct(t.ppm)} with under ${days(next.fromBlocksLeft)} left`;
-    return `${pct(t.ppm)} from ${days(t.fromBlocksLeft)} left`;
+    if (tier.fromBlocksLeft === 0 && next) return t('explorerBark.fees.under', { pct: pct(tier.ppm, t), days: days(next.fromBlocksLeft, t) });
+    return t('explorerBark.fees.from', { pct: pct(tier.ppm, t), days: days(tier.fromBlocksLeft, t) });
   }).join(' · ');
 }
 
-function tierRange(tiers: FeeTier[]): string {
-  if (tiers.length === 0) return 'no fee';
-  const ppms = tiers.map(t => t.ppm);
+function tierRange(tiers: FeeTier[], t: Translator): string {
+  if (tiers.length === 0) return t('explorerBark.fees.none');
+  const ppms = tiers.map(tier => tier.ppm);
   const lo = Math.min(...ppms);
   const hi = Math.max(...ppms);
-  return lo === hi ? pct(lo) : `${pct(lo)} to ${pct(hi)}`;
+  return lo === hi ? pct(lo, t) : t('explorerBark.fees.range', { low: pct(lo, t), high: pct(hi, t) });
 }
 
 function FeeRow({ label, value, detail }: { label: string; value: string; detail?: string }) {
@@ -381,39 +383,40 @@ function FeeRow({ label, value, detail }: { label: string; value: string; detail
   );
 }
 
-function extras(baseSats: number, minSats = 0): string {
+function extras(t: Translator, baseSats: number, minSats = 0): string {
   const parts: string[] = [];
-  if (baseSats) parts.push(`plus ${baseSats.toLocaleString('en-US')} sats`);
-  if (minSats) parts.push(`minimum ${minSats.toLocaleString('en-US')} sats`);
+  if (baseSats) parts.push(t('explorerBark.fees.plus', { sats: baseSats.toLocaleString(formatLocale()) }));
+  if (minSats) parts.push(t('explorerBark.fees.minimum', { sats: minSats.toLocaleString(formatLocale()) }));
   return parts.join(', ');
 }
 
 function FeeSchedule({ info }: { info: BarkInfo }) {
+  const t = useT();
   const f = info.fees;
   const boardFree = !f.board.ppm && !f.board.baseSats && !f.board.minSats;
   const recvFree = !f.lightningReceive.ppm && !f.lightningReceive.baseSats;
   const join = (...xs: string[]) => xs.filter(Boolean).join(' · ');
   return (
     <div className="flex flex-col">
-      <Label>FEES</Label>
+      <Label>{t('explorerBark.fees.title')}</Label>
       <p className="font-numbers m-0 pt-1 pb-2" style={{ fontSize: 11.5, lineHeight: '16px', color: 'var(--alice-muted)' }}>
-        Percentages of the amount, set by how long the coin spent still has to live. A coin refreshed close to its expiry costs least.
+        {t('explorerBark.fees.intro')}
       </p>
       <FeeRow
-        label="BOARD"
-        value={boardFree ? 'no server fee' : join(f.board.ppm ? pct(f.board.ppm) : '', extras(f.board.baseSats, f.board.minSats))}
-        detail="Moving on-chain bitcoin into Ark. The on-chain mining fee still applies."
+        label={t('explorerBark.fees.board')}
+        value={boardFree ? t('explorerBark.fees.noServerFee') : join(f.board.ppm ? pct(f.board.ppm, t) : '', extras(t, f.board.baseSats, f.board.minSats))}
+        detail={t('explorerBark.fees.boardDetail')}
       />
-      <FeeRow label="REFRESH" value={tierRange(f.refresh.tiers)} detail={join(tierLine(f.refresh.tiers), extras(f.refresh.baseSats))} />
-      <FeeRow label="OFFBOARD" value={tierRange(f.offboard.tiers)} detail={join(tierLine(f.offboard.tiers), extras(f.offboard.baseSats), 'plus the on-chain fee')} />
+      <FeeRow label={t('explorerBark.fees.refresh')} value={tierRange(f.refresh.tiers, t)} detail={join(tierLine(f.refresh.tiers, t), extras(t, f.refresh.baseSats))} />
+      <FeeRow label={t('explorerBark.fees.offboard')} value={tierRange(f.offboard.tiers, t)} detail={join(tierLine(f.offboard.tiers, t), extras(t, f.offboard.baseSats), t('explorerBark.fees.onchainFee'))} />
       <FeeRow
-        label="LIGHTNING SEND"
-        value={tierRange(f.lightningSend.tiers)}
-        detail={join(tierLine(f.lightningSend.tiers), extras(f.lightningSend.baseSats, f.lightningSend.minSats))}
+        label={t('explorerBark.fees.lightningSend')}
+        value={tierRange(f.lightningSend.tiers, t)}
+        detail={join(tierLine(f.lightningSend.tiers, t), extras(t, f.lightningSend.baseSats, f.lightningSend.minSats))}
       />
       <FeeRow
-        label="LIGHTNING RECEIVE"
-        value={recvFree ? 'no server fee' : join(f.lightningReceive.ppm ? pct(f.lightningReceive.ppm) : '', extras(f.lightningReceive.baseSats))}
+        label={t('explorerBark.fees.lightningReceive')}
+        value={recvFree ? t('explorerBark.fees.noServerFee') : join(f.lightningReceive.ppm ? pct(f.lightningReceive.ppm, t) : '', extras(t, f.lightningReceive.baseSats))}
       />
     </div>
   );
@@ -421,6 +424,7 @@ function FeeSchedule({ info }: { info: BarkInfo }) {
 
 /** The server's advertised parameters and fees, as a section of the Bark overview. */
 export function BarkServerInfo({ serverUrl }: { serverUrl: string }) {
+  const t = useT();
   const [info, setInfo] = useState<BarkInfo | null>(null);
   const [err, setErr] = useState('');
 
@@ -431,7 +435,7 @@ export function BarkServerInfo({ serverUrl }: { serverUrl: string }) {
       .then(setInfo)
       .catch(e => {
         if (e instanceof DOMException && e.name === 'AbortError') return;
-        setErr(e instanceof BarkError ? e.message : 'Could not reach the Bark server.');
+        setErr(e instanceof BarkError ? e.message : t('explorerBark.error.unreachable'));
       });
     return () => controller.abort();
   }, [serverUrl]);
@@ -439,30 +443,30 @@ export function BarkServerInfo({ serverUrl }: { serverUrl: string }) {
   const host = serverUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '');
   return (
     <div className="flex flex-col gap-2">
-      <Label>ARK SERVER</Label>
+      <Label>{t('explorerBark.info.server')}</Label>
       {err ? (
         <div className="flex flex-col gap-1 px-4 py-3" style={{ border: '1px solid var(--alice-danger)', borderRadius: 3 }}>
-          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>SERVER UNREACHABLE</span>
+          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>{t('explorerBark.info.unreachable')}</span>
           <p className="font-numbers m-0" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{err}</p>
         </div>
       ) : info ? (
         <div className="flex flex-col gap-4 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderLeft: `3px solid ${BARK_ACCENT}`, borderRadius: 3 }}>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
-            <Metric label="ROUND EVERY" value={fmtDuration(info.roundIntervalSec)} />
-            <Metric label="VTXO LIFETIME" value={blocksAndDays(info.vtxoLifetimeBlocks)} title="How long a coin lives before it must be refreshed. Past it, the server can sweep it." />
-            <Metric label="EXIT DELAY" value={blocksAndDays(info.exitDeltaBlocks)} title="The wait on each step of a unilateral exit, the way out without the server." />
-            <Metric label="VTXO MAX" value={info.maxVtxoSats !== undefined ? <Amount sats={info.maxVtxoSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} /> : 'no limit'} />
-            <Metric label="MIN BOARD" value={<Amount sats={info.minBoardSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
-            <Metric label="BOARD CONFS" value={info.boardConfirmations.toLocaleString('en-US')} title="Confirmations an on-chain deposit needs before it becomes a VTXO." />
-            <Metric label="MAX EXIT DEPTH" value={info.maxExitDepth ? `${info.maxExitDepth} txs` : '-'} title="The most transactions a coin's exit path may take." />
-            <Metric label="SETTLES ON" value={info.network || '-'} />
+            <Metric label={t('explorerBark.info.roundEvery')} value={fmtDuration(info.roundIntervalSec, t)} />
+            <Metric label={t('explorerBark.info.lifetime')} value={blocksAndDays(info.vtxoLifetimeBlocks, t)} title={t('explorerBark.info.lifetimeTitle')} />
+            <Metric label={t('explorerBark.metric.exitDelay')} value={blocksAndDays(info.exitDeltaBlocks, t)} title={t('explorerBark.info.exitDelayTitle')} />
+            <Metric label={t('explorerBark.info.vtxoMax')} value={info.maxVtxoSats !== undefined ? <Amount sats={info.maxVtxoSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} /> : t('explorerBark.info.noLimit')} />
+            <Metric label={t('explorerBark.info.minBoard')} value={<Amount sats={info.minBoardSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
+            <Metric label={t('explorerBark.info.boardConfs')} value={info.boardConfirmations.toLocaleString(formatLocale())} title={t('explorerBark.info.boardConfsTitle')} />
+            <Metric label={t('explorerBark.info.maxExitDepth')} value={info.maxExitDepth ? t('explorerBark.info.txs', { count: info.maxExitDepth }) : '-'} title={t('explorerBark.info.maxExitDepthTitle')} />
+            <Metric label={t('explorerBark.info.settlesOn')} value={info.network || '-'} />
           </div>
           <div className="flex flex-col gap-1">
-            <FieldLabel>SERVER PUBKEY</FieldLabel>
+            <FieldLabel>{t('explorerBark.info.pubkey')}</FieldLabel>
             <span className="font-numbers break-all" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{info.serverPubkey || '-'}</span>
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>Operated by Second · {host}</span>
+            <span className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{t('explorerBark.info.operatedBy', { host })}</span>
             {info.tosLink && /^https:\/\//.test(info.tosLink) && (
               <a
                 href={info.tosLink}
@@ -472,7 +476,7 @@ export function BarkServerInfo({ serverUrl }: { serverUrl: string }) {
                 className="alice-control alice-control--quiet inline-flex font-numbers"
                 style={{ fontSize: 11, color: 'var(--alice-primary)' }}
               >
-                Terms of service <SvgIcon svg={EXTERNAL_ICON} size={16} />
+                {t('explorerBark.info.terms')} <SvgIcon svg={EXTERNAL_ICON} size={16} />
               </a>
             )}
           </div>
@@ -490,34 +494,35 @@ export function BarkServerInfo({ serverUrl }: { serverUrl: string }) {
 /* --------------------------------- address -------------------------------- */
 
 function AddressDetails({ a, serverLabel }: { a: BarkAddress; serverLabel: string }) {
+  const t = useT();
   const mailbox = a.delivery.find(d => d.kind === 'mailbox');
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderLeft: `3px solid ${BARK_ACCENT}`, borderRadius: 3 }}>
-        <div className="flex items-center gap-2"><BarkRoundBadge>BARK ADDRESS</BarkRoundBadge></div>
+        <div className="flex items-center gap-2"><BarkRoundBadge>{t('explorerBark.address.badge')}</BarkRoundBadge></div>
         <div className="flex items-start gap-2">
           <p className="font-numbers m-0 break-all min-w-0 flex-1" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{a.address}</p>
-          <ExplorerCopy value={a.address} label="address" />
+          <ExplorerCopy value={a.address} label={t('explorerBark.address.copy')} />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
-          <Metric label="NETWORK" value={a.testnet ? 'Test network' : 'Bitcoin'} />
+          <Metric label={t('explorerBark.address.network')} value={a.testnet ? t('explorerBark.address.testNetwork') : 'Bitcoin'} />
           <Metric
-            label="ARK SERVER"
+            label={t('explorerBark.info.server')}
             value={serverLabel}
-            title={`Server id ${a.arkId}: the first 4 bytes of the hash of the server's public key.`}
+            title={t('explorerBark.address.serverTitle', { id: a.arkId })}
           />
-          <Metric label="SPENDING" value={a.policy.kind === 'pubkey' ? 'One key' : `Policy type ${a.policy.typeByte}`} />
-          <Metric label="DELIVERY" value={mailbox ? 'Server mailbox' : a.delivery.length ? 'Other' : 'None given'} />
+          <Metric label={t('explorerBark.address.spending')} value={a.policy.kind === 'pubkey' ? t('explorerBark.vtxo.policy.pubkey') : t('explorerBark.address.policyType', { type: a.policy.typeByte })} />
+          <Metric label={t('explorerBark.address.delivery')} value={mailbox ? t('explorerBark.address.mailbox') : a.delivery.length ? t('explorerBark.address.otherDelivery') : t('explorerBark.address.noDelivery')} />
         </div>
         {a.policy.kind === 'pubkey' && (
           <div className="flex flex-col gap-1">
-            <FieldLabel>RECEIVER PUBLIC KEY</FieldLabel>
+            <FieldLabel>{t('explorerBark.address.receiverKey')}</FieldLabel>
             <span className="font-numbers break-all" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{a.policy.userPubkey}</span>
           </div>
         )}
         {mailbox && mailbox.kind === 'mailbox' && (
           <div className="flex flex-col gap-1">
-            <FieldLabel>MAILBOX REFERENCE, BLINDED</FieldLabel>
+            <FieldLabel>{t('explorerBark.address.mailboxRef')}</FieldLabel>
             <span className="font-numbers break-all" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{mailbox.blindedId}</span>
           </div>
         )}
@@ -527,15 +532,12 @@ function AddressDetails({ a, serverLabel }: { a: BarkAddress; serverLabel: strin
         className="flex flex-col gap-2 px-4 py-3"
         style={{ borderTop: '1px solid var(--alice-border)', borderLeft: `3px solid ${BARK_ACCENT}`, borderRadius: 3 }}
       >
-        <Label>WHY NO BALANCE OR HISTORY</Label>
+        <Label>{t('explorerBark.address.whyTitle')}</Label>
         <p className="font-numbers m-0" style={{ fontSize: 12.5, lineHeight: '18px', color: 'var(--alice-text)' }}>
-          A Bark address is not an account on a public ledger. A payment to it reaches the receiver&rsquo;s wallet through
-          the server&rsquo;s mailbox, and the mailbox reference above is blinded, so the address does not reveal which
-          mailbox it is. Reading that mailbox takes a signature from the wallet&rsquo;s own key.
+          {t('explorerBark.address.whyLedger')}
         </p>
         <p className="font-numbers m-0" style={{ fontSize: 12.5, lineHeight: '18px', color: 'var(--alice-muted)' }}>
-          Bark servers publish no index of addresses or coins, by design: each holder keeps the data of their own coins
-          and decides who sees it. This address was decoded on your device and sent to no server.
+          {t('explorerBark.address.whyIndex')}
         </p>
       </div>
     </div>
@@ -550,13 +552,14 @@ export function ExplorerBarkAddressTab({ serverUrl, address, onSignals }: {
       (shape only, de-identified) and the full description for identified mode. */
   onSignals?: (signals: PrivacySignal[], full?: FullContext) => void;
 }) {
+  const t = useT();
   const decoded = useMemo<{ a: BarkAddress } | { error: string }>(() => {
     try {
       return { a: decodeBarkAddress(address) };
     } catch (e) {
-      return { error: e instanceof BarkError ? e.message : 'Could not decode this Bark address.' };
+      return { error: e instanceof BarkError ? e.message : t('explorerBark.address.decodeError') };
     }
-  }, [address]);
+  }, [address, t]);
   const [serverId, setServerId] = useState<string | null>(null);
   const [serverCheckFailed, setServerCheckFailed] = useState(false);
 
@@ -590,14 +593,14 @@ export function ExplorerBarkAddressTab({ serverUrl, address, onSignals }: {
   if ('error' in decoded) {
     return (
       <div className="flex flex-col gap-1 px-4 py-3" style={{ border: '1px solid var(--alice-danger)', borderRadius: 3 }}>
-        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>NOT A VALID BARK ADDRESS</span>
+        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>{t('explorerBark.address.invalid')}</span>
         <p className="font-numbers m-0" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{decoded.error}</p>
       </div>
     );
   }
   // A test-network address can never belong to the mainnet server.
-  const serverLabel = decoded.a.testnet ? 'A test server'
-    : serverId !== null ? (serverId === decoded.a.arkId ? 'Second' : 'Another server')
-      : serverCheckFailed ? 'Could not check' : 'checking…';
+  const serverLabel = decoded.a.testnet ? t('explorerBark.server.test')
+    : serverId !== null ? (serverId === decoded.a.arkId ? 'Second' : t('explorerBark.server.other'))
+      : serverCheckFailed ? t('explorerBark.server.checkFailed') : t('explorerBark.server.checking');
   return <div className="rh-fade-in"><AddressDetails a={decoded.a} serverLabel={serverLabel} /></div>;
 }

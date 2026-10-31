@@ -1,7 +1,9 @@
 'use client';
 
 import { SendMessageButton } from '@/components/SendMessageButton';
-import { useRef, useEffect, type ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
+import { enterSends, useComposerFit } from '@/lib/composer-field';
+import { useT } from '@/i18n';
 
 interface ChatInputProps {
   input: string;
@@ -23,16 +25,12 @@ export function ChatInput({
   panel = false,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const t = useT();
 
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = '26px';
-    el.style.height = Math.min(Math.max(el.scrollHeight, 26), 96) + 'px';
-  }, [input]);
+  useComposerFit(textareaRef, input);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (enterSends(e)) {
       e.preventDefault();
       if (input.trim() && !disabled) onSend();
     }
@@ -42,12 +40,12 @@ export function ChatInput({
     <div className={panel ? 'chat-composer-shell chat-composer-shell--panel' : 'chat-composer-shell'}>
       <div className="chat-composer">
         <textarea
-          aria-label="Message Alice"
+          aria-label={t('chat.composer.label')}
           ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask Alice something..."
+          placeholder={t('chat.composer.placeholder')}
           maxLength={500}
           rows={1}
           className="chat-composer-input w-full min-w-0 resize-none bg-transparent border-none outline-none font-numbers text-lg py-0 placeholder:opacity-100"
@@ -55,9 +53,7 @@ export function ChatInput({
             color: 'var(--alice-text)',
             height: '26px',
             minHeight: 26,
-            maxHeight: 96,
             lineHeight: '26px',
-            overflowY: input.includes('\n') ? 'auto' : 'hidden',
           }}
         />
         <div className="chat-composer-controls flex min-w-0 items-center justify-end gap-1.5">

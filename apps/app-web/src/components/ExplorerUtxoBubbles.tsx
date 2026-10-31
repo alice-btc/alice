@@ -6,8 +6,9 @@
 // up, and how chunky is each piece?" at a glance.
 
 import { useMemo, useState } from 'react';
+import { formatLocale, useT } from '@/i18n';
 import { packUtxos, type PackInput } from '@/lib/explorer/utxo-pack';
-import { formatAmount, formatAmountShort, useAmountState } from '@/components/AmountDisplay';
+import { AmountShort, formatAmount, useAmountState, WithBitcoinGlyph } from '@/components/AmountDisplay';
 
 // All circles use the theme's accent colour; size still reads value, and the
 // chunkier coins carry a touch more opacity so they stand out a little.
@@ -16,12 +17,13 @@ function fillOpacity(ratio: number): number {
 }
 
 
-export function ExplorerUtxoBubbles({ utxos, confidential = false, title = 'UNSPENT OUTPUTS' }: {
+export function ExplorerUtxoBubbles({ utxos, confidential = false, title }: {
   utxos: PackInput[];
   confidential?: boolean;
   /** Panel heading; Arkade shows the same view for its spendable VTXOs. */
   title?: string;
 }) {
+  const t = useT();
   const unit = useAmountState();
   // On Liquid the amounts are blinded: pack every coin at an equal nominal size
   // so the graph still shows how many outputs there are (and that there is only
@@ -46,10 +48,10 @@ export function ExplorerUtxoBubbles({ utxos, confidential = false, title = 'UNSP
     >
       <div className="flex items-center justify-between">
         <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-          {title}
+          {title ?? t('explorer.address.unspent')}
         </span>
         <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-          {utxos.length.toLocaleString('en-US')} coin{utxos.length > 1 ? 's' : ''} - {confidential ? 'amount hidden' : formatAmount(held, unit)}
+          {t.plural('explorer.utxos.coins', utxos.length, { n: utxos.length.toLocaleString(formatLocale()) })} - {confidential ? t('explorer.utxos.amountHidden') : <WithBitcoinGlyph text={formatAmount(held, unit)} />}
         </span>
       </div>
 
@@ -62,7 +64,7 @@ export function ExplorerUtxoBubbles({ utxos, confidential = false, title = 'UNSP
         height={layout.height}
         style={{ display: 'block', maxWidth: '100%', height: 'auto', maxHeight: 340, margin: '4px auto' }}
         role="group"
-        aria-label={`${utxos.length} unspent outputs, packed by value`}
+        aria-label={t('explorer.utxos.graphLabel', { count: utxos.length })}
       >
         {layout.circles.map((c, i) => {
           const ratio = c.r / layout.maxR;
@@ -73,7 +75,7 @@ export function ExplorerUtxoBubbles({ utxos, confidential = false, title = 'UNSP
               key={i}
               role="button"
               tabIndex={0}
-              aria-label={`Output ${i + 1}, ${confidential ? 'amount hidden' : formatAmount(c.valueSats, unit)}`}
+              aria-label={t('explorer.utxos.outputLabel', { n: i + 1, amount: confidential ? t('explorer.utxos.amountHidden') : formatAmount(c.valueSats, unit) })}
               aria-pressed={selected === i}
               onClick={() => setSelected(i)}
               onFocus={() => setSelected(i)}
@@ -91,19 +93,22 @@ export function ExplorerUtxoBubbles({ utxos, confidential = false, title = 'UNSP
                 stroke={isHover ? 'var(--alice-text)' : 'none'}
                 strokeWidth={isHover ? 1.2 : 0}
               >
-                <title>{confidential ? 'Amount hidden (confidential)' : formatAmount(c.valueSats, unit)}</title>
+                <title>{confidential ? t('explorer.utxos.amountHiddenConfidential') : formatAmount(c.valueSats, unit)}</title>
               </circle>
               {labelled && (
-                <text
-                  x={c.x}
-                  y={c.y}
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fill="var(--alice-bg)"
-                  style={{ fontSize: Math.max(8, c.r * 0.34), fontWeight: 600, pointerEvents: 'none' }}
-                >
-                  {formatAmountShort(c.valueSats, unit)}
-                </text>
+                // HTML rather than <text>, so the ₿ can be the glyph: the
+                // interface fonts have no U+20BF.
+                <foreignObject x={c.x - c.r} y={c.y - c.r} width={c.r * 2} height={c.r * 2} style={{ pointerEvents: 'none' }}>
+                  <div
+                    aria-hidden
+                    style={{
+                      width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'var(--alice-bg)', fontSize: Math.max(8, c.r * 0.34), fontWeight: 600, lineHeight: 1, whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <AmountShort sats={c.valueSats} unit={unit} />
+                  </div>
+                </foreignObject>
               )}
             </g>
           );
@@ -111,23 +116,23 @@ export function ExplorerUtxoBubbles({ utxos, confidential = false, title = 'UNSP
       </svg>
 
       <details className="font-numbers text-sm">
-        <summary className="alice-control alice-control--quiet cursor-pointer">Inspect outputs as a list</summary>
+        <summary className="alice-control alice-control--quiet cursor-pointer">{t('explorer.utxos.inspectList')}</summary>
         <div className="flex flex-col max-h-64 overflow-auto">
           {layout.circles.map((coin, i) => (
             <button key={i} type="button" className="alice-control alice-control--option w-full"
               aria-pressed={selected === i}
               onFocus={() => setSelected(i)} onClick={() => setSelected(i)}>
-              <span>{selected === i ? 'Selected · ' : ''}Output {i + 1}</span>
-              <span>{confidential ? 'Amount hidden' : formatAmount(coin.valueSats, unit)}</span>
+              <span>{selected === i ? t('explorer.utxos.selected') : ''}{t('explorer.utxos.output', { n: i + 1 })}</span>
+              <span>{confidential ? t('explorer.utxos.amountHiddenCap') : <WithBitcoinGlyph text={formatAmount(coin.valueSats, unit)} />}</span>
             </button>
           ))}
         </div>
       </details>
       <p className="font-numbers m-0" style={{ fontSize: 11, color: 'var(--alice-muted)', opacity: 0.7 }}>
         {confidential
-          ? 'Each circle is one unspent output; amounts are confidential on Liquid, so sizes are equal.'
-          : 'Each circle is one unspent output; its size is the amount it holds.'}
-        {capped && ` Showing the ${layout.shown} largest of ${utxos.length.toLocaleString('en-US')}.`}
+          ? t('explorer.utxos.legendConfidential')
+          : t('explorer.utxos.legend')}
+        {capped && t('explorer.utxos.capped', { shown: layout.shown, total: utxos.length.toLocaleString(formatLocale()) })}
       </p>
     </div>
   );

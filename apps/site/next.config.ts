@@ -10,6 +10,10 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   // `next/image` optimization needs a server; static export has none.
   images: { unoptimized: true },
+  // English and each other language are separate root layouts (app/(en) and
+  // app/[locale]), so the 404 page needs its own document:
+  // app/global-not-found.tsx.
+  experimental: { globalNotFound: true },
 };
 
 export default nextConfig;

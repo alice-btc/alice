@@ -28,7 +28,7 @@ export async function loadRagEvaluationRuntime(entry, { revision, evaluationPref
         builder.onResolve({ filter: /^expo-file-system(?:\/legacy)?$/ }, () => ({ path: 'file-system', namespace: 'generation-stub' }));
         builder.onLoad({ filter: /.*/, namespace: 'generation-stub' }, args => ({ contents: args.path === 'platform'
           ? "export const Platform = { OS: 'web', select: values => values.web ?? values.default };"
-          : args.path === 'tauri' ? "export const isTauriDesktop = () => false; export function tauriInvoke(){ throw Error('Tauri bridge is forbidden in generation evaluation'); }"
+          : args.path === 'tauri' ? "export const isTauriDesktop = () => false; export const hasKeychainCipher = () => false; export function tauriInvoke(){ throw Error('Tauri bridge is forbidden in generation evaluation'); }"
           : args.path === 'file-system' ? "export const documentDirectory = 'forbidden://'; export function getInfoAsync(){ throw Error('Native filesystem is forbidden in generation evaluation'); } export const deleteAsync = getInfoAsync, makeDirectoryAsync = getInfoAsync, moveAsync = getInfoAsync, createDownloadResumable = getInfoAsync;"
           : args.path === 'secure-store' ? "export const WHEN_UNLOCKED_THIS_DEVICE_ONLY = 'unavailable'; export async function getItemAsync(){ throw Error('SecureStore is forbidden in generation evaluation'); } export const setItemAsync = getItemAsync, deleteItemAsync = getItemAsync;"
           : `const values = new Map(Object.entries(${JSON.stringify(evaluationPreferences)}));

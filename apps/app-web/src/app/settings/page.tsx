@@ -5,6 +5,7 @@ import { SvgIcon } from '@/components/SvgIcon';
 import { CHEVRON_LEFT_ICON } from '@/lib/atelier-icons';
 import { useRouter } from 'next/navigation';
 import { isTauriDesktop } from '@alice-wallet/alice-ai';
+import { useT } from '@/i18n';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { DEFAULT_SETTINGS_TAB, resolveSettingsTab } from '@/components/settings/tabs';
 
@@ -14,6 +15,7 @@ import { DEFAULT_SETTINGS_TAB, resolveSettingsTab } from '@/components/settings/
  * anyone who lands on /settings directly. Both render the same SettingsPanel.
  */
 export default function SettingsPage() {
+  const t = useT();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState(DEFAULT_SETTINGS_TAB);
 
@@ -27,7 +29,12 @@ export default function SettingsPage() {
   return (
     <div
       className="h-full flex flex-col"
-      style={{ backgroundColor: 'var(--alice-bg)', color: 'var(--alice-text)' }}
+      style={{
+        backgroundColor: 'var(--alice-bg)',
+        color: 'var(--alice-text)',
+        // Zero on the desktop; the status bar's height on an edge-to-edge phone.
+        paddingTop: 'env(safe-area-inset-top)',
+      }}
     >
       {isTauriDesktop() && (
         <div data-tauri-drag-region className="shrink-0" style={{ height: 28 }} />
@@ -38,7 +45,7 @@ export default function SettingsPage() {
           onClick={() => router.push('/')}
           className="alice-control alice-control--tool"
           style={{ color: 'var(--alice-text)', fontSize: 20 }}
-          aria-label="Back"
+          aria-label={t('settings.page.back')}
         >
           <SvgIcon svg={CHEVRON_LEFT_ICON} size={20} color="currentColor" />
         </button>
@@ -46,7 +53,7 @@ export default function SettingsPage() {
           className="font-pixel tracking-widest flex-1 text-center m-0"
           style={{ fontSize: 16 }}
         >
-          SETTINGS
+          {t('settings.page.title')}
         </h1>
         <div className="w-9" />
       </header>

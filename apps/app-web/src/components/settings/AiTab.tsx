@@ -13,6 +13,7 @@ import {
   setActiveCloudModelId,
   getCustomServer,
   setCustomServer,
+  probeCustomServer,
   isTauriDesktop,
   useChat,
 } from '@alice-wallet/alice-ai';
@@ -21,6 +22,7 @@ import { CHEVRON_RIGHT_ICON } from '@/lib/atelier-icons';
 import { LocalModelsSection } from './LocalModelsSection';
 import { SemanticSearchSection } from './SemanticSearchSection';
 import { AliceMemoryPanel } from './AliceMemoryPanel';
+import { useT } from '@/i18n';
 import {
   ConfirmDialog,
   inputStyle,
@@ -33,6 +35,7 @@ import {
 export function AiTab() {
   // The AI tab hosts a sub-screen: the memory panel replaces the tab body in
   // place, staying inside the settings frame instead of navigating away.
+  const t = useT();
   const [screen, setScreen] = useState<'main' | 'memory'>('main');
   const chat = useChat();
   const desktopLocalFirst = isTauriDesktop();
@@ -43,9 +46,19 @@ export function AiTab() {
   const [customUrl, setCustomUrl] = useState('');
   const [customModel, setCustomModel] = useState('');
   const [customApiKey, setCustomApiKey] = useState('');
+  // "Connected" is said only once the server answered: a saved address is
+  // not a reachable server, and the chat would otherwise say "Cannot reach"
+  // under a Settings page saying the opposite.
   const [customConnected, setCustomConnected] = useState(false);
+  const [customReach, setCustomReach] = useState<'unknown' | 'checking' | 'ok' | 'unreachable'>('unknown');
 
   const [confirmReset, setConfirmReset] = useState(false);
+
+  const checkCustomServer = async (config: CustomServerConfig) => {
+    setCustomReach('checking');
+    const answered = await probeCustomServer(config);
+    setCustomReach(answered ? 'ok' : 'unreachable');
+  };
 
   useEffect(() => {
     (async () => {
@@ -57,7 +70,10 @@ export function AiTab() {
           setCustomUrl(cs.url);
           setCustomModel(cs.model);
           setCustomApiKey(cs.apiKey ?? '');
-          setCustomConnected(chat.backendType === 'custom');
+          if (chat.backendType === 'custom') {
+            setCustomConnected(true);
+            void checkCustomServer(cs);
+          }
         }
       } catch {
         /* ignore */
@@ -87,11 +103,13 @@ export function AiTab() {
     await setCustomServer(config);
     chat.setBackendType('custom');
     setCustomConnected(true);
+    await checkCustomServer(config);
   };
 
   const handleCustomDisconnect = async () => {
     await setCustomServer(null);
     setCustomConnected(false);
+    setCustomReach('unknown');
     chat.setBackendType(desktopLocalFirst ? 'local' : 'cloud');
   };
 
@@ -100,7 +118,7 @@ export function AiTab() {
       setPreset('local', 'balanced'),
       setPreset('cloud', 'balanced'),
       setAliceInstructions(''),
-      setResponseLanguagePreference('auto'),
+      setResponseLanguagePreference('app'),
       setActiveCloudModelId('alice-cloud'),
       setActiveModelId(DEFAULT_LOCAL_MODEL_ID),
       setCustomServer(null),
@@ -111,6 +129,7 @@ export function AiTab() {
     setCustomModel('');
     setCustomApiKey('');
     setCustomConnected(false);
+    setCustomReach('unknown');
     chat.setAiEnabled(true);
     chat.setBackendEnabled('local', true);
     chat.setBackendEnabled('cloud', true);
@@ -131,9 +150,9 @@ export function AiTab() {
     <>
       <div style={sectionStyle}>
         <div className="flex items-center justify-between gap-4">
-          <SectionLabel>LOCAL AI</SectionLabel>
+          <SectionLabel>{t('settings.ai.localAi')}</SectionLabel>
           <PixelSwitch
-            label="Local AI"
+            label={t('settings.ai.localAiSwitch')}
             enabled={chat.localAvailable && chat.backendEnabled.local}
             onChange={enabled => chat.setBackendEnabled('local', enabled)}
             disabled={!chat.localAvailable}
@@ -143,23 +162,23 @@ export function AiTab() {
           <p className="font-numbers m-0 mt-2" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>
             {/* A switch that can never be turned on is a question with no
                 answer. Say where the answer lives instead. */}
-            Local AI runs in the Alice apps, not in a browser tab.{' '}
+            {t('settings.ai.localAiUnavailable')}{' '}
             <a
               href="https://alicebtc.com/"
               target="_blank"
               rel="noreferrer"
               style={{ color: 'var(--alice-primary)', textDecoration: 'underline' }}
             >
-              Get the app
+              {t('settings.ai.getTheApp')}
             </a>
             .
           </p>
         )}
         <div style={{ height: 12 }} />
         <div className="flex items-center justify-between gap-4">
-          <SectionLabel>PRIVATE CLOUD</SectionLabel>
+          <SectionLabel>{t('settings.ai.privateCloud')}</SectionLabel>
           <PixelSwitch
-            label="Private Cloud AI"
+            label={t('settings.ai.privateCloudSwitch')}
             enabled={chat.backendEnabled.cloud}
             onChange={enabled => chat.setBackendEnabled('cloud', enabled)}
           />
@@ -167,7 +186,7 @@ export function AiTab() {
       </div>
 
       <div style={sectionStyle}>
-        <SectionLabel>PERSONALIZATION</SectionLabel>
+        <SectionLabel>{t('settings.ai.personalization')}</SectionLabel>
         {/* The page has existed all along; no screen led to it, which is why
             the memory read as a wallet-only feature. Same entry and words as
             the mobile app, so the two describe one feature. */}
@@ -177,9 +196,9 @@ export function AiTab() {
           className="alice-control alice-control--quiet font-numbers mt-2 flex w-full items-center justify-between gap-4 cursor-pointer text-left"
         >
           <span className="flex flex-col gap-1">
-            <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-primary)' }}>ALICE MEMORY</span>
+            <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-primary)' }}>{t('settings.ai.memoryEntry')}</span>
             <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>
-              See and control what Alice remembers locally.
+              {t('settings.ai.memoryEntryHint')}
             </span>
           </span>
           <SvgIcon svg={CHEVRON_RIGHT_ICON} size={16} color="currentColor" />
@@ -187,8 +206,8 @@ export function AiTab() {
       </div>
 
       <div style={sectionStyle}>
-        <SectionLabel>ALICE INSTRUCTIONS</SectionLabel>
-        <label className="alice-field-label mt-3" htmlFor="alice-instructions">Instructions for Alice</label>
+        <SectionLabel>{t('settings.ai.instructions')}</SectionLabel>
+        <label className="alice-field-label mt-3" htmlFor="alice-instructions">{t('settings.ai.instructionsLabel')}</label>
         <textarea
           id="alice-instructions"
           value={instructions}
@@ -196,23 +215,23 @@ export function AiTab() {
           rows={4}
           className="alice-field w-full font-numbers resize-vertical outline-none mt-2"
           style={{ ...inputStyle, padding: 12 }}
-          placeholder="Tell Alice how to behave, what topics to focus on, preferred language..."
+          placeholder={t('settings.ai.instructionsPlaceholder')}
         />
-        <p className="font-numbers text-sm mt-2" role="status" style={{ color: 'var(--alice-muted)' }}>{instructionsChanged ? 'Unsaved instructions' : 'Instructions saved on this device'}</p>
+        <p className="font-numbers text-sm mt-2" role="status" style={{ color: 'var(--alice-muted)' }}>{instructionsChanged ? t('settings.ai.instructionsUnsaved') : t('settings.ai.instructionsSaved')}</p>
         <div className="flex gap-2 mt-2">
           <button
             onClick={handleSaveInstructions}
             className="alice-control alice-control--primary font-numbers"
             disabled={!instructionsChanged}
           >
-            SAVE INSTRUCTIONS
+            {t('settings.ai.saveInstructions')}
           </button>
           {instructions.length > 0 && (
             <button
               onClick={handleClearInstructions}
               className="alice-control alice-control--danger font-numbers"
             >
-              CLEAR
+              {t('settings.ai.clear')}
             </button>
           )}
         </div>
@@ -223,12 +242,9 @@ export function AiTab() {
       <SemanticSearchSection />
 
       <div style={sectionStyle}>
-        <SectionLabel>PRIVATE CLOUD</SectionLabel>
+        <SectionLabel>{t('settings.ai.privateCloud')}</SectionLabel>
         <p className="font-numbers m-0 mt-1" style={{ fontSize: 14, opacity: 1 }}>
-          Alice processes your message on servers Alice operates. Your messages leave this device.
-          Your seed phrase, private keys, addresses, balances and full transaction history are never
-          sent automatically. Private Cloud is not the same as running Alice on your device: for that,
-          use a local model.
+          {t('settings.ai.privateCloudBody')}
         </p>
 
         <details className="mt-3">
@@ -236,7 +252,7 @@ export function AiTab() {
             className="font-numbers  cursor-pointer"
             style={{ fontSize: 13, opacity: 1, listStyle: 'revert' }}
           >
-            TECHNICAL DETAILS
+            {t('settings.ai.technicalDetails')}
           </summary>
           {/* Read-only on purpose: Private Cloud has one provider model, while
               Light, Normal, and High adjust its reasoning budget. */}
@@ -249,11 +265,10 @@ export function AiTab() {
               borderLeft: '2px solid var(--alice-border)',
             }}
           >
-            <div>Standard answers: {CLOUD_MODELS[0].veniceId}</div>
-            <div className="mt-1">Provider: Venice Private Cloud</div>
+            <div>{t('settings.ai.standardAnswers', { model: CLOUD_MODELS[0].veniceId })}</div>
+            <div className="mt-1">{t('settings.ai.provider')}</div>
             <p className="m-0 mt-2" style={{ opacity: 1 }}>
-              Alice may change these models to improve quality or cost. The commitments above do not
-              change with the model.
+              {t('settings.ai.modelsMayChange')}
             </p>
           </div>
         </details>
@@ -261,49 +276,52 @@ export function AiTab() {
 
       <div style={sectionStyle}>
         <div className="flex items-start justify-between gap-4">
-          <SectionLabel>CUSTOM SERVER</SectionLabel>
+          <SectionLabel>{t('settings.ai.customServer')}</SectionLabel>
           <PixelSwitch
-            label="Custom server AI"
+            label={t('settings.ai.customServerSwitch')}
             enabled={chat.backendEnabled.custom}
             onChange={enabled => chat.setBackendEnabled('custom', enabled)}
           />
         </div>
-        <SectionHint>
-          Advanced option: connect to an OpenAI-compatible or Ollama server. Prompts may leave this device if the server is remote.
-        </SectionHint>
+        <SectionHint>{t('settings.ai.customServerHint')}</SectionHint>
         <div className="flex flex-col gap-2">
-          <label className="alice-field-label" htmlFor="alice-customUrl">Server URL</label>
+          <label className="alice-field-label" htmlFor="alice-customUrl">{t('settings.ai.serverUrl')}</label>
           <input
             type="url"
             id="alice-customUrl"
             value={customUrl}
             onChange={(e) => setCustomUrl(e.target.value)}
-            placeholder="Server URL (e.g. http://localhost:11434/v1)"
+            placeholder={t('settings.ai.serverUrlPlaceholder')}
             className="alice-field font-numbers outline-none w-full"
             style={inputStyle}
           />
-          <label className="alice-field-label" htmlFor="alice-customModel">Model name</label>
+          <label className="alice-field-label" htmlFor="alice-customModel">{t('settings.ai.modelName')}</label>
           <input
             type="text"
             id="alice-customModel"
             value={customModel}
             onChange={(e) => setCustomModel(e.target.value)}
-            placeholder="Model name (e.g. llama3)"
+            placeholder={t('settings.ai.modelNamePlaceholder')}
             className="alice-field font-numbers outline-none w-full"
             style={inputStyle}
           />
-          <label className="alice-field-label" htmlFor="alice-customApiKey">API key (optional)</label>
+          <label className="alice-field-label" htmlFor="alice-customApiKey">{t('settings.ai.apiKey')}</label>
           <input
             type="password"
             id="alice-customApiKey"
             value={customApiKey}
             onChange={(e) => setCustomApiKey(e.target.value)}
-            placeholder="API key (optional)"
+            placeholder={t('settings.ai.apiKey')}
             className="alice-field font-numbers outline-none w-full"
             style={inputStyle}
           />
         </div>
-        <p className="font-numbers text-sm mt-3" role="status">{customConnected ? 'Connected to your custom server' : 'Custom server not connected'}</p>
+        <p className="font-numbers text-sm mt-3" role="status">
+          {!customConnected ? t('settings.ai.customNotConnected')
+            : customReach === 'unreachable' ? t('settings.ai.customUnreachable')
+              : customReach === 'ok' ? t('settings.ai.customConnected')
+                : t('settings.ai.customChecking')}
+        </p>
         <div className="flex gap-2 mt-3">
           {!customConnected ? (
             <button
@@ -311,14 +329,14 @@ export function AiTab() {
               className="alice-control alice-control--primary font-numbers"
               disabled={!customReady}
             >
-              SAVE AND CONNECT
+              {t('settings.ai.saveAndConnect')}
             </button>
           ) : (
             <button
               onClick={handleCustomDisconnect}
               className="alice-control alice-control--danger font-numbers"
             >
-              DISCONNECT
+              {t('settings.ai.disconnect')}
             </button>
           )}
         </div>
@@ -328,14 +346,14 @@ export function AiTab() {
         onClick={() => setConfirmReset(true)}
         className="alice-control alice-control--danger font-numbers w-full mb-4"
       >
-        RESET TO DEFAULT
+        {t('settings.ai.resetToDefault')}
       </button>
 
       {confirmReset && (
         <ConfirmDialog
-          title="RESET TO DEFAULT"
-          body="Reset Alice instructions, response language, models and custom server to their defaults? Your conversations are kept."
-          confirmLabel="RESET"
+          title={t('settings.ai.resetToDefault')}
+          body={t('settings.ai.resetBody')}
+          confirmLabel={t('settings.ai.reset')}
           onCancel={() => setConfirmReset(false)}
           onConfirm={() => void handleResetDefaults()}
         />

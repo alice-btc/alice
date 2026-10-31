@@ -1,6 +1,6 @@
 {
   "productName": "Alice",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "identifier": "com.alicebitcoin.desktop",
   "build": {
     "beforeDevCommand": "",
@@ -23,12 +23,20 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' tauri: asset: ipc: blob: 'unsafe-inline' 'unsafe-eval'; connect-src ipc: 'self' https://cdn.jsdelivr.net https://api.venice.ai https://*.alicebtc.com https://huggingface.co https://*.hf.co https://api.trustedservices.intel.com https://certificates.trustedservices.intel.com https://mempool.space https://mempool.emzy.de https://blockstream.info https://liquid.network https://mutinynet.com https://arkade.computer https://arkade.space https://*.arkade.sh https://delegate.arkade.money https://ark.second.tech https://0.spark.lightspark.com https://spark-operator.breez.technology https://2.spark.flashnet.xyz https://api.sparkscan.io wss://updates.sparkscan.io https://mutinynetswap.lendasat.com http://localhost:* http://127.0.0.1:*; img-src 'self' data: asset: blob: https://raw.githubusercontent.com https://cdn.jsdelivr.net; frame-src https://www.youtube-nocookie.com"
+      "csp": "default-src 'self' tauri: asset: ipc: blob: 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; connect-src ipc: 'self' https: http: wss: ws:; img-src 'self' data: asset: blob: https://raw.githubusercontent.com https://cdn.jsdelivr.net; frame-src https://www.youtube-nocookie.com"
     }
   },
   "bundle": {
     "active": true,
     "targets": ["dmg", "msi", "appimage", "deb"],
+    "category": "Finance",
+    "shortDescription": "Private AI companion for Bitcoin",
+    "longDescription": "Alice answers your questions about Bitcoin, explains what you are looking at on the chain and teaches the subject at your own pace. She runs on your device or through encrypted inference you can verify, and she never sees your keys. Alice App includes an Explorer, a Learn library of courses and a Playground where you practise wallet moves with test coins.",
+    "linux": {
+      "deb": {
+        "section": "utils"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -150,6 +150,39 @@ export class LocalVault implements VaultStorage {
     }
   }
 
+  /**
+   * The device cipher came back during a volatile session (the keychain was
+   * unlocked): reads the disk again with it, then saves, encrypted, what the
+   * session kept in memory. The session could not read the disk, so what it
+   * wrote started from nothing: where the disk holds a value, the disk's wins
+   * and the session's is let go (a wallet list written while locked would
+   * otherwise replace the whole stored list). Only the keys the disk lacks
+   * are saved. A value that still does not decrypt is left as it is.
+   */
+  async reopen(): Promise<void> {
+    if (!this.provider || this.cipherResolved !== null) return;
+    this.cipherResolved = undefined;
+    if (!this.cipher()) return; // still none
+    // Never read yet (the Playground's vault opens on demand): its first
+    // ready() reads with the key. A load still running without one ends first.
+    if (!this.loaded && !this.loading) return;
+    if (this.loading) await this.loading;
+    const store = this.backing();
+    for (const key of [...this.unsavedKeys]) {
+      if ((store?.getItem(key) ?? null) === null) continue;
+      this.unsavedKeys.delete(key);
+      this.generations.delete(key);
+      this.values.delete(key);
+    }
+    // Marked unreadable for want of a cipher, not because they are.
+    this.unreadableKeys.clear();
+    this.loaded = false;
+    this.loading = null;
+    this.changed();
+    await this.ready();
+    for (const key of [...this.unsavedKeys]) this.write(key, this.values.get(key) ?? null);
+  }
+
   get configured(): boolean {
     return this.provider !== undefined;
   }

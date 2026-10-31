@@ -18,6 +18,8 @@ export type LocalModelEntry = {
   ramNeeded: string;
   recommendation: string;
   source: LocalModelSource;
+  /** Billions of parameters, for the catalog and previous catalog entries; a custom file has none. */
+  parameters?: number;
   /** Hugging Face repository (`owner/name`) for custom and legacy entries. */
   repo?: string;
   /** Git revision the download URL is pinned to, when known. */

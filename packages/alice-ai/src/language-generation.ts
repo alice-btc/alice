@@ -13,6 +13,8 @@ import {
 
 const MEMORY_MARKER = '<alice_memory>';
 const LANGUAGE_GATE_CHARACTERS = 96;
+/** Generations tried before WrongResponseLanguageError. */
+export const LANGUAGE_CHECKED_ATTEMPTS = 2;
 
 function now(): number {
   return globalThis.performance?.now?.() ?? Date.now();
@@ -65,7 +67,7 @@ export async function generateLanguageChecked(input: {
   const answerRuleNoteIds = answerRuleNoteIdsInMessages(input.history);
   const question = input.history.findLast(message => message.role === 'user')?.content ?? '';
   let firstDisplayMs: number | undefined;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < LANGUAGE_CHECKED_ATTEMPTS; attempt += 1) {
     let released = false;
     const streamVisible = (fullText: string) => {
       if (!input.onText) return;

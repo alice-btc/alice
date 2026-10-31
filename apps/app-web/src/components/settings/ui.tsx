@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, type RefObject } from 'react';
+import { useT } from '@/i18n';
 
 /**
  * Shared building blocks for the settings tabs. Every tab draws from this file
@@ -152,7 +153,7 @@ export function ChoiceButton({
   onClick,
 }: {
   active: boolean;
-  label: string;
+  label: React.ReactNode;
   pixel?: boolean;
   onClick: () => void;
 }) {
@@ -184,6 +185,7 @@ export function ConfirmDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const t = useT();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   useDialogFocus(true, dialogRef);
   return (
@@ -223,7 +225,7 @@ export function ConfirmDialog({
             className="alice-control alice-control--quiet font-numbers flex-1"
             disabled={busy}
           >
-            CANCEL
+            {t('settings.confirm.cancel')}
           </button>
           <button
             onClick={onConfirm}

@@ -11,6 +11,7 @@
 import { renderAbstractSignal, toAbstractSignals, type AbstractSignal } from './audit-core.ts';
 import { route, type RawSubjectKind, type RouteAttachment, type RouteDecision } from './route.ts';
 import type { PrivacySignal } from './signals.ts';
+import { t } from '../../i18n/translate.ts';
 
 export type AskAlicePrefs = {
   cloudConsent?: boolean;
@@ -103,16 +104,16 @@ export type MessageAttachment = {
 function identifiedLabel(text: string): string {
   const first = text.split('\n')[0] ?? '';
   const tx = first.match(/^Transaction ([0-9a-f]{64})/i);
-  if (tx) return `Transaction ...${tx[1].slice(-5)}`;
+  if (tx) return t('explorer.ask.chip.transaction', { end: tx[1].slice(-5) });
   const addr = first.match(/^Address (\S+)/);
-  if (addr) return `Address ...${addr[1].slice(-5)}`;
+  if (addr) return t('explorer.ask.chip.address', { end: addr[1].slice(-5) });
   const block = first.match(/^Block (\d+)/);
-  if (block) return `Block ${block[1]}`;
+  if (block) return t('explorer.ask.chip.block', { block: block[1] });
   // The off-chain pages open their description with the layer and the kind
   // of subject (see layer-context.ts), e.g. "Spark leaf 01a117a8-…".
   const layer = first.match(/^(Spark|Arkade|Bark) (address|transfer|leaf|VTXO|token transaction) (\S+)/);
   if (layer) return `${layer[1]} ${layer[2]} ...${layer[3].slice(-5)}`;
-  return 'On-chain context';
+  return t('explorer.ask.attachment.onchain');
 }
 
 /**
@@ -136,7 +137,7 @@ export function splitAskAliceMessage(content: string): { question: string; attac
   if (iDeid >= 0) {
     const end = iIdent > iDeid ? iIdent : content.length;
     const text = content.slice(iDeid + DEIDENTIFIED_BLOCK_MARKER.length, end).trim();
-    attachments.push({ kind: 'deidentified', label: 'De-identified analysis', text });
+    attachments.push({ kind: 'deidentified', label: t('explorer.ask.attachment.deidentified'), text });
   }
   return { question, attachments };
 }

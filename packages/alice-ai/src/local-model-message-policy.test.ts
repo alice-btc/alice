@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { acceptsOnlyLeadingSystemMessage, fitLocalModelRoles, usesAnswerOnlyLocalMode, localModelFamily } from './local-model-message-policy.ts';
+import { acceptsOnlyLeadingSystemMessage, fitLocalModelRoles, usesAnswerOnlyLocalMode, localModelFamily, withLocalAnswerLanguageLine } from './local-model-message-policy.ts';
 
 test('SmolLM3 retains transient context without promoting source text into template-control system text', () => {
   const messages = [
@@ -29,14 +29,14 @@ test('other catalog models retain message roles and Qwen answer-only behavior', 
   const messages = [{ role: 'system' as const, content: 'First' }, { role: 'system' as const, content: 'Second' }, { role: 'user' as const, content: 'Question' }];
   for (const id of ['qwen3-0.6b', 'qwen3-1.7b', 'qwen3-4b', 'granite-3.3-2b']) assert.deepEqual(fitLocalModelRoles(messages, id), messages);
   // The Qwen3.5 template rejects a system message after the first one.
-  for (const id of ['qwen3.5-2b', 'qwen3.5-4b', 'qwen3.5-9b']) {
+  for (const id of ['qwen3.5-0.8b', 'qwen3.5-2b', 'qwen3.5-4b', 'qwen3.5-9b']) {
     const adapted = fitLocalModelRoles(messages, id);
     assert.deepEqual(adapted[0], messages[0]);
     assert.equal(adapted[1].role, 'user');
     assert.ok(adapted[1].content.endsWith('Second'));
     assert.deepEqual(adapted[2], messages[2]);
   }
-  for (const id of ['qwen3-0.6b', 'qwen3-1.7b', 'qwen3-4b', 'smollm3-3b', 'qwen3.5-2b', 'qwen3.5-4b', 'qwen3.5-9b']) assert.equal(usesAnswerOnlyLocalMode(id), true);
+  for (const id of ['qwen3-0.6b', 'qwen3-1.7b', 'qwen3-4b', 'smollm3-3b', 'qwen3.5-0.8b', 'qwen3.5-2b', 'qwen3.5-4b', 'qwen3.5-9b']) assert.equal(usesAnswerOnlyLocalMode(id), true);
   assert.equal(usesAnswerOnlyLocalMode('granite-3.3-2b'), false);
   for (const id of ['smollm3-3b', 'qwen3.5-2b']) assert.equal(acceptsOnlyLeadingSystemMessage(id), true);
   for (const id of ['qwen3-4b', 'granite-3.3-2b']) assert.equal(acceptsOnlyLeadingSystemMessage(id), false);
@@ -64,4 +64,25 @@ test('custom Hugging Face files of a known family get that family\'s template ru
     { role: 'user', content: 'Question' },
   ], qwen35);
   assert.deepEqual(carried.map(message => message.role), ['system', 'user', 'user']);
+});
+
+test('the language line closes the last user turn sent to a local model, never the persisted history', () => {
+  const messages = [
+    { role: 'system' as const, content: 'Trusted policy' },
+    { role: 'user' as const, content: 'Earlier question' },
+    { role: 'assistant' as const, content: 'Earlier answer' },
+    { role: 'system' as const, content: 'Output only English.' },
+    { role: 'user' as const, content: 'Explain Lightning' },
+  ];
+  const snapshot = structuredClone(messages);
+  const english = withLocalAnswerLanguageLine(messages, 'en');
+  assert.deepEqual(messages, snapshot);
+  assert.equal(english.at(-1)?.content, 'Explain Lightning\n\n(Answer in English.)');
+  assert.deepEqual(english.slice(0, -1), messages.slice(0, -1));
+  assert.equal(withLocalAnswerLanguageLine(messages, 'fr').at(-1)?.content, 'Explain Lightning\n\n(Réponds en français.)');
+  // Only the last user turn carries it, even after the roles are fitted.
+  const fitted = fitLocalModelRoles(english, 'qwen3.5-4b');
+  assert.equal(fitted.filter(message => message.content.includes('(Answer in English.)')).length, 1);
+  assert.equal(fitted.at(-1)?.content.endsWith('(Answer in English.)'), true);
+  assert.deepEqual(withLocalAnswerLanguageLine([{ role: 'system', content: 'Only policy' }], 'en'), [{ role: 'system', content: 'Only policy' }]);
 });

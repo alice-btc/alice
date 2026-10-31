@@ -12,6 +12,7 @@ import { INFO_ICON, COPY_ICON, CHECK_ICON } from '@/lib/atelier-icons';
 // only: title, body, caption.
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useT } from '@/i18n';
 
 /* ----------------------------- Typography ----------------------------- */
 
@@ -160,6 +161,7 @@ export function SectionPanel({ title, right, children }: { title: string; right?
 
 /** Copy is a separate control from following an address or transaction. */
 export function ExplorerCopy({ value, label }: { value: string; label: string }) {
+  const t = useT();
   const [state, setState] = useState<'idle' | 'copied' | 'error'>('idle');
   useEffect(() => {
     if (state === 'idle') return;
@@ -169,7 +171,7 @@ export function ExplorerCopy({ value, label }: { value: string; label: string })
   return (
     <span className="inline-flex items-center gap-2 shrink-0">
       <button type="button" className="alice-control alice-control--tool"
-        title={`Copy ${label}`} aria-label={`Copy ${label}`}
+        title={t('explorer.copy.label', { label })} aria-label={t('explorer.copy.label', { label })}
         onClick={async event => {
           event.stopPropagation();
           try { await navigator.clipboard.writeText(value); setState('copied'); }
@@ -178,7 +180,7 @@ export function ExplorerCopy({ value, label }: { value: string; label: string })
         <SvgIcon svg={state === 'copied' ? CHECK_ICON : COPY_ICON} size={16} />
       </button>
       <span className="font-numbers text-xs" role="status">
-        {state === 'copied' ? 'Copied' : state === 'error' ? 'Copy unavailable' : ''}
+        {state === 'copied' ? t('common.copied') : state === 'error' ? t('explorer.copy.unavailable') : ''}
       </span>
     </span>
   );

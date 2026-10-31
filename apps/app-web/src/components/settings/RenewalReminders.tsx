@@ -1,6 +1,7 @@
 'use client';
 
 import { useAccount } from '@alice-wallet/alice-ai';
+import { useT } from '@/i18n';
 import { SectionHint, SectionLabel, sectionStyle } from './ui';
 
 /**
@@ -20,6 +21,7 @@ import { SectionHint, SectionLabel, sectionStyle } from './ui';
  * way to stop it, and that link needs somewhere to write the refusal.
  */
 export function RenewalReminders() {
+  const t = useT();
   const account = useAccount();
 
   const reachable = account.account?.email_reachable ?? false;
@@ -27,33 +29,19 @@ export function RenewalReminders() {
 
   return (
     <section style={sectionStyle}>
-      <SectionLabel>MAIL</SectionLabel>
+      <SectionLabel>{t('settings.reminders.mail')}</SectionLabel>
 
       {reachable ? (
         <>
           <p className="font-numbers m-0 mt-1" style={{ fontSize: 15 }}>
             {masked}
           </p>
-          <SectionHint>
-            Bitcoin cannot renew a plan on its own, so Alice writes three days
-            before yours runs out and again on the day.
-          </SectionHint>
-          <SectionHint>
-            A few times a year she also writes about what Alice can now do.
-            Nothing else: no marketing, no partners, and your address goes
-            nowhere.
-          </SectionHint>
-          <SectionHint>
-            Your address is stored encrypted, which protects it if the database
-            leaks. It does not hide it from Alice: the server decrypts it to
-            send. An alias works perfectly well here.
-          </SectionHint>
+          <SectionHint>{t('settings.reminders.renewal')}</SectionHint>
+          <SectionHint>{t('settings.reminders.product')}</SectionHint>
+          <SectionHint>{t('settings.reminders.encrypted')}</SectionHint>
         </>
       ) : (
-        <SectionHint>
-          Alice has no address for this account, so she cannot warn you before a
-          plan runs out. Add an email from the account card below and she will.
-        </SectionHint>
+        <SectionHint>{t('settings.reminders.noAddress')}</SectionHint>
       )}
     </section>
   );

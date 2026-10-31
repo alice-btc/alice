@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { afterEach, describe, it } from 'node:test';
 import { webcrypto } from 'node:crypto';
 import {
   createWebCryptoLocalCipher,
+  getLocalCipher,
   indexedDbKeyStore,
   isLocalCipherValue,
   LOCAL_CIPHER_VERSION,
   type LocalKeyStore,
+  resetLocalCipherForTests,
 } from './local-cipher.ts';
 
 const subtle = webcrypto.subtle as unknown as SubtleCrypto;
@@ -294,5 +296,39 @@ describe('indexedDbKeyStore', () => {
     await assert.rejects(cipher.encrypt('x', 'k'), /present but unusable/);
     assert.equal(counted.counts.generateKey, 0);
     assert.equal(idb.data.get('local-v1'), 'not a key');
+  });
+});
+
+describe('getLocalCipher', () => {
+  const globals = ['window', 'navigator', 'indexedDB'] as const;
+  const saved = globals.map(name => Object.getOwnPropertyDescriptor(globalThis, name));
+  afterEach(() => {
+    globals.forEach((name, i) => {
+      const descriptor = saved[i];
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else delete (globalThis as Record<string, unknown>)[name];
+    });
+    resetLocalCipherForTests();
+  });
+
+  function inTauriApp(userAgent: string, commands: string[]) {
+    const invoke = async (command: string) => { commands.push(command); return 'v1:native'; };
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: { __TAURI_INTERNALS__: { invoke } } });
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent, maxTouchPoints: 5 } });
+    Object.defineProperty(globalThis, 'indexedDB', { configurable: true, value: fakeIndexedDb().factory });
+    resetLocalCipherForTests();
+  }
+
+  it('sends the iOS app to the keychain commands and keeps Android on WebCrypto', async () => {
+    const commands: string[] = [];
+    inTauriApp('Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148', commands);
+    assert.equal(await getLocalCipher()?.encrypt('x', 'alice_chat_sessions'), 'v1:native');
+    assert.deepEqual(commands, ['chat_storage_encrypt']);
+
+    commands.length = 0;
+    inTauriApp('Mozilla/5.0 (Linux; Android 16; Pixel 9 Build/BP2A; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/141.0.0.0 Mobile Safari/537.36', commands);
+    const value = await getLocalCipher()?.encrypt('x', 'alice_chat_sessions');
+    assert.ok(value && isLocalCipherValue(value) && value !== 'v1:native');
+    assert.deepEqual(commands, []);
   });
 });

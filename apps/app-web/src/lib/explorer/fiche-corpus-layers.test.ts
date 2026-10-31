@@ -113,9 +113,13 @@ describe('retrieval over the real RAG', () => {
     for (const [question, targetLanguage, expected] of cases) {
       const { diagnostics } = await rt.retrieveContextHybridWithDiagnostics(question, { targetLanguage, maxChunks: 4 });
       const ids: string[] = diagnostics.map((d: { id: string }) => d.id);
-      assert.ok(expected.some(id => ids.includes(id)), `${question} -> ${ids.join(', ')}`);
+      // A translated fiche is served as curated-<id>.en: compare concepts.
+      const concepts = diagnostics.map((d: { conceptId?: string }) => `curated-${d.conceptId}`);
+      assert.ok(expected.some(id => concepts.includes(id)), `${question} -> ${ids.join(', ')}`);
       assert.ok(ids.every(id => id.startsWith('curated-')), 'registering the Explorer UI pack must not revive legacy RAG prose');
-      assert.ok(diagnostics.every((d: { locale?: string; translationStatus?: string }) => d.locale === 'fr' && d.translationStatus === 'source'), 'selected source fiches remain French for either response language');
+      // French answers read the French source; English ones its translation when it exists.
+      assert.ok(diagnostics.every((d: { locale?: string; translationStatus?: string }) => (d.locale === 'fr' && d.translationStatus === 'source')
+        || (targetLanguage === 'en' && d.locale === 'en' && d.translationStatus !== 'source')), `${question}: selected fiches are curated, in French or in the English target`);
     }
   });
 });

@@ -1,25 +1,31 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { recordCourseCompletionSignal, recordCourseStudySignal } from '@alice-wallet/alice-ai';
+import { useRouter } from 'next/navigation';
+import { recordCourseCompletionSignal, recordCourseStudySignal, useChat } from '@alice-wallet/alice-ai';
 import { AskAliceFab } from '@/components/AskAliceFab';
-import { WorkspaceShell } from '@/components/WorkspaceShell';
+import { WorkspaceHeaderActions, WorkspaceShell } from '@/components/WorkspaceShell';
+import { setAskHandoff, usePhoneLayout } from '@/lib/explorer/ask-handoff';
 import { SvgIcon } from '@/components/SvgIcon';
 import { BACK_ICON, LEARN_ICON } from '@/lib/atelier-icons';
-import { LearnAskAlice } from '@/components/learn/LearnAskAlice';
+import { LearnAskAlice, useLearnContext } from '@/components/learn/LearnAskAlice';
 import { LearnChapter } from '@/components/learn/LearnChapter';
 import { LearnCourse } from '@/components/learn/LearnCourse';
+import { LearnDefinition } from '@/components/learn/LearnDefinition';
+import { LearnDictionary } from '@/components/learn/LearnDictionary';
 import { LearnHome } from '@/components/learn/LearnHome';
 import { LearnIntroModal, wasLearnIntroDismissed } from '@/components/learn/LearnIntroModal';
 import { LearnLanguageModal } from '@/components/learn/LearnLanguageModal';
 import { LearnQuiz } from '@/components/learn/LearnQuiz';
 import { LearnTutorial } from '@/components/learn/LearnTutorial';
+import { useLearnT } from '@/components/learn/learn-locale';
 import { ASK_WIDTH_DEFAULT, clampAskWidth, loadAskWidth, saveAskWidth } from '@/lib/ask-width';
 import {
   defaultLearnLanguage,
   installedLanguages,
   loadLearnLanguage,
   saveLearnLanguage,
+  subscribeLearnLanguage,
   type LearnLang,
 } from '@/lib/learn/language';
 import { loadLangMeta, type LearnLangMeta } from '@/lib/learn/lang-meta';
@@ -33,7 +39,8 @@ import {
 import { conceptsForCourse } from '@/lib/learn/course-concepts';
 import { courseChapterCount } from '@/lib/learn/catalog';
 import { LEARN_COURSES } from '@alice-wallet/alice-content/src/generated/planb-learn-catalog';
-import { LEARN_ASK_EVENT } from '@/lib/learn/ask';
+import { LEARN_ASK_EVENT, consumeLearnAsk, type LearnAskRequest } from '@/lib/learn/ask';
+import { letterOfSlug } from '@/lib/learn/dictionary';
 import { LEARN_RESET_EVENT, learnViewToSearch, parseLearnView, type LearnView } from '@/lib/learn/route';
 
 const ASK_OPEN_KEY = 'alice.learn.ask-open';
@@ -50,6 +57,35 @@ function LearnWorkspace() {
   // always starts with the reading full-width.
   const [askOpen, setAskOpen] = useState(false);
   const [askWidth, setAskWidth] = useState(ASK_WIDTH_DEFAULT);
+  // On a phone the language controls sit in the shell's header, on the row
+  // of the "Learn" title it already shows; the home page's own title would
+  // only repeat it, so there it goes too (LearnHome).
+  const phone = usePhoneLayout();
+  // On a phone the Ask-Alice sheet has no room: the bubble, a quiz debrief
+  // or a selection rescue hand the page (or the request) over to the main
+  // chat as a new conversation, with the same attachment the sheet would
+  // show (see lib/explorer/ask-handoff.ts). Refs, so the mount-time
+  // listener below sees fresh values.
+  const { messages: chatMessages, clearMessages, setInput } = useChat();
+  const router = useRouter();
+  const pageContext = useLearnContext(view, lang);
+  const phoneRef = useRef(false);
+  phoneRef.current = phone;
+  const handOffRef = useRef<(request?: LearnAskRequest) => void>(() => {});
+  handOffRef.current = (request) => {
+    const context = request ?? pageContext;
+    if (chatMessages.some(m => m.role === 'user')) clearMessages();
+    setAskHandoff({
+      contextId: `learn:${context?.label ?? 'home'}`,
+      contextLabel: context?.label ?? '',
+      text: context?.text,
+      signals: [],
+      fullContext: null,
+      defaultQuestions: [t('learn.ask.chip.differently'), t('learn.ask.chip.example'), t('learn.ask.chip.why')],
+    });
+    if (request) setInput(request.draft);
+    router.push('/');
+  };
   // Reported by the chapter reader so the sticky header can show where the
   // reader is (formation, chapter, progress) while the text scrolls.
   const [chapterMeta, setChapterMeta] = useState<{
@@ -68,6 +104,7 @@ function LearnWorkspace() {
   const [showIntro, setShowIntro] = useState(false);
   const [langMeta, setLangMeta] = useState<LearnLangMeta | null>(null);
   const hydrated = useRef(false);
+  const t = useLearnT(lang);
 
   useEffect(() => {
     setView(parseLearnView(window.location.search));
@@ -90,11 +127,22 @@ function LearnWorkspace() {
     // Quiz debriefs and selection rescues open the Ask-Alice sidebar in
     // place (the course stays in view); the request itself is consumed by
     // the panel component.
-    const onAsk = () => setAskOpen(true);
+    const onAsk = () => {
+      if (!phoneRef.current) { setAskOpen(true); return; }
+      const request = consumeLearnAsk();
+      if (request) handOffRef.current(request);
+    };
     window.addEventListener('popstate', onPop);
     window.addEventListener(LEARN_RESET_EVENT, onReset);
     window.addEventListener(LEARN_ASK_EVENT, onAsk);
+    // The app language changed in Settings while Learn is open, and Learn
+    // follows it (no reading language picked yet).
+    const unsubscribeLang = subscribeLearnLanguage(() => {
+      const saved = loadLearnLanguage();
+      if (saved) setLang(saved);
+    });
     return () => {
+      unsubscribeLang();
       window.removeEventListener('popstate', onPop);
       window.removeEventListener(LEARN_RESET_EVENT, onReset);
       window.removeEventListener(LEARN_ASK_EVENT, onAsk);
@@ -180,10 +228,45 @@ function LearnWorkspace() {
     });
   }, [lang, langMeta]);
 
+  const langControls = (
+    <div className="flex items-center gap-2 shrink-0" style={{ marginLeft: 'auto' }}>
+      <div
+        role="group"
+        aria-label={t('learn.panel.readingLanguage.aria')}
+        className="flex"
+        style={{ gap: 4 }}
+      >
+        {installed.map((code) => (
+          <button
+            key={code}
+            aria-pressed={lang === code}
+            onClick={() => changeLang(code)}
+            className="alice-control alice-control--choice"
+            style={{ padding: '8px 12px' }}
+          >
+            {code.toUpperCase()}
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={() => setLangModalOpen(true)}
+        aria-label={t('learn.panel.allLanguages.aria')}
+        title={t('learn.panel.languages')}
+        className="alice-control alice-control--quiet flex items-center justify-center"
+        style={{ minHeight: 40 }}
+      >
+        <SvgIcon svg={LEARN_ICON} size={20} /> {!phone && <span>{t('learn.panel.languages')}</span>}
+      </button>
+    </div>
+  );
+
   return (
     <div className="flex flex-1 min-h-0 min-w-0">
     <div id="learn-scroll" className="flex-1 min-h-0 overflow-y-auto">
-      <header
+      {phone && <WorkspaceHeaderActions>{langControls}</WorkspaceHeaderActions>}
+      {/* On a phone the home page needs no row of its own: its controls are
+          in the shell's header. The other pages keep the row for Back. */}
+      {!(phone && view.kind === 'home') && <header
         className="flex items-center flex-wrap"
         style={{
           position: 'sticky',
@@ -202,12 +285,17 @@ function LearnWorkspace() {
           <button
             onClick={() => {
               if (view.kind === 'chapter' || view.kind === 'quiz') navigate({ kind: 'course', code: view.code });
+              else if (view.kind === 'definition') navigate({ kind: 'dictionary', letter: letterOfSlug(view.slug) });
               else navigate({ kind: 'home' });
             }}
             className="alice-control alice-control--quiet"
             style={{ padding: 0 }}
           >
-            <SvgIcon svg={BACK_ICON} size={16} /> {view.kind === 'chapter' || view.kind === 'quiz' ? (lang === 'fr' ? 'Cours' : 'Course') : (lang === 'fr' ? 'Retour' : 'Back')}
+            <SvgIcon svg={BACK_ICON} size={16} /> {view.kind === 'chapter' || view.kind === 'quiz'
+              ? t('learn.panel.back.course')
+              : view.kind === 'definition'
+                ? t('learn.panel.back.dictionary')
+                : t('common.back')}
           </button>
         )}
         {view.kind === 'chapter' && chapterMeta && (
@@ -220,7 +308,7 @@ function LearnWorkspace() {
                 {chapterMeta.chapterTitle}
               </div>
             </div>
-            <div className="hidden sm:flex items-center gap-2 shrink-0" aria-label="Course progress">
+            <div className="hidden sm:flex items-center gap-2 shrink-0" aria-label={t('learn.panel.progress.aria')}>
               <div style={{ display: 'flex', gap: 2, width: 90 }}>
                 {Array.from({ length: 12 }, (_, i) => (
                   <span
@@ -242,35 +330,8 @@ function LearnWorkspace() {
             </div>
           </div>
         )}
-        <div className="flex items-center gap-2 shrink-0" style={{ marginLeft: 'auto' }}>
-          <div
-            role="group"
-            aria-label="Reading language"
-            className="flex"
-            style={{ gap: 4 }}
-          >
-            {installed.map((code) => (
-              <button
-                key={code}
-                aria-pressed={lang === code}
-                onClick={() => changeLang(code)}
-                className="alice-control alice-control--choice"
-                style={{ padding: '8px 12px' }}
-              >
-                {code.toUpperCase()}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={() => setLangModalOpen(true)}
-            aria-label="All course languages"
-            className="alice-control alice-control--quiet flex items-center justify-center"
-            style={{ minHeight: 40 }}
-          >
-            <SvgIcon svg={LEARN_ICON} size={20} /> <span>{lang === 'fr' ? 'Langues' : 'Languages'}</span>
-          </button>
-        </div>
-      </header>
+        {!phone && langControls}
+      </header>}
 
       {showIntro && (
         <LearnIntroModal
@@ -308,11 +369,17 @@ function LearnWorkspace() {
       {view.kind === 'tutorial' && (
         <LearnTutorial category={view.category} slug={view.slug} lang={lang} />
       )}
+      {view.kind === 'dictionary' && (
+        <LearnDictionary letter={view.letter} lang={lang} onNavigate={navigate} />
+      )}
+      {view.kind === 'definition' && (
+        <LearnDefinition slug={view.slug} lang={lang} onNavigate={navigate} />
+      )}
     </div>
 
-    {askOpen ? (
+    {askOpen && !phone ? (
       <aside
-        className="fixed inset-0 z-40 md:relative md:z-auto md:shrink-0 md:min-h-0 md:w-[var(--ask-w,420px)]"
+        className="relative shrink-0 min-h-0 w-[var(--ask-w,420px)]"
         style={{ ['--ask-w' as string]: `${askWidth}px`, backgroundColor: 'var(--alice-bg-soft)' } as React.CSSProperties}
       >
         <div
@@ -324,7 +391,7 @@ function LearnWorkspace() {
         <LearnAskAlice view={view} lang={lang} onClose={() => toggleAsk(false)} />
       </aside>
     ) : (
-      <AskAliceFab onOpen={() => toggleAsk(true)} />
+      <AskAliceFab onOpen={() => (phone ? handOffRef.current() : toggleAsk(true))} />
     )}
     </div>
   );

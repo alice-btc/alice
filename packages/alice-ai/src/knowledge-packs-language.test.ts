@@ -24,6 +24,11 @@ test('falls back to the source locale when no translation exists', () => {
   assert.equal(preferKnowledgeLocale(variants, 'en')[1].locale, 'fr');
 });
 
+test('without a target, keeps the source variant of each concept', () => {
+  assert.deepEqual(preferKnowledgeLocale(variants).map(chunk => chunk.id), ['ark-fr', 'pow-fr']);
+  assert.deepEqual(preferKnowledgeLocale([variants[1], variants[0]], 'fr').map(chunk => chunk.id), ['ark-fr']);
+});
+
 test('installed packs can stay disabled without entering the active retrieval corpus', () => {
   registerPack({
     id: 'test-disabled-pack',

@@ -1,0 +1,8 @@
+{
+  "identifier": "com.alicebitcoin.app",
+  "app": {
+    "security": {
+      "csp": "default-src 'self' tauri: asset: ipc: blob: 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; connect-src ipc: http://ipc.localhost 'self' https: wss:; img-src 'self' data: asset: blob: https://raw.githubusercontent.com https://cdn.jsdelivr.net; frame-src https://www.youtube-nocookie.com"
+    }
+  }
+}

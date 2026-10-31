@@ -103,6 +103,11 @@ test('the rule notes are read from the retrieved text, in retrieval order, and f
 
 // Verbatim sentences from the 2026-10-06 reviews (Qwen3.5 9B and Private Cloud).
 const WRONG_CLAIMS: [string, string, string[], string][] = [
+  // The Private Cloud model, 2026-10-30, with the dictionary definition of Ark in context.
+  ['en', 'Ark is a layer‑1 scaling protocol built on Bitcoin that lets many users share and move funds through special outputs called Virtual Transaction Outputs (VTXOs).', ARK, 'ark-layer-one'],
+  ['en', 'Think of it as a base-layer protocol called Ark that batches payments.', ARK, 'ark-layer-one'],
+  ['fr', "Ark est un protocole de couche 1 qui permet à plusieurs utilisateurs de partager des UTXO.", ARK, 'ark-layer-one'],
+  ['fr', "Ark est essentiellement une première couche de Bitcoin.", ARK, 'ark-layer-one'],
   ['en', 'If the operator stops cooperating, it may refuse to process new transactions or validate existing ones, effectively locking your ability to exit the off-chain network until the situation resolves.', ARK, 'ark-operator-blocks-exit'],
   ['en', 'If the operator disappears, your funds are gone.', ARK, 'ark-funds-lost'],
   ['en', 'Once the vTXO expires, it becomes recoverable on-chain even without the operator.', ARK, 'ark-expiry-inverted'],
@@ -123,6 +128,11 @@ const WRONG_CLAIMS: [string, string, string[], string][] = [
 ];
 
 const RIGHT_CLAIMS: [string, string, string[]][] = [
+  ['en', 'Ark is a protocol built on top of Bitcoin, not a layer one; its rounds are anchored in on-chain transactions.', ARK],
+  ['en', 'Each round anchors the VTXOs in a regular layer-1 Bitcoin transaction.', ARK],
+  ['en', 'Is Ark a layer-1 protocol? No: it sits on top of Bitcoin.', ARK],
+  ['fr', 'Ark est un protocole de couche supérieure, de type joinpool, sur Bitcoin.', ARK],
+  ['fr', "Les rounds d'Ark sont ancrés sur la couche de base par des transactions Bitcoin ordinaires.", ARK],
   ['en', 'However, it cannot move your funds without your explicit signature, nor can it prevent you from exiting the system unilaterally.', ARK],
   ['en', 'Your ability to exit remains available even if the operator decides to withdraw support, though the cost or delay of that exit may increase.', ARK],
   ['en', 'Your funds are not gone if an Ark operator disappears.', ARK],
@@ -197,6 +207,7 @@ test('every rule names a note of the shipped corpus by its exact title, and a re
   const runtime = await loadRagEvaluationRuntime(`
     export { loadRagCorpus, retrieveContext } from './packages/alice-ai/src/rag.ts';
     export { getAllChunks } from './packages/alice-ai/src/knowledge-packs.ts';
+    export { answerRuleNoteIdsIn } from './packages/alice-ai/src/answer-rules.ts';
   `);
   await runtime.loadRagCorpus();
   const chunks: { id: string; conceptId?: string; title: string }[] = runtime.getAllChunks();
@@ -205,6 +216,11 @@ test('every rule names a note of the shipped corpus by its exact title, and a re
     assert.ok(chunk, rule.noteId);
     assert.equal(chunk.title, rule.title, rule.noteId);
     assert.ok(answerRuleNoteIdsIn(retrievedText(chunk.title)).includes(rule.noteId));
+    // Every locale variant of the note (an English translation) carries the
+    // rule: the corpus loader registers their titles in the bundle's module.
+    for (const variant of chunks.filter(candidate => candidate.conceptId === rule.sourceConceptId)) {
+      assert.ok(runtime.answerRuleNoteIdsIn(retrievedText(variant.title)).includes(rule.noteId), variant.id);
+    }
     for (const title of rule.additionalSourceTitles ?? []) {
       assert.ok(chunks.some(candidate => candidate.title === title), title);
       assert.ok(answerRuleNoteIdsIn(retrievedText(title)).includes(rule.noteId));
@@ -212,10 +228,10 @@ test('every rule names a note of the shipped corpus by its exact title, and a re
   }
   const context: string | null = runtime.retrieveContext('Que peut faire un opérateur Ark avec mon argent, et que ne peut-il pas faire ?', { targetLanguage: 'fr', maxChunks: 2 });
   assert.ok(context);
-  assert.ok(answerRuleNoteIdsIn(context).includes('asp-operator'));
+  assert.ok(runtime.answerRuleNoteIdsIn(context).includes('asp-operator'));
   const multisig: string | null = runtime.retrieveContext('I have 2 of my 3 multisig seeds. Is that enough to recover my coins?', { targetLanguage: 'en', maxChunks: 2 });
   assert.ok(multisig);
-  assert.deepEqual(answerRuleNoteIdsIn(multisig), ['multisig']);
+  assert.deepEqual(runtime.answerRuleNoteIdsIn(multisig), ['multisig']);
 });
 
 test('review probes: another quorum, refutations, questions, quotes and wallet limitations do not fire', () => {
@@ -261,4 +277,26 @@ test('Ark guards preserve expiry, recovery-data and non-collusion limits', () =>
     const correction = NEVER_CLAIM_CHECKS.find(check => check.id === 'ark-funds-lost')!.correction[language];
     assert.match(correction, language === 'en' ? /recovery is not guaranteed/ : /récupération n’est pas garantie/);
   }
+});
+
+test('the layer claim is a never-claim line of both Ark rules, not a point to state', () => {
+  for (const noteId of ['ark-rounds-exits', 'asp-operator']) {
+    const rule = ANSWER_RULES.find(candidate => candidate.noteId === noteId)!;
+    for (const language of ['en', 'fr'] as const) {
+      assert.ok(rule.neverClaim[language].some(line => /layer 1|couche 1/.test(line)), `${noteId} ${language}`);
+      assert.ok(!rule.mustState[language].some(line => /layer 1|couche 1/.test(line)), `${noteId} ${language}`);
+    }
+  }
+  assert.match(answerRulesBlock(['asp-operator'], 'en'), /Never claim:[\s\S]*- that Ark is a layer 1/);
+});
+
+test('the dictionary definition of Ark activates the layer-one check through its Learn label', () => {
+  const learn = '[Learn excerpt, quoted from Loïc Pandul, CC BY-NC-SA 4.0]\nDictionnaire de Bitcoin · ARK (Loïc Pandul, CC BY-NC-SA 4.0)\nProtocole de couche supérieure de type joinpool sur Bitcoin.';
+  assert.deepEqual(answerRuleNoteIdsIn(learn), ['dictionary-ark']);
+  assert.deepEqual(answerRuleNoteIdsInMessages([{ role: 'system', content: learn }, { role: 'user', content: "What's Ark?" }]), ['dictionary-ark']);
+  const wrong = 'Ark is a layer‑1 scaling protocol built on Bitcoin.';
+  assert.deepEqual(withAnswerRuleCorrections(wrong, 'en', ['dictionary-ark']).applied, ['ark-layer-one']);
+  // The label alone activates nothing else: the dictionary entry is not one of the curated Ark notes.
+  assert.deepEqual(withAnswerRuleCorrections('If the operator disappears, your funds are gone.', 'en', ['dictionary-ark']).applied, []);
+  assert.deepEqual(answerRuleNoteIdsIn('Dictionnaire de Bitcoin · UTXO (Loïc Pandul, CC BY-NC-SA 4.0)'), []);
 });

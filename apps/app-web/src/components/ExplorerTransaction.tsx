@@ -5,7 +5,8 @@ import { ExplorerCopy } from '@/components/ExplorerUI';
 
 import { ExplorerTxGraph } from '@/components/ExplorerTxGraph';
 import { Amount } from '@/components/AmountDisplay';
-import { formatDateTime } from '@/lib/explorer/blocks';
+import { formatCount, formatDateTime } from '@/lib/explorer/blocks';
+import { useT, type Translator } from '@/i18n';
 import type {
   NormalizedInput,
   NormalizedOutput,
@@ -15,8 +16,8 @@ import type {
 
 // Fees deliberately stay in sats whatever the user's display unit: sat and
 // sat/vB are the native language of fee talk.
-function formatSats(sats: number): string {
-  return `${sats.toLocaleString('en-US')} sats`;
+function formatSats(sats: number, t: Translator): string {
+  return `${formatCount(sats, t.locale)} sats`;
 }
 
 function shortAddr(addr: string): string {
@@ -42,6 +43,7 @@ function Chip({ label, tone = 'muted' }: { label: string; tone?: 'muted' | 'warn
 }
 
 function IoRow({ io, onOpenAddress, selectedAddress, onSelectAddress }: { io: NormalizedInput | NormalizedOutput; onOpenAddress?: (a: string) => void; selectedAddress: string | null; onSelectAddress: (address: string) => void }) {
+  const t = useT();
   const isInput = 'prevTxid' in io;
   const coinbase = isInput && (io as NormalizedInput).isCoinbase;
   const addr = io.address;
@@ -56,10 +58,10 @@ function IoRow({ io, onOpenAddress, selectedAddress, onSelectAddress }: { io: No
   // resort. Only show the type as a subtitle when an address is on the line, so
   // it never reads "Unknown script / P2PK" for a script we actually recognised.
   let primary: string;
-  if (coinbase) primary = 'Coinbase (newly minted)';
+  if (coinbase) primary = t('explorerTx.io.coinbase');
   else if (addr) primary = shortAddr(addr);
-  else if (io.scriptType && io.scriptType !== 'unknown') primary = `No address (${io.scriptType.toUpperCase()})`;
-  else primary = 'Unknown script';
+  else if (io.scriptType && io.scriptType !== 'unknown') primary = t('explorerTx.io.noAddress', { type: io.scriptType.toUpperCase() });
+  else primary = t('explorerTx.io.unknownScript');
 
   return (
     <div
@@ -75,7 +77,7 @@ function IoRow({ io, onOpenAddress, selectedAddress, onSelectAddress }: { io: No
             onClick={() => onOpenAddress?.(addr as string)}
             className="alice-control alice-control--quiet font-numbers truncate text-left cursor-pointer bg-transparent border-none p-0"
             style={{ fontSize: 13, color: 'var(--alice-primary)' }}
-            title={`Open address ${addr}`}
+            title={t('explorerTx.io.openAddress', { address: addr })}
           >
             {primary}
           </button>
@@ -83,7 +85,7 @@ function IoRow({ io, onOpenAddress, selectedAddress, onSelectAddress }: { io: No
           <span
             className="font-numbers truncate"
             style={{ fontSize: 13, color: 'var(--alice-text)' }}
-            title={coinbase ? 'Coinbase' : addr ?? io.scriptType ?? 'Unknown script'}
+            title={coinbase ? t('explorerBlocks.tab.coinbase') : addr ?? io.scriptType ?? t('explorerTx.io.unknownScript')}
           >
             {primary}
           </span>
@@ -94,12 +96,12 @@ function IoRow({ io, onOpenAddress, selectedAddress, onSelectAddress }: { io: No
           </span>
         )}
       </div>
-      {addr && <ExplorerCopy value={addr} label="address" />}
+      {addr && <ExplorerCopy value={addr} label={t('explorerTx.io.copyAddress')} />}
       <div className="flex flex-col items-end shrink-0">
         {typeof value === 'number' ? (
           <Amount sats={value} style={{ fontSize: 13, color: 'var(--alice-text)' }} />
         ) : (
-          <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-text)' }}>unknown</span>
+          <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{t('explorerBlocks.unknown')}</span>
         )}
       </div>
     </div>
@@ -135,10 +137,11 @@ export function ExplorerTransaction({
   onOpenTx?: (txid: string) => void;
   onOpenAddress?: (address: string) => void;
 }) {
+  const t = useT();
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const status = tx.status.confirmed
-    ? `Confirmed - block ${tx.status.blockHeight?.toLocaleString('en-US')}${tx.status.blockTime ? ` - ${formatDateTime(tx.status.blockTime)}` : ''}`
-    : 'In mempool - unconfirmed';
+    ? `${t('explorerTx.status.confirmed', { height: String(tx.status.blockHeight != null ? formatCount(tx.status.blockHeight, t.locale) : undefined) })}${tx.status.blockTime ? ` - ${formatDateTime(tx.status.blockTime, t.locale)}` : ''}`
+    : t('explorerTx.status.mempool');
 
   return (
     <div className="flex flex-col gap-4">
@@ -152,34 +155,34 @@ export function ExplorerTransaction({
       >
         <div className="flex items-start gap-2"><p className="font-numbers m-0 break-all min-w-0 flex-1" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
           {tx.txid}
-        </p><ExplorerCopy value={tx.txid} label="transaction ID" /></div>
+        </p><ExplorerCopy value={tx.txid} label={t('explorerTx.copyTxid')} /></div>
         <div className="flex flex-wrap items-center gap-2">
-          <Chip label={tx.status.confirmed ? 'CONFIRMED' : 'UNCONFIRMED'} tone={tx.status.confirmed ? 'ok' : 'warn'} />
+          <Chip label={tx.status.confirmed ? t('explorerTx.chip.confirmed') : t('explorerTx.chip.unconfirmed')} tone={tx.status.confirmed ? 'ok' : 'warn'} />
           {tx.isCoinbase && <Chip label="COINBASE" />}
           {tx.rbfSignaled && <Chip label="RBF" tone="warn" />}
           <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>{status}</span>
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-1">
-          <Metric label="Fee" value={tx.feeSats !== null ? formatSats(tx.feeSats) : 'n/a'} />
-          <Metric label="Fee rate" value={tx.feeRateSatVb !== null ? `${tx.feeRateSatVb} sat/vB` : 'n/a'} />
-          <Metric label="Size" value={`${tx.vsize} vB`} />
-          <Metric label="Inputs" value={String(tx.inputs.length)} />
-          <Metric label="Outputs" value={String(tx.outputs.length)} />
+          <Metric label={t('explorerTx.metric.fee')} value={tx.feeSats !== null ? formatSats(tx.feeSats, t) : t('explorerBlocks.notAvailable')} />
+          <Metric label={t('explorerTx.metric.feeRate')} value={tx.feeRateSatVb !== null ? `${tx.feeRateSatVb} sat/vB` : t('explorerBlocks.notAvailable')} />
+          <Metric label={t('explorerTx.metric.size')} value={`${tx.vsize} vB`} />
+          <Metric label={t('explorerTx.metric.inputs')} value={String(tx.inputs.length)} />
+          <Metric label={t('explorerTx.metric.outputs')} value={String(tx.outputs.length)} />
         </div>
       </div>
 
       {/* Inputs and outputs */}
       <div className="flex flex-col md:flex-row gap-3">
-        <IoColumn title="INPUTS" count={tx.inputs.length}>
+        <IoColumn title={t('explorerTx.inputs')} count={tx.inputs.length}>
           {tx.inputs.map((input, i) => <IoRow key={`${input.prevTxid}:${input.prevVout}:${i}`} io={input} selectedAddress={selectedAddress} onSelectAddress={setSelectedAddress} onOpenAddress={onOpenAddress} />)}
         </IoColumn>
-        <IoColumn title="OUTPUTS" count={tx.outputs.length}>
+        <IoColumn title={t('explorerTx.outputs')} count={tx.outputs.length}>
           {tx.outputs.map((output) => <IoRow key={output.index} io={output} selectedAddress={selectedAddress} onSelectAddress={setSelectedAddress} onOpenAddress={onOpenAddress} />)}
         </IoColumn>
       </div>
 
       <p className="font-numbers m-0" style={{ fontSize: 11, color: 'var(--alice-muted)', opacity: 0.6 }}>
-        Data from {tx.source.name}
+        {t('explorerTx.dataFrom', { source: tx.source.name })}
       </p>
     </div>
   );

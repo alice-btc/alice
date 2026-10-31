@@ -10,7 +10,7 @@
 //   - serve as a plaintext relay (missing E2EE headers are rejected outright)
 
 import { APP_RELEASE_VERSION, WALLET_RELEASE_VERSION } from './app-release.ts';
-import { ANCHOR_CRON, readAnchors, refreshAnchors } from './explorer-anchors.ts';
+import { ANCHOR_CRON, ANCHOR_RUN_MS, RUN_REQUEST_BUDGET, RequestBudget, listenArkadeStream, readAnchors, refreshAnchors } from './explorer-anchors.ts';
 import { checkAndAlert, handleTunnelAlert } from './ops-alert.ts';
 import {
   AccountHttpError,
@@ -28,6 +28,7 @@ import {
   refundFreeRequest,
   requestAccountDeletion,
   requestId,
+  requestIpBucket,
   revokeIdentity,
   reserveFreeRequest,
   startEmailLogin,
@@ -49,6 +50,7 @@ import {
   adminDemote,
   adminDisablePromoCode,
   adminGetAccount,
+  adminLaunch,
   adminListAccessDenials,
   adminListAccounts,
   adminListAdmins,
@@ -59,6 +61,7 @@ import {
   adminPromote,
   adminReactivateAccount,
   adminSession,
+  adminSiteAnalytics,
   adminSuspendAccount,
   adminTestWalletFaucet,
   recordProductEvents,
@@ -108,6 +111,17 @@ export type Env = Omit<CloudflareEnv, 'AUTH_EMAIL_PROVIDER' | 'EMAIL'> & {
   TEST_WALLET_FAUCET_MNEMONIC?: string;
   /** Watch-only account key: lets the console read the float, never spend it. */
   TEST_WALLET_FAUCET_XPUB?: string;
+  /**
+   * Local console only (.dev.vars): a read-only Cloudflare API token with
+   * Account Analytics: Read, and the account it belongs to. Together they
+   * let the console show the site's Web Analytics visits. Never deployed.
+   */
+  CF_ANALYTICS_API_TOKEN?: string;
+  CF_ACCOUNT_ID?: string;
+  /** Optional: the Web Analytics site tag, when looking it up by host fails. */
+  CF_WEB_ANALYTICS_SITE_TAG?: string;
+  /** Optional: the host to look the site up by. Defaults to alicebtc.com. */
+  CF_WEB_ANALYTICS_HOST?: string;
   /**
    * Wrangler secret, set once. Lets the first authenticated Alice account
    * promote itself to admin via POST /admin/api/bootstrap. Generate with:
@@ -232,6 +246,32 @@ export type Env = Omit<CloudflareEnv, 'AUTH_EMAIL_PROVIDER' | 'EMAIL'> & {
 
 /** Backstop on the money route. Generous for a person, narrow for a script. */
 const CHAT_REQUESTS_PER_HOUR = 240;
+// Ceilings for the public doors that need no session, counted per network
+// (an IPv4 address or an IPv6 /64) and per hour. Generous on purpose: Alice is
+// used over Tor and shared exits, so an address can be a crowd. They only stop
+// a script from turning these routes into free relays or lookups.
+const PUBLIC_REQUESTS_PER_HOUR = {
+  pccs: 600,
+  explorer_entities: 600,
+  ops_tunnel_alert: 30,
+} as const;
+
+async function limitPublicRoute(
+  request: Request,
+  env: Env,
+  action: keyof typeof PUBLIC_REQUESTS_PER_HOUR,
+): Promise<void> {
+  // Deployments without the account database have no counters to keep.
+  if (!env.ACCOUNT_DB) return;
+  const now = Date.now();
+  await rateLimit(
+    env,
+    await requestIpBucket(request, env, now),
+    action,
+    PUBLIC_REQUESTS_PER_HOUR[action],
+    now,
+  );
+}
 
 const DEFAULT_VENICE_BASE = 'https://api.venice.ai/api/v1';
 const DEFAULT_PCCS_UPSTREAM = 'https://pccs.phala.network';
@@ -831,6 +871,12 @@ async function adminRoute(
   if (path === '/events' && request.method === 'GET') {
     return json(await adminListEvents(request, env), 200, cors);
   }
+  if (path === '/launch' && request.method === 'GET') {
+    return json(await adminLaunch(request, env), 200, cors);
+  }
+  if (path === '/site-analytics' && request.method === 'GET') {
+    return json(await adminSiteAnalytics(request, env), 200, cors);
+  }
   if (path === '/test-wallet-faucet' && request.method === 'GET') {
     return json(await adminTestWalletFaucet(request, env), 200, cors);
   }
@@ -970,12 +1016,22 @@ export default {
     // Collateral relay needs no Venice key (public data), so it is reachable
     // even before the key check below.
     if (url.pathname.startsWith('/pccs/') && request.method === 'GET') {
+      try {
+        await limitPublicRoute(request, env, 'pccs');
+      } catch (error) {
+        return accountErrorResponse(error, cors, env, 'venice');
+      }
       return relayPccs(request, env, cors);
     }
 
     // Explorer entity lookup: public, sourced attribution data for the giant
     // packs the client cannot bundle. No Venice key, no auth, no logged body.
     if (url.pathname === '/explorer/entities' && request.method === 'POST') {
+      try {
+        await limitPublicRoute(request, env, 'explorer_entities');
+      } catch (error) {
+        return accountErrorResponse(error, cors, env);
+      }
       return json(await lookupEntities(request, env), 200, cors);
     }
 
@@ -1007,6 +1063,13 @@ export default {
     // is an outage, which is what keeps a restart from crying wolf. The secret
     // is in the path because notification webhooks carry no custom headers.
     if (url.pathname.startsWith('/ops/tunnel-alert/') && request.method === 'POST') {
+      // Each accepted call asks BTCPay for its health, so even with the
+      // secret this must not become a way to hammer it.
+      try {
+        await limitPublicRoute(request, env, 'ops_tunnel_alert');
+      } catch {
+        return new Response('too many requests', { status: 429 });
+      }
       return handleTunnelAlert(request, env, url.pathname.slice('/ops/tunnel-alert/'.length));
     }
 
@@ -1168,7 +1231,10 @@ export default {
       // the height it stands on and the hops it walked. No user is involved
       // in this work; nothing else is logged.
       const started = Date.now();
-      const reports = await refreshAnchors(env);
+      // One request budget for the whole run: the walk stops short of it so
+      // the listener and the candidates can still ask the chain.
+      const budget = new RequestBudget(RUN_REQUEST_BUDGET);
+      const reports = await refreshAnchors(env, { budget });
       for (const [network, r] of Object.entries(reports)) {
         logTechnical({
           route: `anchors/${network}`,
@@ -1179,6 +1245,19 @@ export default {
           detail: [r.anchor ? `height ${r.anchor.height}, found ${r.found}` : `found ${r.found}`, r.failure ? `failed: ${r.failure}` : ''].filter(Boolean).join('; '),
         });
       }
+      // Then the run listens to the Arkade operator's stream until the next
+      // one is due, for the commitments the walk cannot reach, and logs one
+      // line: how many it heard, how many confirmed ones it adopted, how many
+      // times it had to reopen the stream.
+      const stream = await listenArkadeStream(env, started + ANCHOR_RUN_MS, { budget });
+      logTechnical({
+        route: 'anchors/arkade-stream',
+        status: stream.failure ? 503 : 200,
+        durationMs: Date.now() - started,
+        model: '',
+        approxBytes: stream.heard,
+        detail: [`heard ${stream.heard}, adopted ${stream.adopted}, reconnects ${stream.reconnects}, requests left ${budget.left}`, stream.failure ? `failed: ${stream.failure}` : ''].filter(Boolean).join('; '),
+      });
       return;
     }
     ctx.waitUntil(cleanupExpiredAccountData(env));

@@ -3,6 +3,7 @@
 import { ExplorerCopy } from '@/components/ExplorerUI';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { formatLocale, type MessageKey, useT } from '@/i18n';
 import type { ChainDataProvider, RequestOptions } from '@/lib/explorer/provider';
 import { ChainDataError } from '@/lib/explorer/provider';
 import { detectAddressReuseForAddress, renderSignalsIdentified, type PrivacySignal } from '@/lib/explorer/signals';
@@ -49,6 +50,7 @@ function WalletTxRow({ tx, addresses, onOpen }: {
   onOpen: () => void;
 }) {
   const delta = walletTxDelta(tx, addresses);
+  const t = useT();
   return (
     <button
       type="button"
@@ -59,9 +61,9 @@ function WalletTxRow({ tx, addresses, onOpen }: {
       <div className="flex flex-col min-w-0">
         <span className="font-numbers truncate" style={{ fontSize: 12, color: 'var(--alice-primary)' }} title={tx.txid}>{shortTxid(tx.txid)}</span>
         <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-          {tx.status.confirmed ? `block ${tx.status.blockHeight?.toLocaleString('en-US')}` : 'unconfirmed'}
+          {tx.status.confirmed ? t('explorer.txRow.block', { height: tx.status.blockHeight?.toLocaleString(formatLocale()) ?? '' }) : t('explorer.txRow.unconfirmed')}
           {tx.status.blockTime ? ` - ${formatDateTime(tx.status.blockTime)}` : ''}
-          {' - '}{tx.inputs.length} in / {tx.outputs.length} out
+          {' - '}{t('explorer.txRow.inOut', { inputs: tx.inputs.length, outputs: tx.outputs.length })}
         </span>
       </div>
       <Amount sats={delta} signed style={{ fontSize: 12, color: delta >= 0 ? 'var(--alice-text)' : 'var(--alice-muted)', flexShrink: 0 }} />
@@ -72,9 +74,16 @@ const SCRIPT_LABEL: Record<string, string> = {
   p2pkh: 'Legacy (P2PKH)', p2sh: 'Nested SegWit (P2SH)', p2wpkh: 'Native SegWit (P2WPKH)',
   p2wsh: 'SegWit script (P2WSH)', p2tr: 'Taproot (P2TR)', multisig: 'Multisig', unknown: 'Descriptor',
 };
+// The same names on screen, in the interface language; SCRIPT_LABEL stays in
+// the English summary handed to Alice.
+const SCRIPT_LABEL_KEY: Record<string, MessageKey> = {
+  p2pkh: 'explorer.script.p2pkh', p2sh: 'explorer.script.p2sh', p2wpkh: 'explorer.script.p2wpkh',
+  p2wsh: 'explorer.script.p2wsh', p2tr: 'explorer.script.p2tr', multisig: 'explorer.script.multisig', unknown: 'explorer.script.unknown',
+};
 
 function AddressRow({ a, onOpen }: { a: DerivedAddress; onOpen: () => void }) {
   const balance = Math.max(0, a.stats.fundedSum - a.stats.spentSum);
+  const t = useT();
   return (
     <button
       type="button"
@@ -84,14 +93,14 @@ function AddressRow({ a, onOpen }: { a: DerivedAddress; onOpen: () => void }) {
     style={{ justifyContent: 'space-between' }}>
       <div className="flex items-center gap-2 min-w-0">
         <span className="font-pixel tracking-widest shrink-0" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-          {a.chain === 0 ? 'R' : 'C'}/{a.index}
+          {a.chain === 0 ? t('explorer.xpub.chainReceive') : t('explorer.xpub.chainChange')}/{a.index}
         </span>
         <span className="font-numbers truncate" style={{ fontSize: 12, color: 'var(--alice-primary)' }} title={a.address}>
           {shortAddr(a.address)}
         </span>
         {a.stats.fundedCount > 1 && (
           <span className="font-numbers shrink-0" style={{ fontSize: 10, padding: '2px 4px', border: '1px solid var(--alice-warning)', borderRadius: 3, color: 'var(--alice-warning)' }}>
-            REUSED
+            {t('explorer.xpub.reused')}
           </span>
         )}
       </div>
@@ -121,6 +130,7 @@ export function ExplorerXpubTab({
   onSignals?: (signals: PrivacySignal[], full?: FullContext) => void;
 }) {
   const openSettings = useOpenSettings();
+  const t = useT();
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [progress, setProgress] = useState<{ scanned: number; used: number } | null>(null);
   // The parsed wallet and the scan-so-far: they let the whole dashboard paint
@@ -160,7 +170,7 @@ export function ExplorerXpubTab({
       try {
         descriptor = derive.parseWalletInput(input, derive.deriveNetworkFor(networkId));
       } catch (err) {
-        if (!cancelled) setState({ kind: 'error', message: err instanceof derive.WalletInputError ? err.message : 'Could not read this wallet.' });
+        if (!cancelled) setState({ kind: 'error', message: err instanceof derive.WalletInputError ? err.message : t('explorer.xpub.readError') });
         return;
       }
       if (!cancelled) setParsed(descriptor);
@@ -175,7 +185,7 @@ export function ExplorerXpubTab({
         });
       } catch (err) {
         if (cancelled || (err instanceof ChainDataError && err.code === 'aborted')) return;
-        setState({ kind: 'error', message: 'Could not scan this wallet on-chain.' });
+        setState({ kind: 'error', message: t('explorer.xpub.scanError') });
         return;
       }
       if (cancelled) return;
@@ -226,6 +236,8 @@ export function ExplorerXpubTab({
     })();
 
     return () => { cancelled = true; controller.abort(); abortRef.current = null; };
+    // t only names errors; a language change must not rescan the wallet.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input, networkId, provider]);
 
   // Balance history: fold the used addresses' transactions into one wallet
@@ -286,7 +298,7 @@ export function ExplorerXpubTab({
   if (state.kind === 'error') {
     return (
       <div className="flex flex-col gap-1 px-4 py-3" style={{ border: '1px solid var(--alice-danger)', borderRadius: 3 }}>
-        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>COULD NOT LOAD</span>
+        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>{t('explorer.error.couldNotLoad')}</span>
         <p className="font-numbers m-0" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{state.message}</p>
       </div>
     );
@@ -320,7 +332,7 @@ export function ExplorerXpubTab({
           <Skeleton width={180} height={16} />
           <Skeleton width="80%" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
-            {['BALANCE', 'USED ADDRESSES', 'RECEIVE / CHANGE', 'ACTIVITY'].map(l => (
+            {[t('explorer.address.balance'), t('explorer.xpub.usedAddresses'), t('explorer.xpub.receiveChange'), t('explorer.xpub.activity')].map(l => (
               <div key={l} className="flex flex-col gap-1">
                 <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{l}</span>
                 <Skeleton width="60%" />
@@ -328,19 +340,19 @@ export function ExplorerXpubTab({
             ))}
           </div>
           <Analyzing label={progress
-            ? `scanning… ${progress.scanned} address${progress.scanned === 1 ? '' : 'es'} checked, ${progress.used} used so far`
-            : `deriving and scanning addresses via ${provider.source.name}…`} />
+            ? t.plural('explorer.xpub.scanProgress', progress.scanned, { used: progress.used })
+            : t('explorer.xpub.deriving', { source: provider.source.name })} />
         </div>
-        <SectionPanel title="BALANCE"><div className="px-3 py-3"><Skeleton height={110} /></div></SectionPanel>
-        <SectionPanel title="TRANSACTIONS"><div className="px-3 py-3"><SkeletonLines lines={4} /></div></SectionPanel>
-        <SectionPanel title="UNSPENT OUTPUTS">
+        <SectionPanel title={t('explorer.address.balance')}><div className="px-3 py-3"><Skeleton height={110} /></div></SectionPanel>
+        <SectionPanel title={t('explorer.address.transactions')}><div className="px-3 py-3"><SkeletonLines lines={4} /></div></SectionPanel>
+        <SectionPanel title={t('explorer.address.unspent')}>
           <div className="flex items-center justify-center gap-3 px-3 py-4">
             <Skeleton width={64} height={64} style={{ borderRadius: '50%' }} />
             <Skeleton width={40} height={40} style={{ borderRadius: '50%' }} />
             <Skeleton width={26} height={26} style={{ borderRadius: '50%' }} />
           </div>
         </SectionPanel>
-        <SectionPanel title="USED ADDRESSES"><div className="px-3 py-3"><SkeletonLines lines={5} /></div></SectionPanel>
+        <SectionPanel title={t('explorer.xpub.usedAddresses')}><div className="px-3 py-3"><SkeletonLines lines={5} /></div></SectionPanel>
       </div>
     );
   }
@@ -355,20 +367,20 @@ export function ExplorerXpubTab({
         style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3, backgroundColor: 'transparent' }}
       >
         <div className="flex items-center gap-2 flex-wrap">
-          <Badge tone="primary">{descriptor.kind === 'xpub' ? 'EXTENDED KEY' : 'DESCRIPTOR'}</Badge>
-          <Badge tone="neutral">{SCRIPT_LABEL[descriptor.scriptHint] ?? descriptor.scriptHint}</Badge>
+          <Badge tone="primary">{descriptor.kind === 'xpub' ? t('explorer.xpub.extendedKey') : t('explorer.xpub.descriptor')}</Badge>
+          <Badge tone="neutral">{SCRIPT_LABEL_KEY[descriptor.scriptHint] ? t(SCRIPT_LABEL_KEY[descriptor.scriptHint]) : descriptor.scriptHint}</Badge>
         </div>
-        <div className="flex items-start gap-2"><p className="font-numbers m-0 break-all min-w-0 flex-1" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{descriptor.receive}</p><ExplorerCopy value={descriptor.receive} label="extended key or descriptor" /></div>
+        <div className="flex items-start gap-2"><p className="font-numbers m-0 break-all min-w-0 flex-1" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{descriptor.receive}</p><ExplorerCopy value={descriptor.receive} label={t('explorer.copy.extendedKey')} /></div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
-          <Metric label="BALANCE" value={<Amount sats={scan.balanceSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
-          <Metric label="USED ADDRESSES" value={scan.usedCount.toLocaleString('en-US')} />
-          <Metric label="RECEIVE / CHANGE" value={`${scan.receive.length} / ${scan.change.length}`} />
-          <Metric label="ACTIVITY" value={`${scan.txTotal.toLocaleString('en-US')} tx`} />
+          <Metric label={t('explorer.address.balance')} value={<Amount sats={scan.balanceSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
+          <Metric label={t('explorer.xpub.usedAddresses')} value={scan.usedCount.toLocaleString(formatLocale())} />
+          <Metric label={t('explorer.xpub.receiveChange')} value={`${scan.receive.length} / ${scan.change.length}`} />
+          <Metric label={t('explorer.xpub.activity')} value={t('explorer.xpub.txCount', { count: scan.txTotal.toLocaleString(formatLocale()) })} />
         </div>
         {/* While the scan is still walking, the totals above are live partials:
             say so, with the running counter. */}
         {scanning && (
-          <Analyzing label={`scanning… ${progress?.scanned ?? 0} address${(progress?.scanned ?? 0) === 1 ? '' : 'es'} checked, totals update as it goes`} />
+          <Analyzing label={t.plural('explorer.xpub.scanLive', progress?.scanned ?? 0)} />
         )}
       </div>
 
@@ -378,11 +390,11 @@ export function ExplorerXpubTab({
       {series && series.points.length >= 2 ? (
         <div className="rh-fade-in"><ExplorerBalanceChart points={series.points} partial={txPartial} /></div>
       ) : scanning || (scan.usedCount > 0 && historyState !== 'unsupported' && historyState !== 'done') ? (
-        <SectionPanel title="BALANCE"><div className="px-3 py-3"><Skeleton height={110} /></div></SectionPanel>
+        <SectionPanel title={t('explorer.address.balance')}><div className="px-3 py-3"><Skeleton height={110} /></div></SectionPanel>
       ) : scan.usedCount > 0 && historyState === 'done' ? (
-        <SectionPanel title="BALANCE">
+        <SectionPanel title={t('explorer.address.balance')}>
           <p className="font-numbers m-0 px-3 py-3" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-            No dated history to chart.
+            {t('explorer.xpub.noDatedHistory')}
           </p>
         </SectionPanel>
       ) : null}
@@ -393,16 +405,16 @@ export function ExplorerXpubTab({
       {historyState !== 'unsupported' && (scanning || scan.usedCount > 0) && (
         <div className="flex flex-col" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3 }}>
           <div className="flex items-center justify-between px-3 py-2" style={{ backgroundColor: 'transparent' }}>
-            <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>TRANSACTIONS</span>
+            <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorer.address.transactions')}</span>
             <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
               {walletTxs.length > 0
-                ? `${Math.min(txVisible, walletTxs.length).toLocaleString('en-US')} of ${walletTxs.length.toLocaleString('en-US')}${txPartial ? '+' : ''}`
-                : historyState === 'loading' ? 'loading…' : '0'}
+                ? t('explorer.list.shownOf', { shown: Math.min(txVisible, walletTxs.length).toLocaleString(formatLocale()), total: `${walletTxs.length.toLocaleString(formatLocale())}${txPartial ? '+' : ''}` })
+                : historyState === 'loading' ? t('explorer.list.loading') : '0'}
             </span>
           </div>
           {walletTxs.length === 0 ? (
             !scanning && historyState === 'done'
-              ? <EmptyState title="No transactions found" hint="No dated history came back for this wallet's addresses." />
+              ? <EmptyState title={t('explorer.xpub.noTxsTitle')} hint={t('explorer.xpub.noTxsHint')} />
               : <div className="px-3 py-3"><SkeletonLines lines={4} /></div>
           ) : (
             <div className="rh-fade-in">
@@ -418,7 +430,7 @@ export function ExplorerXpubTab({
               className="alice-control alice-control--quiet font-numbers cursor-pointer bg-transparent px-3 py-2"
               style={{ fontSize: 13, color: 'var(--alice-primary)', }}
             >
-              LOAD {Math.min(TX_PAGE, walletTxs.length - txVisible)} MORE
+              {t('explorer.list.loadMore', { count: Math.min(TX_PAGE, walletTxs.length - txVisible) })}
             </button>
           )}
         </div>
@@ -429,7 +441,7 @@ export function ExplorerXpubTab({
       {scan.utxos && scan.utxos.length > 0 ? (
         <div className="rh-fade-in"><ExplorerUtxoBubbles utxos={scan.utxos} /></div>
       ) : scanning ? (
-        <SectionPanel title="UNSPENT OUTPUTS">
+        <SectionPanel title={t('explorer.address.unspent')}>
           <div className="flex items-center justify-center gap-3 px-3 py-4">
             <Skeleton width={64} height={64} style={{ borderRadius: '50%' }} />
             <Skeleton width={40} height={40} style={{ borderRadius: '50%' }} />
@@ -437,19 +449,18 @@ export function ExplorerXpubTab({
           </div>
         </SectionPanel>
       ) : scan.utxos ? (
-        <SectionPanel title="UNSPENT OUTPUTS">
+        <SectionPanel title={t('explorer.address.unspent')}>
           <p className="font-numbers m-0 px-3 py-3" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-            No coins held in this wallet right now.
+            {t('explorer.xpub.noCoinsNow')}
           </p>
         </SectionPanel>
       ) : null}
 
       {scan.throttled && (
         <div className="flex flex-col gap-2 px-4 py-3" style={{ border: '1px solid var(--alice-warning)', borderRadius: 3 }}>
-          <Badge tone="medium">SCAN INCOMPLETE</Badge>
+          <Badge tone="medium">{t('explorer.xpub.scanIncomplete')}</Badge>
           <p className="font-numbers m-0" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-            {provider.source.name} rate-limited the address lookups, so the scan stopped early and the totals
-            may be incomplete.
+            {t('explorer.xpub.rateLimited', { source: provider.source.name })}
           </p>
           <button
             type="button"
@@ -457,14 +468,14 @@ export function ExplorerXpubTab({
             className="alice-control alice-control--quiet font-numbers self-start cursor-pointer"
             style={{ fontSize: 13, padding: '6px 12px', borderRadius: 3, color: 'var(--alice-warning)', }}
           >
-            SET YOUR NODE →
+            {t('explorer.xpub.setNode')}
           </button>
         </div>
       )}
       {!scan.throttled && (scan.degraded || scan.reachedCap) && (
         <p className="font-numbers m-0" style={{ fontSize: 11, color: 'var(--alice-warning)' }}>
-          {scan.reachedCap ? 'The scan hit its address cap; a very large wallet may be truncated. ' : ''}
-          {scan.degraded ? 'Some lookups failed, so the totals may be understated.' : ''}
+          {scan.reachedCap ? t('explorer.xpub.reachedCap') : ''}
+          {scan.degraded ? t('explorer.xpub.degraded') : ''}
         </p>
       )}
 
@@ -474,10 +485,9 @@ export function ExplorerXpubTab({
           className="flex flex-col gap-2 px-4 py-3"
           style={{ borderTop: '1px solid var(--alice-border)', borderLeft: '3px solid var(--alice-warning)', borderRadius: 3 }}
         >
-          <span className="font-numbers" style={{ fontSize: 14, color: 'var(--alice-text)' }}>Address reuse in this wallet</span>
+          <span className="font-numbers" style={{ fontSize: 14, color: 'var(--alice-text)' }}>{t('explorer.xpub.reuseTitle')}</span>
           <p className="font-numbers m-0" style={{ fontSize: 13, lineHeight: '19px', color: 'var(--alice-muted)' }}>
-            Some addresses here received funds more than once. Reuse publicly ties those payments to
-            the same wallet and makes its activity easy to follow.
+            {t('explorer.xpub.reuseBody')}
           </p>
         </div>
       )}
@@ -485,29 +495,28 @@ export function ExplorerXpubTab({
       {/* Derived, used addresses. */}
       <div className="flex flex-col" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3 }}>
         <div className="flex items-center justify-between px-3 py-2" style={{ backgroundColor: 'transparent' }}>
-          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>USED ADDRESSES</span>
-          <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>{used.length.toLocaleString('en-US')}</span>
+          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorer.xpub.usedAddresses')}</span>
+          <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>{used.length.toLocaleString(formatLocale())}</span>
         </div>
         {used.length === 0 ? (
           scanning ? (
             <div className="px-3 py-3"><SkeletonLines lines={4} /></div>
           ) : (
             <EmptyState
-              title="No used addresses in range"
-              hint="This wallet looks empty or unused. The derived addresses below still let you cross-check it."
+              title={t('explorer.xpub.noUsedTitle')}
+              hint={t('explorer.xpub.noUsedHint')}
             />
           )
         ) : (
           used.map(a => <AddressRow key={`${a.chain}/${a.index}`} a={a} onOpen={() => onOpenAddress(a.address)} />)
         )}
         {/* The list keeps growing while the walk continues. */}
-        {scanning && used.length > 0 && <Analyzing label="scanning for more used addresses…" />}
+        {scanning && used.length > 0 && <Analyzing label={t('explorer.xpub.scanningMore')} />}
       </div>
 
       {/* Query-privacy notice. */}
       <p className="font-numbers m-0" style={{ fontSize: 11, color: 'var(--alice-muted)', opacity: 0.7 }}>
-        Scanning a wallet asks {provider.source.name} about each derived address, revealing to that server
-        that they interest you. On your own node this stays private.
+        {t('explorer.xpub.queryPrivacy', { source: provider.source.name })}
       </p>
     </div>
   );

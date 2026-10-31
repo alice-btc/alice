@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
-import { normalizeSparkscanLive, normalizeSparkscanTx, sparkscanKind, sparkscanKindLabel } from './sparkscan.ts';
+import { afterEach, describe, it } from 'node:test';
+import { getSparkscanLatest, getSparkscanTx, normalizeSparkscanLive, normalizeSparkscanTx, sparkscanBudget, sparkscanKind, sparkscanKindLabel, SparkscanError } from './sparkscan.ts';
 
 const SSP_LEGACY = 'sp1pgssy03nu2fqxfhkf633qkx5gam5gtvh6l2uhl84fccxp0qkjhjjv8ynqvad9t';
 const SSP_PK = '023e33e2920326f64ea31058d44777442d97d7d5cbfcf54e3060bc1695e5261c93';
@@ -131,5 +131,45 @@ describe('normalizeSparkscanTx, the Bitcoin side of a deposit', () => {
     assert.equal(out?.to?.kind, 'bitcoin');
     // Without a caller-named side, the row keeps that side unknown.
     assert.equal(normalizeSparkscanTx({ ...base, from: undefined, to: undefined, direction: 'incoming', counterparty: base.from, txid: TXID })?.to, null);
+  });
+});
+
+describe('Sparkscan REST calls and the request limit', () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    sparkscanBudget.note(200, { get: () => null }, Math.floor(Date.now() / 1000));
+  });
+  const answer = (status: number, body: unknown, headers: Record<string, string> = {}) => new Response(body === null ? null : JSON.stringify(body), { status, headers });
+
+  it('asks for JSON without a key and keeps going while requests are left', async () => {
+    const urls: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      urls.push(String(input));
+      assert.equal((init?.headers as Record<string, string>).accept, 'application/json');
+      assert.equal((init?.headers as Record<string, string>).authorization, undefined);
+      return answer(200, [], { 'x-ratelimit-remaining': '7' });
+    }) as typeof fetch;
+    assert.deepEqual(await getSparkscanLatest(5), []);
+    assert.deepEqual(await getSparkscanLatest(5), []);
+    assert.equal(urls.length, 2);
+    assert.equal(urls[0], 'https://api.sparkscan.io/v1/tx/latest?network=MAINNET&limit=5');
+  });
+
+  it('after a refusal, holds the next call back for what Retry-After says, without sending it', async () => {
+    let sent = 0;
+    globalThis.fetch = (async () => { sent++; return answer(429, { message: 'Too many requests' }, { 'retry-after': '45' }); }) as typeof fetch;
+    await assert.rejects(getSparkscanTx('01a1259e-4ea0-720a-9e1d-456db56839d2'), (e: unknown) => e instanceof SparkscanError && e.status === 429 && /45 seconds/.test(e.message));
+    await assert.rejects(getSparkscanTx('01a1259e-4ea0-720a-9e1d-456db56839d2'), (e: unknown) => e instanceof SparkscanError && e.status === 429 && /Try again in/.test(e.message));
+    assert.equal(sent, 1);
+  });
+
+  it('stops asking once no requests are left, until the window resets', async () => {
+    let sent = 0;
+    const reset = Math.floor(Date.now() / 1000) + 200;
+    globalThis.fetch = (async () => { sent++; return answer(404, null, { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(reset) }); }) as typeof fetch;
+    assert.equal(await getSparkscanTx('x'), null);
+    await assert.rejects(getSparkscanTx('y'), (e: unknown) => e instanceof SparkscanError && e.status === 429 && /about 3 minutes/.test(e.message));
+    assert.equal(sent, 1);
   });
 });

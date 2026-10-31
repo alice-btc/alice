@@ -1,5 +1,6 @@
 import type { AIBackend, SendMessageOptions, TokenUsage } from './ai-backend';
 import type { Message } from './llm';
+import type { SupportedLanguage } from './languages';
 
 // Kept apart from `chat-context.tsx` so it can be tested: that module pulls in
 // React, react-native and AsyncStorage, none of which load outside Metro. Every
@@ -10,10 +11,10 @@ import type { Message } from './llm';
 // off and stitch the pieces together, so the cut is invisible.
 export const CONTINUE_INSTRUCTION =
   'Continue your previous answer from exactly where it stopped. Do not repeat anything you already wrote, do not restate the question, do not start a new introduction. Pick up mid-sentence if that is where you stopped, and bring the answer to a proper conclusion.';
-export const CONTINUE_INSTRUCTIONS = {
+export const CONTINUE_INSTRUCTIONS: Readonly<Record<SupportedLanguage, string>> = {
   en: CONTINUE_INSTRUCTION,
   fr: `Continue ta réponse précédente exactement à l'endroit où elle s'est arrêtée. Ne répète rien, ne reformule pas la question et ne commence pas une nouvelle introduction. Reprends au milieu de la phrase si nécessaire et termine correctement la réponse, entièrement en français.`,
-} as const;
+};
 
 // COST: this is the only place where one user message can bill more than one
 // API call. A single answer costs at most 1 + MAX_AUTO_CONTINUATIONS calls

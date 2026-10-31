@@ -1,16 +1,17 @@
 'use client';
 
 import { SvgIcon } from '@/components/SvgIcon';
-import { BACK_ICON, NEXT_ICON, SEARCH_ICON, EXTERNAL_ICON } from '@/lib/atelier-icons';
+import { BACK_ICON, DICTIONARY_ICON, NEXT_ICON, SEARCH_ICON, EXTERNAL_ICON } from '@/lib/atelier-icons';
 
 import { useEffect, useRef, useState } from 'react';
 import { getPedagogicalProfile } from '@alice-wallet/alice-ai';
 import type { LearnCatalogCourse, LearnCatalogTutorial } from '@alice-wallet/alice-content/src/learn-types';
 import { buildForYou, type ForYouEntry } from '@/lib/learn/foryou';
 import {
-  LEVEL_LABELS,
-  SECTION_LABELS,
-  TUTORIAL_CATEGORY_LABELS,
+  LEVEL_LABEL_KEYS,
+  SECTION_LABEL_KEYS,
+  TUTORIAL_CATEGORY_LABEL_KEYS,
+  catalogLabel,
   courseChapterCount,
   courseMeta,
   courseThumbnailUrl,
@@ -26,9 +27,13 @@ import { openExternalUrl } from '@/lib/open-external';
 import type { LearnProgress } from '@/lib/learn/progress';
 import { readCount, resumeList } from '@/lib/learn/progress';
 import type { LearnView } from '@/lib/learn/route';
+import type { DictionaryIndex } from '@alice-wallet/alice-content/src/dictionary-types';
+import { searchDictionary } from '@/lib/learn/dictionary';
+import { fetchDictionaryIndex } from '@/lib/learn/dictionary-packs';
+import { formatCount } from './LearnDictionary';
 import { useOnline } from './LearnMarkdown';
-
-const ui = (lang: string): 'fr' | 'en' => (lang === 'fr' ? 'fr' : 'en');
+import { useLearnT } from './learn-locale';
+import { WithBitcoinGlyph } from '@/components/AmountDisplay';
 
 const cardBorder: React.CSSProperties = { border: '1px solid var(--alice-border)', borderRadius: 'var(--alice-radius-control)' };
 
@@ -117,7 +122,8 @@ function CardThumb({
 
 // Horizontal rail with side arrows, PlanB-style. Arrows scroll by most of a
 // viewport; the rail itself stays natively scrollable (trackpad, touch).
-function CarouselRow({ children }: { children: React.ReactNode }) {
+function CarouselRow({ children, lang }: { children: React.ReactNode; lang: LearnLang }) {
+  const t = useLearnT(lang);
   const railRef = useRef<HTMLDivElement>(null);
   const scrollBy = (direction: -1 | 1) => {
     const rail = railRef.current;
@@ -136,7 +142,7 @@ function CarouselRow({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ position: 'relative', padding: '0 28px' }}>
       <button
-        aria-label="Scroll left"
+        aria-label={t('learn.home.scrollLeft')}
         className="alice-control alice-control--tool hidden md:flex"
         style={{ ...arrow, left: -4 }}
         onClick={() => scrollBy(-1)}
@@ -151,7 +157,7 @@ function CarouselRow({ children }: { children: React.ReactNode }) {
         {children}
       </div>
       <button
-        aria-label="Scroll right"
+        aria-label={t('learn.home.scrollRight')}
         className="alice-control alice-control--tool hidden md:flex"
         style={{ ...arrow, right: -4 }}
         onClick={() => scrollBy(1)}
@@ -180,7 +186,8 @@ function CourseCard({
   const meta = courseMeta(course, lang, langMeta);
   const total = courseChapterCount(course, lang, langMeta);
   const read = readCount(progress, course.code);
-  const level = LEVEL_LABELS[course.level]?.[ui(lang)] ?? course.level;
+  const t = useLearnT(lang);
+  const level = catalogLabel(t, LEVEL_LABEL_KEYS, course.level);
   return (
     <button
       onClick={onOpen}
@@ -199,7 +206,7 @@ function CourseCard({
         <span>{course.code.toUpperCase()}</span>
         {read > 0 && (
           <span style={{ color: 'var(--alice-muted)' }}>
-            {total > 0 && read >= total ? 'DONE' : `${read}/${total}`}
+            {total > 0 && read >= total ? t('learn.home.card.done') : `${read}/${total}`}
           </span>
         )}
       </div>
@@ -212,7 +219,7 @@ function CourseCard({
         <div className="font-numbers" style={{ fontSize: 15, lineHeight: '22px', minHeight: 44 }}>{meta?.name ?? course.code}</div>
         <div className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)', marginTop: 4 }}>
           {level}
-          {total > 0 ? ` · ${total} ${lang === 'fr' ? 'chapitres' : 'chapters'}` : ''}
+          {total > 0 ? ` · ${t.plural('learn.home.card.chapters', total)}` : ''}
           {course.hours ? ` · ${course.hours}h` : ''}
         </div>
       </div>
@@ -234,6 +241,7 @@ function TutorialCard({
   fixedWidth?: boolean;
 }) {
   const meta = tutorialMeta(tutorial, lang, langMeta);
+  const t = useLearnT(lang);
   return (
     <button
       onClick={onOpen}
@@ -242,7 +250,7 @@ function TutorialCard({
     >
       <CardThumb
         src={tutorialCoverUrl(tutorial.category, tutorial.slug)}
-        fallbackLabel={(TUTORIAL_CATEGORY_LABELS[tutorial.category]?.[ui(lang)] ?? tutorial.category).toUpperCase()}
+        fallbackLabel={catalogLabel(t, TUTORIAL_CATEGORY_LABEL_KEYS, tutorial.category).toUpperCase()}
         kind={tutorial.thumbKind ?? 'photo'}
       />
       <div style={{ padding: '8px 12px 10px', borderTop: '1px solid var(--alice-border)' }}>
@@ -280,6 +288,7 @@ export function LearnHome({
   onNavigate: (view: LearnView) => void;
 }) {
   const [query, setQuery] = useState('');
+  const t = useLearnT(lang);
   const sections = coursesBySection(lang, langMeta);
   const tutorialGroups = tutorialsByCategory(lang, langMeta);
   const results = searchCatalog(lang, query, langMeta);
@@ -307,22 +316,34 @@ export function LearnHome({
   }, [progress, lang]);
   const courseByCode = new Map(sections.flatMap((s) => s.courses).map((c) => [c.code, c]));
 
+  // The Dictionnaire de Bitcoin: its index is small and joins the search box,
+  // so a term typed here opens its definition. Absent until loaded, never an
+  // error on the home.
+  const [dictionary, setDictionary] = useState<DictionaryIndex | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetchDictionaryIndex().then((index) => { if (!cancelled) setDictionary(index); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const definitionHits = searching && dictionary ? searchDictionary(dictionary.entries, query, 8) : [];
+
   return (
     <div style={{ width: 'min(100% - 32px, 1100px)', margin: '0 auto', padding: '24px 0 72px' }}>
-      <header className="workspace-heading">
+      {/* On a phone the shell's header already says Learn. */}
+      <header className="workspace-heading hidden md:block">
         <h1 className="font-pixel">Learn</h1>
-        <p>{lang === 'fr' ? 'Des cours et des tutoriels pour avancer à votre rythme.' : 'Courses and tutorials to explore at your own pace.'}</p>
+        <p>{t('learn.home.tagline')}</p>
       </header>
-      <label htmlFor="learn-search" className="alice-field-label">{lang === 'fr' ? 'Rechercher un cours ou un tutoriel' : 'Search courses and tutorials'}</label>
+      <label htmlFor="learn-search" className="alice-field-label">{t('learn.home.search.label')}</label>
       <div className="flex items-center gap-3 flex-wrap" style={{ marginBottom: 20 }}>
         <SvgIcon svg={SEARCH_ICON} size={16} />
         <input
           id="learn-search"
           type="search"
-          aria-label={lang === 'fr' ? 'Chercher dans Learn' : 'Search Learn'}
+          aria-label={t('learn.home.search.aria')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={lang === 'fr' ? 'Chercher un cours, un tutoriel…' : 'Search courses and tutorials…'}
+          placeholder={t('learn.home.search.placeholder')}
           className="alice-field flex-1"
           style={{
             ...cardBorder,
@@ -338,8 +359,26 @@ export function LearnHome({
 
       {searching ? (
         <section aria-live="polite">
+          {definitionHits.length > 0 && (
+            <div style={{ marginBottom: 22 }}>
+              <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 10px' }}>{t('learn.home.definitions')}</h2>
+              <div className="flex flex-wrap" style={{ gap: 6 }}>
+                {definitionHits.map((entry) => (
+                  <button
+                    key={entry.slug}
+                    onClick={() => onNavigate({ kind: 'definition', slug: entry.slug })}
+                    className="alice-control alice-control--choice font-numbers"
+                    style={{ padding: '8px 12px', fontSize: 13 }}
+                    title={entry.category}
+                  >
+                    {entry.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 10px' }}>
-            {results.courses.length + results.tutorials.length > 0 ? (lang === 'fr' ? 'RÉSULTATS' : 'RESULTS') : (lang === 'fr' ? 'AUCUN RÉSULTAT' : 'NO RESULTS')}
+            {results.courses.length + results.tutorials.length > 0 ? t('learn.results') : definitionHits.length > 0 ? t('learn.home.coursesNone') : t('learn.noResults')}
           </h2>
           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
             {results.courses.map((course) => (
@@ -367,7 +406,7 @@ export function LearnHome({
         <>
           {forYou.length > 0 && (
             <section style={{ marginBottom: 24 }}>
-              <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 10px' }}>{lang === 'fr' ? 'POUR VOUS' : 'FOR YOU'}</h2>
+              <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 10px' }}>{t('learn.home.forYou')}</h2>
               <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
                 {forYou.map((entry) => (
                   <button
@@ -383,7 +422,7 @@ export function LearnHome({
                       {courseMeta(entry.course, lang, langMeta)?.name ?? entry.course.code}
                     </div>
                     <div className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)', marginTop: 6 }}>
-                      {entry.reason[ui(lang)]}
+                      {t('learn.home.forYou.reason', { label: entry.conceptLabel })}
                     </div>
                   </button>
                 ))}
@@ -392,7 +431,7 @@ export function LearnHome({
           )}
           {resume.length > 0 && (
             <section style={{ marginBottom: 24 }}>
-              <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 10px' }}>{lang === 'fr' ? 'REPRENDRE' : 'RESUME'}</h2>
+              <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 10px' }}>{t('learn.home.resume')}</h2>
               <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
                 {resume.map((entry) => {
                   const course = courseByCode.get(entry.courseCode);
@@ -417,7 +456,7 @@ export function LearnHome({
                         {courseMeta(course, lang, langMeta)?.name ?? course.code}
                       </div>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 12, color: 'var(--alice-primary)', fontWeight: 600 }}>
-                        {lang === 'fr' ? 'Continuer le cours' : 'Continue course'} <SvgIcon svg={NEXT_ICON} size={16} />
+                        {t('learn.home.continueCourse')} <SvgIcon svg={NEXT_ICON} size={16} />
                       </span>
                       <div style={{ display: 'flex', gap: 2, marginTop: 10 }} aria-hidden="true">
                         {Array.from({ length: Math.min(total, 24) }, (_, i) => (
@@ -440,15 +479,40 @@ export function LearnHome({
               </div>
             </section>
           )}
-
+          {/* The Dictionnaire de Bitcoin has a row of its own, under the
+              resumed courses, with the same card shape as one of them. */}
+          <section style={{ marginBottom: 24 }}>
+            <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 10px' }}>{t('learn.home.dictionary')}</h2>
+            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+                <button
+                  onClick={() => onNavigate({ kind: 'dictionary' })}
+                  className="alice-control alice-control--row text-left"
+                  style={{ display: 'block', width: '100%', padding: '12px 14px', borderBottom: '1px solid var(--alice-border)' }}
+                >
+                  <div className="font-numbers flex items-center justify-between" style={{ fontSize: 12, color: 'var(--alice-primary)' }}>
+                    <span>A–Z</span>
+                    {dictionary && <span>{formatCount(dictionary.count, t.locale)}</span>}
+                  </div>
+                  <div className="font-numbers flex items-center" style={{ fontSize: 15, marginTop: 8, gap: 8 }}>
+                    <SvgIcon svg={DICTIONARY_ICON} size={18} /> Dictionnaire de Bitcoin
+                  </div>
+                  <div className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)', marginTop: 6 }}>
+                    {t('learn.home.dictionary.description')}
+                  </div>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 12, color: 'var(--alice-primary)', fontWeight: 600 }}>
+                    {t('learn.openDictionary')} <SvgIcon svg={NEXT_ICON} size={16} />
+                  </span>
+                </button>
+            </div>
+          </section>
           <section>
-            <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 14px' }}>{lang === 'fr' ? 'COURS' : 'COURSES'}</h2>
+            <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 14px' }}>{t('learn.home.courses')}</h2>
             {sections.map((section) => (
               <div key={section.topic} style={{ marginBottom: 22 }}>
                 <h3 className="font-pixel" style={{ fontSize: 10, color: 'var(--alice-muted)', margin: '0 0 8px' }}>
-                  {(SECTION_LABELS[section.topic]?.[ui(lang)] ?? section.topic).toUpperCase()}
+                  {catalogLabel(t, SECTION_LABEL_KEYS, section.topic).toUpperCase()}
                 </h3>
-                <CarouselRow>
+                <CarouselRow lang={lang}>
                   {section.courses.map((course) => (
                     <CourseCard
                       key={course.code}
@@ -466,14 +530,14 @@ export function LearnHome({
           </section>
 
           <section style={{ marginTop: 34 }}>
-            <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 14px' }}>{lang === 'fr' ? 'TUTORIELS' : 'TUTORIALS'}</h2>
+            <h2 className="font-pixel" style={{ fontSize: 10, margin: '0 0 14px' }}>{t('learn.home.tutorials')}</h2>
             {tutorialGroups.map((group) => (
               <div key={group.category} style={{ marginBottom: 22 }}>
                 <h3 className="font-pixel flex items-baseline gap-2" style={{ fontSize: 10, color: 'var(--alice-muted)', margin: '0 0 8px' }}>
-                  {(TUTORIAL_CATEGORY_LABELS[group.category]?.[ui(lang)] ?? group.category).toUpperCase()}
+                  {catalogLabel(t, TUTORIAL_CATEGORY_LABEL_KEYS, group.category).toUpperCase()}
                   <span className="font-numbers" style={{ fontSize: 12 }}>{group.tutorials.length}</span>
                 </h3>
-                <CarouselRow>
+                <CarouselRow lang={lang}>
                   {group.tutorials.map((tutorial) => (
                     <TutorialCard
                       key={tutorial.slug}
@@ -488,12 +552,12 @@ export function LearnHome({
               </div>
             ))}
             <p className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)', marginTop: 16 }}>
-              {lang === 'fr' ? 'Contenu ' : 'Content by '}
+              {t('learn.contentBy')}
               <a
                 href="https://planb.network" target="_blank" rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); void openExternalUrl('https://planb.network'); }}
                 style={{ color: 'var(--alice-muted)', textDecoration: 'underline' }}
               >
-                Plan ₿ Academy <span style={{ display: 'inline-flex', verticalAlign: 'middle' }}><SvgIcon svg={EXTERNAL_ICON} size={16} /></span>
+                <WithBitcoinGlyph text="Plan ₿ Academy" /> <span style={{ display: 'inline-flex', verticalAlign: 'middle' }}><SvgIcon svg={EXTERNAL_ICON} size={16} /></span>
               </a>
               {' · CC BY-SA 4.0'}
             </p>

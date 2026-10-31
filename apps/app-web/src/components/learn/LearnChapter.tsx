@@ -18,6 +18,8 @@ import { fetchCoursePack } from '@/lib/learn/packs';
 import type { LearnView } from '@/lib/learn/route';
 import { consumeLearnScroll, learnScroller, saveLearnScroll } from '@/lib/learn/scroll';
 import { LearnMarkdown } from './LearnMarkdown';
+import { anchorTypeLabel, useLearnT } from './learn-locale';
+import { WithBitcoinGlyph } from '@/components/AmountDisplay';
 
 const ui = (lang: string): 'fr' | 'en' => (lang === 'fr' ? 'fr' : 'en');
 
@@ -78,6 +80,7 @@ export function LearnChapter({
   const [error, setError] = useState(false);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const ask = useSelectionAsk(bodyRef);
+  const t = useLearnT(lang);
 
   useEffect(() => {
     let cancelled = false;
@@ -121,7 +124,7 @@ export function LearnChapter({
     return (
       <div style={{ width: 'min(100% - 32px, 760px)', margin: '0 auto', padding: '48px 0' }}>
         <p className="font-numbers" style={{ color: 'var(--alice-muted)' }}>
-          {lang === 'fr' ? 'Chapitre indisponible dans cette langue.' : 'Chapter unavailable in this language.'}
+          {t('learn.chapter.unavailable')}
         </p>
       </div>
     );
@@ -129,7 +132,7 @@ export function LearnChapter({
   if (!pack) {
     return (
       <div style={{ width: 'min(100% - 32px, 760px)', margin: '0 auto', padding: '48px 0' }}>
-        <p className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }} role="status">{lang === 'fr' ? 'Chargement…' : 'Loading…'}</p>
+        <p className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }} role="status">{t('common.loading')}</p>
       </div>
     );
   }
@@ -141,7 +144,7 @@ export function LearnChapter({
     return (
       <div style={{ width: 'min(100% - 32px, 760px)', margin: '0 auto', padding: '48px 0' }}>
         <p className="font-numbers" style={{ color: 'var(--alice-muted)' }}>
-          {lang === 'fr' ? 'Chapitre introuvable.' : 'Chapter not found.'}
+          {t('learn.chapter.notFound')}
         </p>
       </div>
     );
@@ -209,7 +212,7 @@ export function LearnChapter({
             window.getSelection()?.removeAllRanges();
           }}
         >
-          <SvgIcon svg={HELP_ICON} size={20} /> {lang === 'fr' ? 'Expliquer la sélection avec Alice' : 'Explain selection with Alice'}
+          <SvgIcon svg={HELP_ICON} size={20} /> {t('learn.chapter.explainSelection')}
         </button>
       )}
 
@@ -235,7 +238,7 @@ export function LearnChapter({
             style={{ ...navButton }}
             onClick={() => onNavigate({ kind: 'quiz', code, partId: current.part.partId! })}
           >
-            {lang === 'fr' ? 'Quiz de la partie' : 'Part quiz'} <SvgIcon svg={NEXT_ICON} size={16} />
+            {t('learn.partQuiz')} <SvgIcon svg={NEXT_ICON} size={16} />
           </button>
         ) : next?.chapter.chapterId ? (
           <button
@@ -251,9 +254,9 @@ export function LearnChapter({
       </div>
 
       <p className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)', marginTop: 32 }}>
-        {lang === 'fr' ? 'Contenu ' : 'Content by '}
+        {t('learn.contentBy')}
         <a href="https://planb.network" target="_blank" rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); void openExternalUrl('https://planb.network'); }} style={{ color: 'var(--alice-muted)', textDecoration: 'underline' }}>
-          Plan ₿ Academy <span style={{ display: 'inline-flex', verticalAlign: 'middle' }}><SvgIcon svg={EXTERNAL_ICON} size={16} /></span>
+          <WithBitcoinGlyph text="Plan ₿ Academy" /> <span style={{ display: 'inline-flex', verticalAlign: 'middle' }}><SvgIcon svg={EXTERNAL_ICON} size={16} /></span>
         </a>
         {' · CC BY-SA 4.0'}
       </p>
@@ -277,6 +280,7 @@ function PlaygroundBridge({
   chapterId: string;
 }) {
   const router = useRouter();
+  const t = useLearnT(lang);
   const view = playgroundBridgeFor(code, title);
   if (!view) return null;
   return (
@@ -290,7 +294,7 @@ function PlaygroundBridge({
           router.push('/playground');
         }}
       >
-        {ui(lang) === 'fr' ? 'Essayer dans Playground' : 'Try it in Playground'} <SvgIcon svg={NEXT_ICON} size={16} />
+        {t('learn.chapter.tryPlayground')} <SvgIcon svg={NEXT_ICON} size={16} />
       </button>
     </div>
   );
@@ -311,11 +315,12 @@ function AnchorCards({
   lang: LearnLang;
 }) {
   const router = useRouter();
+  const t = useLearnT(lang);
   if (anchors.length === 0) return null;
   return (
     <div style={{ marginTop: 32 }}>
       <div className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)', marginBottom: 10 }}>
-        {lang === 'fr' ? 'À VOIR SUR LA CHAÎNE' : 'SEE IT ON CHAIN'}
+        {t('learn.chapter.seeOnChain')}
       </div>
       <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
         {anchors.map((anchor) => (
@@ -329,13 +334,13 @@ function AnchorCards({
             style={{ display: 'block', padding: '12px 14px', borderBottom: '1px solid var(--alice-border)' }}
           >
             <div className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-primary)' }}>
-              {anchor.type === 'block' ? `BLOCK ${anchor.id}` : anchor.type.toUpperCase()}
+              {anchorTypeLabel(t, anchor)}
             </div>
             <div className="font-numbers" style={{ fontSize: 14, marginTop: 8, lineHeight: '21px' }}>
               {anchor.label[ui(lang)]}
             </div>
             <div className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)', marginTop: 10 }}>
-              <span className="flex items-center gap-2">{lang === 'fr' ? 'Ouvrir dans Explorer' : 'Open in Explorer'} <SvgIcon svg={NEXT_ICON} size={16} /></span>
+              <span className="flex items-center gap-2">{t('learn.chapter.openInExplorer')} <SvgIcon svg={NEXT_ICON} size={16} /></span>
             </div>
           </button>
         ))}

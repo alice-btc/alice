@@ -40,11 +40,9 @@ export async function runAliceTurn(input: {
     history,
     rag,
     '',              // no pedagogical context in this slice
-    false,           // assistant history not dropped (no prior turns)
     '',              // no personal memory
     '',              // no memory-capture instruction
     POSTURE_POLICY,  // the turn directive: explain, never recommend mixers, cite fiches
-    false,
   );
 
   const backend = createBackend(input.backendType);

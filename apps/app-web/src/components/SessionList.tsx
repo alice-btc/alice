@@ -7,6 +7,7 @@ import { ConfirmDialog } from '@/components/settings/ui';
 import { usePathname, useRouter } from 'next/navigation';
 import { type ChatSession, useChat } from '@alice-wallet/alice-ai';
 import { hasSessionTabs, removeSessionTabs } from '@/lib/explorer/session-links';
+import { useT } from '@/i18n';
 
 const SESSION_PAGE_SIZE = 20;
 
@@ -20,6 +21,7 @@ export function SessionList({ onClose }: SessionListProps) {
   const [visibleCount, setVisibleCount] = useState(SESSION_PAGE_SIZE);
   const router = useRouter();
   const pathname = usePathname();
+  const t = useT();
 
   useEffect(() => {
     refreshSessions();
@@ -51,7 +53,7 @@ export function SessionList({ onClose }: SessionListProps) {
           className="font-numbers"
           style={{ fontSize: 13, color: 'var(--alice-text)' }}
         >
-          NO PAST CONVERSATIONS
+          {t('sessions.empty')}
         </p>
       </div>
     );
@@ -91,7 +93,7 @@ export function SessionList({ onClose }: SessionListProps) {
                 {hasSessionTabs(session.id) && (
                   <span
                     className="font-numbers"
-                    title="Opens in Explorer with its tabs"
+                    title={t('sessions.explorerBadgeTitle')}
                     style={{ fontSize: 13, marginLeft: 8, padding: '2px 5px', border: '1px solid var(--alice-primary)', borderRadius: 2, color: 'var(--alice-primary)', verticalAlign: 'middle' }}
                   >
                     EXPLORER
@@ -103,14 +105,14 @@ export function SessionList({ onClose }: SessionListProps) {
                 style={{ fontSize: 13, color: 'var(--alice-text)', opacity: 1 }}
               >
                 {new Date(session.updatedAt).toLocaleDateString()} &middot;{' '}
-                {session.messageCount} message{session.messageCount !== 1 ? 's' : ''}
+                {t.plural('sessions.messages', session.messageCount)}
               </p>
             </button>
             <button
               onClick={() => setPendingDelete(session)}
               className="alice-control alice-control--tool alice-control--danger shrink-0"
 
-              aria-label="Delete session"
+              aria-label={t('sessions.delete')}
             >
               <SvgIcon svg={DELETE_ICON} size={16} color="currentColor" />
             </button>
@@ -126,23 +128,23 @@ export function SessionList({ onClose }: SessionListProps) {
             className="alice-control alice-control--quiet font-numbers mx-auto my-4"
             style={{ fontSize: 13, color: 'var(--alice-text)', opacity: 15 }}
           >
-            LOAD {Math.min(SESSION_PAGE_SIZE, sessions.length - visibleCount)} MORE
+            {t('sessions.loadMore', { count: Math.min(SESSION_PAGE_SIZE, sessions.length - visibleCount) })}
           </button>
         ) : sessions.length > SESSION_PAGE_SIZE ? (
           <p
             className="font-numbers text-center my-4"
             style={{ fontSize: 13, color: 'var(--alice-text)', opacity: 1 }}
           >
-            {Math.min(visibleCount, sessions.length)} OF {sessions.length}
+            {t('sessions.shown', { shown: Math.min(visibleCount, sessions.length), total: sessions.length })}
           </p>
         ) : null}
       </div>
 
       {pendingDelete && (
         <ConfirmDialog
-          title="DELETE CONVERSATION"
-          body={`Delete “${pendingDelete.title}” from your history? This cannot be undone.`}
-          confirmLabel="Delete"
+          title={t('sessions.deleteTitle')}
+          body={t('sessions.deleteBody', { title: pendingDelete.title })}
+          confirmLabel={t('common.delete')}
           onCancel={() => setPendingDelete(null)}
           onConfirm={() => void confirmDelete()}
         />

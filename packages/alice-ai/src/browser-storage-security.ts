@@ -1,6 +1,9 @@
 import type { ChatStorageCipher } from './chat-storage.ts';
+import { isKeychainUnavailableError } from './local-cipher.ts';
 
-export type BrowserStorageIssue = 'temporary' | 'unreadable' | 'write-failed';
+/** 'keychain-unavailable': Alice Desktop could not get its key from the
+ *  system keychain, and the session is kept in memory only. */
+export type BrowserStorageIssue = 'temporary' | 'unreadable' | 'write-failed' | 'keychain-unavailable';
 const issues = new Set<BrowserStorageIssue>();
 const listeners = new Set<() => void>();
 export function reportBrowserStorageIssue(issue: BrowserStorageIssue): void {
@@ -8,7 +11,22 @@ export function reportBrowserStorageIssue(issue: BrowserStorageIssue): void {
   issues.add(issue);
   for (const listener of listeners) listener();
 }
+/** The issue a storage failure stands for: a keychain that is unavailable
+ *  is said as such, not as unreadable or unsaved data. */
+export function storageIssueFor(error: unknown, issue: BrowserStorageIssue): BrowserStorageIssue {
+  return isKeychainUnavailableError(error) ? 'keychain-unavailable' : issue;
+}
 export function browserStorageIssues(): string { return [...issues].sort().join(','); }
+/** Withdraws issues that no longer hold (the keychain came back). */
+export function clearBrowserStorageIssues(cleared: readonly BrowserStorageIssue[]): void {
+  let changed = false;
+  for (const issue of cleared) changed = issues.delete(issue) || changed;
+  if (changed) for (const listener of listeners) listener();
+}
+/** Tests only: forget the issues reported so far. */
+export function resetBrowserStorageIssuesForTests(): void {
+  issues.clear();
+}
 export function subscribeBrowserStorageIssues(listener: () => void): () => void {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
@@ -29,20 +47,33 @@ export function createProtectedBrowserValue(
   const decode = async (raw: string | null, cipher: ChatStorageCipher) => {
     if (raw === null || !raw.startsWith('v1:')) return raw;
     try { return await cipher.decrypt(raw, context); }
-    catch (error) { report('unreadable'); throw error; }
+    catch (error) { report(storageIssueFor(error, 'unreadable')); throw error; }
   };
   const serial = (operation: () => Promise<void>) => {
     const result = queue.then(operation);
     queue = result.catch(() => {});
     return result;
   };
-  return {
+  const value = {
     async read(): Promise<string | null> {
       await queue;
       const cipher = getCipher();
       if (!cipher) { report('temporary'); return temporary; }
+      if (temporary !== null) {
+        // The cipher came back during the session (the keychain was unlocked).
+        // The session never read the disk, so its value started from nothing
+        // (a learning profile of one message, a memory of one turn): saved
+        // only where the disk holds none, otherwise the disk's wins and the
+        // session's is let go. If it cannot be saved, the session keeps it.
+        if ((backing()?.getItem(key) ?? null) === null) {
+          try { await value.write(temporary); }
+          catch { return temporary; }
+        } else {
+          temporary = null;
+        }
+      }
       try { return await decode(backing()?.getItem(key) ?? null, cipher); }
-      catch (error) { report('unreadable'); throw error; }
+      catch (error) { report(storageIssueFor(error, 'unreadable')); throw error; }
     },
     write(value: string): Promise<void> {
       return serial(async () => {
@@ -66,10 +97,11 @@ export function createProtectedBrowserValue(
               continue;
             }
             storage.setItem(key, encrypted);
+            temporary = null;
             return;
           }
           throw new Error('Local data changed during the write. Please retry.');
-        } catch (error) { report('write-failed'); throw error; }
+        } catch (error) { report(storageIssueFor(error, 'write-failed')); throw error; }
       });
     },
     remove(): Promise<void> {
@@ -87,4 +119,5 @@ export function createProtectedBrowserValue(
       });
     },
   };
+  return value;
 }

@@ -10,6 +10,7 @@
 import type { PrivacySignal, RuleId, SignalConfidence, SignalSeverity } from './signals.ts';
 import type { NormalizedInput, NormalizedOutput, NormalizedTransaction } from './types.ts';
 import { transactionEntropy } from './boltzmann.ts';
+import { t, tn } from '../../i18n/translate.ts';
 
 const SATS_PER_BTC = 100_000_000;
 const ROUND_BTC_SATS = new Set(
@@ -61,10 +62,10 @@ export function detectChangeDetection(tx: NormalizedTransaction): PrivacySignal[
       return [sig(
         'CHANGE_DETECTION', subject,
         consolidation ? 'medium' : 'high', 'certain',
-        consolidation ? 'Self-transfer to an input address' : 'Change revealed by a reused address',
+        consolidation ? t('explorer.heuristics.selfTransfer.title') : t('explorer.heuristics.changeReused.title'),
         consolidation
-          ? 'Funds return to an address that was also an input, confirming ownership and linking the inputs.'
-          : `${matching.length} of ${outs.length} outputs go back to an input address. That output is certainly change, which reveals the payment amount and recipient.`,
+          ? t('explorer.heuristics.selfTransfer.detail')
+          : t('explorer.heuristics.changeReused.detail', { matching: matching.length, outputs: outs.length }),
         { deterministic: true, selfSend: true, matchCount: matching.length, outputCount: outs.length, inputCount: tx.inputs.length },
       )];
     }
@@ -81,24 +82,24 @@ export function detectChangeDetection(tx: NormalizedTransaction): PrivacySignal[
   // Address-type match: change usually keeps the input script type.
   const inTypes = new Set(tx.inputs.map(i => i.scriptType).filter(Boolean));
   if (inTypes.size === 1) {
-    const t = [...inTypes][0];
-    if (a.scriptType === t && b.scriptType !== t) vote(0, 2, 'change matches the input address type');
-    else if (b.scriptType === t && a.scriptType !== t) vote(1, 2, 'change matches the input address type');
+    const inType = [...inTypes][0];
+    if (a.scriptType === inType && b.scriptType !== inType) vote(0, 2, t('explorer.heuristics.reason.typeMatch'));
+    else if (b.scriptType === inType && a.scriptType !== inType) vote(1, 2, t('explorer.heuristics.reason.typeMatch'));
   }
   // Round amount: the non-round output is likely change.
   const ra = isRoundAmount(a.valueSats), rb = isRoundAmount(b.valueSats);
-  if (ra !== rb) { hasRound = true; vote(ra ? 1 : 0, 1, 'the non-round output is likely change'); }
+  if (ra !== rb) { hasRound = true; vote(ra ? 1 : 0, 1, t('explorer.heuristics.reason.nonRound')); }
   // Value disparity: a 100x-larger output is likely the sender's remaining funds.
   const ratio = Math.max(a.valueSats, b.valueSats) / Math.max(1, Math.min(a.valueSats, b.valueSats));
-  if (ratio >= 100) vote(a.valueSats > b.valueSats ? 0 : 1, 1, 'a large value disparity between outputs');
+  if (ratio >= 100) vote(a.valueSats > b.valueSats ? 0 : 1, 1, t('explorer.heuristics.reason.disparity'));
   // Unnecessary input: if one input alone could fund an output (plus fee), the
   // extra inputs reveal the other as change.
   if (tx.inputs.length >= 2 && tx.feeSats != null) {
     const largest = Math.max(0, ...tx.inputs.map(i => i.valueSats ?? 0));
     const aFund = a.valueSats + tx.feeSats <= largest;
     const bFund = b.valueSats + tx.feeSats <= largest;
-    if (aFund && !bFund) vote(1, 1, 'unnecessary inputs suggest change');
-    else if (bFund && !aFund) vote(0, 1, 'unnecessary inputs suggest change');
+    if (aFund && !bFund) vote(1, 1, t('explorer.heuristics.reason.unnecessary'));
+    else if (bFund && !aFund) vote(0, 1, t('explorer.heuristics.reason.unnecessary'));
   }
 
   const max = Math.max(votes[0], votes[1]);
@@ -111,10 +112,10 @@ export function detectChangeDetection(tx: NormalizedTransaction): PrivacySignal[
 
   return [sig(
     'CHANGE_DETECTION', subject, severity, confidence,
-    'Change output likely identifiable',
-    `${reasons.length} signal${reasons.length > 1 ? 's' : ''} point to a change output: ${reasons.join('; ')}.` +
-    (dissent ? ' Not all signals agree, which lowers certainty.' : '') +
-    ' When change is known, the exact payment amount and recipient are revealed.',
+    t('explorer.heuristics.change.title'),
+    tn('explorer.heuristics.change.signals', reasons.length, { reasons: reasons.join('; ') }) +
+    (dissent ? t('explorer.heuristics.change.dissent') : '') +
+    t('explorer.heuristics.change.consequence'),
     { deterministic: false, selfSend: false, roundAmount: hasRound, dissent, signalCount: reasons.length, inputCount: tx.inputs.length, outputCount: outs.length },
   )];
 }
@@ -143,8 +144,8 @@ export function detectWalletFingerprint(tx: NormalizedTransaction): PrivacySigna
   if (!isBip69Ordered(tx.inputs, tx.outputs)) return [];
   return [sig(
     'WALLET_FINGERPRINT', tx.txid, 'low', 'possible',
-    'Wallet software fingerprint (BIP69)',
-    'The inputs and outputs follow BIP69 lexicographic ordering, which identifies specific wallet software rather than hiding it. A wallet that orders randomly leaks less.',
+    t('explorer.heuristics.bip69.title'),
+    t('explorer.heuristics.bip69.detail'),
     { bip69: true, inputCount: tx.inputs.length, outputCount: tx.outputs.length },
   )];
 }
@@ -168,8 +169,8 @@ export function detectScriptTypeMix(tx: NormalizedTransaction): PrivacySignal[] 
   if (multisig.length > 0) {
     signals.push(sig(
       'SCRIPT_TYPE_MIX', tx.txid, 'high', 'certain',
-      'Bare multisig output',
-      'A bare multisig output exposes every public key directly on-chain, making the signers trivial to identify. P2WSH or Taproot multisig looks like single-sig instead.',
+      t('explorer.heuristics.bareMultisig.title'),
+      t('explorer.heuristics.bareMultisig.detail'),
       { multisig: true, outputCount: outs.length, inputCount: tx.inputs.length },
     ));
   }
@@ -182,15 +183,15 @@ export function detectScriptTypeMix(tx: NormalizedTransaction): PrivacySignal[] 
   if (types.size === 1) {
     signals.push(sig(
       'SCRIPT_TYPE_MIX', tx.txid, 'info', 'certain',
-      'Uniform script types',
-      'Every input and output uses the same script type, so an observer cannot use a type mismatch to pick out the change. This is the good case.',
+      t('explorer.heuristics.uniform.title'),
+      t('explorer.heuristics.uniform.detail'),
       { uniform: true, outputCount: outs.length, inputCount: tx.inputs.length },
     ));
   } else if (types.size >= 2) {
     signals.push(sig(
       'SCRIPT_TYPE_MIX', tx.txid, types.size >= 3 ? 'medium' : 'low', 'certain',
-      'Mixed script types',
-      `This transaction mixes ${types.size} script types, which makes change detection easier and can fingerprint the wallet software.`,
+      t('explorer.heuristics.mixed.title'),
+      t('explorer.heuristics.mixed.detail', { count: types.size }),
       { mixed: true, typeCount: types.size, outputCount: outs.length, inputCount: tx.inputs.length },
     ));
   }
@@ -210,10 +211,10 @@ export function detectRoundAmount(tx: NormalizedTransaction): PrivacySignal[] {
   const allRound = round === outs.length;
   return [sig(
     'ROUND_AMOUNT', tx.txid, allRound ? 'low' : round >= 1 ? 'medium' : 'low', allRound ? 'possible' : 'strong',
-    allRound ? 'All outputs are round amounts' : 'Round payment amount',
+    allRound ? t('explorer.heuristics.allRound.title') : t('explorer.heuristics.round.title'),
     allRound
-      ? 'Every output is a round number, so the payment amount is still identifiable as one of them.'
-      : `${round} of ${outs.length} outputs are round numbers, which makes it easy to tell the payment from the change and reveals the amount.`,
+      ? t('explorer.heuristics.allRound.detail')
+      : t('explorer.heuristics.round.detail', { round, outputs: outs.length }),
     { someRound: !allRound, allRound, roundCount: round, outputCount: outs.length },
   )];
 }
@@ -232,16 +233,16 @@ export function detectConsolidation(tx: NormalizedTransaction): PrivacySignal[] 
   if (inN >= 3 && outs.length === 1) {
     signals.push(sig(
       'CONSOLIDATION', tx.txid, inN >= 6 ? 'high' : 'medium', 'strong',
-      'Consolidation, many inputs into one',
-      `This merges ${inN} separate coins into a single output, permanently linking all those input addresses and exposing the wallet's UTXO set and balance at this point.`,
+      t('explorer.heuristics.consolidation.title'),
+      t('explorer.heuristics.consolidation.detail', { count: inN }),
       { fanIn: true, inputCount: inN, outputCount: 1 },
     ));
     const inTypes = new Set(tx.inputs.map(scriptTypeStr).filter(Boolean));
     if (inTypes.size >= 2) {
       signals.push(sig(
         'CONSOLIDATION', tx.txid, 'high', 'strong',
-        'Cross-type consolidation',
-        `The consolidation combines ${inTypes.size} different script types, linking addresses from different wallet generations, an extra clustering signal beyond common-input ownership.`,
+        t('explorer.heuristics.crossType.title'),
+        t('explorer.heuristics.crossType.detail', { count: inTypes.size }),
         { crossType: true, typeCount: inTypes.size, inputCount: inN, outputCount: 1 },
       ));
     }
@@ -250,8 +251,8 @@ export function detectConsolidation(tx: NormalizedTransaction): PrivacySignal[] 
   if (inN === 1 && outs.length >= 5) {
     signals.push(sig(
       'CONSOLIDATION', tx.txid, 'low', 'possible',
-      'Batch payment pattern',
-      `One input pays ${outs.length} outputs at once, a batch pattern typical of exchanges or automated spending, which reveals simultaneous payments.`,
+      t('explorer.heuristics.batch.title'),
+      t('explorer.heuristics.batch.detail', { count: outs.length }),
       { fanOut: true, inputCount: 1, outputCount: outs.length },
     ));
   }
@@ -275,8 +276,8 @@ export function detectCoinjoin(tx: NormalizedTransaction): PrivacySignal[] {
   const whirlpool = bestCount === 5;
   return [sig(
     'COINJOIN', tx.txid, 'info', bestCount >= 5 ? 'strong' : 'possible',
-    whirlpool ? 'CoinJoin pattern (Whirlpool-style)' : 'CoinJoin pattern',
-    `${bestCount} outputs share the same value, the signature of a collaborative CoinJoin. This deliberately breaks the link between inputs and outputs, the one clearly good privacy pattern on-chain. Its benefit depends on careful postmix handling.`,
+    whirlpool ? t('explorer.heuristics.coinjoin.titleWhirlpool') : t('explorer.heuristics.coinjoin.title'),
+    t('explorer.heuristics.coinjoin.detail', { count: bestCount }),
     { coinjoin: true, whirlpool, equalOutputs: bestCount, inputCount: tx.inputs.length, outputCount: outs.length },
   )];
 }
@@ -312,14 +313,14 @@ export function detectCioh(tx: NormalizedTransaction): PrivacySignal[] {
   if (addrs.size === 0) return []; // no prevout addresses to judge
   if (equalOutputPeak(spendable(tx.outputs)).count >= 3 && tx.inputs.length >= 2) return []; // coinjoin, CIOH defeated
   if (addrs.size <= 1) {
-    return [sig('CIOH', tx.txid, 'info', 'certain', 'Single input address',
-      'This transaction spends from a single address, so the common-input-ownership heuristic does not cluster anything here.',
+    return [sig('CIOH', tx.txid, 'info', 'certain', t('explorer.heuristics.singleInput.title'),
+      t('explorer.heuristics.singleInput.detail'),
       { singleInput: true, inputCount: tx.inputs.length })];
   }
   const count = addrs.size;
   const severity: SignalSeverity = count >= 10 ? 'high' : count >= 3 ? 'medium' : 'low';
-  return [sig('CIOH', tx.txid, severity, 'strong', `${count} input addresses clustered`,
-    `This combines inputs from ${count} different addresses. Chain analysis assumes they belong to one entity, the single most used clustering technique. CoinJoin and PayJoin are what defeat it.`,
+  return [sig('CIOH', tx.txid, severity, 'strong', t('explorer.heuristics.cioh.title', { count }),
+    t('explorer.heuristics.cioh.detail', { count }),
     { clustered: true, heavyCluster: count >= 5, inputAddressCount: count, inputCount: tx.inputs.length })];
 }
 
@@ -345,9 +346,9 @@ export function detectPremix(tx: NormalizedTransaction): PrivacySignal[] {
     if (!(fee.valueSats > 0 && fee.valueSats < denom * 0.5)) continue;
     const toxicChange = nonDenom.length === 2;
     return [sig('PREMIX', tx.txid, toxicChange ? 'low' : 'info', 'strong',
-      `CoinJoin premix (${denomOuts.length} outputs)`,
-      `This looks like a Whirlpool premix (TX0): ${denomOuts.length} equal outputs prepared for a mixing pool, plus a coordinator fee` +
-      (toxicChange ? ', and a toxic change output that must never be spent alongside the mixed coins.' : '.'),
+      t('explorer.heuristics.premix.title', { count: denomOuts.length }),
+      t('explorer.heuristics.premix.detail', { count: denomOuts.length }) +
+      (toxicChange ? t('explorer.heuristics.premix.toxic') : '.'),
       { premix: true, toxicChange, denomCount: denomOuts.length, inputCount: tx.inputs.length, outputCount: outs.length })];
   }
   return [];
@@ -372,8 +373,8 @@ export function detectPeelChain(
   const depth = 1 + (ctx.parentPeelLinked ? 1 : 0) + (ctx.childPeelLinked ? 1 : 0);
   if (depth < 2) return [];
   return [sig('PEEL_CHAIN', tx.txid, depth >= 3 ? 'high' : 'medium', depth >= 3 ? 'strong' : 'possible',
-    `Peel chain (${depth}+ hops)`,
-    `This is part of a peel chain: a run of ${depth}+ transactions, each one input to two outputs, where one output feeds the next as its sole input. Following the chain traces every payment.`,
+    t('explorer.heuristics.peel.title', { depth }),
+    t('explorer.heuristics.peel.detail', { depth }),
     { peelChain: true, chainDepth: depth, inputCount: tx.inputs.length, outputCount: 2 })];
 }
 
@@ -388,8 +389,8 @@ export function detectDustOutput(tx: NormalizedTransaction): PrivacySignal[] {
   const attack = (dust.length === 1 && spendable(tx.outputs).length <= 2 && tx.inputs.length === 1)
     || (dust.length >= 5 && dust.length > tx.outputs.length * 0.5);
   if (!attack) return [];
-  return [sig('DUST_OUTPUT', tx.txid, 'medium', 'possible', 'Possible dust attack',
-    'A tiny amount was sent in a pattern typical of dusting: attackers seed dust to watch when you spend it and link your addresses. If you received it, do not spend it with your other coins.',
+  return [sig('DUST_OUTPUT', tx.txid, 'medium', 'possible', t('explorer.heuristics.dust.title'),
+    t('explorer.heuristics.dust.detail'),
     { dustAttack: true, dustCount: dust.length, outputCount: tx.outputs.length, inputCount: tx.inputs.length })];
 }
 
@@ -407,8 +408,8 @@ export function detectDustSpending(tx: NormalizedTransaction): PrivacySignal[] {
     else if (i.valueSats > th) hasReal = true;
   }
   if (!(hasDust && hasReal)) return [];
-  return [sig('DUST_SPENDING', tx.txid, 'high', 'certain', 'Dust spent with real coins',
-    `A dust input is co-spent with ${tx.inputs.length - dustCount} real input(s). Common-input ownership now ties the dust probe to your whole UTXO set, exactly what the sender of the dust wanted.`,
+  return [sig('DUST_SPENDING', tx.txid, 'high', 'certain', t('explorer.heuristics.dustSpent.title'),
+    t('explorer.heuristics.dustSpent.detail', { count: tx.inputs.length - dustCount }),
     { dustSpending: true, dustCount, inputCount: tx.inputs.length })];
 }
 
@@ -423,13 +424,13 @@ export function detectAnonymitySet(tx: NormalizedTransaction): PrivacySignal[] {
   if (outs.length < 2) return [];
   const peak = equalOutputPeak(outs);
   if (peak.count >= 5) {
-    return [sig('ANONYMITY_SET', tx.txid, 'info', 'certain', `Anonymity set of ${peak.count}`,
-      `${peak.count} outputs share the same value, so an observer cannot tell which input funded which. That is a strong anonymity set, the good case.`,
+    return [sig('ANONYMITY_SET', tx.txid, 'info', 'certain', t('explorer.heuristics.anonset.title', { count: peak.count }),
+      t('explorer.heuristics.anonset.strong', { count: peak.count }),
       { strongAnonset: true, anonsetSize: peak.count, outputCount: outs.length })];
   }
   if (peak.count >= 2) {
-    return [sig('ANONYMITY_SET', tx.txid, 'low', 'strong', `Anonymity set of ${peak.count}`,
-      `${peak.count} outputs share a value, which gives only limited ambiguity. Larger sets (five or more), as in a CoinJoin, give much more.`,
+    return [sig('ANONYMITY_SET', tx.txid, 'low', 'strong', t('explorer.heuristics.anonset.title', { count: peak.count }),
+      t('explorer.heuristics.anonset.limited', { count: peak.count }),
       { someAnonset: true, anonsetSize: peak.count, outputCount: outs.length })];
   }
   return [];
@@ -449,9 +450,19 @@ export function detectEntropy(tx: NormalizedTransaction): PrivacySignal[] {
   if (bits < 3) return [];
   const rounded = Math.round(bits * 10) / 10;
   return [sig('ENTROPY', tx.txid, 'info', method.startsWith('Boltzmann') ? 'strong' : 'possible',
-    `Transaction entropy ~${rounded} bits`,
-    `About ${rounded} bits of entropy (${method}): many valid ways to read which input funded which output. The higher this is, the more ambiguity and the better the privacy, the level of a CoinJoin.`,
+    t('explorer.heuristics.entropy.title', { bits: rounded }),
+    t('explorer.heuristics.entropy.detail', { bits: rounded, method: entropyMethodLabel(method) }),
     { highEntropy: true, entropyBits: rounded, inputCount: tx.inputs.length, outputCount: outputs.length })];
+}
+
+/** The entropy method's name in the interface language (the value stays the code's). */
+function entropyMethodLabel(method: string): string {
+  switch (method) {
+    case 'Boltzmann partition': return t('explorer.heuristics.entropy.method.partition');
+    case 'assignment enumeration': return t('explorer.heuristics.entropy.method.enumeration');
+    case 'multi-tier estimate': return t('explorer.heuristics.entropy.method.estimate');
+    default: return method;
+  }
 }
 
 /** Does this transaction look like a CoinJoin (3+ equal outputs, 2+ inputs)? */
@@ -469,13 +480,13 @@ export function detectPostmix(tx: NormalizedTransaction, postmixInputs: number):
   if (tx.isCoinbase || postmixInputs <= 0) return [];
   const total = tx.inputs.length;
   if (postmixInputs < total) {
-    return [sig('POSTMIX', tx.txid, 'high', 'strong', 'Postmix coins spent with unmixed coins',
-      `${postmixInputs} of ${total} inputs came out of a CoinJoin. Spending mixed and unmixed coins together re-links them through common-input ownership, undoing much of the mix.`,
+    return [sig('POSTMIX', tx.txid, 'high', 'strong', t('explorer.heuristics.postmixMixed.title'),
+      t('explorer.heuristics.postmixMixed.detail', { postmix: postmixInputs, total }),
       { postmixMixed: true, postmixInputs, inputCount: total })];
   }
   if (total >= 2) {
-    return [sig('POSTMIX', tx.txid, 'medium', 'strong', 'Postmix consolidation',
-      `All ${total} inputs came out of a CoinJoin but are consolidated together, merging their separate anonymity sets back into one.`,
+    return [sig('POSTMIX', tx.txid, 'medium', 'strong', t('explorer.heuristics.postmixConsolidation.title'),
+      t('explorer.heuristics.postmixConsolidation.detail', { total }),
       { postmixConsolidation: true, postmixInputs, inputCount: total })];
   }
   return [];

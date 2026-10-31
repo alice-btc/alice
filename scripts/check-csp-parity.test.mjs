@@ -18,7 +18,7 @@ test('extractCsp reads a vercel.json header and a tauri.conf.json policy', () =>
   const enforced = { headers: [{ headers: [{ key: 'content-security-policy', value: "default-src 'none'" }] }] };
   assert.deepEqual(extractCsp(enforced), { csp: "default-src 'none'", mode: 'enforced' });
   const tauri = { app: { security: { csp: "default-src 'self' tauri:" } } };
-  assert.deepEqual(extractCsp(tauri), { csp: "default-src 'self' tauri:", mode: 'desktop' });
+  assert.deepEqual(extractCsp(tauri), { csp: "default-src 'self' tauri:", mode: 'tauri' });
   assert.throws(() => extractCsp({ headers: [{ headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }] }] }), /no Content Security Policy/);
 });
 
@@ -65,9 +65,23 @@ test('an exception that matches no difference is reported as stale', () => {
 
 test('the repository policies hold parity under the documented exceptions', () => {
   const { policies, modes, exceptions } = loadRepository();
-  assert.deepEqual(Object.keys(policies), ['site', 'app-web', 'desktop']);
-  assert.equal(modes.desktop, 'desktop');
+  assert.deepEqual(Object.keys(policies), ['site', 'app-web', 'desktop', 'android', 'ios']);
+  assert.equal(modes.desktop, 'tauri');
+  assert.equal(modes.android, 'tauri');
+  assert.equal(modes.ios, 'tauri');
   for (const name of ['site', 'app-web']) assert.match(modes[name], /^(report-only|enforced)$/);
   const findings = compareCsp(policies, exceptions);
   assert.deepEqual(findings.map(finding => finding.message), []);
+});
+
+test('no policy allows eval; WebAssembly goes through wasm-unsafe-eval in script-src', () => {
+  const { policies } = loadRepository();
+  for (const [name, directives] of Object.entries(policies)) {
+    for (const [directive, sources] of directives) {
+      assert.ok(!sources.includes("'unsafe-eval'"), `${name} ${directive} allows 'unsafe-eval'`);
+    }
+  }
+  for (const name of ['app-web', 'desktop']) {
+    assert.ok(policies[name].get('script-src')?.includes("'wasm-unsafe-eval'"), name);
+  }
 });

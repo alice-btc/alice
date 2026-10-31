@@ -6,44 +6,46 @@
 // finding, never alarmist.
 
 import type { QuantumExposure } from '@/lib/explorer/quantum';
+import { useT, type MessageKey } from '@/i18n';
 
 const WARN = 'var(--alice-warning)';
 
-const TYPE_LABEL: Record<QuantumExposure['addressType'], string> = {
-  p2pkh: 'legacy (P2PKH)',
-  p2sh: 'P2SH',
-  p2wpkh: 'SegWit (P2WPKH)',
-  p2tr: 'Taproot (P2TR)',
-  unknown: 'unknown type',
+const TYPE_LABEL: Record<QuantumExposure['addressType'], MessageKey> = {
+  p2pkh: 'explorer.quantum.type.p2pkh',
+  p2sh: 'explorer.quantum.type.p2sh',
+  p2wpkh: 'explorer.quantum.type.p2wpkh',
+  p2tr: 'explorer.quantum.type.p2tr',
+  unknown: 'explorer.quantum.type.unknown',
 };
 
 export function ExplorerQuantumCard({ exposure }: { exposure: QuantumExposure }) {
+  const t = useT();
   if (exposure.balanceSats <= 0) return null;
   const accent = exposure.exposed ? WARN : 'var(--alice-primary)';
   const why = exposure.exposedBySpend
-    ? 'its public key is already on-chain because it has been spent from'
+    ? t('explorer.quantum.why.spent')
     : exposure.taproot
-      ? 'a Taproot output publishes its public key on-chain'
-      : 'its public key is still hidden behind a hash';
+      ? t('explorer.quantum.why.taproot')
+      : t('explorer.quantum.why.hidden');
   return (
     <div
       className="flex flex-col gap-2 px-4 py-3"
       style={{ borderTop: '1px solid var(--alice-border)', borderLeft: `3px solid ${accent}`, borderRadius: 3, backgroundColor: 'transparent' }}
     >
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>QUANTUM EXPOSURE</span>
+        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorer.quantum.title')}</span>
         <span className="font-numbers" style={{ fontSize: 10, padding: '3px 6px', border: `1px solid ${accent}`, borderRadius: 3, color: accent }}>
-          {exposure.exposed ? 'KEY EXPOSED' : 'KEY HIDDEN'}
+          {exposure.exposed ? t('explorer.quantum.exposed') : t('explorer.quantum.hidden')}
         </span>
         <span className="font-numbers" style={{ fontSize: 10, padding: '3px 6px', border: '1px solid var(--alice-muted)', borderRadius: 3, color: 'var(--alice-muted)' }}>
-          {TYPE_LABEL[exposure.addressType]}
+          {t(TYPE_LABEL[exposure.addressType])}
         </span>
       </div>
       <p className="font-numbers m-0" style={{ fontSize: 13, lineHeight: '19px', color: 'var(--alice-muted)' }}>
-        For the funds held here, {why}.{' '}
+        {t('explorer.quantum.lead', { why })}{' '}
         {exposure.exposed
-          ? 'These coins are the ones a future large-scale quantum computer could target first. Moving them to a fresh, never-spent, non-Taproot address hides the key again. No machine capable of this exists today.'
-          : 'This is the more quantum-resistant state; spending from it will reveal the key.'}
+          ? t('explorer.quantum.exposedBody')
+          : t('explorer.quantum.hiddenBody')}
       </p>
     </div>
   );

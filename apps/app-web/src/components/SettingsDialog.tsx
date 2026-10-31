@@ -8,6 +8,7 @@ import { useDialogFocus } from '@/components/settings/ui';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { resolveSettingsTab } from '@/components/settings/tabs';
 import { SETTINGS_PARAM, settingsHref, withoutSettingsHref } from '@/lib/settings-url';
+import { useT } from '@/i18n';
 
 /**
  * Settings as a dialog over the app rather than a page that replaces it: the
@@ -24,6 +25,7 @@ import { SETTINGS_PARAM, settingsHref, withoutSettingsHref } from '@/lib/setting
  * mismatch rather than the one instance that was noticed.
  */
 export function SettingsDialog() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const requested = searchParams.get(SETTINGS_PARAM);
@@ -58,7 +60,7 @@ export function SettingsDialog() {
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center p-0 sm:p-6"
+      className="alice-settings-overlay fixed inset-0 flex items-center justify-center p-0 sm:p-6"
       style={{ backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 70 }}
       onClick={close}
     >
@@ -66,9 +68,9 @@ export function SettingsDialog() {
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Settings"
+        aria-label={t('app.settings.label')}
         onClick={(event) => event.stopPropagation()}
-        className="flex flex-col w-full h-full sm:h-[min(680px,90vh)] sm:max-w-4xl"
+        className="alice-settings-dialog flex flex-col w-full h-full sm:h-[min(680px,90vh)] sm:max-w-4xl"
         style={{
           backgroundColor: 'var(--alice-bg)',
           color: 'var(--alice-text)',
@@ -82,13 +84,13 @@ export function SettingsDialog() {
           style={{ height: 48, borderColor: 'var(--alice-border)' }}
         >
           <h2 className="font-pixel tracking-widest m-0" style={{ fontSize: 12 }}>
-            SETTINGS
+            {t('app.settings.title')}
           </h2>
           <button
             onClick={close}
             className="alice-control alice-control--tool"
             style={{ color: 'var(--alice-text)', fontSize: 18, lineHeight: 1 }}
-            aria-label="Close settings"
+            aria-label={t('app.settings.close')}
           >
             <SvgIcon svg={CLOSE_ICON} size={16} color="currentColor" />
           </button>

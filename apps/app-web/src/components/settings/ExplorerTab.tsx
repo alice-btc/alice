@@ -15,6 +15,7 @@ import {
   sectionStyle,
 } from './ui';
 import { localVault } from '@/lib/local-vault';
+import { useT } from '@/i18n';
 
 function NetworkDot({ color }: { color: string }) {
   return (
@@ -26,6 +27,7 @@ function NetworkDot({ color }: { color: string }) {
 }
 
 export function ExplorerTab() {
+  const t = useT();
   /* Node overrides live per network in localStorage. */
   const [nodeDrafts, setNodeDrafts] = useState<Record<string, string>>({});
   const [nodeNotice, setNodeNotice] = useState('');
@@ -47,14 +49,14 @@ export function ExplorerTab() {
     setNodeOverride(networkId, nodeDrafts[networkId] ?? '');
     // Reflect the trimmed/cleared value back into the input.
     setNodeDrafts(prev => ({ ...prev, [networkId]: getNodeOverride(networkId) }));
-    setNodeNotice('Node saved. New Explorer tabs use it.');
+    setNodeNotice(t('settings.explorer.nodeSaved'));
     setTimeout(() => setNodeNotice(''), 4000);
   };
 
   const handleResetNode = (networkId: string) => {
     setNodeOverride(networkId, '');
     setNodeDrafts(prev => ({ ...prev, [networkId]: '' }));
-    setNodeNotice('Reset to the default endpoint.');
+    setNodeNotice(t('settings.explorer.nodeReset'));
     setTimeout(() => setNodeNotice(''), 4000);
   };
 
@@ -71,12 +73,9 @@ export function ExplorerTab() {
   return (
     <>
       <div style={sectionStyle}>
-        <SectionLabel>STARTING NETWORK</SectionLabel>
-        <SectionHint>
-          Which chain Explorer opens on. Reopening Explorer restores your last tabs when you have
-          some, so this applies to a fresh start.
-        </SectionHint>
-        <div className="flex gap-2 flex-wrap" role="group" aria-label="Starting network">
+        <SectionLabel>{t('settings.explorer.startingNetwork')}</SectionLabel>
+        <SectionHint>{t('settings.explorer.startingNetworkHint')}</SectionHint>
+        <div className="flex gap-2 flex-wrap" role="group" aria-label={t('settings.explorer.startingNetworkAria')}>
           {selectableNetworks().map((net) => {
             const active = net.id === defaultNetwork;
             return (
@@ -97,10 +96,8 @@ export function ExplorerTab() {
       </div>
 
       <div style={sectionStyle}>
-        <SectionLabel>DATA NODE</SectionLabel>
-        <SectionHint>
-          Explorer reads the chain through an Esplora / mempool endpoint. The public defaults rate-limit heavy analysis; point a network at your own node for unthrottled, private queries. Leave blank to use the default.
-        </SectionHint>
+        <SectionLabel>{t('settings.explorer.dataNode')}</SectionLabel>
+        <SectionHint>{t('settings.explorer.dataNodeHint')}</SectionHint>
         <div className="flex flex-col gap-4">
           {configurableNetworks().map((net) => {
             const draft = nodeDrafts[net.id] ?? '';
@@ -111,17 +108,17 @@ export function ExplorerTab() {
                 <div className="flex items-center gap-2">
                   <NetworkDot color={net.color} />
                   <label htmlFor={`node-${net.id}`} className="alice-field-label">
-                    {net.label} endpoint
+                    {t('settings.explorer.endpoint', { network: net.label })}
                   </label>
                   {getNodeOverride(net.id) && (
                     <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>
-                      / CUSTOM
+                      {t('settings.explorer.custom')}
                     </span>
                   )}
                 </div>
                 <input
                   id={`node-${net.id}`}
-                  aria-label={`${net.label} endpoint`}
+                  aria-label={t('settings.explorer.endpoint', { network: net.label })}
                   type="url"
                   value={draft}
                   onChange={(e) => setNodeDrafts(prev => ({ ...prev, [net.id]: e.target.value }))}
@@ -135,14 +132,14 @@ export function ExplorerTab() {
                     className="alice-control alice-control--primary font-numbers"
                     disabled={!dirty}
                   >
-                    SAVE
+                    {t('settings.explorer.save')}
                   </button>
                   {getNodeOverride(net.id) && (
                     <button
                       onClick={() => handleResetNode(net.id)}
                       className="alice-control alice-control--quiet font-numbers"
                     >
-                      DEFAULT
+                      {t('settings.explorer.default')}
                     </button>
                   )}
                 </div>
@@ -158,30 +155,27 @@ export function ExplorerTab() {
       </div>
 
       <div style={sectionStyle}>
-        <SectionLabel>WATCHED WALLETS</SectionLabel>
-        <SectionHint>
-          The xpubs and addresses you saved in Explorer. They stay on this device, and they are what
-          Explorer scans when you open a wallet dashboard.
-        </SectionHint>
+        <SectionLabel>{t('settings.explorer.watched')}</SectionLabel>
+        <SectionHint>{t('settings.explorer.watchedHint')}</SectionHint>
         <div className="flex items-center justify-between gap-3">
           <span className="font-numbers" style={{ fontSize: 13 }}>
-            {walletCount} WALLET{walletCount === 1 ? '' : 'S'} / {addressCount} ADDRESS{addressCount === 1 ? '' : 'ES'}
+            {t.plural('settings.explorer.walletCount', walletCount)} / {t.plural('settings.explorer.addressCount', addressCount)}
           </span>
           <button
             onClick={() => setConfirmClearWallets(true)}
             className="alice-control alice-control--danger font-numbers"
             disabled={wallets.length === 0}
           >
-            FORGET ALL
+            {t('settings.explorer.forgetAll')}
           </button>
         </div>
       </div>
 
       {confirmClearWallets && (
         <ConfirmDialog
-          title="FORGET WATCHED WALLETS"
-          body={`Remove all ${wallets.length} saved item${wallets.length === 1 ? '' : 's'} from this device? Explorer keeps no copy, and this cannot be undone. This forgets watched addresses only; it does not move or delete funds.`}
-          confirmLabel="FORGET"
+          title={t('settings.explorer.forgetTitle')}
+          body={t.plural('settings.explorer.forgetBody', wallets.length)}
+          confirmLabel={t('settings.explorer.forget')}
           onCancel={() => setConfirmClearWallets(false)}
           onConfirm={handleClearWallets}
         />

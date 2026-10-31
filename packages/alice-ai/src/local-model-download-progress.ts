@@ -27,6 +27,13 @@ export type DesktopModelDownloadStep =
  */
 export const DESKTOP_DOWNLOAD_POLL_MS = 250;
 
+/**
+ * How long one poll waits for the shell's answer before asking again. The
+ * bridge has lost single messages before (macOS, 0.2.5); without a bound the
+ * bar froze at the last figure with no message.
+ */
+export const DESKTOP_DOWNLOAD_POLL_TIMEOUT_MS = 5_000;
+
 export const DESKTOP_DOWNLOAD_LOST_MESSAGE =
   'The download stopped without a result. Try again from Settings.';
 

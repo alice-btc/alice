@@ -6,6 +6,15 @@ import {
   readEncryptedStream,
   streamE2EEChatCompletion,
 } from './venice-e2ee-client.ts';
+import {
+  E2EE_ENVELOPE_HEX_CHARS,
+  E2EE_MAX_REQUEST_BYTES,
+  E2EE_REQUEST_BUDGET_BYTES,
+  buildE2EEPayload,
+  encryptedPayloadBytes,
+  fitE2EEMessages,
+  normalizeE2EEMessages,
+} from './venice-e2ee-request-budget.ts';
 import { deriveSigningAddress } from './venice-attestation-verify.ts';
 import type { ChainPolicy } from './venice-attestation-chain.ts';
 import {
@@ -46,9 +55,9 @@ describe('buildEncryptedMessages', () => {
     { role: 'user', content: 'Explain more.' },
   ];
 
-  it('encrypts every user and system message', () => {
+  it('encrypts every message, whatever its role', () => {
     const model = generateEphemeralKeyPair();
-    const built = buildEncryptedMessages(messages, model.publicKey, 'drop');
+    const built = buildEncryptedMessages(messages, model.publicKey);
     for (const m of built) {
       assert.notEqual(m.content, 'You are Alice.');
       assert.notEqual(m.content, 'What is a UTXO?');
@@ -71,7 +80,7 @@ describe('buildEncryptedMessages', () => {
       { role: 'system', content: 'Base policy' },
       { role: 'system', content: 'Retrieved context' },
       { role: 'user', content: 'Current question' },
-    ], model.publicKey, 'drop');
+    ], model.publicKey);
 
     assert.deepEqual(built.map(message => message.role), ['system', 'user', 'user']);
     assert.equal(
@@ -82,23 +91,126 @@ describe('buildEncryptedMessages', () => {
     assert.equal(decryptEnvelope(model.secretKey, built[2].content), 'Current question');
   });
 
-  // The reason 'drop' is the default: Venice does not decrypt assistant turns,
-  // so keeping them would push prior Alice replies through the proxy in clear.
-  it('drops assistant history by default so no plaintext leaves the device', () => {
+  // Verified against the production proxy on 2026-10-29: the enclave decrypts
+  // an encrypted assistant turn and rejects a plaintext one, so prior Alice
+  // replies travel as ciphertext in their own role and the model keeps the
+  // thread of the conversation.
+  it('keeps assistant history in its own role, encrypted like every other turn', () => {
     const model = generateEphemeralKeyPair();
-    const built = buildEncryptedMessages(messages, model.publicKey, 'drop');
-    assert.equal(built.length, 3);
-    assert.ok(built.every(m => m.role !== 'assistant'));
+    const built = buildEncryptedMessages(messages, model.publicKey);
+    assert.deepEqual(built.map(m => m.role), ['system', 'user', 'assistant', 'user']);
+    const assistant = built[2];
+    assert.notEqual(assistant.content, 'A previous answer.');
+    assert.doesNotThrow(() => parseEnvelope(assistant.content));
+    assert.equal(decryptEnvelope(model.secretKey, assistant.content), 'A previous answer.');
     const joined = built.map(m => m.content).join('');
-    assert.ok(!joined.includes('A previous answer.'));
+    assert.ok(!joined.includes('A previous answer.'), 'no plaintext leaves the device');
+  });
+});
+
+describe('E2EE request byte budget', () => {
+  const params = { model: 'e2ee-test', temperature: 0.7, maxTokens: 1024 };
+  const msg = (role: Message['role'], content: string): Message => ({ role, content });
+  const size = (messages: Message[]) => encryptedPayloadBytes(params, normalizeE2EEMessages(messages));
+  const contents = (messages: Message[]) => messages.map(m => m.content);
+
+  it('derives the envelope overhead from the crypto constants', () => {
+    // 65-byte key + 12-byte nonce + 16-byte tag, in hex.
+    assert.equal(E2EE_ENVELOPE_HEX_CHARS, 186);
+    assert.equal(E2EE_REQUEST_BUDGET_BYTES, E2EE_MAX_REQUEST_BYTES - 4096);
   });
 
-  it('keeps assistant history in the clear only when explicitly asked', () => {
+  it('predicts the exact size of the really encrypted JSON body', () => {
     const model = generateEphemeralKeyPair();
-    const built = buildEncryptedMessages(messages, model.publicKey, 'plaintext');
-    assert.equal(built.length, 4);
-    const assistant = built.find(m => m.role === 'assistant');
-    assert.equal(assistant?.content, 'A previous answer.');
+    const samples: Message[][] = [
+      [msg('user', '')],
+      [msg('system', 'Be brief.'), msg('user', 'plain ASCII')],
+      [
+        msg('system', 'Base policy'),
+        msg('user', 'quotes " and \\ and\nnewline\ttab \u0001 control'),
+        msg('system', 'Retrieved <context> & more'),
+        msg('assistant', 'emoji 🙂👩‍👩‍👧 and 漢字 and é'),
+        msg('user', '   separators, lone \ud800 surrogate'),
+      ],
+    ];
+    for (const sample of samples) {
+      const real = JSON.stringify(buildE2EEPayload(params, buildEncryptedMessages(sample, model.publicKey)));
+      assert.equal(size(sample), Buffer.byteLength(real), JSON.stringify(sample));
+    }
+  });
+
+  it('merges every system fragment into one leading message, as encryption does', () => {
+    const merged = normalizeE2EEMessages([
+      msg('user', 'q1'), msg('system', 'A'), msg('system', ''), msg('system', 'B'), msg('user', 'q2'),
+    ]);
+    assert.deepEqual(merged, [msg('system', 'A\n\nB'), msg('user', 'q1'), msg('user', 'q2')]);
+  });
+
+  it('returns a history that already fits with its content unchanged', () => {
+    const list = [
+      msg('system', 'S1'), msg('user', 'a'), msg('assistant', 'b'), msg('system', 'S2'), msg('user', 'c'),
+    ];
+    assert.deepEqual(contents(fitE2EEMessages(list, params)), ['S1\n\nS2', 'a', 'b', 'c']);
+    assert.deepEqual(fitE2EEMessages([], params), []);
+  });
+
+  it('drops the oldest turns first and keeps system and the latest message intact', () => {
+    const list = [
+      msg('system', 'S'),
+      msg('user', 'u1'), msg('assistant', 'a1'),
+      msg('user', 'u2'), msg('assistant', 'a2'),
+      msg('user', 'u3'), msg('assistant', 'a3-partial'),
+      msg('user', 'continue'),
+    ];
+    const keep = size([list[0], ...list.slice(5)]);
+    assert.deepEqual(contents(fitE2EEMessages(list, params, keep)), ['S', 'u3', 'a3-partial', 'continue']);
+    assert.deepEqual(contents(fitE2EEMessages(list, params, keep - 1)), ['S', 'continue']);
+  });
+
+  it('never leaves an assistant reply orphaned at the front', () => {
+    const list = [
+      msg('system', 'S'), msg('user', 'u1'), msg('assistant', 'a1'),
+      msg('user', 'u2'), msg('assistant', 'a2'), msg('user', 'u3'),
+    ];
+    // Room for a2 + u3 but not u2 + a2 + u3: a2 goes with u2.
+    const fitted = fitE2EEMessages(list, params, size([list[0], list[4], list[5]]));
+    assert.deepEqual(contents(fitted), ['S', 'u3']);
+  });
+
+  it('copes with consecutive user messages from failed or unanswered turns', () => {
+    const list = [
+      msg('system', 'S'), msg('user', 'failed 1'), msg('user', 'failed 2'),
+      msg('user', 'failed 3'), msg('assistant', 'late answer'), msg('user', 'latest'),
+    ];
+    const fitted = fitE2EEMessages(list, params, size([list[0], list[5]]));
+    assert.deepEqual(contents(fitted), ['S', 'latest']);
+    const partial = fitE2EEMessages(list, params, size([list[0], list[3], list[4], list[5]]));
+    assert.deepEqual(contents(partial), ['S', 'failed 3', 'late answer', 'latest']);
+  });
+
+  it('refuses only when system plus latest message alone cannot fit', () => {
+    const list = [msg('system', 'S'), msg('user', 'old'), msg('assistant', 'reply'), msg('user', 'x'.repeat(50))];
+    const floor = size([list[0], list[3]]);
+    assert.deepEqual(contents(fitE2EEMessages(list, params, floor)), ['S', 'x'.repeat(50)]);
+    assert.throws(
+      () => fitE2EEMessages(list, params, floor - 1),
+      (err: unknown) => err instanceof VeniceE2EEError && err.code === 'request_too_large',
+    );
+  });
+
+  it('brings a CJK history over 256 KiB under the budget and never alters the latest turn', () => {
+    const cjk = (tag: string) => `${tag}:${'漢'.repeat(3999)}`;
+    const list: Message[] = [msg('system', 'You are Alice.')];
+    for (let i = 0; i < 8; i++) list.push(msg('user', cjk(`u${i}`)), msg('assistant', cjk(`a${i}`)));
+    list.push(msg('user', cjk('latest')));
+    assert.ok(size(list) > E2EE_MAX_REQUEST_BYTES, 'untrimmed it is over the ceiling');
+
+    const fitted = fitE2EEMessages(list, params);
+    assert.ok(size(fitted) <= E2EE_REQUEST_BUDGET_BYTES);
+    assert.ok(fitted.length < list.length);
+    assert.deepEqual(fitted[0], list[0]);
+    assert.equal(fitted[1].role, 'user');
+    assert.deepEqual(contents(fitted).slice(1), contents(list).slice(list.length - (fitted.length - 1)));
   });
 });
 
@@ -404,6 +516,115 @@ describe('streamE2EEChatCompletion', () => {
       attestationUrls[0].searchParams.get('nonce'),
       attestationUrls[1].searchParams.get('nonce'),
     );
+  });
+
+  // 3 UTF-8 bytes per CJK character, doubled by hex: a history well inside the
+  // 96 000-character window is still far beyond 256 KiB on the wire.
+  const cjk = (tag: string, chars = 4000) => `${tag}:${'漢'.repeat(chars - tag.length - 1)}`;
+
+  function cjkConversation(pairs: number): Message[] {
+    const out: Message[] = [{ role: 'system', content: 'You are Alice.' }];
+    for (let i = 0; i < pairs; i++) {
+      out.push({ role: 'user', content: cjk(`u${i}`) }, { role: 'assistant', content: cjk(`a${i}`) });
+    }
+    out.push({ role: 'user', content: cjk('uLast') });
+    return out;
+  }
+
+  it('keeps a CJK history under the byte budget by dropping the oldest turns', async () => {
+    const h = harness();
+    const messages = cjkConversation(8);
+    const chars = messages.reduce((sum, m) => sum + m.content.length, 0);
+    assert.ok(chars < 96_000, `window-sized input: ${chars}`);
+    assert.ok(
+      Buffer.byteLength(JSON.stringify(buildEncryptedMessages(messages, h.model.publicKey))) > E2EE_MAX_REQUEST_BYTES,
+      'untrimmed, this history exceeds the request limit',
+    );
+
+    await streamE2EEChatCompletion({
+      transport: { baseUrl: 'https://proxy.test/api/v1', fetchImpl: h.fetchImpl },
+      model: 'e2ee-test',
+      messages,
+      attestationPolicy: h.policy,
+    });
+    const raw: string = h.calls[1].init.body;
+    assert.ok(Buffer.byteLength(raw) <= E2EE_REQUEST_BUDGET_BYTES, `${Buffer.byteLength(raw)} bytes`);
+
+    const sent = JSON.parse(raw).messages as { role: string; content: string }[];
+    const plain = sent.map(m => decryptEnvelope(h.model.secretKey, m.content));
+    assert.equal(sent[0].role, 'system');
+    assert.equal(plain[0], 'You are Alice.');
+    assert.ok(sent.length < messages.length, 'old pairs were dropped');
+    // What remains is a contiguous suffix of the original conversation that
+    // starts on a user turn and ends on the untouched latest message.
+    const original = messages.slice(1).map(m => m.content);
+    const kept = plain.slice(1);
+    assert.deepEqual(kept, original.slice(original.length - kept.length));
+    assert.equal(sent[1].role, 'user');
+    assert.ok(!kept.includes(original[0]), 'the oldest pair is gone');
+  });
+
+  it('keeps only system and the latest message when nothing older fits', async () => {
+    const h = harness();
+    const latest = '漢'.repeat(39_000);
+    await streamE2EEChatCompletion({
+      transport: { baseUrl: 'https://proxy.test/api/v1', fetchImpl: h.fetchImpl },
+      model: 'e2ee-test',
+      messages: [
+        { role: 'system', content: 'You are Alice.' },
+        { role: 'user', content: '漢'.repeat(10_000) },
+        { role: 'assistant', content: 'earlier answer' },
+        { role: 'user', content: latest },
+      ],
+      attestationPolicy: h.policy,
+    });
+    const raw: string = h.calls[1].init.body;
+    assert.ok(Buffer.byteLength(raw) <= E2EE_REQUEST_BUDGET_BYTES);
+    const sent = JSON.parse(raw).messages as { content: string }[];
+    assert.deepEqual(
+      sent.map(m => decryptEnvelope(h.model.secretKey, m.content)),
+      ['You are Alice.', latest],
+    );
+  });
+
+  it('leaves a normal history untouched', async () => {
+    const h = harness();
+    const normal: Message[] = [
+      { role: 'system', content: 'You are Alice.' },
+      { role: 'user', content: 'first' },
+      { role: 'assistant', content: 'reply' },
+      { role: 'user', content: 'second' },
+    ];
+    await streamE2EEChatCompletion({
+      transport: { baseUrl: 'https://proxy.test/api/v1', fetchImpl: h.fetchImpl },
+      model: 'e2ee-test',
+      messages: normal,
+      attestationPolicy: h.policy,
+    });
+    const sent = JSON.parse(h.calls[1].init.body).messages as { content: string }[];
+    assert.deepEqual(
+      sent.map(m => decryptEnvelope(h.model.secretKey, m.content)),
+      normal.map(m => m.content),
+    );
+  });
+
+  it('refuses locally, before attestation or any POST, when system plus latest cannot fit', async () => {
+    const h = harness();
+    await assert.rejects(
+      () => streamE2EEChatCompletion({
+        transport: { baseUrl: 'https://proxy.test/api/v1', fetchImpl: h.fetchImpl },
+        model: 'e2ee-test',
+        messages: [
+          { role: 'system', content: 'You are Alice.' },
+          { role: 'user', content: 'earlier' },
+          { role: 'assistant', content: 'answer' },
+          { role: 'user', content: '漢'.repeat(50_000) },
+        ],
+        attestationPolicy: h.policy,
+      }),
+      (err: unknown) => err instanceof VeniceE2EEError && err.code === 'request_too_large',
+    );
+    assert.equal(h.calls.length, 0, 'no attestation and no POST');
   });
 
   it('fetchAndVerifyAttestation refuses a nonce mismatch before chat', async () => {

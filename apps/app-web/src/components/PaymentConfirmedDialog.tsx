@@ -5,14 +5,15 @@ import { CHECK_ICON } from '@/lib/atelier-icons';
 
 import { useEffect, useState } from 'react';
 import { useAccount } from '@alice-wallet/alice-ai';
+import { useT, type Locale } from '@/i18n';
 
 const PLAN_NAMES: Record<string, string> = {
   cloud: 'Cloud',
   cloud_plus: 'Cloud+',
 };
 
-function formatDate(ms: number): string {
-  return new Date(ms).toLocaleDateString('en-US', {
+function formatDate(ms: number, locale: Locale): string {
+  return new Date(ms).toLocaleDateString(locale === 'en' ? 'en-US' : locale, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -31,6 +32,7 @@ function formatDate(ms: number): string {
  * snapshot that proved the payment settled.
  */
 export function PaymentConfirmedDialog() {
+  const t = useT();
   const account = useAccount();
 
   // Design review without a settled payment to look at. Dev only, and applied
@@ -90,23 +92,23 @@ export function PaymentConfirmedDialog() {
           className="font-pixel m-0 tracking-widest flex items-center gap-3"
           style={{ fontSize: 10, lineHeight: '18px', color: 'var(--alice-primary)' }}
         >
-          <SvgIcon svg={CHECK_ICON} size={20} /> PAYMENT CONFIRMED
+          <SvgIcon svg={CHECK_ICON} size={20} /> {t('payment.title')}
         </h2>
 
         <p
           className="font-numbers m-0 mt-3"
           style={{ fontSize: 16, lineHeight: '22px' }}
         >
-          Your {PLAN_NAMES[plan] ?? 'Private Cloud'} plan is active
-          {expiresAt !== null ? ` until ${formatDate(expiresAt)}` : ''}.
+          {expiresAt !== null
+            ? t('payment.activeUntil', { plan: PLAN_NAMES[plan] ?? 'Private Cloud', date: formatDate(expiresAt, t.locale) })
+            : t('payment.active', { plan: PLAN_NAMES[plan] ?? 'Private Cloud' })}
         </p>
 
         <p
           className="font-numbers m-0 mt-2"
           style={{ fontSize: 13, lineHeight: '19px', color: 'var(--alice-muted)' }}
         >
-          Nothing renews on its own and no payment method is stored. Alice will
-          tell you before the plan runs out.
+          {t('payment.noRenewal')}
         </p>
 
         <button
@@ -116,7 +118,7 @@ export function PaymentConfirmedDialog() {
           className="alice-control alice-control--primary mt-5 w-full"
           style={{ padding: '10px 14px' }}
         >
-          Done
+          {t('common.done')}
         </button>
       </div>
     </div>

@@ -30,6 +30,7 @@ import { Amount } from '@/components/AmountDisplay';
 import { Analyzing, EmptyState, ExplorerCopy, FieldLabel, Metric, SectionPanel, Skeleton, SkeletonLines } from '@/components/ExplorerUI';
 import { ExplorerBalanceChart } from '@/components/ExplorerBalanceChart';
 import { ExplorerUtxoBubbles } from '@/components/ExplorerUtxoBubbles';
+import { formatLocale, t as tNow, type Translator, useT } from '@/i18n';
 
 const FEED_INITIAL = 5;
 const FEED_STEP = 10;
@@ -63,13 +64,13 @@ export function SparkBadge({ children = 'SPARK' }: { children?: React.ReactNode 
   );
 }
 
-function agoLabel(sec: number): string {
+function agoLabel(sec: number, tr: Translator): string {
   const s = Math.floor(Date.now() / 1000 - sec);
-  if (s < 5) return 'just now';
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86_400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86_400)}d ago`;
+  if (s < 5) return tr('explorerSpark.ago.now');
+  if (s < 60) return tr('explorerSpark.ago.seconds', { count: s });
+  if (s < 3600) return tr('explorerSpark.ago.minutes', { count: Math.floor(s / 60) });
+  if (s < 86_400) return tr('explorerSpark.ago.hours', { count: Math.floor(s / 3600) });
+  return tr('explorerSpark.ago.days', { count: Math.floor(s / 86_400) });
 }
 
 function shortAddress(a: string): string {
@@ -81,15 +82,16 @@ function shortId(id: string): string {
 }
 
 function shortDate(sec?: number | null): string {
-  return sec ? new Date(sec * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+  return sec ? new Date(sec * 1000).toLocaleDateString(formatLocale(), { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
 }
 
-function formatAge(days: number): string {
-  return days < 1 ? `${Math.round(days * 24)}h` : `${days.toFixed(1)}d`;
+function formatAge(days: number, tr: Translator): string {
+  return days < 1 ? tr('explorerArk.address.ageHours', { count: Math.round(days * 24) }) : tr('explorerArk.address.ageDays', { count: days.toFixed(1) });
 }
 
 /** A Spark address, shortened, opening its view when the caller can. */
 export function SparkAddressLink({ address, label, onOpenAddress }: { address: string; label?: string; onOpenAddress?: (address: string) => void }) {
+  const tr = useT();
   const text = label ?? shortAddress(address);
   return onOpenAddress ? (
     <button
@@ -97,7 +99,7 @@ export function SparkAddressLink({ address, label, onOpenAddress }: { address: s
       onClick={() => onOpenAddress(address)}
       className="alice-control alice-control--quiet font-numbers truncate text-left cursor-pointer bg-transparent p-0"
       style={{ fontSize: 11, color: 'var(--alice-primary)' }}
-      title={`Open ${address}`}
+      title={tr('explorerSpark.open', { id: address })}
     >
       {text}
     </button>
@@ -108,9 +110,9 @@ export function SparkAddressLink({ address, label, onOpenAddress }: { address: s
 
 /** A party of a Sparkscan line, as text: a Spark address (the SSP named),
  *  the Lightning network, or whatever Sparkscan wrote. */
-function partyText(party: SparkscanTx['from']): string {
-  if (!party) return 'unknown';
-  if (party.kind === 'spark' && party.address) return party.pubkey && isSparkSsp(party.pubkey) ? 'the SSP' : shortAddress(party.address);
+function partyText(party: SparkscanTx['from'], tr: Translator): string {
+  if (!party) return tr('explorerSpark.party.unknown');
+  if (party.kind === 'spark' && party.address) return party.pubkey && isSparkSsp(party.pubkey) ? tr('explorerSpark.party.ssp') : shortAddress(party.address);
   return party.label;
 }
 
@@ -130,6 +132,7 @@ function mergeFeed(newer: SparkscanTx[], prev: SparkscanTx[]): SparkscanTx[] {
  *  live channel. Each row opens its transfer, like the Arkade feed's rows
  *  open their commitment transaction. */
 export function SparkLiveFeed({ onOpenTx }: { onOpenTx: (id: string) => void }) {
+  const tr = useT();
   const [items, setItems] = useState<SparkscanTx[]>([]);
   const [live, setLive] = useState(false);
   const [error, setError] = useState('');
@@ -143,7 +146,7 @@ export function SparkLiveFeed({ onOpenTx }: { onOpenTx: (id: string) => void }) 
       .then(list => { if (!stopped) { noteSparkscanOnchain(list); setItems(prev => mergeFeed(list, prev)); } })
       .catch(e => {
         if (stopped || (e instanceof DOMException && e.name === 'AbortError')) return;
-        setError(e instanceof SparkscanError ? e.message : 'Could not reach Sparkscan.');
+        setError(e instanceof SparkscanError ? e.message : tr('explorerSpark.sparkscan.unreachable'));
       });
     (async () => {
       while (!stopped) {
@@ -164,21 +167,21 @@ export function SparkLiveFeed({ onOpenTx }: { onOpenTx: (id: string) => void }) 
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>LATEST TRANSACTIONS</span>
+        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{tr('explorerSpark.feed.title')}</span>
         <span className="flex items-center gap-1.5">
           <span style={{ width: 7, height: 7, borderRadius: 7, backgroundColor: live ? 'var(--alice-success)' : 'var(--alice-muted)' }} />
-          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{live ? 'LIVE' : 'CONNECTING'}</span>
+          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{live ? tr('explorerSpark.feed.live') : tr('explorerSpark.feed.connecting')}</span>
         </span>
       </div>
       <div className="flex flex-col" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3 }}>
         {shown.length === 0 ? (
           error ? (
             <div className="flex flex-col gap-1 px-4 py-3">
-              <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>FEED UNAVAILABLE</span>
+              <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>{tr('explorerSpark.feed.unavailable')}</span>
               <p className="font-numbers m-0" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{error}</p>
             </div>
           ) : (
-            <Analyzing label="reading the latest transactions from Sparkscan…" />
+            <Analyzing label={tr('explorerSpark.feed.reading')} />
           )
         ) : (
           shown.map((t, i) => (
@@ -188,19 +191,19 @@ export function SparkLiveFeed({ onOpenTx }: { onOpenTx: (id: string) => void }) 
               onClick={() => onOpenTx(t.id)}
               className="alice-control alice-control--quiet flex items-center justify-between gap-3 w-full text-left cursor-pointer bg-transparent px-3 py-2"
               style={{ borderTop: i > 0 ? '1px solid var(--alice-border)' : undefined, justifyContent: 'space-between' }}
-              title={`Open ${t.id}`}
+              title={tr('explorerSpark.open', { id: t.id })}
             >
               <div className="flex flex-col min-w-0">
                 <span className="font-numbers truncate" style={{ fontSize: 12, color: 'var(--alice-primary)' }}>
-                  {t.kind === 'token' && !t.from && !t.to ? 'several parties' : `${partyText(t.from)} → ${partyText(t.to)}`}
+                  {t.kind === 'token' && !t.from && !t.to ? tr('explorerSpark.feed.severalParties') : `${partyText(t.from, tr)} → ${partyText(t.to, tr)}`}
                 </span>
                 <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-                  {t.createdAt !== null ? `${agoLabel(t.createdAt)} · ${formatDateTime(t.createdAt)}` : 'time unknown'}
+                  {t.createdAt !== null ? `${agoLabel(t.createdAt, tr)} · ${formatDateTime(t.createdAt)}` : tr('explorerSpark.timeUnknown')}
                   {t.status !== 'confirmed' && t.status !== 'completed' ? ` · ${t.status}` : ''}
                 </span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <SparkBadge>{sparkscanKindLabel(t.kind).toUpperCase()}</SparkBadge>
+                <SparkBadge>{sparkscanKindLabel(t.kind, tr.locale).toUpperCase()}</SparkBadge>
                 {t.kind !== 'token' && t.amountSats !== null && (
                   <Amount sats={t.amountSats} style={{ fontSize: 12, color: 'var(--alice-text)', flexShrink: 0 }} />
                 )}
@@ -216,7 +219,7 @@ export function SparkLiveFeed({ onOpenTx }: { onOpenTx: (id: string) => void }) 
           className="alice-control alice-control--quiet font-numbers self-center cursor-pointer"
           style={{ fontSize: 13, padding: '8px 16px', borderRadius: 3, color: 'var(--alice-primary)' }}
         >
-          SHOW {Math.min(FEED_STEP, items.length - shown.length)} MORE
+          {tr('explorerSpark.feed.showMore', { count: Math.min(FEED_STEP, items.length - shown.length) })}
         </button>
       )}
     </div>
@@ -227,26 +230,27 @@ export function SparkLiveFeed({ onOpenTx }: { onOpenTx: (id: string) => void }) 
  *  overview. Static: the SDK ships them, and the operators publish no
  *  parameter endpoint of their own. */
 export function SparkOperatorsInfo() {
+  const tr = useT();
   return (
     <div className="flex flex-col gap-2">
-      <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>OPERATORS</span>
+      <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{tr('explorerSpark.ops.title')}</span>
       <div className="flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderLeft: `3px solid ${SPARK_ACCENT}`, borderRadius: 3, backgroundColor: 'transparent' }}>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
-          <Metric label="OPERATORS" value={SPARK_OPERATORS.map(o => o.name).join(', ')} title="The Spark operators co-sign every leaf with its owner (FROST threshold signing) and forget the previous owner's share on each transfer." />
-          <Metric label="EXIT TIMELOCK" value={formatSparkBlocks(SPARK_TIMELOCK.initialBlocks)} title="A fresh leaf's exit transaction waits this long after its parent confirms; each transfer takes 100 blocks off, so the newest owner exits first." />
-          <Metric label="PER TRANSFER" value={`${SPARK_TIMELOCK.stepBlocks} blocks fewer`} title="Each transfer signs a new exit with a shorter timelock than the previous owner's." />
-          <Metric label="RENEWED UNDER" value={`${SPARK_TIMELOCK.renewBelowBlocks} blocks`} title="A wallet renews a leaf whose timelock fell this low, so it never reaches zero." />
-          <Metric label="SETTLES ON" value="Bitcoin mainnet" />
-          <Metric label="SSP" value="Lightspark" title="The Spark Service Provider: the counterparty of Lightning payments and cooperative exits." />
+          <Metric label={tr('explorerSpark.ops.title')} value={SPARK_OPERATORS.map(o => o.name).join(', ')} title={tr('explorerSpark.ops.operatorsTitle')} />
+          <Metric label={tr('explorerSpark.ops.exitTimelock')} value={formatSparkBlocks(SPARK_TIMELOCK.initialBlocks, tr.locale)} title={tr('explorerSpark.ops.exitTimelockTitle')} />
+          <Metric label={tr('explorerSpark.ops.perTransfer')} value={tr('explorerSpark.ops.blocksFewer', { count: SPARK_TIMELOCK.stepBlocks })} title={tr('explorerSpark.ops.perTransferTitle')} />
+          <Metric label={tr('explorerSpark.ops.renewedUnder')} value={tr('explorerSpark.ops.blocks', { count: SPARK_TIMELOCK.renewBelowBlocks })} title={tr('explorerSpark.ops.renewedUnderTitle')} />
+          <Metric label={tr('explorerSpark.ops.settlesOn')} value="Bitcoin mainnet" />
+          <Metric label="SSP" value="Lightspark" title={tr('explorerSpark.ops.sspTitle')} />
         </div>
         <div className="flex flex-col gap-1">
-          <FieldLabel>OPERATOR KEYS</FieldLabel>
+          <FieldLabel>{tr('explorerSpark.ops.keys')}</FieldLabel>
           {SPARK_OPERATORS.map(o => (
             <span key={o.pubkey} className="font-numbers break-all" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{o.name} · {o.url.replace(/^https:\/\//, '')} · {o.pubkey}</span>
           ))}
         </div>
         <div className="flex flex-col gap-1">
-          <FieldLabel>SSP KEY</FieldLabel>
+          <FieldLabel>{tr('explorerSpark.ops.sspKey')}</FieldLabel>
           <span className="font-numbers break-all" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{SPARK_SSP_PUBKEY}</span>
         </div>
       </div>
@@ -256,7 +260,8 @@ export function SparkOperatorsInfo() {
 
 /** The row badge of a known Spark transaction, wherever a list shows it. */
 export function SparkTxBadge({ kind }: { kind: SparkOnchainKind }) {
-  return <SparkBadge>{kind === 'exit' ? 'SPARK EXIT' : 'SPARK DEPOSIT'}</SparkBadge>;
+  const tr = useT();
+  return <SparkBadge>{kind === 'exit' ? tr('explorerSpark.badge.exit') : tr('explorerSpark.badge.deposit')}</SparkBadge>;
 }
 
 /** The Spark overlay of a Bitcoin transaction this browser knows: a deposit
@@ -271,62 +276,63 @@ export function SparkOnchainCard({ d, onOpenLeaf, onOpenAddress, onOpenSparkTx }
   /** Opens the Spark-side transaction Sparkscan reported, on the Spark network. */
   onOpenSparkTx?: (id: string) => void;
 }) {
+  const tr = useT();
   const exit = d.kind === 'exit';
   const fromLeaf = d.source === 'leaf' && d.leafId !== undefined;
   const text = exit
-    ? 'Sparkscan reported this transaction as a cooperative exit from Spark: the operators and the Spark Service Provider paid it on behalf of a Spark wallet whose leaves left the network. Nothing on the chain says so, and only the exits this browser has seen are marked.'
+    ? tr('explorerSpark.onchain.exit')
     : fromLeaf
-      ? `Output ${d.vout} is a Spark deposit: the root of a tree of pre-signed transactions that the operators split into leaves, each held by a Spark user. Nothing on the chain says so. The output stays unspent as long as the tree lives; it is spent by a cooperative exit, or by someone\u2019s unilateral exit broadcasting the tree.`
-      : 'Sparkscan reported this transaction as a deposit into Spark: its output became the root of a tree of pre-signed transactions that the operators split into leaves. Nothing on the chain says so, and only the deposits this browser has seen are marked.';
+      ? tr('explorerSpark.onchain.leafDeposit', { vout: d.vout ?? '' })
+      : tr('explorerSpark.onchain.deposit');
   return (
     <div
       className="flex flex-col gap-3 px-4 py-3"
       style={{ borderTop: '1px solid var(--alice-border)', borderLeft: `3px solid ${SPARK_ACCENT}`, borderRadius: 3, backgroundColor: 'transparent' }}
     >
       <div className="flex items-center gap-2 flex-wrap">
-        <SparkBadge>{exit ? 'KNOWN SPARK EXIT' : 'KNOWN SPARK DEPOSIT'}</SparkBadge>
+        <SparkBadge>{exit ? tr('explorerSpark.onchain.knownExit') : tr('explorerSpark.onchain.knownDeposit')}</SparkBadge>
         <span className="font-numbers break-all" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>
-          {d.treeId ? `tree ${d.treeId}` : 'reported by Sparkscan'}
+          {d.treeId ? tr('explorerSpark.onchain.tree', { id: d.treeId }) : tr('explorerSpark.onchain.reported')}
         </span>
       </div>
       <p className="font-numbers m-0" style={{ fontSize: 12.5, lineHeight: '18px', color: 'var(--alice-muted)' }}>{text}</p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
-        {d.vout !== undefined && <Metric label="DEPOSIT OUTPUT" value={`#${d.vout}`} />}
+        {d.vout !== undefined && <Metric label={tr('explorerSpark.onchain.depositOutput')} value={`#${d.vout}`} />}
         {d.amountSats !== undefined && (
-          <Metric label={fromLeaf ? 'TREE STARTED WITH' : 'AMOUNT'} value={<Amount sats={d.amountSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
+          <Metric label={fromLeaf ? tr('explorerSpark.onchain.treeStarted') : tr('explorerSpark.onchain.amount')} value={<Amount sats={d.amountSats} style={{ fontSize: 13, color: 'var(--alice-text)' }} />} />
         )}
         {d.sparkAddress && (
           <div className="flex flex-col gap-0.5 min-w-0">
-            <FieldLabel>SPARK WALLET</FieldLabel>
+            <FieldLabel>{tr('explorerSpark.onchain.wallet')}</FieldLabel>
             <SparkAddressLink address={d.sparkAddress} onOpenAddress={onOpenAddress} />
           </div>
         )}
-        <Metric label="OPERATORS" value="Lightspark, Breez, Flashnet" />
+        <Metric label={tr('explorerSpark.ops.title')} value="Lightspark, Breez, Flashnet" />
         {fromLeaf && onOpenLeaf && (
           <div className="flex flex-col gap-0.5">
-            <FieldLabel>LEAF</FieldLabel>
+            <FieldLabel>{tr('explorerSpark.onchain.leaf')}</FieldLabel>
             <button
               type="button"
               onClick={() => onOpenLeaf(d.leafId!)}
               className="alice-control alice-control--quiet font-numbers text-left cursor-pointer bg-transparent p-0 self-start"
               style={{ fontSize: 13, color: 'var(--alice-primary)' }}
-              title="Open the Spark leaf whose exit tree led here"
+              title={tr('explorerSpark.onchain.openLeafTitle')}
             >
-              open the leaf you came from
+              {tr('explorerSpark.onchain.openLeaf')}
             </button>
           </div>
         )}
         {d.sparkTxId && onOpenSparkTx && (
           <div className="flex flex-col gap-0.5">
-            <FieldLabel>ON SPARK</FieldLabel>
+            <FieldLabel>{tr('explorerSpark.onchain.onSpark')}</FieldLabel>
             <button
               type="button"
               onClick={() => onOpenSparkTx(d.sparkTxId!)}
               className="alice-control alice-control--quiet font-numbers text-left cursor-pointer bg-transparent p-0 self-start"
               style={{ fontSize: 13, color: 'var(--alice-primary)' }}
-              title="Open the Spark-side transaction Sparkscan reported"
+              title={tr('explorerSpark.onchain.openSparkTxTitle')}
             >
-              open the Spark transaction
+              {tr('explorerSpark.onchain.openSparkTx')}
             </button>
           </div>
         )}
@@ -369,14 +375,15 @@ function leafExitWait(leaf: SparkLeaf): number | null {
 /** A leaf row, laid out like the Arkade VTXO rows: the id, its state and
  *  exit wait, the way to its exit tree, its amount. */
 function LeafRow({ leaf, onOpenLeaf }: { leaf: SparkLeaf; onOpenLeaf?: (id: string) => void }) {
+  const tr = useT();
   const wait = leafExitWait(leaf);
   return (
     <div className="flex items-center justify-between gap-3 px-3 py-2" style={{ borderTop: '1px solid var(--alice-border)' }}>
       <div className="flex flex-col min-w-0">
         <span className="font-numbers truncate" style={{ fontSize: 12, color: 'var(--alice-text)' }} title={leaf.id}>{shortId(leaf.id)}</span>
         <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-          {sparkLeafStatusLabel(leaf.status)}
-          {wait !== null ? ` - exit waits ${wait.toLocaleString('en-US')} blocks` : ''}
+          {sparkLeafStatusLabel(leaf.status, tr.locale)}
+          {wait !== null ? ` - ${tr('explorerSpark.leaf.exitWaits', { blocks: wait.toLocaleString(formatLocale()) })}` : ''}
           {leaf.createdAt ? ` - ${formatDateTime(leaf.createdAt)}` : ''}
         </span>
       </div>
@@ -387,9 +394,9 @@ function LeafRow({ leaf, onOpenLeaf }: { leaf: SparkLeaf; onOpenLeaf?: (id: stri
             onClick={() => onOpenLeaf(leaf.id)}
             className="alice-control alice-control--quiet font-numbers cursor-pointer bg-transparent"
             style={{ fontSize: 11, padding: '3px 8px', borderRadius: 3, color: 'var(--alice-primary)' }}
-            title="Open this leaf: its exit tree, from the on-chain deposit down to the coin"
+            title={tr('explorerSpark.leaf.openTitle')}
           >
-            exit tree
+            {tr('explorerSpark.leaf.exitTree')}
           </button>
         )}
         <Amount sats={leaf.valueSats} style={{ fontSize: 12, color: 'var(--alice-text)' }} />
@@ -401,11 +408,12 @@ function LeafRow({ leaf, onOpenLeaf }: { leaf: SparkLeaf; onOpenLeaf?: (id: stri
 /** A transfer row, laid out like the on-chain transaction rows: the whole
  *  row opens the transfer; its net effect on the wallet sits at the right. */
 function TransferRow({ t, pubkey, onOpen }: { t: SparkTransfer; pubkey: string; onOpen?: () => void }) {
+  const tr = useT();
   const delta = sparkTransferDelta(t, pubkey);
   const sent = delta < 0;
   const otherKey = sent ? t.receiverPubkey : t.senderPubkey;
-  const other = isSparkSsp(otherKey) ? 'the SSP (Lightspark)' : shortAddress(sparkAddressOf(otherKey) ?? 'unknown');
-  const label = t.type === 'transfer' ? (delta === 0 ? 'Self-transfer' : sent ? `Sent to ${other}` : `Received from ${other}`) : sparkTransferLabel(t);
+  const other = isSparkSsp(otherKey) ? tr('explorerSpark.transfer.ssp') : shortAddress(sparkAddressOf(otherKey) ?? tr('explorerSpark.party.unknown'));
+  const label = t.type === 'transfer' ? (delta === 0 ? tr('explorerSpark.transfer.self') : sent ? tr('explorerSpark.transfer.sentTo', { other }) : tr('explorerSpark.transfer.receivedFrom', { other })) : sparkTransferLabel(t, tr.locale);
   const pending = t.status !== 'completed';
   return (
     <button
@@ -414,14 +422,14 @@ function TransferRow({ t, pubkey, onOpen }: { t: SparkTransfer; pubkey: string; 
       disabled={!onOpen}
       className="alice-control alice-control--quiet flex items-center justify-between gap-3 w-full text-left cursor-pointer bg-transparent px-3 py-2"
       style={{ borderTop: '1px solid var(--alice-border)', justifyContent: 'space-between' }}
-      title={`Open transfer ${t.id}`}
+      title={tr('explorerSpark.transfer.open', { id: t.id })}
     >
       <div className="flex flex-col min-w-0">
         <span className="font-numbers truncate" style={{ fontSize: 12, color: 'var(--alice-text)' }}>{label}</span>
         <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-          {t.createdAt ? formatDateTime(t.createdAt) : 'time unknown'}
-          {pending ? ` - ${sparkStatusLabel(t.status).toLowerCase()}` : ''}
-          {t.leaves.length ? ` - ${t.leaves.length} ${t.leaves.length === 1 ? 'leaf' : 'leaves'}` : ''}
+          {t.createdAt ? formatDateTime(t.createdAt) : tr('explorerSpark.timeUnknown')}
+          {pending ? ` - ${sparkStatusLabel(t.status, tr.locale).toLowerCase()}` : ''}
+          {t.leaves.length ? ` - ${tr.plural('explorerSpark.transfer.leaves', t.leaves.length)}` : ''}
         </span>
       </div>
       <span className="font-numbers shrink-0 flex items-center gap-1" style={{ fontSize: 12, color: delta > 0 ? 'var(--alice-success)' : 'var(--alice-text)' }}>
@@ -434,8 +442,8 @@ function TransferRow({ t, pubkey, onOpen }: { t: SparkTransfer; pubkey: string; 
 
 async function loadAddress(address: string, signal: AbortSignal): Promise<AddressData> {
   const decoded = decodeSparkAddress(address);
-  if (!decoded) throw new SparkError('Not a Spark address.');
-  if (decoded.network !== 'mainnet') throw new SparkError(`A Spark ${decoded.network} address; the Explorer reads Spark on Bitcoin mainnet.`);
+  if (!decoded) throw new SparkError(tNow('explorerSpark.error.notAddress'));
+  if (decoded.network !== 'mainnet') throw new SparkError(tNow('explorerSpark.error.network', { network: decoded.network }));
   const { pubkey } = decoded;
   // The transfers come separately (see the tab): the operators answer that
   // query in seconds or in tens of seconds, and the rest is quick.
@@ -474,6 +482,7 @@ function AddressCard({ data, onOpenTx, onOpenLeaf, onMoreTransfers, onMoreLeaves
   onMoreLeaves: () => void;
   loadingMore: boolean;
 }) {
+  const tr = useT();
   // The lists open short and page out on demand, like the on-chain view.
   const [leafLimit, setLeafLimit] = useState(LIST_INITIAL);
   const [transferLimit, setTransferLimit] = useState(LIST_INITIAL);
@@ -495,24 +504,24 @@ function AddressCard({ data, onOpenTx, onOpenLeaf, onMoreTransfers, onMoreLeaves
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderLeft: `3px solid ${SPARK_ACCENT}`, borderRadius: 3, backgroundColor: 'transparent' }}>
         <div className="flex items-center gap-2 flex-wrap">
-          <SparkBadge>SPARK ADDRESS</SparkBadge>
+          <SparkBadge>{tr('explorerSpark.address.badge')}</SparkBadge>
           {ssp && <SparkBadge>SPARK SERVICE PROVIDER</SparkBadge>}
-          <span className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>off-chain, read from the Spark operators</span>
+          <span className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{tr('explorerSpark.address.source')}</span>
         </div>
         <div className="flex items-start gap-2">
           <p className="font-numbers m-0 break-all min-w-0 flex-1" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{data.address}</p>
-          <ExplorerCopy value={data.address} label="address" />
+          <ExplorerCopy value={data.address} label={tr('explorerSpark.address.copy')} />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
-          <Metric label="BALANCE" value={<Amount sats={data.balance.sats} style={{ fontSize: 14, color: 'var(--alice-text)' }} />} title="The spendable balance the operators report. Zero for an empty wallet and for a private one alike." />
-          <Metric label="LEAVES" value={data.balance.leaves.toLocaleString('en-US')} title="The coins carrying the balance, each with its own pre-signed exit." />
-          <Metric label="TRANSFERS" value={data.scan ? data.scan.total.toLocaleString('en-US') : transfers === null ? '…' : data.transfersCursor === null ? transfers.length.toLocaleString('en-US') : `${transfers.length.toLocaleString('en-US')}+`} title="Bitcoin and token lines, as Sparkscan counts them." />
-          <Metric label="FIRST SEEN" value={transfers === null ? '…' : data.transfersCursor !== null ? 'earlier' : shortDate(firstSeen)} title="The oldest transfer read; a busy wallet's history reaches further back than the pages read." />
-          <Metric label="AVG COIN AGE" value={coinAge ? formatAge(coinAge.days) : (data.balance.sats > 0 ? '-' : 'no coins held')} title="Weighted by amount, from each leaf's creation." />
-          <Metric label="OPERATORS" value={SPARK_OPERATORS.map(o => o.name).join(', ')} />
+          <Metric label={tr('explorerSpark.address.balance')} value={<Amount sats={data.balance.sats} style={{ fontSize: 14, color: 'var(--alice-text)' }} />} title={tr('explorerSpark.address.balanceTitle')} />
+          <Metric label={tr('explorerSpark.address.leaves')} value={data.balance.leaves.toLocaleString(formatLocale())} title={tr('explorerSpark.address.leavesTitle')} />
+          <Metric label={tr('explorerSpark.address.transfers')} value={data.scan ? data.scan.total.toLocaleString(formatLocale()) : transfers === null ? '…' : data.transfersCursor === null ? transfers.length.toLocaleString(formatLocale()) : `${transfers.length.toLocaleString(formatLocale())}+`} title={tr('explorerSpark.address.transfersTitle')} />
+          <Metric label={tr('explorerSpark.address.firstSeen')} value={transfers === null ? '…' : data.transfersCursor !== null ? tr('explorerSpark.address.earlier') : shortDate(firstSeen)} title={tr('explorerSpark.address.firstSeenTitle')} />
+          <Metric label={tr('explorerSpark.address.avgAge')} value={coinAge ? formatAge(coinAge.days, tr) : (data.balance.sats > 0 ? '-' : tr('explorerSpark.address.noCoins'))} title={tr('explorerSpark.address.avgAgeTitle')} />
+          <Metric label={tr('explorerSpark.address.operators')} value={SPARK_OPERATORS.map(o => o.name).join(', ')} />
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="font-numbers" style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--alice-muted)' }}>IDENTITY KEY</span>
+          <span className="font-numbers" style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--alice-muted)' }}>{tr('explorerSpark.address.identityKey')}</span>
           <span className="font-numbers break-all" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{data.pubkey}</span>
         </div>
       </div>
@@ -521,13 +530,13 @@ function AddressCard({ data, onOpenTx, onOpenLeaf, onMoreTransfers, onMoreLeaves
           transfers read so far, anchored at the balance the operators
           report. A busy wallet's older history is left out (partial). */}
       {transfers === null ? (
-        <SectionPanel title="BALANCE"><div className="px-3 py-3"><Skeleton height={110} /></div></SectionPanel>
+        <SectionPanel title={tr('explorerSpark.address.balance')}><div className="px-3 py-3"><Skeleton height={110} /></div></SectionPanel>
       ) : history && history.points.length >= 2 ? (
         <div className="rh-fade-in"><ExplorerBalanceChart points={history.points} partial={history.partial} /></div>
       ) : (
-        <SectionPanel title="BALANCE">
+        <SectionPanel title={tr('explorerSpark.address.balance')}>
           <p className="font-numbers m-0 px-3 py-3" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-            {empty ? 'Nothing to chart: no balance and no transfer the operators would show.' : 'No dated transfer to chart yet.'}
+            {empty ? tr('explorerSpark.address.nothingToChart') : tr('explorerSpark.address.noDatedTransfer')}
           </p>
         </SectionPanel>
       )}
@@ -537,29 +546,29 @@ function AddressCard({ data, onOpenTx, onOpenLeaf, onMoreTransfers, onMoreLeaves
       {data.leaves.length > 0 ? (
         <ExplorerUtxoBubbles
           utxos={data.leaves.map(l => ({ valueSats: l.valueSats, blockTime: l.createdAt }))}
-          title="LEAVES"
+          title={tr('explorerSpark.address.leaves')}
         />
       ) : (
-        <SectionPanel title="LEAVES">
+        <SectionPanel title={tr('explorerSpark.address.leaves')}>
           <p className="font-numbers m-0 px-3 py-3" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-            {empty ? 'No leaves: the wallet holds nothing, or its owner turned privacy on, which the operators answer the same way.' : 'No available leaf.'}
+            {empty ? tr('explorerSpark.address.noLeavesEmpty') : tr('explorerSpark.address.noLeaf')}
           </p>
         </SectionPanel>
       )}
 
       {empty && (
         <EmptyState
-          title="Empty, or private"
-          hint="The operators answer the same way for a wallet that holds nothing and for one whose owner turned privacy on: a zero balance and no transfers. Token activity, when there is any, stays public and is listed below."
+          title={tr('explorerSpark.address.emptyTitle')}
+          hint={tr('explorerSpark.address.emptyHint')}
         />
       )}
 
       {data.leaves.length > 0 && (
         <SectionPanel
-          title="LEAVES"
+          title={tr('explorerSpark.address.leaves')}
           right={
             <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-              {Math.min(leafLimit, data.leaves.length).toLocaleString('en-US')} of {data.balance.leaves.toLocaleString('en-US')}
+              {tr('explorerSpark.address.shownOf', { shown: Math.min(leafLimit, data.leaves.length).toLocaleString(formatLocale()), total: data.balance.leaves.toLocaleString(formatLocale()) })}
             </span>
           }
         >
@@ -572,17 +581,17 @@ function AddressCard({ data, onOpenTx, onOpenLeaf, onMoreTransfers, onMoreLeaves
               className="alice-control alice-control--quiet font-numbers cursor-pointer"
               style={{ fontSize: 13, padding: '8px 16px', color: 'var(--alice-primary)' }}
             >
-              {loadingMore ? 'LOADING…' : 'SHOW MORE'}
+              {loadingMore ? tr('explorerSpark.address.loading') : tr('explorerSpark.address.showMore')}
             </button>
           )}
         </SectionPanel>
       )}
 
       <SectionPanel
-        title="TRANSFERS"
+        title={tr('explorerSpark.address.transfers')}
         right={
           <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-            {transfers === null ? 'reading…' : `${Math.min(transferLimit, transfers.length).toLocaleString('en-US')} of ${data.transfersCursor === null ? transfers.length.toLocaleString('en-US') : `${transfers.length.toLocaleString('en-US')}+`}`}
+            {transfers === null ? tr('explorerSpark.address.reading') : tr('explorerSpark.address.shownOf', { shown: Math.min(transferLimit, transfers.length).toLocaleString(formatLocale()), total: data.transfersCursor === null ? transfers.length.toLocaleString(formatLocale()) : `${transfers.length.toLocaleString(formatLocale())}+` })}
           </span>
         }
       >
@@ -590,10 +599,10 @@ function AddressCard({ data, onOpenTx, onOpenLeaf, onMoreTransfers, onMoreLeaves
           data.transfersError ? (
             <p className="font-numbers m-0 px-3 py-3" style={{ fontSize: 12, color: 'var(--alice-danger)' }}>{data.transfersError}</p>
           ) : (
-            <Analyzing label="reading the transfers from the Spark operators…" />
+            <Analyzing label={tr('explorerSpark.address.readingTransfers')} />
           )
         ) : transfers.length === 0 ? (
-          <p className="font-numbers m-0 px-3 py-3" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>No transfers to list.</p>
+          <p className="font-numbers m-0 px-3 py-3" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>{tr('explorerSpark.address.noTransfers')}</p>
         ) : (
           <div className="rh-fade-in">
             {shownTransfers.map(t => <TransferRow key={t.id} t={t} pubkey={data.pubkey} onOpen={onOpenTx ? () => onOpenTx(t.id) : undefined} />)}
@@ -605,7 +614,7 @@ function AddressCard({ data, onOpenTx, onOpenLeaf, onMoreTransfers, onMoreLeaves
                 className="alice-control alice-control--quiet font-numbers cursor-pointer"
                 style={{ fontSize: 13, padding: '8px 16px', color: 'var(--alice-primary)' }}
               >
-                {loadingMore ? 'LOADING…' : 'SHOW MORE'}
+                {loadingMore ? tr('explorerSpark.address.loading') : tr('explorerSpark.address.showMore')}
               </button>
             )}
           </div>
@@ -614,8 +623,8 @@ function AddressCard({ data, onOpenTx, onOpenLeaf, onMoreTransfers, onMoreLeaves
 
       {tokens.length > 0 && (
         <SectionPanel
-          title="TOKEN ACTIVITY"
-          right={<span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>from Sparkscan</span>}
+          title={tr('explorerSpark.address.tokenActivity')}
+          right={<span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>{tr('explorerSpark.address.fromSparkscan')}</span>}
         >
           {tokens.slice(0, tokenLimit).map(t => (
             <button
@@ -625,17 +634,17 @@ function AddressCard({ data, onOpenTx, onOpenLeaf, onMoreTransfers, onMoreLeaves
               disabled={!onOpenTx}
               className="alice-control alice-control--quiet flex items-center justify-between gap-3 w-full text-left cursor-pointer bg-transparent px-3 py-2"
               style={{ borderTop: '1px solid var(--alice-border)', justifyContent: 'space-between' }}
-              title={`Open ${t.id}`}
+              title={tr('explorerSpark.open', { id: t.id })}
             >
               <div className="flex flex-col min-w-0">
                 <span className="font-numbers truncate" style={{ fontSize: 12, color: 'var(--alice-text)' }}>
-                  Token {t.rawType.replace(/^token_?/, '').replace(/_/g, ' ') || 'transfer'}
+                  {tr('explorerSpark.address.tokenLine', { type: t.rawType.replace(/^token_?/, '').replace(/_/g, ' ') || tr('explorerSpark.address.tokenTransfer') })}
                 </span>
                 <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-                  {t.createdAt !== null ? formatDateTime(t.createdAt) : 'time unknown'}
+                  {t.createdAt !== null ? formatDateTime(t.createdAt) : tr('explorerSpark.timeUnknown')}
                 </span>
               </div>
-              <SparkBadge>TOKEN</SparkBadge>
+              <SparkBadge>{tr('explorerSpark.address.tokenBadge')}</SparkBadge>
             </button>
           ))}
           {tokens.length > tokenLimit && (
@@ -645,7 +654,7 @@ function AddressCard({ data, onOpenTx, onOpenLeaf, onMoreTransfers, onMoreLeaves
               className="alice-control alice-control--quiet font-numbers cursor-pointer"
               style={{ fontSize: 13, padding: '8px 16px', color: 'var(--alice-primary)' }}
             >
-              SHOW MORE
+              {tr('explorerSpark.address.showMore')}
             </button>
           )}
         </SectionPanel>
@@ -667,6 +676,7 @@ export function ExplorerSparkAddressTab({ address, onOpenTx, onOpenLeaf, onSigna
       (shape only, de-identified) and the full description for identified mode. */
   onSignals?: (signals: PrivacySignal[], full?: FullContext) => void;
 }) {
+  const tr = useT();
   const [state, setState] = useState<AddressTabState>({ kind: 'loading' });
   // The page's context for Ask Alice: published once the address is on
   // screen, again when the transfers arrive or more leaves are read.
@@ -688,7 +698,7 @@ export function ExplorerSparkAddressTab({ address, onOpenTx, onOpenLeaf, onSigna
       .then(data => setState({ kind: 'loaded', data }))
       .catch(e => {
         if (e instanceof DOMException && e.name === 'AbortError') return;
-        setState({ kind: 'error', message: e instanceof SparkError ? e.message : 'Could not load this Spark address. Retry, or reload the page if it keeps failing.' });
+        setState({ kind: 'error', message: e instanceof SparkError ? e.message : tr('explorerSpark.tab.loadFailed') });
       });
     return () => controller.abort();
   }, [address, retryToken]);
@@ -704,7 +714,7 @@ export function ExplorerSparkAddressTab({ address, onOpenTx, onOpenLeaf, onSigna
         : prev))
       .catch(e => {
         if (e instanceof DOMException && e.name === 'AbortError') return;
-        const message = e instanceof SparkError ? e.message : 'The operators did not answer the transfers query.';
+        const message = e instanceof SparkError ? e.message : tr('explorerSpark.tab.transfersFailed');
         setState(prev => prev.kind === 'loaded' && prev.data.pubkey === loadedKey ? { kind: 'loaded', data: { ...prev.data, transfersError: message } } : prev);
       });
     return () => controller.abort();
@@ -737,7 +747,7 @@ export function ExplorerSparkAddressTab({ address, onOpenTx, onOpenLeaf, onSigna
         <div className="flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3, backgroundColor: 'transparent' }}>
           <Skeleton width="60%" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
-            {['BALANCE', 'LEAVES', 'TRANSFERS', 'FIRST SEEN'].map(l => (
+            {[tr('explorerSpark.address.balance'), tr('explorerSpark.address.leaves'), tr('explorerSpark.address.transfers'), tr('explorerSpark.address.firstSeen')].map(l => (
               <div key={l} className="flex flex-col gap-1">
                 <span className="font-numbers" style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--alice-muted)' }}>{l}</span>
                 <Skeleton width="60%" />
@@ -745,30 +755,30 @@ export function ExplorerSparkAddressTab({ address, onOpenTx, onOpenLeaf, onSigna
             ))}
           </div>
         </div>
-        <SectionPanel title="BALANCE"><div className="px-3 py-3"><Skeleton height={110} /></div></SectionPanel>
-        <SectionPanel title="LEAVES">
+        <SectionPanel title={tr('explorerSpark.address.balance')}><div className="px-3 py-3"><Skeleton height={110} /></div></SectionPanel>
+        <SectionPanel title={tr('explorerSpark.address.leaves')}>
           <div className="flex items-center justify-center gap-3 px-3 py-4">
             <Skeleton width={64} height={64} style={{ borderRadius: '50%' }} />
             <Skeleton width={40} height={40} style={{ borderRadius: '50%' }} />
             <Skeleton width={26} height={26} style={{ borderRadius: '50%' }} />
           </div>
         </SectionPanel>
-        <SectionPanel title="TRANSFERS"><Analyzing label="reading the wallet from the Spark operators…" /></SectionPanel>
+        <SectionPanel title={tr('explorerSpark.address.transfers')}><Analyzing label={tr('explorerSpark.tab.readingWallet')} /></SectionPanel>
       </div>
     );
   }
   if (state.kind === 'error') {
     return (
       <div className="flex flex-col gap-2 px-4 py-3" style={{ border: '1px solid var(--alice-danger)', borderRadius: 3 }}>
-        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>COULD NOT LOAD</span>
+        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>{tr('explorerSpark.tab.couldNotLoad')}</span>
         <p className="font-numbers m-0" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{state.message}</p>
         <button
           type="button"
-          onClick={() => setRetryToken(t => t + 1)}
+          onClick={() => setRetryToken(n => n + 1)}
           className="alice-control alice-control--quiet font-numbers self-start cursor-pointer"
           style={{ fontSize: 13, padding: '8px 16px', borderRadius: 3, color: 'var(--alice-primary)' }}
         >
-          RETRY
+          {tr('explorerSpark.tab.retry')}
         </button>
       </div>
     );

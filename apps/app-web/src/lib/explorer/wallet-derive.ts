@@ -12,6 +12,7 @@ import { base58check } from '@scure/base';
 import { sha256 } from '@noble/hashes/sha2.js';
 import * as descriptors from '@bitcoinerlab/descriptors';
 import type { ScriptType } from './types.ts';
+import { t } from '../../i18n/translate.ts';
 
 const b58 = base58check(sha256);
 
@@ -78,12 +79,12 @@ function toCanonicalXpub(extKey: string): { xpub: string; script: ScriptType; ne
   try {
     raw = b58.decode(extKey);
   } catch {
-    throw new WalletInputError('This does not look like a valid extended key.');
+    throw new WalletInputError(t('explorer.walletInput.invalidKey'));
   }
-  if (raw.length !== 78) throw new WalletInputError('Extended key has an unexpected length.');
+  if (raw.length !== 78) throw new WalletInputError(t('explorer.walletInput.badLength'));
   const prefix = Array.from(raw.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join('');
   const meta = XPUB_VERSIONS[prefix];
-  if (!meta) throw new WalletInputError('Unrecognised extended-key type.');
+  if (!meta) throw new WalletInputError(t('explorer.walletInput.unknownType'));
   const rewritten = new Uint8Array(raw);
   rewritten[0] = (meta.canonical >>> 24) & 0xff;
   rewritten[1] = (meta.canonical >>> 16) & 0xff;
@@ -129,7 +130,7 @@ function stripChecksum(descriptor: string): string {
  */
 export function parseWalletInput(input: string, fallbackNetwork: DeriveNetwork): WalletDescriptor {
   const trimmed = input.trim();
-  if (!trimmed) throw new WalletInputError('Enter an extended public key or a descriptor.');
+  if (!trimmed) throw new WalletInputError(t('explorer.walletInput.empty'));
 
   // A bare extended key: normalise and wrap into the standard descriptors.
   if (EXT_KEY_RE.test(trimmed)) {
@@ -148,10 +149,10 @@ export function parseWalletInput(input: string, fallbackNetwork: DeriveNetwork):
   // whitespace, so strip it all before parsing.
   const body = stripChecksum(trimmed).replace(/\s+/g, '');
   if (!/^(pk|pkh|wpkh|sh|wsh|tr|combo|addr|raw|multi|sortedmulti)\(/.test(body)) {
-    throw new WalletInputError('Not a recognised extended key or descriptor.');
+    throw new WalletInputError(t('explorer.walletInput.unrecognised'));
   }
   if (!body.includes('*')) {
-    throw new WalletInputError('Descriptor must be ranged (end its path with /*).');
+    throw new WalletInputError(t('explorer.walletInput.notRanged'));
   }
 
   // A multipath descriptor names the receive and change chains at once, written
@@ -174,7 +175,7 @@ export function parseWalletInput(input: string, fallbackNetwork: DeriveNetwork):
     deriveAddress(receive, 0, network);
   } catch (err) {
     throw new WalletInputError(
-      err instanceof Error ? `Descriptor could not be parsed: ${err.message}` : 'Descriptor could not be parsed.',
+      err instanceof Error ? t('explorer.walletInput.parseErrorDetail', { error: err.message }) : t('explorer.walletInput.parseError'),
     );
   }
 

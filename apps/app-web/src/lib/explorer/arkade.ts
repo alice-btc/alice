@@ -13,6 +13,8 @@
 // numeric field crosses the gRPC-gateway as a string; we parse defensively.
 
 import { bech32m } from '@scure/base';
+import { formatLocale, t as tr, translate, translatePlural, type Locale } from '../../i18n/translate.ts';
+import { hasCanonicalExpiry, parseCanonicalExpiry, parseLegacyExpiry, parseScalarExpiry } from './arkade-expiry.ts';
 
 /** Parse a gateway numeric string ("330", "60") to a number, 0 on garbage. */
 function num(v: unknown): number {
@@ -48,7 +50,10 @@ export type ArkadeInfo = {
 export type ArkadeBatch = {
   /** The batch's identifying outpoint/key from the gateway map. */
   key: string;
+  /** Unix seconds, or unknown. */
   expiresAt?: number;
+  /** A block height, when the gateway's scalar is one. */
+  expiresAtHeight?: number;
   swept: boolean;
   totalOutputAmountSats: number;
   totalOutputVtxos: number;
@@ -78,7 +83,7 @@ async function getJson(base: string, path: string, signal?: AbortSignal): Promis
     // Let an abort propagate as-is so callers can drop it silently instead of
     // surfacing a spurious "unreachable" when a re-render cancelled the fetch.
     if (err instanceof DOMException && err.name === 'AbortError') throw err;
-    throw new ArkadeError('Could not reach the Arkade ASP.');
+    throw new ArkadeError(tr('explorerArk.error.unreachable'));
   }
   const text = await res.text();
   let json: unknown;
@@ -86,12 +91,12 @@ async function getJson(base: string, path: string, signal?: AbortSignal): Promis
     json = JSON.parse(text);
   } catch {
     // A gateway returns JSON; HTML here means we hit a web app, not the API.
-    throw new ArkadeError('That URL did not answer with the ASP API.');
+    throw new ArkadeError(tr('explorerArk.error.notApi'));
   }
   if (!res.ok) {
     const msg = typeof json === 'object' && json !== null && typeof (json as { message?: unknown }).message === 'string'
       ? (json as { message: string }).message
-      : `ASP error ${res.status}`;
+      : tr('explorerArk.error.status', { status: res.status });
     throw new ArkadeError(msg);
   }
   return json;
@@ -118,9 +123,11 @@ function parseBatches(raw: unknown): ArkadeBatch[] {
   // The gateway serialises batches as a map keyed by the batch outpoint.
   return Object.entries(raw as Record<string, unknown>).map(([key, v]) => {
     const b = (typeof v === 'object' && v !== null ? v : {}) as Record<string, unknown>;
+    const expiry = parseScalarExpiry(b.expiresAt);
     return {
       key,
-      expiresAt: b.expiresAt !== undefined ? num(b.expiresAt) : undefined,
+      expiresAt: expiry.expiresAt,
+      ...(expiry.expiresAtHeight !== undefined ? { expiresAtHeight: expiry.expiresAtHeight } : {}),
       swept: b.swept === true,
       totalOutputAmountSats: num(b.totalOutputAmount),
       totalOutputVtxos: num(b.totalOutputVtxos),
@@ -204,7 +211,11 @@ export type ArkadeVtxo = {
   isSwept: boolean;
   isPreconfirmed: boolean;
   createdAt?: number;
+  /** Expiry as a date, unix seconds. Unknown is undefined, never 0. */
   expiresAt?: number;
+  /** Expiry as a block height, when that is what the operator gave. Never a
+   *  date: it is not compared with a clock. */
+  expiresAtHeight?: number;
   /** The commitment round(s) that anchor this VTXO on-chain. */
   commitmentTxids: string[];
   /** The checkpoint transaction that spent this VTXO, when spent. */
@@ -214,6 +225,16 @@ export type ArkadeVtxo = {
   /** The taproot script the coin sits on, hex, when the indexer gives it. */
   scriptHex?: string;
 };
+
+/** The one state a view names for a VTXO. The indexer's flags can all be true
+ *  at once (a coin spent, then its batch swept): spent wins, then swept, then
+ *  preconfirmed, the SDK's own order (toVirtualStatus). A spent coin is the
+ *  holder's own spend, whatever the operator did to its batch afterwards. */
+export type ArkadeVtxoState = 'spent' | 'swept' | 'preconfirmed' | 'settled';
+
+export function arkadeStateOf(v: Pick<ArkadeVtxo, 'isSpent' | 'isSwept' | 'isPreconfirmed'>): ArkadeVtxoState {
+  return v.isSpent ? 'spent' : v.isSwept ? 'swept' : v.isPreconfirmed ? 'preconfirmed' : 'settled';
+}
 
 /** An Arkade address and the off-chain coins (VTXOs) it holds. */
 export type ArkadeAddressInfo = {
@@ -235,24 +256,30 @@ export function looksLikeArkadeAddress(s: string): boolean {
 
 /**
  * One VTXO from either shape we can meet: the SDK's RestIndexerProvider maps
- * the gateway into its VirtualCoin model ({ txid, vout, value, virtualStatus,
- * createdAt: Date, batchExpiry in ms }), while the raw gateway JSON nests the
- * outpoint and keeps everything in strings and seconds ({ outpoint, amount,
- * isSpent, expiresAt }). Accepting both keeps the view correct whichever layer
- * answers. Exported for tests.
+ * the gateway into its canonical VirtualCoin model ({ txid, vout, value,
+ * isSpent/isSwept/isPreconfirmed, commitmentTxIds, expiresAt: Date,
+ * expiresAtHeight, and the legacy virtualStatus.batchExpiry in ms }), while the
+ * raw gateway JSON nests the outpoint and keeps everything in strings and
+ * seconds ({ outpoint, amount, isSpent, expiresAt }). Accepting both keeps the
+ * view correct whichever layer answers. Canonical facts win over the legacy
+ * virtualStatus, which only fills what they leave unsaid. Exported for tests.
  */
 export function normalizeVtxo(v: Record<string, unknown>): ArkadeVtxo {
   const op = (typeof v.outpoint === 'object' && v.outpoint !== null ? v.outpoint : v) as Record<string, unknown>;
   const vs = (typeof v.virtualStatus === 'object' && v.virtualStatus !== null ? v.virtualStatus : {}) as Record<string, unknown>;
   const state = typeof vs.state === 'string' ? vs.state : '';
+  const flag = (canonical: unknown, legacyState: string): boolean => typeof canonical === 'boolean' ? canonical : state === legacyState;
   const createdAt = v.createdAt instanceof Date
     ? Math.floor(v.createdAt.getTime() / 1000)
     : v.createdAt !== undefined ? num(v.createdAt) : undefined;
-  const expiresAt = vs.batchExpiry !== undefined
-    ? Math.floor(num(vs.batchExpiry) / 1000)
-    : v.expiresAt !== undefined ? num(v.expiresAt) : undefined;
-  const commitments = Array.isArray(vs.commitmentTxIds) ? vs.commitmentTxIds
-    : Array.isArray(v.commitmentTxids) ? v.commitmentTxids : [];
+  // One expiry, from one source: the canonical fields when the coin has any,
+  // else the gateway's scalar, else the legacy batchExpiry.
+  const expiry = hasCanonicalExpiry(v) ? parseCanonicalExpiry(v.expiresAt, v.expiresAtHeight)
+    : v.expiresAt !== undefined ? parseScalarExpiry(v.expiresAt)
+      : parseLegacyExpiry(vs.batchExpiry);
+  const commitments = Array.isArray(v.commitmentTxIds) ? v.commitmentTxIds
+    : Array.isArray(v.commitmentTxids) ? v.commitmentTxids
+      : Array.isArray(vs.commitmentTxIds) ? vs.commitmentTxIds : [];
   // The spender fields differ by shape too: SDK `arkTxId`, gateway `arkTxid`.
   const spentBy = typeof v.spentBy === 'string' && v.spentBy ? v.spentBy : undefined;
   const arkTxid = typeof v.arkTxId === 'string' && v.arkTxId ? v.arkTxId
@@ -261,16 +288,116 @@ export function normalizeVtxo(v: Record<string, unknown>): ArkadeVtxo {
     txid: String(op.txid ?? ''),
     vout: num(op.vout),
     amountSats: v.amount !== undefined ? num(v.amount) : num(v.value),
-    isSpent: v.isSpent === true || state === 'spent',
-    isSwept: v.isSwept === true || state === 'swept',
-    isPreconfirmed: v.isPreconfirmed === true || state === 'preconfirmed',
+    isSpent: flag(v.isSpent, 'spent'),
+    isSwept: flag(v.isSwept, 'swept'),
+    isPreconfirmed: flag(v.isPreconfirmed, 'preconfirmed'),
     createdAt,
-    expiresAt,
+    expiresAt: expiry.expiresAt,
+    ...(expiry.expiresAtHeight !== undefined ? { expiresAtHeight: expiry.expiresAtHeight } : {}),
     commitmentTxids: commitments.map(String),
     spentBy,
     arkTxid,
     scriptHex: typeof v.script === 'string' && /^[0-9a-f]+$/i.test(v.script) ? v.script.toLowerCase() : undefined,
   };
+}
+
+function abortError(): DOMException {
+  return new DOMException('aborted', 'AbortError');
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortError();
+}
+
+/**
+ * Stop waiting for `work` when the signal aborts. The SDK's getVtxos takes no
+ * AbortSignal, so an HTTP request already under way is NOT cancelled: it
+ * finishes in the background and its answer is dropped. What this guarantees is
+ * that the caller is released at once and never acts on that answer. The
+ * listener is removed whichever settles first.
+ */
+function untilAborted<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return work;
+  if (signal.aborted) {
+    work.catch(() => {});
+    return Promise.reject(abortError());
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(abortError());
+    signal.addEventListener('abort', onAbort, { once: true });
+    work.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
+  });
+}
+
+/** Coins per request. The server may serve fewer: only its cursor ends the read. */
+const VTXO_PAGE_SIZE = 500;
+
+const isCount = (n: unknown): n is number => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0;
+
+/**
+ * Every VTXO of a query, page by page, following the indexer's own cursor
+ * (`page` = { current, next, total }, 1-based; asking for index 0 is asking
+ * for page 1). A short page is not the last page: only current >= total ends
+ * the read. The answer is all of it or an error: a refused or unusable page,
+ * a cursor that does not move forward or that comes back to a page already
+ * read, a page that is not the one asked for, a coin listed twice (the
+ * address moved under the read) all throw, and the caller never sees the pages
+ * read so far. There is no cap on coins: a cap would hide balance. A cursor
+ * strictly forward and bounded by `total` ends the loop on its own, and an
+ * empty page that is not the last one is refused so a huge `total` cannot
+ * keep it spinning on nothing.
+ */
+async function readAllPages(
+  getPage: (pageIndex: number) => Promise<{ vtxos: unknown; page?: unknown }>,
+  signal?: AbortSignal,
+): Promise<ArkadeVtxo[]> {
+  const coins: ArkadeVtxo[] = [];
+  const seenCoins = new Set<string>();
+  const seenPages = new Set<number>();
+  const invalid = () => new ArkadeError(tr('explorerArk.error.pageInvalid'));
+  let asked = 0;
+  for (;;) {
+    throwIfAborted(signal);
+    let res: { vtxos: unknown; page?: unknown };
+    try {
+      res = await untilAborted(getPage(asked), signal);
+    } catch (err) {
+      if (signal?.aborted) throw abortError();
+      throw new ArkadeError(err instanceof Error && err.message ? err.message : tr('explorerArk.error.loadVtxos'));
+    }
+    throwIfAborted(signal);
+
+    const raw = res?.vtxos;
+    if (!Array.isArray(raw)) throw invalid();
+    for (const item of raw) {
+      if (typeof item !== 'object' || item === null) throw invalid();
+      const coin = normalizeVtxo(item as Record<string, unknown>);
+      const key = `${coin.txid}:${coin.vout}`;
+      if (seenCoins.has(key)) throw new ArkadeError(tr('explorerArk.error.pageInconsistent'));
+      seenCoins.add(key);
+      coins.push(coin);
+    }
+
+    const page = res.page as { current?: unknown; next?: unknown; total?: unknown } | undefined | null;
+    if (page === undefined || page === null) {
+      // No cursor at all: the first request was the whole answer only if the
+      // page was not full. A full page without a cursor cannot be told from a
+      // cut one.
+      if (asked === 0 && raw.length < VTXO_PAGE_SIZE) return coins;
+      throw invalid();
+    }
+    const { current, next, total } = page;
+    if (!isCount(current) || !isCount(next) || !isCount(total)) throw invalid();
+    // An address with no coin: no page to count, and nothing to hide.
+    if (total === 0 && asked === 0 && raw.length === 0) return coins;
+    if (current < 1 || total < 1 || current > total) throw invalid();
+    // The page served must be the one asked for (0 and 1 both mean page 1).
+    if (current !== Math.max(1, asked) || seenPages.has(current)) throw invalid();
+    seenPages.add(current);
+    if (current >= total) return coins;
+    if (next !== current + 1 || next > total || raw.length === 0) throw invalid();
+    asked = next;
+  }
 }
 
 /**
@@ -280,25 +407,24 @@ export function normalizeVtxo(v: Record<string, unknown>): ArkadeVtxo {
  * of the Arkade explorer: it shows off-chain coins, not on-chain outputs.
  */
 export async function getArkadeAddressVtxos(base: string, address: string, opts: { signal?: AbortSignal } = {}): Promise<ArkadeAddressInfo> {
-  const { ArkAddress, RestIndexerProvider, isValidArkAddress } = await import('@arkade-os/sdk');
+  const { signal } = opts;
+  throwIfAborted(signal);
+  const { ArkAddress, RestIndexerProvider, isValidArkAddress } = await untilAborted(import('@arkade-os/sdk'), signal);
+  throwIfAborted(signal);
   const a = address.trim();
-  if (!isValidArkAddress(a)) throw new ArkadeError('That is not a valid Arkade address.');
+  if (!isValidArkAddress(a)) throw new ArkadeError(tr('explorerArk.error.invalidAddress'));
   let scriptHex: string;
   try {
     scriptHex = bytesToHex(ArkAddress.decode(a).pkScript);
   } catch {
-    throw new ArkadeError('Could not decode that Arkade address.');
+    throw new ArkadeError(tr('explorerArk.error.decodeAddress'));
   }
   const indexer = new RestIndexerProvider(base.replace(/\/+$/, ''));
-  let res: unknown;
-  try {
-    res = await indexer.getVtxos({ scripts: [scriptHex] });
-  } catch (err) {
-    if (opts.signal?.aborted) throw new DOMException('aborted', 'AbortError');
-    throw new ArkadeError(err instanceof Error ? err.message : 'Could not load VTXOs for this address.');
-  }
-  const raw = (res as { vtxos?: unknown })?.vtxos;
-  const vtxos = (Array.isArray(raw) ? raw : []).map(v => normalizeVtxo(v as Record<string, unknown>));
+  const vtxos = await readAllPages(
+    pageIndex => indexer.getVtxos({ scripts: [scriptHex], pageIndex, pageSize: VTXO_PAGE_SIZE }),
+    signal,
+  );
+  throwIfAborted(signal);
   const spendable = vtxos.filter(v => !v.isSpent && !v.isSwept);
   return {
     address: a,
@@ -429,7 +555,7 @@ async function fetchVirtualTx(base: string, txid: string, signal?: AbortSignal):
     const bytes = Uint8Array.from(atob(raw[0]), c => c.charCodeAt(0));
     tx = Transaction.fromPSBT(bytes, { allowUnknown: true, allowUnknownInputs: true, allowUnknownOutputs: true });
   } catch {
-    throw new ArkadeError('Could not decode this virtual transaction.');
+    throw new ArkadeError(tr('explorerArk.error.decodeVirtual'));
   }
 
   const inputs: ArkadeVirtualTxInput[] = [];
@@ -468,14 +594,15 @@ async function cachedArkadeInfo(base: string, signal?: AbortSignal): Promise<Ark
 }
 
 /** Arkade's unilateral exit delay is a relative timelock: in seconds (BIP68
- *  time units of 512 s) on mainnet, in blocks on some test setups. */
-export function formatArkadeExitDelay(delay: number): string {
+ *  time units of 512 s) on mainnet, in blocks on some test setups. English
+ *  unless a locale is given: the Ask Alice context keeps the English text. */
+export function formatArkadeExitDelay(delay: number, locale: Locale = 'en'): string {
   if (delay >= 512 && delay % 512 === 0) {
     const days = delay / 86_400;
     const blocks = Math.round(delay / 600);
-    return `${days % 1 === 0 ? days : days.toFixed(1)} day${days === 1 ? '' : 's'} (~${blocks.toLocaleString('en-US')} blocks)`;
+    return translatePlural(locale, 'explorerArk.exitDelay.days', days, { days: days % 1 === 0 ? days : days.toFixed(1), blocks: blocks.toLocaleString(formatLocale(locale)) });
   }
-  return `${delay.toLocaleString('en-US')} blocks`;
+  return translate(locale, 'explorerArk.exitDelay.blocks', { blocks: delay.toLocaleString(formatLocale(locale)) });
 }
 
 /** One VTXO by its outpoint, from the indexer; null when it knows none. */
@@ -516,7 +643,7 @@ export async function subscribeSettlements(
     signal: opts.signal,
     headers: { Accept: 'text/event-stream' },
   });
-  if (!res.ok || !res.body) throw new ArkadeError(`Stream error ${res.status}`);
+  if (!res.ok || !res.body) throw new ArkadeError(tr('explorerArk.error.stream', { status: res.status }));
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();

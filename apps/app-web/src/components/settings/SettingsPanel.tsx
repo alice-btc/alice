@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { trackProductEvent } from '@alice-wallet/alice-ai';
 import { SvgIcon } from '@/components/SvgIcon';
+import { useT } from '@/i18n';
 import { SETTINGS_TABS, type SettingsTab } from './tabs';
 
 function TabButton({
@@ -14,6 +15,7 @@ function TabButton({
   isActive: boolean;
   onSelect: () => void;
 }) {
+  const t = useT();
   const color = isActive ? 'var(--alice-selected)' : 'var(--alice-muted)';
   return (
     <button
@@ -35,7 +37,7 @@ function TabButton({
           className="font-numbers text-center sm:text-left leading-tight sm:whitespace-nowrap"
           style={{ fontSize: 13 }}
         >
-          {tab.label}
+          {t(tab.labelKey)}
         </span>
       </span>
     </button>
@@ -53,6 +55,7 @@ export function SettingsPanel({
   activeTab: string;
   onSelectTab: (id: string) => void;
 }) {
+  const t = useT();
   useEffect(() => {
     trackProductEvent('settings_opened');
   }, []);
@@ -80,7 +83,7 @@ export function SettingsPanel({
           document.getElementById(`settings-tab-${SETTINGS_TABS[next].id}`)?.focus();
         }}
         role="tablist"
-        aria-label="Settings sections"
+        aria-label={t('settings.rail.aria')}
       >
         {SETTINGS_TABS.map((tab, index) => {
           const previous = SETTINGS_TABS[index - 1];

@@ -8,11 +8,56 @@ import {
   requiresBufferedAliceResponse,
   withAliceInstructionReminder,
 } from './ai-system-prompt';
+import {
+  customModelHint,
+  customServerBase,
+  customThinkingSwitch,
+  detectCustomProtocol,
+  fitCustomServerMessages,
+  listedModelIds,
+  ThinkingFilter,
+  type CustomServerProtocol,
+} from './custom-server-policy';
+
+// A server the user runs: their own machine, their node, a company server.
+// It speaks the OpenAI shape (llama-server, LM Studio, vLLM, Ollama too) or,
+// failing that, Ollama's own /api/chat. What it serves is read from its
+// model list, so a Qwen3.5 behind llama-server gets the same template and
+// thinking rules as the bundled local model instead of a 400.
+
+export type CustomServerProbe = { protocol: CustomServerProtocol; models: string[] };
+
+/**
+ * What the server at this address answers: the API it speaks and the models
+ * it lists, or null when neither discovery path answers. The backend asks
+ * this before its first message, and Settings asks it when the user saves
+ * the address, so "connected" there means the server answered, not that an
+ * address was saved.
+ */
+export async function probeCustomServer(config: CustomServerConfig): Promise<CustomServerProbe | null> {
+  const base = customServerBase(config.url);
+  const headers: Record<string, string> = config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {};
+  const probe = async (path: string): Promise<unknown | null> => {
+    try {
+      const res = await fetch(`${base}${path}`, { method: 'GET', headers });
+      if (!res.ok) return null;
+      return await res.json().catch(() => ({}));
+    } catch {
+      return null;
+    }
+  };
+  const openAi = await probe('/v1/models');
+  const ollama = openAi === null ? await probe('/api/tags') : null;
+  const protocol = detectCustomProtocol(openAi !== null, ollama !== null);
+  return protocol ? { protocol, models: listedModelIds(openAi ?? ollama) } : null;
+}
 
 export class CustomAIBackend implements AIBackend {
   readonly type = 'custom' as const;
   private _status: AIBackendStatus = { state: 'idle' };
   private config: CustomServerConfig | null = null;
+  private protocol: CustomServerProtocol = 'openai';
+  private modelHint = '';
 
   async init(): Promise<void> {
     this.config = await getCustomServer();
@@ -20,20 +65,22 @@ export class CustomAIBackend implements AIBackend {
       this._status = { state: 'error', message: 'No custom server configured. Go to Settings > Customize Alice.' };
       return;
     }
-    try {
-      const base = this.config.url.replace(/\/+$/, '');
-      const res = await fetch(`${base}/api/tags`, { method: 'GET' }).catch(() => null);
-      if (!res || !res.ok) {
-        await fetch(`${base}/v1/models`, { method: 'GET' });
-      }
-      this._status = { state: 'ready' };
-    } catch {
+    const probed = await probeCustomServer(this.config);
+    if (!probed) {
       this._status = { state: 'error', message: `Cannot reach ${this.config.url}` };
+      return;
     }
+    this.protocol = probed.protocol;
+    this.modelHint = customModelHint(this.config.model, probed.models);
+    this._status = { state: 'ready' };
   }
 
   status(): AIBackendStatus {
     return this._status;
+  }
+
+  private authHeaders(): Record<string, string> {
+    return this.config?.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {};
   }
 
   async sendMessage(messages: Message[], onChunk?: (chunk: string) => void, options?: SendMessageOptions): Promise<AIResponse> {
@@ -41,18 +88,21 @@ export class CustomAIBackend implements AIBackend {
 
     const [preset, instructions] = await Promise.all([getPreset('cloud'), getAliceInstructions()]);
     const params = PRESETS[preset];
-    const base = this.config.url.replace(/\/+$/, '');
-    const isOllama = !this.config.apiKey;
+    const base = customServerBase(this.config.url);
     const shouldBuffer = requiresBufferedAliceResponse(instructions);
+    const responseLanguage = options?.responseLanguage ?? 'en';
+    const thinking = customThinkingSwitch(this.modelHint, this.protocol);
 
-    const fullMessages = [
-      { role: 'system' as const, content: buildAliceSystemPrompt(instructions, options?.responseLanguage ?? 'en') },
-      ...withAliceInstructionReminder(messages, instructions, options?.responseLanguage ?? 'en', options?.strictLanguageRetry),
-    ];
+    const fullMessages = fitCustomServerMessages([
+      { role: 'system' as const, content: buildAliceSystemPrompt(instructions, responseLanguage) + thinking.promptSuffix },
+      ...withAliceInstructionReminder(messages, instructions, responseLanguage, options?.strictLanguageRetry),
+    ], this.modelHint);
 
-    const result = isOllama
-      ? await this.sendOllama(base, fullMessages, { ...params, temperature: options?.temperatureOverride ?? params.temperature }, shouldBuffer ? undefined : onChunk)
-      : await this.sendOpenAI(base, fullMessages, { ...params, temperature: options?.temperatureOverride ?? params.temperature }, shouldBuffer ? undefined : onChunk);
+    const generation = { ...params, temperature: options?.temperatureOverride ?? params.temperature };
+    const streamTo = shouldBuffer ? undefined : onChunk;
+    const result = this.protocol === 'ollama'
+      ? await this.sendOllama(base, fullMessages, generation, thinking.payload, streamTo)
+      : await this.sendOpenAI(base, fullMessages, generation, thinking.payload, streamTo);
     const constrained = applyAliceResponseConstraints(instructions, result.content);
     if (shouldBuffer && onChunk) onChunk(constrained);
     // truncated is surfaced to the UI as a "may be incomplete" notice. Unlike
@@ -65,17 +115,19 @@ export class CustomAIBackend implements AIBackend {
     base: string,
     messages: Message[],
     params: { temperature: number; maxTokens: number },
+    extra: Record<string, unknown>,
     onChunk?: (chunk: string) => void,
   ): Promise<AIResponse> {
     const t0 = Date.now();
     const response = await fetch(`${base}/api/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
       body: JSON.stringify({
         model: this.config!.model,
         messages,
         stream: Boolean(onChunk),
         options: { temperature: params.temperature, num_predict: params.maxTokens },
+        ...extra,
       }),
     });
 
@@ -84,7 +136,7 @@ export class CustomAIBackend implements AIBackend {
     if (onChunk && response.body) {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let full = '';
+      const filter = new ThinkingFilter();
       let buffer = '';
       let usage: TokenUsage | undefined;
       let truncated = false;
@@ -111,11 +163,14 @@ export class CustomAIBackend implements AIBackend {
             // positive).
             if (parsed.done && parsed.done_reason === 'length') truncated = true;
             const content = parsed.message?.content ?? '';
-            if (content) { full += content; onChunk(content); }
+            if (content) {
+              const visible = filter.push(content);
+              if (visible) onChunk(visible);
+            }
           } catch {}
         }
       }
-      return { content: full, usage, durationMs: Date.now() - t0, truncated };
+      return { content: filter.visibleText(), usage, durationMs: Date.now() - t0, truncated };
     }
 
     const data = await response.json();
@@ -125,7 +180,7 @@ export class CustomAIBackend implements AIBackend {
       totalTokens: (data.prompt_eval_count ?? 0) + (data.eval_count ?? 0),
     } : undefined;
     return {
-      content: data.message?.content ?? '',
+      content: new ThinkingFilter().push(data.message?.content ?? '') ,
       usage,
       durationMs: Date.now() - t0,
       truncated: data.done_reason === 'length',
@@ -136,10 +191,10 @@ export class CustomAIBackend implements AIBackend {
     base: string,
     messages: Message[],
     params: { temperature: number; maxTokens: number },
+    extra: Record<string, unknown>,
     onChunk?: (chunk: string) => void,
   ): Promise<AIResponse> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (this.config!.apiKey) headers['Authorization'] = `Bearer ${this.config!.apiKey}`;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', ...this.authHeaders() };
 
     const streaming = Boolean(onChunk);
     const payload: Record<string, unknown> = {
@@ -148,6 +203,7 @@ export class CustomAIBackend implements AIBackend {
       temperature: params.temperature,
       max_tokens: params.maxTokens,
       stream: streaming,
+      ...extra,
     };
     if (streaming) payload.stream_options = { include_usage: true };
 
@@ -163,7 +219,7 @@ export class CustomAIBackend implements AIBackend {
     if (onChunk && response.body) {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let full = '';
+      const filter = new ThinkingFilter();
       let buffer = '';
       let usage: TokenUsage | undefined;
       let truncated = false;
@@ -191,11 +247,14 @@ export class CustomAIBackend implements AIBackend {
             // OpenAI-compatible finish_reason 'length' means max_tokens cut it off.
             if (parsed.choices?.[0]?.finish_reason === 'length') truncated = true;
             const delta = parsed.choices?.[0]?.delta?.content ?? '';
-            if (delta) { full += delta; onChunk(delta); }
+            if (delta) {
+              const visible = filter.push(delta);
+              if (visible) onChunk(visible);
+            }
           } catch {}
         }
       }
-      return { content: full, usage, durationMs: Date.now() - t0, truncated };
+      return { content: filter.visibleText(), usage, durationMs: Date.now() - t0, truncated };
     }
 
     const data = await response.json();
@@ -206,7 +265,7 @@ export class CustomAIBackend implements AIBackend {
       totalTokens: u.total_tokens ?? (u.prompt_tokens ?? 0) + (u.completion_tokens ?? 0),
     } : undefined;
     return {
-      content: data.choices?.[0]?.message?.content ?? '',
+      content: new ThinkingFilter().push(data.choices?.[0]?.message?.content ?? ''),
       usage,
       durationMs: Date.now() - t0,
       truncated: data.choices?.[0]?.finish_reason === 'length',

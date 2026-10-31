@@ -1,12 +1,13 @@
+import type { LearnSource } from './learn-context';
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AIBackend, AIBackendType, AIBackendStatus, TokenUsage } from './ai-backend';
 import { VeniceAPIError, type Message } from './llm';
 import { quotaBlockOf } from './venice-errors';
-import { createBackend, canUseLocal, isTauriDesktop } from './ai-backend-factory';
+import { createBackend, canUseLocal } from './ai-backend-factory';
 import { subscribeLocalModelInstalled } from './local-model-events';
-import { generateLanguageChecked, WrongResponseLanguageError } from './language-generation';
+import { generateLanguageChecked, LANGUAGE_CHECKED_ATTEMPTS, WrongResponseLanguageError } from './language-generation';
 import { retrieveTurnKnowledge } from './turn-knowledge';
 import { pedagogicalContext, recordPedagogicalSignal } from './pedagogical-profile';
 import {
@@ -15,21 +16,31 @@ import {
   getAliceMemory,
   rememberAliceCandidates,
 } from './alice-memory';
-import { prepareAliceTurn, type TurnPreparationDiagnostics } from './turn-engine';
+import { prepareAliceTurn, type TurnLanguageDiagnostics, type TurnPreparationDiagnostics } from './turn-engine';
 import {
   getAIBackendEnabledState,
+  currentInterfaceLanguage,
   getAliceInstructions,
+  getAppLanguage,
   getResponseLanguagePreference,
   isAIEnabled,
+  subscribeLanguagePreferences,
   setAIBackendEnabled,
   setAIEnabled,
   type AIBackendEnabledState,
 } from './ai-preferences';
-import { resolveResponseLanguage, type SupportedLanguage } from './language-policy';
+import {
+  conversationLanguageAfter,
+  resolveResponseLanguage,
+  type LanguageDecision,
+  type SupportedLanguage,
+} from './language-policy';
+import { languageDefinition } from './languages';
 import { detectSensitiveInput } from './ai-sensitive-input';
 import { getAIDisabledMessage } from './ai-availability';
 import { applyAliceResponseConstraints, requiresBufferedAliceResponse } from './ai-system-prompt';
 import { PRIVATE_CLOUD_ENABLED } from './private-cloud-config';
+import { chooseInitialBackend } from './initial-backend';
 import { createPrivateCloudRequestId } from './account-client';
 import { useAccount } from './account-context';
 import {
@@ -39,6 +50,7 @@ import {
   loadSession,
   listSessions,
   deleteSession,
+  setSessionLanguageOverride,
   type ChatCleanupMode,
   type ChatCleanupResult,
   type ChatSession,
@@ -46,8 +58,8 @@ import {
   type ChatStorageSummary,
 } from './chat-storage';
 import {
-  GREETING,
   createGreetingMessage,
+  greetingFor,
   isGreeting,
   isPersistableSession,
   stripGreeting,
@@ -60,14 +72,14 @@ async function buildGenerationHistory(
   history: Message[],
   userMessage: string,
   backendType: AIBackendType,
-  targetLanguage: SupportedLanguage,
+  language: LanguageDecision,
   storageCipher?: ChatStorageCipher,
-  assistantHistoryDropped = false,
 ): Promise<{
   history: Message[];
   diagnostics: TurnPreparationDiagnostics;
   directResponse: string | null;
 }> {
+  const targetLanguage = language.targetLanguage;
   const latest = history.at(-1);
   if (!latest || latest.role !== 'user') {
     return {
@@ -79,6 +91,7 @@ async function buildGenerationHistory(
         retrieval: 'none',
         retrievedChunkIds: [],
         answerRuleNoteIds: [],
+        language: { target: targetLanguage, source: language.source, attempts: 0 },
         phaseMs: { plan: 0, rewrite: 0, compose: 0, pedagogy: 0, retrieval: 0, memory: 0, total: 0 },
       },
     };
@@ -89,7 +102,7 @@ async function buildGenerationHistory(
     userMessage,
     backendType,
     targetLanguage,
-    assistantHistoryDropped,
+    languageSource: language.source,
   }, {
     recordPedagogicalSignal,
     retrieveKnowledge: query => retrieveTurnKnowledge(query, backendType, targetLanguage, storageCipher),
@@ -106,13 +119,19 @@ async function buildGenerationHistory(
   };
 }
 
-function currentInterfaceLanguage(): string {
-  if (typeof navigator !== 'undefined' && navigator.language) return navigator.language;
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().locale;
-  } catch {
-    return 'en';
-  }
+/** The diagnostics line of a turn once generation settled; never any text of the turn. */
+function languageDiagnostics(language: LanguageDecision, attempts: number): TurnLanguageDiagnostics {
+  return { target: language.targetLanguage, source: language.source, attempts };
+}
+
+/** Every attempt came back in another language: the turn still leaves its line. */
+function logLanguageFailure(err: unknown, backendType: AIBackendType, language: LanguageDecision | null): void {
+  if (!(err instanceof WrongResponseLanguageError) || !language) return;
+  console.info('[alice-turn]', JSON.stringify({
+    backend: backendType,
+    failure: 'wrong-response-language',
+    language: languageDiagnostics(language, LANGUAGE_CHECKED_ATTEMPTS),
+  }));
 }
 
 /**
@@ -135,7 +154,11 @@ function userFacingSendError(err: unknown, backendType: AIBackendType): string {
 }
 
 function sendErrorText(err: unknown, backendType: AIBackendType): string {
-  if (err instanceof WrongResponseLanguageError) return err.message;
+  if (err instanceof WrongResponseLanguageError) {
+    // Small local models are the ones that drift; Private Cloud holds the
+    // language, so the failure says where an answer can come from.
+    return backendType === 'local' ? languageDefinition(err.targetLanguage).localAnswerFailure : err.message;
+  }
   if (err instanceof VeniceAPIError) {
     if (err.code === 'account_required') {
       return 'Private Cloud could not restore its session. Try again.';
@@ -188,6 +211,10 @@ function sendErrorText(err: unknown, backendType: AIBackendType): string {
     }
     if (err.code === 'attestation_invalid') {
       return 'Private Cloud security verification failed. For your privacy, Alice did not send your message.';
+    }
+    if (err.code === 'request_too_large') {
+      return 'This message is too long for Private Cloud, with the instructions Alice adds to it.'
+        + ' Nothing was sent and nothing was cut. Shorten your message or the pasted text, then try again.';
     }
     if (err.code === 'network') {
       return 'Network error. Check your connection and try again.';
@@ -243,6 +270,19 @@ export type ChatMsg = {
    * or of a free trial, is the product behaving as sold, not a malfunction.
    */
   quotaBlocked?: 'free' | 'plan';
+  /**
+   * The Learn material quoted in the context of this reply (a course
+   * chapter, a tutorial, a dictionary definition): the reply shows them with
+   * a way to open them, which is the attribution the licences ask for.
+   */
+  sources?: LearnSource[];
+  /** How the language of this answer was chosen (target, source, attempts). */
+  language?: TurnLanguageDiagnostics;
+  /**
+   * Alice Local could not answer in the target language and Private Cloud is
+   * available: the reply offers to ask the same question there.
+   */
+  cloudRetry?: boolean;
 };
 
 type ChatContextValue = {
@@ -273,6 +313,8 @@ type ChatContextValue = {
   deleteMessage: (id: string) => void;
   editMessage: (id: string, newContent: string) => Promise<void>;
   setMessageVariant: (id: string, variantIndex: number) => void;
+  /** Moves to Private Cloud and asks again the question this failed reply answered. */
+  retryWithPrivateCloud: (assistantMessageId: string) => void;
 };
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -308,6 +350,11 @@ export function ChatProvider({
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   // Bumped to ask for the greeting; 0 means nothing has asked yet.
   const [greetingRequest, setGreetingRequest] = useState(0);
+  // The language asked for in this conversation's messages; null follows
+  // Settings. Only the ref is read: a turn decides with it, a save stores it.
+  const languageOverrideRef = useRef<SupportedLanguage | null>(null);
+  // The user message to ask again once Private Cloud is ready.
+  const pendingCloudRetryRef = useRef<string | null>(null);
   const historyRef = useRef<Message[]>([]);
   const messagesRef = useRef<ChatMsg[]>([]);
   const backendRef = useRef<AIBackend | null>(null);
@@ -334,19 +381,15 @@ export function ChatProvider({
       setBackendEnabledState(enabledBackends);
       if (backendSelectedRef.current) return;
 
-      // A stored choice wins, but only while that backend is still enabled. With
-      // no stored choice, desktop prefers the local model (it has one bundled
-      // and no network dependency), everything else prefers Private Cloud. The
-      // final branch is guarded rather than unconditional so a user who
-      // disabled every backend keeps none selected instead of silently landing
-      // on a disabled one.
-      if (stored === 'local' && localAvailable && enabledBackends.local) setBackendTypeState('local');
-      else if (stored === 'custom' && enabledBackends.custom) setBackendTypeState('custom');
-      else if (stored === 'cloud' && PRIVATE_CLOUD_ENABLED && enabledBackends.cloud) setBackendTypeState('cloud');
-      else if (!stored && isTauriDesktop() && localAvailable && enabledBackends.local) setBackendTypeState('local');
-      else if (PRIVATE_CLOUD_ENABLED && enabledBackends.cloud) setBackendTypeState('cloud');
-      else if (localAvailable && enabledBackends.local) setBackendTypeState('local');
-      else if (enabledBackends.custom) setBackendTypeState('custom');
+      // Private Cloud on a first launch, Alice Desktop included (see
+      // initial-backend.ts).
+      const initial = chooseInitialBackend({
+        stored,
+        localAvailable,
+        enabled: enabledBackends,
+        privateCloudEnabled: PRIVATE_CLOUD_ENABLED,
+      });
+      if (initial) setBackendTypeState(initial);
     }).catch(() => {});
   }, [localAvailable]);
 
@@ -444,12 +487,16 @@ export function ChatProvider({
     // alone never makes one: it is dropped before the check, not after.
     const persistable = stripGreeting(nextMessages);
     if (!isPersistableSession(nextMessages)) return;
+    // Only the current conversation's save carries its language; saving
+    // the conversation being left keeps what it stored.
+    const languageOverride = updateCurrentSession ? languageOverrideRef.current : undefined;
     sessionSaveQueueRef.current = sessionSaveQueueRef.current
       .then(async () => {
         const id = await saveSession(
           persistable,
           sessionId === undefined ? currentSessionIdRef.current : sessionId,
           storageCipher,
+          languageOverride,
         );
         if (id && updateCurrentSession) {
           currentSessionIdRef.current = id;
@@ -461,6 +508,50 @@ export function ChatProvider({
       .catch(() => {});
   }, [refreshSessions, storageCipher]);
 
+  const applyLanguageOverride = useCallback((language: SupportedLanguage | null) => {
+    languageOverrideRef.current = language;
+  }, []);
+
+  const setLanguageOverride = useCallback((language: SupportedLanguage | null) => {
+    applyLanguageOverride(language);
+    const id = currentSessionIdRef.current;
+    if (!id) return;
+    sessionSaveQueueRef.current = sessionSaveQueueRef.current
+      .then(() => setSessionLanguageOverride(id, language, storageCipher))
+      .then(() => refreshSessions())
+      .catch(() => {});
+  }, [applyLanguageOverride, refreshSessions, storageCipher]);
+
+  // A language asked for in a message ("answer in English", "réponds en
+  // français") holds for the rest of the conversation, until another request;
+  // a new conversation starts again from Settings.
+  const followLanguageRequest = useCallback((message: string) => {
+    const kept = conversationLanguageAfter(message, languageOverrideRef.current);
+    if (kept !== languageOverrideRef.current) setLanguageOverride(kept);
+  }, [setLanguageOverride]);
+
+  /**
+   * The language of the answer to `message`. The language asked for earlier
+   * in this conversation stands in for the Settings preference; Auto reads
+   * the user turns before the current one.
+   */
+  const decideLanguage = useCallback(async (
+    message: string,
+    history: Message[],
+    ignoreOverride = false,
+  ): Promise<LanguageDecision> => {
+    const [preference, appLanguage] = await Promise.all([getResponseLanguagePreference(), getAppLanguage()]);
+    const last = history.at(-1);
+    const previous = last?.role === 'user' && last.content === message ? history.slice(0, -1) : history;
+    return resolveResponseLanguage({
+      message,
+      preference: (ignoreOverride ? null : languageOverrideRef.current) ?? preference,
+      appLanguage,
+      history: previous,
+      interfaceLanguage: currentInterfaceLanguage(),
+    });
+  }, []);
+
   // Requesting the greeting is a signal, not a state mutation: the animation
   // below owns its own interval through the effect cleanup. The previous
   // version started the interval inside a setMessages updater, which React may
@@ -470,44 +561,58 @@ export function ChatProvider({
     setGreetingRequest(n => n + 1);
   }, []);
 
+  // A fresh chat showing only the greeting follows an app language change.
+  useEffect(() => subscribeLanguagePreferences(() => {
+    const current = messagesRef.current;
+    if (current.length > 0 && current.every(isGreeting)) setGreetingRequest(n => n + 1);
+  }), []);
+
   useEffect(() => {
     if (greetingRequest === 0) return;
-    // Never animate over a conversation, and never compete with a generation.
-    if (busyRef.current) return;
-    const currentMessages = messagesRef.current;
-    const existingGreeting = currentMessages.find(isGreeting);
-    if (currentMessages.some(m => !isGreeting(m))) return;
-    if (existingGreeting?.content === GREETING) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    // Typed in the app language, read when it is shown, so a change in
+    // Settings greets the next fresh chat in the new language.
+    void getAppLanguage().catch(() => 'en' as const).then(language => {
+      if (cancelled) return;
+      const text = greetingFor(language);
+      // Never animate over a conversation, and never compete with a generation.
+      if (busyRef.current) return;
+      const currentMessages = messagesRef.current;
+      const existingGreeting = currentMessages.find(isGreeting);
+      if (currentMessages.some(m => !isGreeting(m))) return;
+      if (existingGreeting?.content === text) return;
 
-    const charsPerTick = Platform.OS === 'web' ? 1 : 2;
-    // Seed both state and its mirror synchronously. Without this, the first
-    // timer tick can observe the previous empty ref, stop itself, and leave the
-    // greeting bubble permanently rendered as "...".
-    const greeting = {
-      ...createGreetingMessage(),
-      content: GREETING.slice(0, charsPerTick),
-    };
-    messagesRef.current = [greeting];
-    setMessages([greeting]);
+      const charsPerTick = Platform.OS === 'web' ? 1 : 2;
+      // Seed both state and its mirror synchronously. Without this, the first
+      // timer tick can observe the previous empty ref, stop itself, and leave the
+      // greeting bubble permanently rendered as "...".
+      const greeting = {
+        ...createGreetingMessage(),
+        content: text.slice(0, charsPerTick),
+      };
+      messagesRef.current = [greeting];
+      setMessages([greeting]);
 
-    let i = charsPerTick;
-    const timer = setInterval(() => {
-      // Only ever write into the greeting bubble. If the user sent something
-      // meanwhile the conversation keeps growing around it untouched, and once
-      // the bubble is gone there is nothing left to type.
-      if (!messagesRef.current.some(isGreeting)) {
-        clearInterval(timer);
-        return;
-      }
-      i = Math.min(i + charsPerTick, GREETING.length);
-      const slice = GREETING.slice(0, i);
-      setMessages(curr => curr.map(m => (
-        isGreeting(m) ? { ...m, content: slice } : m
-      )));
-      if (i >= GREETING.length) clearInterval(timer);
-    }, 28);
+      let i = charsPerTick;
+      timer = setInterval(() => {
+        // Only ever write into the greeting bubble. If the user sent something
+        // meanwhile the conversation keeps growing around it untouched, and once
+        // the bubble is gone there is nothing left to type.
+        if (!messagesRef.current.some(isGreeting)) {
+          clearInterval(timer);
+          return;
+        }
+        i = Math.min(i + charsPerTick, text.length);
+        const slice = text.slice(0, i);
+        setMessages(curr => curr.map(m => (
+          isGreeting(m) ? { ...m, content: slice } : m
+        )));
+        if (i >= text.length) clearInterval(timer);
+      }, 28);
+    });
 
-    return () => clearInterval(timer);
+    return () => { cancelled = true; clearInterval(timer); };
   }, [greetingRequest]);
 
   const clearMessages = useCallback(() => {
@@ -520,11 +625,12 @@ export function ChatProvider({
       return [];
     });
     historyRef.current = [];
+    applyLanguageOverride(null);
     // A cleared chat shows the greeting again. Done here rather than in an
     // effect watching messages.length, which would also fire during the window
     // where openSession empties the list before the loaded session arrives.
     showGreeting();
-  }, [persistSessionMessages, showGreeting]);
+  }, [applyLanguageOverride, persistSessionMessages, showGreeting]);
 
   const openSession = useCallback(async (id: string) => {
     setLastRequestFailed(false);
@@ -534,6 +640,7 @@ export function ChatProvider({
       return [];
     });
     historyRef.current = [];
+    applyLanguageOverride(null);
     // Sessions written by earlier versions still carry the greeting bubble.
     // Drop it on the way in, so it neither shows up in the restored thread nor
     // reaches the model as a fake first assistant turn.
@@ -543,8 +650,10 @@ export function ChatProvider({
     if (restored.length) {
       setMessages(restored);
       historyRef.current = toHistory(restored);
+      const stored = (await listSessions(storageCipher)).find(session => session.id === id);
+      if (currentSessionIdRef.current === id) applyLanguageOverride(stored?.languageOverride ?? null);
     }
-  }, [persistSessionMessages, storageCipher]);
+  }, [applyLanguageOverride, persistSessionMessages, storageCipher]);
 
   const removeSession = useCallback(async (id: string) => {
     if (currentSessionIdRef.current === id) {
@@ -566,11 +675,19 @@ export function ChatProvider({
       historyRef.current = [];
       messagesRef.current = [];
       setMessages([]);
+      applyLanguageOverride(null);
       showGreeting();
     }
     await refreshSessions();
     return result;
-  }, [refreshSessions, showGreeting, storageCipher]);
+  }, [applyLanguageOverride, refreshSessions, showGreeting, storageCipher]);
+
+  const canRetryOnPrivateCloud = useCallback((err: unknown) => (
+    err instanceof WrongResponseLanguageError
+      && backendType === 'local'
+      && PRIVATE_CLOUD_ENABLED
+      && backendEnabled.cloud
+  ), [backendEnabled, backendType]);
 
   const send = useCallback(async (text?: string) => {
     const t = (text ?? input).trim();
@@ -616,31 +733,29 @@ export function ChatProvider({
     const backend = backendRef.current;
     let pendingAssistantId: string | null = null;
     let usedBackend = false;
+    let turnLanguage: LanguageDecision | null = null;
     try {
       let full = '';
       const aid = (Date.now() + 1).toString();
       pendingAssistantId = aid;
       setMessages(prev => [...prev, { id: aid, role: 'assistant', content: '', time: new Date() }]);
 
-      const languagePreference = await getResponseLanguagePreference();
-      const languageDecision = resolveResponseLanguage({
-        message: t,
-        preference: languagePreference,
-        interfaceLanguage: currentInterfaceLanguage(),
-      });
+      followLanguageRequest(t);
+      const languageDecision = await decideLanguage(t, historyRef.current);
+      turnLanguage = languageDecision;
       const generationPreparation = await buildGenerationHistory(
         historyRef.current,
         t,
         backend?.type ?? backendType,
-        languageDecision.targetLanguage,
+        languageDecision,
         storageCipher,
-        backend?.allowsAutoContinuation === false,
       );
       if (generationPreparation.directResponse) {
         const directResponse = generationPreparation.directResponse;
+        const language = languageDiagnostics(languageDecision, 0);
         setMessages(prev => {
           const next = prev.map(message => (
-            message.id === aid ? { ...message, content: directResponse, durationMs: 0 } : message
+            message.id === aid ? { ...message, content: directResponse, durationMs: 0, language } : message
           ));
           persistSessionMessages(next);
           return next;
@@ -649,6 +764,7 @@ export function ChatProvider({
         console.info('[alice-turn]', JSON.stringify({
           backend: 'deterministic',
           ...generationPreparation.diagnostics,
+          language,
           generationMs: 0,
           firstDisplayMs: 0,
           attempts: 0,
@@ -695,11 +811,7 @@ export function ChatProvider({
       // (The smallest preset budget is 256 tokens, far more than one sentence, so
       // a genuinely cut-off single sentence is not a realistic case.)
       const buffered = requiresBufferedAliceResponse(instructions);
-      // allowsAutoContinuation is false under E2EE: assistant turns are dropped
-      // rather than sent in clear, so there is no partial answer to extend.
-      const allowContinuation = backend.type === 'cloud'
-        && backend.allowsAutoContinuation !== false
-        && !buffered;
+      const allowContinuation = backend.type === 'cloud' && !buffered;
       usedBackend = true;
       const result = await generateLanguageChecked({
         backend,
@@ -717,9 +829,11 @@ export function ChatProvider({
       const tokensPerSecond = completionTokens != null && result.durationMs
         ? Math.round((completionTokens * 1000 / result.durationMs) * 10) / 10
         : null;
+      const language = languageDiagnostics(languageDecision, result.attempts);
       console.info('[alice-turn]', JSON.stringify({
         backend: backend.type,
         ...generationPreparation.diagnostics,
+        language,
         generationMs: result.durationMs ?? null,
         firstDisplayMs: result.firstDisplayMs ?? null,
         completionTokens,
@@ -730,8 +844,11 @@ export function ChatProvider({
       }));
       full = applyAliceResponseConstraints(instructions, result.text);
       void rememberAliceCandidates(result.memoryCandidates).catch(() => {});
+      const sources = generationPreparation.diagnostics.learnSources;
       setMessages(prev => {
-        const next = prev.map(m => m.id === aid ? { ...m, content: full, usage: result.usage, durationMs: result.durationMs, truncated: result.truncated && !buffered } : m);
+        const next = prev.map(m => m.id === aid
+          ? { ...m, content: full, usage: result.usage, durationMs: result.durationMs, truncated: result.truncated && !buffered, language, ...(sources && sources.length > 0 ? { sources } : {}) }
+          : m);
         persistSessionMessages(next);
         return next;
       });
@@ -739,17 +856,20 @@ export function ChatProvider({
     } catch (err) {
       console.warn('[chat] send failed:', err);
       setLastRequestFailed(true);
+      logLanguageFailure(err, backendType, turnLanguage);
+      const cloudRetry = canRetryOnPrivateCloud(err) || undefined;
       setMessages(prev => {
         const content = userFacingSendError(err, backendType);
         const quotaBlocked = quotaBlockOf(err) ?? undefined;
         const next = pendingAssistantId
-          ? prev.map(message => message.id === pendingAssistantId ? { ...message, content, quotaBlocked } : message)
+          ? prev.map(message => message.id === pendingAssistantId ? { ...message, content, quotaBlocked, cloudRetry } : message)
           : [...prev, {
             id: (Date.now() + 2).toString(),
             role: 'assistant' as const,
             content,
             time: new Date(),
             quotaBlocked,
+            cloudRetry,
           }];
         persistSessionMessages(next);
         return next;
@@ -763,8 +883,12 @@ export function ChatProvider({
   }, [
     account,
     aiEnabled,
+    backendEnabled,
     backendType,
     busy,
+    canRetryOnPrivateCloud,
+    decideLanguage,
+    followLanguageRequest,
     input,
     persistSessionMessages,
     storageCipher,
@@ -853,33 +977,26 @@ export function ChatProvider({
       return;
     }
 
+    let turnLanguage: LanguageDecision | null = null;
     try {
       let full = '';
-      const [instructions, languagePreference] = await Promise.all([
+      followLanguageRequest(trimmed);
+      const [instructions, languageDecision] = await Promise.all([
         getAliceInstructions(),
-        getResponseLanguagePreference(),
+        decideLanguage(trimmed, historyRef.current),
       ]);
-      const languageDecision = resolveResponseLanguage({
-        message: trimmed,
-        preference: languagePreference,
-        interfaceLanguage: currentInterfaceLanguage(),
-      });
+      turnLanguage = languageDecision;
       const generationPreparation = await buildGenerationHistory(
         historyRef.current,
         trimmed,
         backend.type,
-        languageDecision.targetLanguage,
+        languageDecision,
         storageCipher,
-        backend.allowsAutoContinuation === false,
       );
       // A "one sentence" instruction trims the answer on purpose, so a provider
       // truncation notice would be a false positive, suppress it here too.
       const buffered = requiresBufferedAliceResponse(instructions);
-      // allowsAutoContinuation is false under E2EE: assistant turns are dropped
-      // rather than sent in clear, so there is no partial answer to extend.
-      const allowContinuation = backend.type === 'cloud'
-        && backend.allowsAutoContinuation !== false
-        && !buffered;
+      const allowContinuation = backend.type === 'cloud' && !buffered;
 
       if (assistantMsg) {
         const aVariants = assistantMsg.variants ?? [{
@@ -908,9 +1025,11 @@ export function ChatProvider({
             }));
           },
         });
+        const language = languageDiagnostics(languageDecision, result.attempts);
         console.info('[alice-turn]', JSON.stringify({
           backend: backend.type,
           ...generationPreparation.diagnostics,
+          language,
           generationMs: result.durationMs ?? null,
           firstDisplayMs: result.firstDisplayMs ?? null,
           attempts: result.attempts,
@@ -925,7 +1044,7 @@ export function ChatProvider({
             if (m.id !== assistantMsg.id) return m;
             const vs = [...(m.variants ?? [])];
             vs[newAIdx] = { content: full, time: new Date(), usage: result.usage, durationMs: result.durationMs };
-            return { ...m, content: full, variants: vs, activeVariant: newAIdx, usage: result.usage, durationMs: result.durationMs, truncated: result.truncated && !buffered };
+            return { ...m, content: full, variants: vs, activeVariant: newAIdx, usage: result.usage, durationMs: result.durationMs, truncated: result.truncated && !buffered, language, cloudRetry: undefined };
           });
           persistSessionMessages(next);
           return next;
@@ -949,9 +1068,11 @@ export function ChatProvider({
             )));
           },
         });
+        const language = languageDiagnostics(languageDecision, result.attempts);
         console.info('[alice-turn]', JSON.stringify({
           backend: backend.type,
           ...generationPreparation.diagnostics,
+          language,
           generationMs: result.durationMs ?? null,
           firstDisplayMs: result.firstDisplayMs ?? null,
           attempts: result.attempts,
@@ -961,7 +1082,7 @@ export function ChatProvider({
         full = applyAliceResponseConstraints(instructions, result.text);
         void rememberAliceCandidates(result.memoryCandidates).catch(() => {});
         setMessages(p => {
-          const next = p.map(m => m.id === aid ? { ...m, content: full, usage: result.usage, durationMs: result.durationMs, truncated: result.truncated && !buffered } : m);
+          const next = p.map(m => m.id === aid ? { ...m, content: full, usage: result.usage, durationMs: result.durationMs, truncated: result.truncated && !buffered, language } : m);
           persistSessionMessages(next);
           return next;
         });
@@ -970,18 +1091,20 @@ export function ChatProvider({
     } catch (err) {
       console.warn('[chat] edit re-send failed:', err);
       setLastRequestFailed(true);
+      logLanguageFailure(err, backendType, turnLanguage);
       if (pendingAssistantId) {
         const errorMessage = userFacingSendError(err, backendType);
         const quotaBlocked = quotaBlockOf(err) ?? undefined;
+        const cloudRetry = canRetryOnPrivateCloud(err) || undefined;
         setMessages(p => {
           const next = p.map(message => {
             if (message.id !== pendingAssistantId) return message;
             if (!message.variants || message.activeVariant == null) {
-              return { ...message, content: errorMessage, quotaBlocked };
+              return { ...message, content: errorMessage, quotaBlocked, cloudRetry };
             }
             const variants = [...message.variants];
             variants[message.activeVariant] = { ...variants[message.activeVariant], content: errorMessage };
-            return { ...message, content: errorMessage, variants, quotaBlocked };
+            return { ...message, content: errorMessage, variants, quotaBlocked, cloudRetry };
           });
           persistSessionMessages(next);
           return next;
@@ -995,7 +1118,36 @@ export function ChatProvider({
       }
       setBusy(false);
     }
-  }, [account, aiEnabled, backendType, busy, persistSessionMessages, rebuildHistory, storageCipher]);
+  }, [account, aiEnabled, backendType, busy, canRetryOnPrivateCloud, decideLanguage, followLanguageRequest, persistSessionMessages, rebuildHistory, storageCipher]);
+
+  const retryWithPrivateCloud = useCallback((assistantMessageId: string) => {
+    if (!PRIVATE_CLOUD_ENABLED || !backendEnabled.cloud || busy) return;
+    const current = messagesRef.current;
+    const index = current.findIndex(message => message.id === assistantMessageId);
+    const question = index > 0 ? current[index - 1] : null;
+    if (!question || question.role !== 'user') return;
+    pendingCloudRetryRef.current = question.id;
+    setMessages(prev => prev.map(message => (
+      message.id === assistantMessageId ? { ...message, cloudRetry: undefined } : message
+    )));
+    if (backendType !== 'cloud') setBackendType('cloud');
+    else setBackendReloadKey(key => key + 1);
+  }, [backendEnabled, backendType, busy, setBackendType]);
+
+  // The question is asked again, as a new variant of the same turn, once the
+  // Private Cloud engine is ready; a failed start drops the request.
+  useEffect(() => {
+    const questionId = pendingCloudRetryRef.current;
+    if (!questionId || backendType !== 'cloud' || busy) return;
+    if (backendStatus.state === 'error') {
+      pendingCloudRetryRef.current = null;
+      return;
+    }
+    if (backendStatus.state !== 'ready') return;
+    pendingCloudRetryRef.current = null;
+    const question = messagesRef.current.find(message => message.id === questionId);
+    if (question) void editMessage(questionId, question.content);
+  }, [backendStatus, backendType, busy, editMessage]);
 
   const setMessageVariant = useCallback((id: string, variantIndex: number) => {
     sessionDirtyRef.current = true;
@@ -1025,8 +1177,8 @@ export function ChatProvider({
   }, [persistSessionMessages, rebuildHistory]);
 
   const value = useMemo(
-    () => ({ messages, input, setInput, send, busy, backendType, backendStatus, lastRequestFailed, setBackendType, localAvailable, aiEnabled, setAiEnabled, backendEnabled, setBackendEnabled, clearMessages, showGreeting, sessions, activeSessionId, refreshSessions, openSession, removeSession, cleanSessionHistory, getSessionStorageSummary, deleteMessage, editMessage, setMessageVariant }),
-    [messages, input, send, busy, backendType, backendStatus, lastRequestFailed, setBackendType, localAvailable, aiEnabled, setAiEnabled, backendEnabled, setBackendEnabled, clearMessages, showGreeting, sessions, activeSessionId, refreshSessions, openSession, removeSession, cleanSessionHistory, getSessionStorageSummary, deleteMessage, editMessage, setMessageVariant],
+    () => ({ messages, input, setInput, send, busy, backendType, backendStatus, lastRequestFailed, setBackendType, localAvailable, aiEnabled, setAiEnabled, backendEnabled, setBackendEnabled, clearMessages, showGreeting, sessions, activeSessionId, refreshSessions, openSession, removeSession, cleanSessionHistory, getSessionStorageSummary, deleteMessage, editMessage, setMessageVariant, retryWithPrivateCloud }),
+    [messages, input, send, busy, backendType, backendStatus, lastRequestFailed, setBackendType, localAvailable, aiEnabled, setAiEnabled, backendEnabled, setBackendEnabled, clearMessages, showGreeting, sessions, activeSessionId, refreshSessions, openSession, removeSession, cleanSessionHistory, getSessionStorageSummary, deleteMessage, editMessage, setMessageVariant, retryWithPrivateCloud],
   );
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

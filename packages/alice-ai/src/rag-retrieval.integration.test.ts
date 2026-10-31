@@ -28,7 +28,8 @@ async function loadBundledRag(): Promise<any> {
 test('the selected corpus keeps the primary base bounded and exposes only reviewed secondary knowledge', async () => {
   const rag = await loadBundledRag();
   await rag.loadRagCorpus();
-  const chunks = rag.getAllChunks();
+  const all = rag.getAllChunks();
+  const chunks = all.filter((chunk: { translationStatus?: string }) => chunk.translationStatus === 'source');
   const primary = chunks.filter((chunk: { tier?: string }) => chunk.tier === 'primary');
   const secondary = chunks.filter((chunk: { tier?: string }) => chunk.tier === 'secondary');
   assert.equal(primary.length, 200);
@@ -39,10 +40,20 @@ test('the selected corpus keeps the primary base bounded and exposes only review
   for (const chunk of chunks) {
     assert.equal(chunk.status, 'reviewed');
     assert.equal(chunk.locale, 'fr');
-    assert.equal(chunk.translationStatus, 'source');
     assert.ok(chunk.id.startsWith('curated-'));
     if (chunk.tier === 'secondary') assert.ok(chunk.parentIds.some((id: string) => primaryIds.has(id)), chunk.id);
   }
+  // A translation is at most one per concept and locale, and keeps the
+  // editorial controls and the source hash of its French note.
+  const sources = new Map(chunks.map((chunk: { conceptId: string }) => [chunk.conceptId, chunk]));
+  for (const chunk of all.filter((candidate: { translationStatus?: string }) => candidate.translationStatus !== 'source')) {
+    const source = sources.get(chunk.conceptId);
+    assert.ok(source, chunk.id);
+    assert.deepEqual([chunk.id, chunk.locale, chunk.sourceLocale], [`${source.id}.en`, 'en', 'fr']);
+    assert.ok(['machine', 'reviewed'].includes(chunk.translationStatus), chunk.id);
+    assert.deepEqual([chunk.tier, chunk.status, chunk.parentIds, chunk.sourceHash], [source.tier, source.status, source.parentIds, source.sourceHash]);
+  }
+  assert.equal(new Set(all.map((chunk: { id: string }) => chunk.id)).size, all.length);
 });
 
 async function readSemanticIndex(basePath: string) {

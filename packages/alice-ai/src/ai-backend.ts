@@ -44,14 +44,6 @@ export type SendMessageOptions = {
 export interface AIBackend {
   readonly type: AIBackendType;
   /**
-   * False when replaying earlier assistant turns is unsafe, so the caller must
-   * not auto-continue a truncated answer. Under Venice E2EE, assistant messages
-   * are not encrypted by the protocol, so Alice drops them rather than sending
-   * prior replies in clear, which also means a continuation would have no
-   * partial answer to extend. Undefined means "no objection".
-   */
-  readonly allowsAutoContinuation?: boolean;
-  /**
    * The part kinds this backend can actually turn into something a model reads.
    * Undefined means the historical baseline: text only. A backend flattens any
    * accepted part to text via `normalizeMessages` before calling its model, so

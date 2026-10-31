@@ -9,6 +9,7 @@ import {
   cleanupExpiredAccountData,
   confirmFreeRequest,
   getAccountSnapshot,
+  ipNetwork,
   maskEmail,
   normalizeEmail,
   refundFreeRequest,
@@ -45,8 +46,8 @@ beforeEach(async () => {
   env = {
     ACCOUNT_DB: db,
     EMAIL: {
-      async send(message: { subject: string }) {
-        sentCode = message.subject.match(/\b(\d{6})\b/)?.[1] ?? '';
+      async send(message: { subject: string; text: string }) {
+        sentCode = message.text.match(/\b(\d{6})\b/)?.[1] ?? '';
         return { messageId: 'message-test' };
       },
     } as any,
@@ -209,6 +210,15 @@ async function createNamedAccount(options: {
 }
 
 describe('email account', () => {
+  it('counts an IPv6 client by its /64 and an IPv4 client by its address', () => {
+    assert.equal(ipNetwork('203.0.113.8'), '203.0.113.8');
+    assert.equal(ipNetwork('::ffff:203.0.113.8'), '203.0.113.8');
+    assert.equal(ipNetwork('2001:db8:1:2:aaaa:bbbb:cccc:dddd'), '2001:db8:1:2::/64');
+    assert.equal(ipNetwork('2001:0db8:0001:0002::1'), '2001:db8:1:2::/64');
+    assert.equal(ipNetwork('2001:db8::1'), '2001:db8:0:0::/64');
+    assert.equal(ipNetwork('2001:DB8:1:2::ffff'), ipNetwork('2001:db8:1:2:1:2:3:4'));
+  });
+
   it('normalizes and masks email without using it as the user id', () => {
     assert.equal(normalizeEmail(' Marius+Alice@Example.COM '), 'marius+alice@example.com');
     assert.equal(maskEmail('marius@example.com'), 'ma****@example.com');
@@ -241,7 +251,8 @@ describe('email account', () => {
     const payload = JSON.parse(String(outbound?.init.body));
     assert.equal(payload.from, 'Alice <login@auth.alicebtc.com>');
     assert.deepEqual(payload.to, ['resend@example.com']);
-    assert.match(payload.subject, /^\d{6} is your Alice login code$/);
+    assert.equal(payload.subject, 'Your Alice login code');
+    assert.match(payload.text, /\b\d{6}\b/);
     assert.ok(!(await response.text()).includes('re_test_server_only'));
   });
 
@@ -555,6 +566,94 @@ describe('email account', () => {
       env,
     );
     assert.equal(newLogin.status, 200);
+  });
+
+  it('asks for the current password before replacing it, then signs out every other session', async () => {
+    env.ACCOUNT_EMAIL_KEY = 'alice-test-email-vault-key-with-enough-length';
+    const sent: { subject: string; text: string }[] = [];
+    env.EMAIL = {
+      async send(message: { subject: string; text: string }) {
+        sent.push(message);
+        sentCode = message.text.match(/\b(\d{6})\b/)?.[1] ?? '';
+        return { messageId: 'message-test' };
+      },
+    } as any;
+    const { response, access_token: creator } = await createNamedAccount({
+      email: 'change@example.com',
+      prefix: 'change',
+      suffix: 'cheshire',
+      username: 'change.cheshire#2048',
+      password: 'first-password-of-15-chars',
+    });
+    assert.equal(response.status, 200);
+    const other = await worker.fetch(
+      jsonRequest('/auth/password/login', {
+        identifier: 'change@example.com',
+        password: 'first-password-of-15-chars',
+      }),
+      env,
+    );
+    assert.equal(other.status, 200);
+    const otherToken = ((await other.json()) as any).access_token as string;
+    const asCreator = { authorization: `Bearer ${creator}` };
+
+    // A session alone no longer replaces a password, nor does a wrong guess.
+    for (const current_password of [undefined, 'not-the-password-at-all']) {
+      const refused = await worker.fetch(
+        jsonRequest('/account/password', {
+          password: 'second-password-of-15plus',
+          current_password,
+        }, asCreator, 'PUT'),
+        env,
+      );
+      assert.equal(refused.status, 403);
+      assert.equal(((await refused.json()) as any).error.code, 'current_password_required');
+    }
+    sent.length = 0;
+
+    const changed = await worker.fetch(
+      jsonRequest('/account/password', {
+        password: 'second-password-of-15plus',
+        current_password: 'first-password-of-15-chars',
+      }, asCreator, 'PUT'),
+      env,
+    );
+    assert.equal(changed.status, 200);
+
+    const bearer = (token: string) => new Request('https://proxy.test/account', {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    await authenticate(bearer(creator), env);
+    await assert.rejects(authenticate(bearer(otherToken), env), AccountHttpError);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].subject, 'Your Alice password was changed');
+  });
+
+  it('signs out every existing session when the code resets the password', async () => {
+    const { access_token: before } = await createNamedAccount({
+      email: 'reset@example.com',
+      prefix: 'reset',
+      suffix: 'cheshire',
+      username: 'reset.cheshire#2048',
+      password: 'first-password-of-15-chars',
+    });
+    await worker.fetch(jsonRequest('/auth/email/start', { email: 'reset@example.com' }), env);
+    const reset = await worker.fetch(
+      jsonRequest('/auth/email/verify', {
+        email: 'reset@example.com',
+        code: sentCode,
+        new_password: 'second-password-of-15plus',
+      }),
+      env,
+    );
+    assert.equal(reset.status, 200);
+    const after = ((await reset.json()) as any).access_token as string;
+
+    const bearer = (token: string) => new Request('https://proxy.test/account', {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    await assert.rejects(authenticate(bearer(before), env), AccountHttpError);
+    await authenticate(bearer(after), env);
   });
 
   it('grants 21 requests only once per installation across different accounts', async () => {

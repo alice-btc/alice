@@ -1,5 +1,6 @@
 import type { LearnExplorerAnchor } from '@alice-wallet/alice-content/src/learn-anchors';
 import { requestPendingOpen } from '@/lib/explorer/tab-storage';
+import { translate } from '../../i18n/translate.ts';
 
 // Opening a course anchor in the Explorer goes through the one-shot
 // pending-open channel, consumed by the Explorer workspace on mount. Writing
@@ -13,7 +14,7 @@ export function openAnchorInExplorer(
 ): void {
   requestPendingOpen(anchor.type, anchor.id, {
     label: anchor.label[lang],
-    origin: lang === 'fr' ? `Cours ${courseCode.toUpperCase()}` : `Course ${courseCode.toUpperCase()}`,
+    origin: translate(lang, 'learn.explorerLink.course', { code: courseCode.toUpperCase() }),
   });
   navigate('/explorer');
 }
@@ -26,7 +27,7 @@ export function openAnchorFromChat(
 ): void {
   requestPendingOpen(anchor.type, anchor.id, {
     label: anchor.label[lang],
-    origin: lang === 'fr' ? 'Depuis le chat' : 'From the chat',
+    origin: translate(lang, 'learn.explorerLink.chat'),
   });
   navigate('/explorer');
 }

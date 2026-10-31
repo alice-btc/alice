@@ -52,9 +52,15 @@ export interface FitKnowledgeContextResult {
   duplicateLearnParagraphs: number;
 }
 
-/** Local prompts stay compact; cloud backends can carry the full context. */
-export function knowledgeContextCharLimit(isLocal: boolean): number {
-  return isLocal ? 6000 : 12000;
+/**
+ * Local prompts stay compact; cloud backends can carry the full context. A
+ * phone reads every character of the prompt on its CPU before the first word
+ * (2 minutes for the 0.8B on a Galaxy A15 with 6000), so the notes of a phone
+ * turn get half the desktop's room: one retrieved note and a short excerpt.
+ */
+export function knowledgeContextCharLimit(isLocal: boolean, onPhone = false): number {
+  if (!isLocal) return 12000;
+  return onPhone ? 3000 : 6000;
 }
 
 function normalizeMaxChars(maxChars: number): number {

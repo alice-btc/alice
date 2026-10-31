@@ -2,6 +2,7 @@
 // `normalizeMempoolTx` is kept apart from the network call so it can be unit
 // tested against fixtures with no fetch.
 
+import { t } from '../../i18n/translate.ts';
 import type {
   ChainDataProvider,
 } from './provider.ts';
@@ -181,8 +182,8 @@ function requestSignal(opts?: RequestOptions): AbortSignal {
 // A failed fetch is a cancellation when the caller's signal fired; anything
 // else (timeout included) is a transient network error, worth retrying.
 function fetchFailure(opts: RequestOptions | undefined, name: string): ChainDataError {
-  if (opts?.signal?.aborted) return new ChainDataError('aborted', 'The request was cancelled.');
-  return new ChainDataError('network', `Could not reach ${name}. Check the connection or the endpoint.`);
+  if (opts?.signal?.aborted) return new ChainDataError('aborted', t('explorer.provider.cancelled'));
+  return new ChainDataError('network', t('explorer.provider.unreachable', { name }));
 }
 
 export class MempoolProvider implements ChainDataProvider {
@@ -196,7 +197,7 @@ export class MempoolProvider implements ChainDataProvider {
   async getTransaction(txid: string, opts?: RequestOptions): Promise<NormalizedTransaction> {
     const clean = txid.trim().toLowerCase();
     if (!TXID_RE.test(clean)) {
-      throw new ChainDataError('invalid-input', 'Not a valid transaction id.');
+      throw new ChainDataError('invalid-input', t('explorer.provider.invalidTxid'));
     }
 
     let res: Response;
@@ -210,17 +211,17 @@ export class MempoolProvider implements ChainDataProvider {
     }
 
     if (res.status === 404) {
-      throw new ChainDataError('not-found', 'No transaction with that id was found.');
+      throw new ChainDataError('not-found', t('explorer.provider.txNotFound'));
     }
     if (!res.ok) {
-      throw new ChainDataError('backend', `${this.source.name} returned an error (${res.status}).`);
+      throw new ChainDataError('backend', t('explorer.provider.backendError', { name: this.source.name, status: res.status }));
     }
 
     let json: EsploraTx;
     try {
       json = (await res.json()) as EsploraTx;
     } catch {
-      throw new ChainDataError('backend', `${this.source.name} returned an unreadable response.`);
+      throw new ChainDataError('backend', t('explorer.provider.unreadable', { name: this.source.name }));
     }
 
     return normalizeMempoolTx(json, this.source);
@@ -229,7 +230,7 @@ export class MempoolProvider implements ChainDataProvider {
   async getOutspends(txid: string, opts?: RequestOptions): Promise<NormalizedOutspend[]> {
     const clean = txid.trim().toLowerCase();
     if (!TXID_RE.test(clean)) {
-      throw new ChainDataError('invalid-input', 'Not a valid transaction id.');
+      throw new ChainDataError('invalid-input', t('explorer.provider.invalidTxid'));
     }
 
     let res: Response;
@@ -242,10 +243,10 @@ export class MempoolProvider implements ChainDataProvider {
       throw fetchFailure(opts, this.source.name);
     }
     if (res.status === 404) {
-      throw new ChainDataError('not-found', 'No transaction with that id was found.');
+      throw new ChainDataError('not-found', t('explorer.provider.txNotFound'));
     }
     if (!res.ok) {
-      throw new ChainDataError('backend', `${this.source.name} returned an error (${res.status}).`);
+      throw new ChainDataError('backend', t('explorer.provider.backendError', { name: this.source.name, status: res.status }));
     }
 
     type EsploraOutspend = { spent: boolean; txid?: string; vin?: number };
@@ -253,7 +254,7 @@ export class MempoolProvider implements ChainDataProvider {
     try {
       json = (await res.json()) as EsploraOutspend[];
     } catch {
-      throw new ChainDataError('backend', `${this.source.name} returned an unreadable response.`);
+      throw new ChainDataError('backend', t('explorer.provider.unreadable', { name: this.source.name }));
     }
 
     return json.map(o => ({ spent: o.spent, txid: o.txid, vin: o.vin }));
@@ -271,10 +272,10 @@ export class MempoolProvider implements ChainDataProvider {
       throw fetchFailure(opts, this.source.name);
     }
     if (res.status === 404) {
-      throw new ChainDataError('not-found', 'No such address was found.');
+      throw new ChainDataError('not-found', t('explorer.provider.addressNotFound'));
     }
     if (!res.ok) {
-      throw new ChainDataError('backend', `${this.source.name} returned an error (${res.status}).`);
+      throw new ChainDataError('backend', t('explorer.provider.backendError', { name: this.source.name, status: res.status }));
     }
 
     type EsploraAddress = {
@@ -287,7 +288,7 @@ export class MempoolProvider implements ChainDataProvider {
     try {
       json = (await res.json()) as EsploraAddress;
     } catch {
-      throw new ChainDataError('backend', `${this.source.name} returned an unreadable response.`);
+      throw new ChainDataError('backend', t('explorer.provider.unreadable', { name: this.source.name }));
     }
 
     return {
@@ -326,12 +327,12 @@ export class MempoolProvider implements ChainDataProvider {
     } catch {
       throw fetchFailure(opts, this.source.name);
     }
-    if (res.status === 404) throw new ChainDataError('not-found', 'Not found.');
-    if (!res.ok) throw new ChainDataError('backend', `${this.source.name} returned an error (${res.status}).`);
+    if (res.status === 404) throw new ChainDataError('not-found', t('explorer.provider.notFound'));
+    if (!res.ok) throw new ChainDataError('backend', t('explorer.provider.backendError', { name: this.source.name, status: res.status }));
     try {
       return (await res.json()) as T;
     } catch {
-      throw new ChainDataError('backend', `${this.source.name} returned an unreadable response.`);
+      throw new ChainDataError('backend', t('explorer.provider.unreadable', { name: this.source.name }));
     }
   }
 
@@ -371,8 +372,8 @@ export class MempoolProvider implements ChainDataProvider {
       } catch {
         throw fetchFailure(opts, this.source.name);
       }
-      if (res.status === 404) throw new ChainDataError('not-found', 'No block at that height.');
-      if (!res.ok) throw new ChainDataError('backend', `${this.source.name} returned an error (${res.status}).`);
+      if (res.status === 404) throw new ChainDataError('not-found', t('explorer.provider.noBlock'));
+      if (!res.ok) throw new ChainDataError('backend', t('explorer.provider.backendError', { name: this.source.name, status: res.status }));
       hash = (await res.text()).trim();
     }
     const json = await this.fetchJson<EsploraBlock>(`/v1/block/${hash}`, opts);
@@ -403,12 +404,12 @@ export class MempoolProvider implements ChainDataProvider {
       throw fetchFailure(opts, this.source.name);
     }
     if (res.status === 404) return null;
-    if (!res.ok) throw new ChainDataError('backend', `${this.source.name} returned an error (${res.status}).`);
+    if (!res.ok) throw new ChainDataError('backend', t('explorer.provider.backendError', { name: this.source.name, status: res.status }));
     let json: { template?: SummaryTxJson[]; matchRate?: number };
     try {
       json = await res.json();
     } catch {
-      throw new ChainDataError('backend', `${this.source.name} returned an unreadable response.`);
+      throw new ChainDataError('backend', t('explorer.provider.unreadable', { name: this.source.name }));
     }
     if (!json.template) return null;
     return { template: json.template.map(mapSummaryTx), matchRate: json.matchRate ?? 0 };

@@ -10,6 +10,8 @@
 // no token and shows no token amount.
 
 import { decodeSparkAddress } from './spark.ts';
+import { t as tr, tn, translate, type Locale } from '../../i18n/translate.ts';
+import { SparkscanBudget } from './sparkscan-budget.ts';
 
 export const SPARKSCAN_API = 'https://api.sparkscan.io/v1';
 export const SPARKSCAN_WS = 'wss://updates.sparkscan.io/connection/websocket';
@@ -64,15 +66,16 @@ export function sparkscanKind(rawType: string): SparkscanKind {
   return 'other';
 }
 
-/** The Explorer's label for a kind. */
-export function sparkscanKindLabel(kind: SparkscanKind): string {
+/** The Explorer's label for a kind; English unless a locale is given (the
+ *  Ask Alice context keeps the English words). */
+export function sparkscanKindLabel(kind: SparkscanKind, locale: Locale = 'en'): string {
   switch (kind) {
-    case 'transfer': return 'Spark transfer';
-    case 'lightning': return 'Lightning payment';
-    case 'token': return 'Token';
-    case 'deposit': return 'Deposit from Bitcoin';
-    case 'exit': return 'Exit to Bitcoin';
-    default: return 'Transfer';
+    case 'transfer': return translate(locale, 'explorerSpark.sparkscan.transfer');
+    case 'lightning': return translate(locale, 'explorerSpark.sparkscan.lightning');
+    case 'token': return translate(locale, 'explorerSpark.sparkscan.token');
+    case 'deposit': return translate(locale, 'explorerSpark.sparkscan.deposit');
+    case 'exit': return translate(locale, 'explorerSpark.sparkscan.exit');
+    default: return translate(locale, 'explorerSpark.sparkscan.other');
   }
 }
 
@@ -208,17 +211,36 @@ export function normalizeSparkscanLive(j: unknown): SparkscanTx | null {
   };
 }
 
+/** Shared by every REST call. Exported for the tests. */
+export const sparkscanBudget = new SparkscanBudget();
+
+const nowSec = () => Math.floor(Date.now() / 1000);
+
+/** "40 seconds", "about 2 minutes", in the interface language (the English
+ *  wording is describeWait's, which the budget tests pin). */
+function describeWaitLocalized(seconds: number): string {
+  if (seconds < 60) return tn('explorerSpark.sparkscan.waitSeconds', Math.max(1, Math.round(seconds)));
+  return tn('explorerSpark.sparkscan.waitMinutes', Math.round(seconds / 60));
+}
+
+function limitReached(waitSeconds: number): SparkscanError {
+  return new SparkscanError(tr('explorerSpark.sparkscan.rateLimited', { wait: describeWaitLocalized(waitSeconds) }), 429);
+}
+
 async function getJson(path: string, signal?: AbortSignal): Promise<unknown> {
+  const wait = sparkscanBudget.wait(nowSec());
+  if (wait > 0) throw limitReached(wait);
   let res: Response;
   try {
     res = await fetch(`${SPARKSCAN_API}${path}`, { headers: { accept: 'application/json' }, signal });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw err;
-    throw new SparkscanError('Could not reach Sparkscan.');
+    throw new SparkscanError(tr('explorerSpark.sparkscan.unreachable'));
   }
+  sparkscanBudget.note(res.status, res.headers, nowSec());
+  if (res.status === 429) throw limitReached(sparkscanBudget.wait(nowSec()));
   if (res.status === 404) return null;
-  if (res.status === 429) throw new SparkscanError('Sparkscan is rate-limiting this address for a moment.', 429);
-  if (!res.ok) throw new SparkscanError(`Sparkscan answered ${res.status}.`, res.status);
+  if (!res.ok) throw new SparkscanError(tr('explorerSpark.sparkscan.status', { status: res.status }), res.status);
   return res.json();
 }
 
@@ -253,12 +275,12 @@ export async function getSparkscanTx(id: string, opts: { signal?: AbortSignal } 
  */
 export function subscribeSparkscan(onTx: (tx: SparkscanTx) => void, opts: { signal?: AbortSignal; onOpen?: () => void } = {}): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    if (typeof WebSocket === 'undefined') { reject(new SparkscanError('No websocket in this environment.')); return; }
+    if (typeof WebSocket === 'undefined') { reject(new SparkscanError(tr('explorerSpark.sparkscan.noWebsocket'))); return; }
     let ws: WebSocket;
     try {
       ws = new WebSocket(SPARKSCAN_WS);
     } catch {
-      reject(new SparkscanError('Could not open the Sparkscan live channel.'));
+      reject(new SparkscanError(tr('explorerSpark.sparkscan.openFailed')));
       return;
     }
     let settled = false;
@@ -273,7 +295,7 @@ export function subscribeSparkscan(onTx: (tx: SparkscanTx) => void, opts: { sign
     if (opts.signal?.aborted) { finish(); return; }
     opts.signal?.addEventListener('abort', onAbort);
     ws.onopen = () => ws.send(JSON.stringify({ id: 1, connect: {} }));
-    ws.onerror = () => finish(new SparkscanError('The Sparkscan live channel dropped.'));
+    ws.onerror = () => finish(new SparkscanError(tr('explorerSpark.sparkscan.dropped')));
     ws.onclose = () => finish();
     ws.onmessage = ev => {
       for (const line of String(ev.data).split('\n')) {

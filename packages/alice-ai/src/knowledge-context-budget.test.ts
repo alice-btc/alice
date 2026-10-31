@@ -6,6 +6,11 @@ test('local backend gets the compact 6000 char limit', () => {
   assert.equal(knowledgeContextCharLimit(true), 6000);
 });
 
+test('a local model on a phone gets half the desktop room, the cloud never does', () => {
+  assert.equal(knowledgeContextCharLimit(true, true), 3000);
+  assert.equal(knowledgeContextCharLimit(false, true), 12000);
+});
+
 test('cloud backend gets the full 12000 char limit', () => {
   assert.equal(knowledgeContextCharLimit(false), 12000);
 });

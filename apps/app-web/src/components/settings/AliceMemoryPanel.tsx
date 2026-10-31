@@ -30,6 +30,7 @@ import {
   type KnowledgeConcept,
   type PedagogicalProfile,
 } from '@alice-wallet/alice-ai';
+import { useT, type Translator } from '@/i18n';
 
 // The body of "What Alice knows", with no page chrome of its own. It renders
 // the same in two frames: inside the settings dialog as a sub-screen of the AI
@@ -43,8 +44,6 @@ import {
 // goes through the capture filters, and a refusal says why) or deleted; each
 // field can be cleared or paused. Past the fifty most recent facts, the older
 // ones fold into a section of their own, still editable and deletable.
-
-const CATEGORY_LABELS = ALICE_MEMORY_CATEGORY_LABELS.en;
 
 const sectionStyle: React.CSSProperties = {
   borderBottom: '1px solid var(--alice-border)',
@@ -67,10 +66,11 @@ const actionsStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
-function familiarityLabel(state: FamiliarityState, declared: boolean): string {
-  if (declared) return `DECLARED ${state.toUpperCase()}`;
-  if (state === 'introduced') return 'DISCUSSED';
-  return state.toUpperCase();
+function familiarityLabel(t: Translator, state: FamiliarityState, declared: boolean): string {
+  const name = t(`memory.familiarity.${state}`);
+  if (declared) return t('memory.declared', { state: name });
+  if (state === 'introduced') return t('memory.discussed');
+  return name;
 }
 
 function MemoryFactRow({
@@ -84,6 +84,7 @@ function MemoryFactRow({
   divided: boolean;
   onChange: (memory: AliceMemory) => void;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.text);
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -97,7 +98,7 @@ function MemoryFactRow({
   const save = () => {
     void editAliceMemoryItem(item.id, draft).then(result => {
       if (result.refusal) {
-        setRefusal(aliceMemoryRefusalMessage(result.refusal, 'en'));
+        setRefusal(aliceMemoryRefusalMessage(result.refusal, t.locale));
         return;
       }
       setRefusal(null);
@@ -110,11 +111,11 @@ function MemoryFactRow({
     <div style={{ ...rowStyle, alignItems: editing ? 'flex-start' : 'center', borderTop: divided ? '1px solid var(--alice-border)' : undefined }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         {showCategory && (
-          <div className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>{CATEGORY_LABELS[item.category].toUpperCase()}</div>
+          <div className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>{ALICE_MEMORY_CATEGORY_LABELS[t.locale][item.category].toUpperCase()}</div>
         )}
         {editing ? (
           <div style={{ marginTop: showCategory ? 8 : 0 }}>
-            <label className="alice-field-label" htmlFor={`memory-edit-${item.id}`}>Edit this fact</label>
+            <label className="alice-field-label" htmlFor={`memory-edit-${item.id}`}>{t('memory.editLabel')}</label>
             <input
               id={`memory-edit-${item.id}`}
               className="alice-field font-numbers"
@@ -133,8 +134,8 @@ function MemoryFactRow({
               <p id={`memory-edit-${item.id}-refusal`} role="alert" style={{ margin: '8px 0 0', fontSize: 14, lineHeight: '22px', color: 'var(--alice-danger)' }}>{refusal}</p>
             )}
             <div style={{ ...actionsStyle, marginTop: 8 }}>
-              <button type="button" className="alice-control alice-control--primary font-numbers" onClick={save}>Save</button>
-              <button type="button" className="alice-control alice-control--quiet font-numbers" onClick={() => setEditing(false)}>Cancel</button>
+              <button type="button" className="alice-control alice-control--primary font-numbers" onClick={save}>{t('memory.save')}</button>
+              <button type="button" className="alice-control alice-control--quiet font-numbers" onClick={() => setEditing(false)}>{t('memory.cancel')}</button>
             </div>
           </div>
         ) : (
@@ -143,9 +144,9 @@ function MemoryFactRow({
       </div>
       {!editing && (
         <div style={actionsStyle}>
-          <button type="button" className="alice-control alice-control--quiet font-numbers" onClick={startEditing} aria-label={`Edit: ${item.text}`}>Edit</button>
-          <button type="button" className="alice-control alice-control--danger font-numbers" onClick={() => void forgetAliceMemoryItem(item.id).then(onChange)} aria-label={`Delete: ${item.text}`}>
-            <SvgIcon svg={DELETE_ICON} size={16} color="currentColor" /> Delete
+          <button type="button" className="alice-control alice-control--quiet font-numbers" onClick={startEditing} aria-label={t('memory.editAria', { text: item.text })}>{t('memory.edit')}</button>
+          <button type="button" className="alice-control alice-control--danger font-numbers" onClick={() => void forgetAliceMemoryItem(item.id).then(onChange)} aria-label={t('memory.deleteAria', { text: item.text })}>
+            <SvgIcon svg={DELETE_ICON} size={16} color="currentColor" /> {t('memory.delete')}
           </button>
         </div>
       )}
@@ -168,6 +169,7 @@ function InlineConfirm({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   return (
     <div role="group" aria-labelledby={id} style={{ padding: '12px 0' }}>
       <p id={id} style={{ margin: 0, fontSize: 14, lineHeight: '22px' }}>{message}</p>
@@ -175,7 +177,7 @@ function InlineConfirm({
         <button type="button" className="alice-control alice-control--danger font-numbers" onClick={onConfirm}>
           <SvgIcon svg={DELETE_ICON} size={16} color="currentColor" /> {action}
         </button>
-        <button type="button" className="alice-control alice-control--quiet font-numbers" onClick={onCancel} autoFocus>Cancel</button>
+        <button type="button" className="alice-control alice-control--quiet font-numbers" onClick={onCancel} autoFocus>{t('memory.cancel')}</button>
       </div>
     </div>
   );
@@ -195,7 +197,8 @@ function MemoryCategoryField({
   paused: boolean;
   onChange: (memory: AliceMemory) => void;
 }) {
-  const label = CATEGORY_LABELS[category];
+  const t = useT();
+  const label = ALICE_MEMORY_CATEGORY_LABELS[t.locale][category];
   const [confirming, setConfirming] = useState(false);
   const clearHere = () => {
     setConfirming(false);
@@ -213,14 +216,14 @@ function MemoryCategoryField({
             type="button"
             className="alice-control alice-control--quiet font-numbers"
             aria-pressed={paused}
-            aria-label={paused ? `Resume capture for ${label}` : `Pause capture for ${label}`}
+            aria-label={paused ? t('memory.resumeAria', { category: label }) : t('memory.pauseAria', { category: label })}
             onClick={() => void setAliceMemoryCategoryPaused(category, !paused).then(onChange)}
           >
-            {paused ? 'Resume' : 'Pause'}
+            {paused ? t('memory.resume') : t('memory.pause')}
           </button>
           {totalCount > 0 && !confirming && (
-            <button type="button" className="alice-control alice-control--danger font-numbers" onClick={() => setConfirming(true)} aria-label={`Delete everything under ${label}`}>
-              <SvgIcon svg={DELETE_ICON} size={16} color="currentColor" /> Delete all here
+            <button type="button" className="alice-control alice-control--danger font-numbers" onClick={() => setConfirming(true)} aria-label={t('memory.deleteAllHereAria', { category: label })}>
+              <SvgIcon svg={DELETE_ICON} size={16} color="currentColor" /> {t('memory.deleteAllHere')}
             </button>
           )}
         </div>
@@ -228,17 +231,17 @@ function MemoryCategoryField({
       {confirming && (
         <InlineConfirm
           id={`memory-clear-${category}`}
-          message={`Delete everything under ${label}? This removes all ${totalCount} ${totalCount === 1 ? 'fact' : 'facts'} in this field, including older ones not shown here.`}
-          action="Delete"
+          message={t.plural('memory.clearConfirm', totalCount, { category: label })}
+          action={t('memory.delete')}
           onConfirm={clearHere}
           onCancel={() => setConfirming(false)}
         />
       )}
       {paused && (
-        <p style={{ margin: '8px 0 0', fontSize: 14, lineHeight: '22px', color: 'var(--alice-muted)' }}>Paused: Alice no longer adds facts here. What is already here stays until you delete it.</p>
+        <p style={{ margin: '8px 0 0', fontSize: 14, lineHeight: '22px', color: 'var(--alice-muted)' }}>{t('memory.paused')}</p>
       )}
       {items.length === 0 ? (
-        <p style={{ padding: '16px 0', margin: 0, color: 'var(--alice-muted)' }}>Nothing here yet.</p>
+        <p style={{ padding: '16px 0', margin: 0, color: 'var(--alice-muted)' }}>{t('memory.empty')}</p>
       ) : items.map((item, index) => (
         <MemoryFactRow key={item.id} item={item} divided={index > 0} onChange={onChange} />
       ))}
@@ -247,6 +250,7 @@ function MemoryCategoryField({
 }
 
 export function AliceMemoryPanel({ onBack }: { onBack?: () => void }) {
+  const t = useT();
   const [memory, setMemory] = useState<AliceMemory | null>(null);
   const [learning, setLearning] = useState<PedagogicalProfile | null>(null);
   const [olderOpen, setOlderOpen] = useState(false);
@@ -275,7 +279,7 @@ export function AliceMemoryPanel({ onBack }: { onBack?: () => void }) {
     void Promise.allSettled([clearAliceMemory(), clearPedagogicalProfile()])
       .then(results => {
         if (results.some(result => result.status === 'rejected')) {
-          setEraseError('Deletion failed: some saved memory could not be erased. What remains is still listed; please try again.');
+          setEraseError(t('memory.eraseFailed'));
         }
         refresh();
       });
@@ -295,24 +299,21 @@ export function AliceMemoryPanel({ onBack }: { onBack?: () => void }) {
           onClick={onBack}
           className="alice-control alice-control--quiet font-numbers cursor-pointer"
         >
-          <SvgIcon svg={CHEVRON_LEFT_ICON} size={16} color="currentColor" /> Back
+          <SvgIcon svg={CHEVRON_LEFT_ICON} size={16} color="currentColor" /> {t('memory.back')}
         </button>
       )}
 
-      <h2 className="font-pixel" style={{ fontSize: 14, lineHeight: '22px', marginTop: onBack ? 16 : 0 }}>WHAT ALICE REMEMBERS</h2>
+      <h2 className="font-pixel" style={{ fontSize: 14, lineHeight: '22px', marginTop: onBack ? 16 : 0 }}>{t('memory.title')}</h2>
 
       <p role="note" style={{ margin: '12px 0 0', fontSize: 14, lineHeight: '22px', color: 'var(--alice-text)' }}>
-        {ALICE_MEMORY_WARNING.en}
+        {ALICE_MEMORY_WARNING[t.locale]}
       </p>
 
       <section style={{ ...sectionStyle, ...rowStyle }}>
         <div>
-          <div className="font-numbers" style={{ fontSize: 13 }}>MEMORY</div>
+          <div className="font-numbers" style={{ fontSize: 13 }}>{t('memory.memory')}</div>
           <p style={{ margin: '8px 0 0', color: 'var(--alice-muted)', lineHeight: '22px' }}>
-            Useful details stay in this browser. When you use Private Cloud, the
-            relevant ones travel end-to-end encrypted with your messages to the
-            attested enclave. The exact enclave software cannot be verified yet,
-            pending Venice&apos;s reference values.
+            {t('memory.memoryBody')}
           </p>
         </div>
         <button
@@ -325,11 +326,11 @@ export function AliceMemoryPanel({ onBack }: { onBack?: () => void }) {
             void setAliceMemoryEnabled(enabled).then(setMemory);
           }}
         >
-          {(memory?.enabled ?? true) ? 'ON' : 'OFF'}
+          {(memory?.enabled ?? true) ? t('memory.on') : t('memory.off')}
         </button>
       </section>
 
-      <h3 className="font-pixel" style={{ fontSize: 10, marginTop: 36 }}>ABOUT YOU</h3>
+      <h3 className="font-pixel" style={{ fontSize: 10, marginTop: 36 }}>{t('memory.aboutYou')}</h3>
       {ALICE_MEMORY_CATEGORIES.map(category => (
         <MemoryCategoryField
           key={category}
@@ -350,7 +351,7 @@ export function AliceMemoryPanel({ onBack }: { onBack?: () => void }) {
             aria-expanded={olderOpen}
             onClick={() => setOlderOpen(open => !open)}
           >
-            {olderOpen ? 'Hide' : 'Show'} older facts ({older.length})
+            {t(olderOpen ? 'memory.hideOlder' : 'memory.showOlder', { count: older.length })}
           </button>
           {olderOpen && older.map((item, index) => (
             <MemoryFactRow key={item.id} item={item} showCategory divided={index > 0} onChange={setMemory} />
@@ -358,10 +359,10 @@ export function AliceMemoryPanel({ onBack }: { onBack?: () => void }) {
         </section>
       )}
 
-      <h3 className="font-pixel" style={{ fontSize: 10, marginTop: 36 }}>LEARNING</h3>
+      <h3 className="font-pixel" style={{ fontSize: 10, marginTop: 36 }}>{t('memory.learning')}</h3>
       <section style={sectionStyle}>
         {activeConcepts.length === 0 ? (
-          <p style={{ padding: 16, color: 'var(--alice-muted)' }}>No Bitcoin learning signals yet.</p>
+          <p style={{ padding: 16, color: 'var(--alice-muted)' }}>{t('memory.noLearning')}</p>
         ) : activeConcepts.map((concept, index) => {
           const progress = learning!.concepts[concept];
           return (
@@ -369,32 +370,32 @@ export function AliceMemoryPanel({ onBack }: { onBack?: () => void }) {
               <div>
                 <div style={{ fontSize: 17 }}>{KNOWLEDGE_CONCEPT_LABELS[concept]}</div>
                 <div className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-muted)', marginTop: 8 }}>
-                  {familiarityLabel(familiarityFor(progress), Boolean(progress?.declaredFamiliarity))}
+                  {familiarityLabel(t, familiarityFor(progress), Boolean(progress?.declaredFamiliarity))}
                 </div>
               </div>
-              <button type="button" className="alice-control alice-control--danger font-numbers" onClick={() => void forgetPedagogicalConcept(concept).then(setLearning)}><SvgIcon svg={DELETE_ICON} size={16} color="currentColor" /> Forget</button>
+              <button type="button" className="alice-control alice-control--danger font-numbers" onClick={() => void forgetPedagogicalConcept(concept).then(setLearning)}><SvgIcon svg={DELETE_ICON} size={16} color="currentColor" /> {t('memory.forget')}</button>
             </div>
           );
         })}
       </section>
 
       <p style={{ fontSize: 14, lineHeight: '22px', color: 'var(--alice-muted)', marginTop: 28 }}>
-        Alice never saves message text, seeds, private keys, addresses, balances, amounts, transactions, exchange accounts, direct identifiers, precise location, or sensitive personal attributes in this memory, even when asked to.
+        {t('memory.neverSaved')}
       </p>
 
       <div className="mt-8 pt-4" style={{ borderTop: '1px solid var(--alice-border)' }}>
-        <p className="text-sm" style={{ color: 'var(--alice-muted)' }}>Forget all local memories and learning signals on this device. Your conversations and wallet remain.</p>
+        <p className="text-sm" style={{ color: 'var(--alice-muted)' }}>{t('memory.forgetAllHint')}</p>
         {eraseError && <p role="alert" className="text-sm">{eraseError}</p>}
         {confirmErase ? (
           <InlineConfirm
             id="memory-forget-everything"
-            message="Forget all of Alice's local memories and learning signals on this device? Your conversations and wallet remain."
-            action="Forget everything"
+            message={t('memory.forgetEverythingConfirm')}
+            action={t('memory.forgetEverything')}
             onConfirm={erase}
             onCancel={() => setConfirmErase(false)}
           />
         ) : (
-          <button type="button" className="alice-control alice-control--danger font-numbers" onClick={() => setConfirmErase(true)}>Forget everything</button>
+          <button type="button" className="alice-control alice-control--danger font-numbers" onClick={() => setConfirmErase(true)}>{t('memory.forgetEverything')}</button>
         )}
       </div>
     </div>

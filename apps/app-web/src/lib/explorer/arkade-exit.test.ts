@@ -59,6 +59,92 @@ describe('buildArkadeExitPath', () => {
   });
 });
 
+// The chain's expiresAt is one string scalar for two units: unix seconds from
+// the SDK's cut-off (1 January 2025 = 1,735,689,600 s, vtxo.ts
+// EXPIRY_MIN_PLAUSIBLE_MS) up, a block height below it. It is not the BIP65
+// threshold (500,000,000): the SDK does not use it, and this view must read the
+// same scalar as the address view and the SDK do. A height must stay a height:
+// read as seconds it is a day in January 1970, and the page would call a live
+// coin long expired.
+describe('parseArkadeChain expiry', () => {
+  type Expiry = { expiresAt?: number; expiresAtHeight?: number };
+  const parseOne = (expiresAt: unknown): Expiry =>
+    parseArkadeChain({ chain: [{ txid: LEAF, type: 'INDEXER_CHAINED_TX_TYPE_TREE', spends: [], ...(expiresAt === undefined ? {} : { expiresAt }) }] })[0] as unknown as Expiry;
+
+  it('keeps a date as a date and a block height as a height, never both', () => {
+    const date = parseOne('1789804221');
+    assert.equal(date.expiresAt, 1_789_804_221);
+    assert.equal(date.expiresAtHeight, undefined);
+
+    const height = parseOne('850123');
+    assert.equal(height.expiresAtHeight, 850_123);
+    assert.equal(height.expiresAt, undefined, 'a height is not a date in January 1970');
+
+    assert.equal(parseOne('1735689599').expiresAtHeight, 1_735_689_599);
+    assert.equal(parseOne('1735689599').expiresAt, undefined);
+    assert.equal(parseOne('1735689600').expiresAt, 1_735_689_600);
+    assert.equal(parseOne('1735689600').expiresAtHeight, undefined);
+    assert.equal(parseOne('600000000').expiresAtHeight, 600_000_000, 'above BIP65, below the SDK cut-off: a height');
+  });
+
+  it('reads a missing, zero or invalid expiry as unknown', () => {
+    for (const raw of [undefined, null, '', '0', 0, '-5', 'later', 'NaN']) {
+      const e = parseOne(raw);
+      assert.equal(e.expiresAt, undefined, `date of ${String(raw)}`);
+      assert.equal(e.expiresAtHeight, undefined, `height of ${String(raw)}`);
+    }
+  });
+
+  it('keeps the other fields of a transaction whose expiry is a height', () => {
+    const [tx] = parseArkadeChain({ chain: [{ txid: LEAF, expiresAt: '850123', type: 'INDEXER_CHAINED_TX_TYPE_TREE', spends: [COMMIT] }] });
+    assert.equal(tx.txid, LEAF);
+    assert.equal(tx.type, 'tree');
+    assert.deepEqual(tx.spends, [COMMIT]);
+  });
+});
+
+describe('buildArkadeExitPath expiry', () => {
+  type StepExpiry = { expiresAt?: number; expiresAtHeight?: number };
+  const stepOf = (c: ArkadeChainTx[], txid: string) => buildArkadeExitPath(c, txs, { txid: ARK, vout: 1 }).steps.find(s => s.txid === txid) as unknown as StepExpiry;
+
+  it('carries a height-only expiry to the step without inventing a date', () => {
+    const withHeight = chain.map(c => (c.txid === ARK ? { ...c, expiresAt: undefined, expiresAtHeight: 850_123 } : c)) as ArkadeChainTx[];
+    const step = stepOf(withHeight, ARK);
+    assert.equal(step.expiresAtHeight, 850_123);
+    assert.equal(step.expiresAt, undefined);
+  });
+
+  it('carries a date-only expiry as a date, and keeps height and date apart on different steps', () => {
+    const mixed = chain.map(c => {
+      if (c.txid === ARK) return { ...c, expiresAt: 1_800_000_000 };
+      if (c.txid === ROOT) return { ...c, expiresAtHeight: 850_123 };
+      return c;
+    }) as ArkadeChainTx[];
+    const ark = stepOf(mixed, ARK);
+    assert.equal(ark.expiresAt, 1_800_000_000);
+    assert.equal(ark.expiresAtHeight, undefined);
+    const root = stepOf(mixed, ROOT);
+    assert.equal(root.expiresAtHeight, 850_123);
+    assert.equal(root.expiresAt, undefined);
+  });
+
+  it('goes from the indexer reply to the step with the height intact', () => {
+    const parsed = parseArkadeChain({ chain: [
+      { txid: ARK, expiresAt: '850123', type: 'INDEXER_CHAINED_TX_TYPE_ARK', spends: [CHECK] },
+      { txid: CHECK, expiresAt: '850123', type: 'INDEXER_CHAINED_TX_TYPE_CHECKPOINT', spends: [LEAF] },
+      { txid: LEAF, expiresAt: '850123', type: 'INDEXER_CHAINED_TX_TYPE_TREE', spends: [ROOT] },
+      { txid: ROOT, expiresAt: '850123', type: 'INDEXER_CHAINED_TX_TYPE_TREE', spends: [COMMIT] },
+      { txid: COMMIT, expiresAt: '850123', type: 'INDEXER_CHAINED_TX_TYPE_COMMITMENT', spends: [] },
+    ] });
+    const path = buildArkadeExitPath(parsed, txs, { txid: ARK, vout: 1 });
+    assert.equal(path.steps.length, 4);
+    for (const s of path.steps as unknown as StepExpiry[]) {
+      assert.equal(s.expiresAtHeight, 850_123);
+      assert.equal(s.expiresAt, undefined);
+    }
+  });
+});
+
 describe('parseArkadeChain', () => {
   it('reads the indexer reply, typing each transaction', () => {
     const parsed = parseArkadeChain({ chain: [

@@ -15,6 +15,7 @@ import type { PrivacySignal } from '@/lib/explorer/signals';
 import type { FullContext } from '@/lib/explorer/ask-alice';
 import type { PracticeTxPlan } from '@alice-wallet/practice-wallet';
 import type { PlaygroundSnapshot } from '@/lib/playground';
+import { t, type MessageKey } from '@/i18n/translate';
 
 export type PlaygroundView =
   | 'home'
@@ -26,6 +27,8 @@ export type PlaygroundView =
   | 'backup'
   | 'faucet';
 
+// English on purpose: these words go to the model (page note, identified
+// context). The attachment chip shows playgroundPageName, in the app language.
 const PAGE_NAMES: Record<PlaygroundView, string> = {
   home: 'the Playground home',
   send: 'the guided send flow',
@@ -37,7 +40,24 @@ const PAGE_NAMES: Record<PlaygroundView, string> = {
   faucet: 'the free test sats screen',
 };
 
+const PAGE_NAME_KEYS: Record<PlaygroundView, MessageKey> = {
+  home: 'playground.page.home',
+  send: 'playground.page.send',
+  receive: 'playground.page.receive',
+  settings: 'playground.page.settings',
+  coins: 'playground.page.coins',
+  addresses: 'playground.page.addresses',
+  backup: 'playground.page.backup',
+  faucet: 'playground.page.faucet',
+};
+
+/** The page's name as the user reads it, in the app language. */
 export function playgroundPageName(view: PlaygroundView): string {
+  return t(PAGE_NAME_KEYS[view]);
+}
+
+/** The page's name inside the text sent to the model. */
+export function playgroundModelPageName(view: PlaygroundView): string {
   return PAGE_NAMES[view];
 }
 

@@ -11,6 +11,7 @@
 // never imports the AI package; the app wires alice-ai's detectSensitiveInput.
 
 import type { AbstractSignal } from './audit-core.ts';
+import { t, type MessageKey } from '../../i18n/translate.ts';
 
 export type BackendClass = 'A' | 'B' | 'C' | 'D';
 export type AllowedBackend = 'local' | 'cloud_attested';
@@ -122,16 +123,15 @@ export function findRawIdentifiersInText(text: string): RawSubject[] {
   return found;
 }
 
-const BLOCKED_REASON =
-  'Sensitive wallet data (a recovery phrase or private key) was detected, so nothing was sent anywhere.';
-const REASON: Record<BackendClass, string> = {
-  A: 'A general question with no on-chain data. It can run locally or on the attested cloud.',
-  C: 'A description of your setup with no on-chain data. It can run locally or on the attested cloud.',
-  B: 'This carries de-identified analysis only. It runs locally by default; you can choose the attested cloud.',
-  D: 'This includes a raw on-chain identifier, so it stays on your machine. The attested cloud is not offered for identifying data.',
+// Shown to the user under the composer, so in the interface language.
+const BLOCKED_REASON: MessageKey = 'explorer.route.blocked';
+const REASON: Record<BackendClass, MessageKey> = {
+  A: 'explorer.route.classA',
+  C: 'explorer.route.classC',
+  B: 'explorer.route.classB',
+  D: 'explorer.route.classD',
 };
-const REASON_D_IDENTIFIED =
-  'Identified mode: raw on-chain identifiers ride along, and you chose to allow that. Local stays the more private choice.';
+const REASON_D_IDENTIFIED: MessageKey = 'explorer.route.classDIdentified';
 
 function nonIdentifyingClass(input: RouteInput, hasSignals: boolean, hasFiches: boolean): 'A' | 'B' | 'C' {
   if (hasSignals) return 'B';
@@ -157,7 +157,7 @@ export function route(input: RouteInput, deps: RouteDeps = {}): RouteDecision {
       cloudEligible: false,
       cloudConsentRequired: false,
       payload,
-      reason: BLOCKED_REASON,
+      reason: t(BLOCKED_REASON),
       blocked: true,
     };
   }
@@ -175,7 +175,7 @@ export function route(input: RouteInput, deps: RouteDeps = {}): RouteDecision {
       cloudEligible: identified,
       cloudConsentRequired: identified && !consented,
       payload,
-      reason: identified ? REASON_D_IDENTIFIED : REASON.D,
+      reason: t(identified ? REASON_D_IDENTIFIED : REASON.D),
     };
     // A downgrade is only automatic when every identifier is a chip: text-borne
     // identifiers cannot be removed for the user, so no path is offered then.
@@ -198,7 +198,7 @@ export function route(input: RouteInput, deps: RouteDeps = {}): RouteDecision {
       cloudEligible: true,
       cloudConsentRequired: !consented,
       payload,
-      reason: REASON.B,
+      reason: t(REASON.B),
     };
   }
 
@@ -210,6 +210,6 @@ export function route(input: RouteInput, deps: RouteDeps = {}): RouteDecision {
     cloudEligible: true,
     cloudConsentRequired: false,
     payload,
-    reason: REASON[cls],
+    reason: t(REASON[cls]),
   };
 }

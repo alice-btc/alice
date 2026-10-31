@@ -4,6 +4,7 @@ import { ExplorerCopy } from '@/components/ExplorerUI';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { formatLocale, type Translator, useT } from '@/i18n';
 import type { ChainDataProvider, RequestOptions } from '@/lib/explorer/provider';
 import { ChainDataError } from '@/lib/explorer/provider';
 import type { NormalizedTransaction } from '@/lib/explorer/types';
@@ -20,7 +21,7 @@ import { ExplorerQuantumCard } from '@/components/ExplorerQuantumCard';
 import { explorerEntityStore } from '@/lib/explorer/entity-seed';
 import { detectEntityLink } from '@/lib/explorer/entity-signal';
 import { analyzeQuantumExposure, detectQuantumExposure } from '@/lib/explorer/quantum';
-import { Amount, formatAmount, useAmountState } from '@/components/AmountDisplay';
+import { Amount, formatAmount, useAmountState, WithBitcoinGlyph } from '@/components/AmountDisplay';
 import { Analyzing, SectionPanel, Skeleton, SkeletonLines } from '@/components/ExplorerUI';
 import { formatDateTime } from '@/lib/explorer/blocks';
 
@@ -28,11 +29,11 @@ function shortAddr(a: string): string {
   return a.length > 20 ? `${a.slice(0, 10)}...${a.slice(-6)}` : a;
 }
 
-function formatAge(days: number): string {
-  if (days < 1) return 'under a day';
-  if (days < 45) return `${Math.round(days)} days`;
-  if (days < 730) return `${Math.round(days / 30.4)} months`;
-  return `${(days / 365).toFixed(1)} years`;
+function formatAge(t: Translator, days: number): string {
+  if (days < 1) return t('explorer.age.underADay');
+  if (days < 45) return t.plural('explorer.age.days', Math.round(days));
+  if (days < 730) return t.plural('explorer.age.months', Math.round(days / 30.4));
+  return t('explorer.age.years', { years: (days / 365).toFixed(1) });
 }
 
 // Received vs sent as a single bar: the whole width is the total received, the
@@ -41,6 +42,7 @@ function ReceivedSentBar({ received, sent }: { received: number; sent: number })
   const total = Math.max(1, received);
   const sentPct = Math.min(100, (sent / total) * 100);
   const unit = useAmountState();
+  const t = useT();
   return (
     <div className="flex flex-col gap-1">
       <div className="flex h-3 w-full overflow-hidden" style={{ borderRadius: 3, backgroundColor: 'var(--alice-bg)' }}>
@@ -48,8 +50,8 @@ function ReceivedSentBar({ received, sent }: { received: number; sent: number })
         <div style={{ width: `${100 - sentPct}%`, backgroundColor: 'var(--alice-primary)' }} />
       </div>
       <div className="flex justify-between font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-        <span>Sent {formatAmount(sent, unit)}</span>
-        <span style={{ color: 'var(--alice-primary)' }}>Held {formatAmount(received - sent, unit)}</span>
+        <span><WithBitcoinGlyph text={t('explorer.address.sentAmount', { amount: formatAmount(sent, unit) })} /></span>
+        <span style={{ color: 'var(--alice-primary)' }}><WithBitcoinGlyph text={t('explorer.address.heldAmount', { amount: formatAmount(received - sent, unit) })} /></span>
       </div>
     </div>
   );
@@ -82,11 +84,12 @@ function shortTxid(txid: string): string {
   return `${txid.slice(0, 10)}...${txid.slice(-8)}`;
 }
 function shortDate(sec?: number): string {
-  return sec ? new Date(sec * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+  return sec ? new Date(sec * 1000).toLocaleDateString(formatLocale(), { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
 }
 
 function TxRow({ tx, badge, onOpen }: { tx: NormalizedTransaction; badge?: ReactNode; onOpen: () => void }) {
   const outTotal = tx.outputs.reduce((s, o) => s + o.valueSats, 0);
+  const t = useT();
   return (
     <button
       type="button"
@@ -97,9 +100,9 @@ function TxRow({ tx, badge, onOpen }: { tx: NormalizedTransaction; badge?: React
       <div className="flex flex-col min-w-0">
         <span className="font-numbers truncate" style={{ fontSize: 12, color: 'var(--alice-text)' }} title={tx.txid}>{shortTxid(tx.txid)}</span>
         <span className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-          {tx.status.confirmed ? `block ${tx.status.blockHeight?.toLocaleString('en-US')}` : 'unconfirmed'}
+          {tx.status.confirmed ? t('explorer.txRow.block', { height: tx.status.blockHeight?.toLocaleString(formatLocale()) ?? '' }) : t('explorer.txRow.unconfirmed')}
           {tx.status.blockTime ? ` - ${formatDateTime(tx.status.blockTime)}` : ''}
-          {' - '}{tx.inputs.length} in / {tx.outputs.length} out
+          {' - '}{t('explorer.txRow.inOut', { inputs: tx.inputs.length, outputs: tx.outputs.length })}
         </span>
       </div>
       <div className="flex items-center gap-2 shrink-0">
@@ -136,6 +139,7 @@ export function ExplorerAddressTab({
       query the Worker for the giant packs the client does not bundle. */
   remoteEntities?: boolean;
 }) {
+  const t = useT();
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [txs, setTxs] = useState<NormalizedTransaction[]>([]);
   const [utxos, setUtxos] = useState<AddressUtxo[]>([]);
@@ -168,7 +172,7 @@ export function ExplorerAddressTab({
         stats = await provider.getAddressStats(address, { signal: controller.signal });
       } catch (err) {
         if (cancelled || (err instanceof ChainDataError && err.code === 'aborted')) return;
-        setState({ kind: 'error', message: err instanceof ChainDataError ? err.message : 'Could not load this address.' });
+        setState({ kind: 'error', message: err instanceof ChainDataError ? err.message : t('explorer.address.loadError') });
         return;
       }
       if (cancelled) return;
@@ -283,7 +287,7 @@ export function ExplorerAddressTab({
         <div className="flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3, backgroundColor: 'transparent' }}>
           <Skeleton width="60%" />
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
-            {['BALANCE', 'TRANSACTIONS', 'TIMES RECEIVED', 'RECEIVED', 'FIRST SEEN', 'AVG COIN AGE'].map(l => (
+            {[t('explorer.address.balance'), t('explorer.address.transactions'), t('explorer.address.timesReceived'), t('explorer.address.received'), t('explorer.address.firstSeen'), t('explorer.address.avgCoinAge')].map(l => (
               <div key={l} className="flex flex-col gap-1">
                 <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{l}</span>
                 <Skeleton width="60%" />
@@ -291,23 +295,23 @@ export function ExplorerAddressTab({
             ))}
           </div>
         </div>
-        <SectionPanel title="BALANCE"><div className="px-3 py-3"><Skeleton height={110} /></div></SectionPanel>
-        <SectionPanel title="UNSPENT OUTPUTS">
+        <SectionPanel title={t('explorer.address.balance')}><div className="px-3 py-3"><Skeleton height={110} /></div></SectionPanel>
+        <SectionPanel title={t('explorer.address.unspent')}>
           <div className="flex items-center justify-center gap-3 px-3 py-4">
             <Skeleton width={64} height={64} style={{ borderRadius: '50%' }} />
             <Skeleton width={40} height={40} style={{ borderRadius: '50%' }} />
             <Skeleton width={26} height={26} style={{ borderRadius: '50%' }} />
           </div>
         </SectionPanel>
-        <SectionPanel title="SIGNALS"><Analyzing label={`analyzing address on ${provider.source.name}…`} /></SectionPanel>
-        <SectionPanel title="TRANSACTIONS"><div className="px-3 py-3"><SkeletonLines lines={5} /></div></SectionPanel>
+        <SectionPanel title={t('explorer.address.signals')}><Analyzing label={t('explorer.address.analyzing', { source: provider.source.name })} /></SectionPanel>
+        <SectionPanel title={t('explorer.address.transactions')}><div className="px-3 py-3"><SkeletonLines lines={5} /></div></SectionPanel>
       </div>
     );
   }
   if (state.kind === 'error') {
     return (
       <div className="flex flex-col gap-1 px-4 py-3" style={{ border: '1px solid var(--alice-danger)', borderRadius: 3 }}>
-        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>COULD NOT LOAD</span>
+        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>{t('explorer.error.couldNotLoad')}</span>
         <p className="font-numbers m-0" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{state.message}</p>
       </div>
     );
@@ -323,21 +327,21 @@ export function ExplorerAddressTab({
         className="flex flex-col gap-3 px-4 py-3 rh-fade-in"
         style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3, backgroundColor: 'transparent' }}
       >
-        <div className="flex items-start gap-2"><p className="font-numbers m-0 break-all min-w-0 flex-1" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{s.address}</p><ExplorerCopy value={s.address} label="address" /></div>
+        <div className="flex items-start gap-2"><p className="font-numbers m-0 break-all min-w-0 flex-1" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{s.address}</p><ExplorerCopy value={s.address} label={t('explorer.copy.address')} /></div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
           {/* On Liquid the balance is blinded: show it as unknown, keep the
               counts (they are public), and drop the amount-derived metrics. */}
-          <Metric label="BALANCE" value={confidentialAmounts
-            ? <span className="font-numbers" style={{ fontSize: 14, color: 'var(--alice-muted)' }}>unknown</span>
+          <Metric label={t('explorer.address.balance')} value={confidentialAmounts
+            ? <span className="font-numbers" style={{ fontSize: 14, color: 'var(--alice-muted)' }}>{t('explorer.address.unknown')}</span>
             : <Amount sats={balance} style={{ fontSize: 14, color: 'var(--alice-text)' }} />} />
-          <Metric label="TRANSACTIONS" value={s.txCount.toLocaleString('en-US')} />
-          <Metric label="TIMES RECEIVED" value={s.fundedCount.toLocaleString('en-US')} />
-          <Metric label="RECEIVED" value={confidentialAmounts
-            ? <span className="font-numbers" style={{ fontSize: 14, color: 'var(--alice-muted)' }}>unknown</span>
+          <Metric label={t('explorer.address.transactions')} value={s.txCount.toLocaleString(formatLocale())} />
+          <Metric label={t('explorer.address.timesReceived')} value={s.fundedCount.toLocaleString(formatLocale())} />
+          <Metric label={t('explorer.address.received')} value={confidentialAmounts
+            ? <span className="font-numbers" style={{ fontSize: 14, color: 'var(--alice-muted)' }}>{t('explorer.address.unknown')}</span>
             : <Amount sats={s.fundedSum} style={{ fontSize: 14, color: 'var(--alice-text)' }} />} />
-          <Metric label="FIRST SEEN" value={shortDate(series?.firstSeen ?? undefined)} />
+          <Metric label={t('explorer.address.firstSeen')} value={shortDate(series?.firstSeen ?? undefined)} />
           {!confidentialAmounts && (
-            <Metric label="AVG COIN AGE" value={coinAge ? formatAge(coinAge.days) : (balance > 0 ? '-' : 'no coins held')} />
+            <Metric label={t('explorer.address.avgCoinAge')} value={coinAge ? formatAge(t, coinAge.days) : (balance > 0 ? '-' : t('explorer.address.noCoinsHeld'))} />
           )}
         </div>
         {/* Received vs sent split (amount-based, so Bitcoin only). */}
@@ -350,11 +354,11 @@ export function ExplorerAddressTab({
         series && series.points.length >= 2 ? (
           <div className="rh-fade-in"><ExplorerBalanceChart points={series.points} partial={partial} /></div>
         ) : !historyDone ? (
-          <SectionPanel title="BALANCE"><div className="px-3 py-3"><Skeleton height={110} /></div></SectionPanel>
+          <SectionPanel title={t('explorer.address.balance')}><div className="px-3 py-3"><Skeleton height={110} /></div></SectionPanel>
         ) : (
-          <SectionPanel title="BALANCE">
+          <SectionPanel title={t('explorer.address.balance')}>
             <p className="font-numbers m-0 px-3 py-3" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-              No dated history to chart for this address.
+              {t('explorer.address.noDatedHistory')}
             </p>
           </SectionPanel>
         )
@@ -362,9 +366,9 @@ export function ExplorerAddressTab({
       {/* On Liquid the amounts are blinded: the panel still holds its place
           and says why there is no timeline, instead of silently missing. */}
       {confidentialAmounts && (
-        <SectionPanel title="BALANCE">
+        <SectionPanel title={t('explorer.address.balance')}>
           <p className="font-numbers m-0 px-3 py-3" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-            Amounts on this network are confidential (blinded), so a balance timeline cannot be charted.
+            {t('explorer.address.confidentialTimeline')}
           </p>
         </SectionPanel>
       )}
@@ -376,16 +380,16 @@ export function ExplorerAddressTab({
           <ExplorerUtxoBubbles
             utxos={shownUtxos}
             confidential={confidentialAmounts}
-            title={utxos.length === 0 ? 'RECENT UNSPENT OUTPUTS' : 'UNSPENT OUTPUTS'}
+            title={utxos.length === 0 ? t('explorer.address.recentUnspent') : t('explorer.address.unspent')}
           />
           {utxos.length === 0 && (
             <span className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)', opacity: 0.7 }}>
-              This address holds too many UTXOs for the public endpoint; showing the unspent coins found in the loaded history only.
+              {t('explorer.address.tooManyUtxos')}
             </span>
           )}
         </div>
       ) : !utxosLoaded || (utxosUnavailable && !historyDone) ? (
-        <SectionPanel title="UNSPENT OUTPUTS">
+        <SectionPanel title={t('explorer.address.unspent')}>
           <div className="flex items-center justify-center gap-3 px-3 py-4">
             <Skeleton width={64} height={64} style={{ borderRadius: '50%' }} />
             <Skeleton width={40} height={40} style={{ borderRadius: '50%' }} />
@@ -393,22 +397,22 @@ export function ExplorerAddressTab({
           </div>
         </SectionPanel>
       ) : (
-        <SectionPanel title="UNSPENT OUTPUTS">
+        <SectionPanel title={t('explorer.address.unspent')}>
           <p className="font-numbers m-0 px-3 py-3" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-            No coins held on this address right now.
+            {t('explorer.address.noCoinsNow')}
           </p>
         </SectionPanel>
       )}
 
       {/* Query-privacy notice. */}
       <p className="font-numbers m-0" style={{ fontSize: 11, color: 'var(--alice-muted)', opacity: 0.7 }}>
-        Looking up an address tells {provider.source.name} that this address is of interest to you.
+        {t('explorer.address.queryPrivacy', { source: provider.source.name })}
       </p>
 
       {/* The stable SIGNALS zone: the analysis cards land here as they are
           computed; while the history walk still runs, the pending row says so,
           so nothing seems missing or suddenly appears out of nowhere. */}
-      <SectionPanel title="SIGNALS">
+      <SectionPanel title={t('explorer.address.signals')}>
         <div className="flex flex-col gap-3 px-3 py-3">
       {/* Sourced entity attribution, when this address is known. */}
       <ExplorerEntityCard labels={entityLabels} />
@@ -420,13 +424,12 @@ export function ExplorerAddressTab({
           style={{ borderTop: '1px solid var(--alice-border)', borderLeft: '3px solid var(--alice-warning)', borderRadius: 3 }}
         >
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-numbers" style={{ fontSize: 14, color: 'var(--alice-text)' }}>Address reuse</span>
-            <span className="font-numbers" style={{ fontSize: 10, padding: '3px 6px', border: '1px solid var(--alice-warning)', borderRadius: 3, color: 'var(--alice-warning)' }}>MEDIUM</span>
-            <span className="font-numbers" style={{ fontSize: 10, padding: '3px 6px', border: '1px solid var(--alice-muted)', borderRadius: 3, color: 'var(--alice-muted)' }}>CERTAIN CONFIDENCE</span>
+            <span className="font-numbers" style={{ fontSize: 14, color: 'var(--alice-text)' }}>{t('explorer.address.reuse')}</span>
+            <span className="font-numbers" style={{ fontSize: 10, padding: '3px 6px', border: '1px solid var(--alice-warning)', borderRadius: 3, color: 'var(--alice-warning)' }}>{t('explorer.severity.medium')}</span>
+            <span className="font-numbers" style={{ fontSize: 10, padding: '3px 6px', border: '1px solid var(--alice-muted)', borderRadius: 3, color: 'var(--alice-muted)' }}>{t('explorer.confidence.certain')}</span>
           </div>
           <p className="font-numbers m-0" style={{ fontSize: 13, lineHeight: '19px', color: 'var(--alice-muted)' }}>
-            This address has received funds {s.fundedCount} times. Reusing an address publicly ties
-            all those payments to the same owner and makes activity easy to follow.
+            {t('explorer.address.reuseBody', { count: s.fundedCount })}
           </p>
         </div>
       )}
@@ -440,13 +443,12 @@ export function ExplorerAddressTab({
         >
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-numbers" style={{ fontSize: 14, color: 'var(--alice-text)' }}>
-              {linked.length} linked address{linked.length > 1 ? 'es' : ''}
+              {t.plural('explorer.address.linked', linked.length)}
             </span>
-            <span className="font-numbers" style={{ fontSize: 10, padding: '3px 6px', border: '1px solid var(--alice-muted)', borderRadius: 3, color: 'var(--alice-muted)' }}>PROBABLE</span>
+            <span className="font-numbers" style={{ fontSize: 10, padding: '3px 6px', border: '1px solid var(--alice-muted)', borderRadius: 3, color: 'var(--alice-muted)' }}>{t('explorer.confidence.probable')}</span>
           </div>
           <p className="font-numbers m-0" style={{ fontSize: 13, lineHeight: '19px', color: 'var(--alice-muted)' }}>
-            These addresses were spent together with this one, so common-input ownership ties them
-            to the same wallet{partial ? ' (from the loaded history)' : ''}.
+            {partial ? t('explorer.address.linkedBodyPartial') : t('explorer.address.linkedBody')}
           </p>
           <div className="flex flex-wrap gap-2">
             {linked.slice(0, 12).map(a => (
@@ -463,7 +465,7 @@ export function ExplorerAddressTab({
             ))}
             {linked.length > 12 && (
               <span className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)', alignSelf: 'center' }}>
-                +{linked.length - 12} more
+                {t('explorer.address.more', { count: linked.length - 12 })}
               </span>
             )}
           </div>
@@ -471,41 +473,31 @@ export function ExplorerAddressTab({
       )}
 
       {/* While the history walk runs, say that more analysis is coming. */}
-      {!historyDone && <Analyzing label="scanning the history for linked addresses…" />}
+      {!historyDone && <Analyzing label={t('explorer.address.scanning')} />}
 
       {/* Quantum key exposure of the funds held here, with the other flags. */}
       {quantum && <ExplorerQuantumCard exposure={quantum} />}
 
-      {/* KYC exposure: intentionally a placeholder. A truthful indicator needs a
-          sourced, dated entity dataset (exchanges, services) we have not built
-          yet; asserting an exchange link without it would be an unfounded
-          accusation, which the engine's rules forbid. */}
-      <div
-        className="flex flex-col gap-1 px-4 py-3"
-        style={{ border: '1px dashed var(--alice-border)', borderRadius: 3 }}
-      >
-        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>KYC EXPOSURE</span>
-        <p className="font-numbers m-0" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-          Checking whether this address touches a known exchange or service needs a labelled
-          entity database, which is not loaded yet. Coming with the entity dataset.
-        </p>
-      </div>
+      {/* No standing "KYC exposure" card: a known exchange, service or
+          sanctioned link shows as the address's label and as an entity
+          signal above, sourced and dated; with nothing found, nothing is
+          shown. Absence of a label is never presented as a finding. */}
         </div>
       </SectionPanel>
 
       {/* Transactions, sliced client-side from the loaded history; skeleton
           rows until the first page lands, an explicit empty state after. */}
       <SectionPanel
-        title="TRANSACTIONS"
+        title={t('explorer.address.transactions')}
         right={
           <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-            {Math.min(visible, txs.length).toLocaleString('en-US')} of {s.txCount.toLocaleString('en-US')}
+            {t('explorer.list.shownOf', { shown: Math.min(visible, txs.length).toLocaleString(formatLocale()), total: s.txCount.toLocaleString(formatLocale()) })}
           </span>
         }
       >
         {txs.length === 0 ? (
           historyDone ? (
-            <p className="font-numbers m-0 px-3 py-3" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>No transactions to list.</p>
+            <p className="font-numbers m-0 px-3 py-3" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>{t('explorer.address.noTxs')}</p>
           ) : (
             <div className="px-3 py-3"><SkeletonLines lines={5} /></div>
           )
@@ -526,7 +518,7 @@ export function ExplorerAddressTab({
             color: 'var(--alice-primary)',
           }}
         >
-          SHOW MORE
+          {t('explorer.list.showMore')}
         </button>
       )}
     </div>

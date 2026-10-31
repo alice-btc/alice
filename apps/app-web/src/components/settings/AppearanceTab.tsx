@@ -5,8 +5,10 @@ import { PALETTES, ALL_PALETTE_IDS } from '@alice-wallet/alice-content';
 import { SvgIcon } from '@/components/SvgIcon';
 import { CHECK_ICON } from '@/lib/atelier-icons';
 import { applyWebTheme, readAppearance } from '@/lib/theme-init';
+import { useT } from '@/i18n';
 
 export function AppearanceTab() {
+  const t = useT();
   const [appearance, setAppearance] = useState(readAppearance);
   useEffect(() => {
     applyWebTheme(appearance.mode, appearance.palette);
@@ -14,17 +16,17 @@ export function AppearanceTab() {
   return (
     <div className="flex flex-col gap-7 font-numbers">
       <fieldset className="border-0 border-b m-0 p-0 pb-6" style={{ borderBottom: '1px solid var(--alice-border)' }}>
-        <legend className="font-pixel text-[10px] mb-4">Theme</legend>
+        <legend className="font-pixel text-[10px] mb-4">{t('settings.appearance.theme')}</legend>
         <div className="flex flex-wrap gap-2">
           {(['light', 'dark'] as const).map(mode => (
             <button className="alice-control alice-control--choice font-numbers" key={mode} aria-pressed={appearance.mode === mode} onClick={() => setAppearance(a => ({ ...a, mode }))}>
-              {mode === 'light' ? 'Light' : 'Dark'}
+              {mode === 'light' ? t('settings.appearance.light') : t('settings.appearance.dark')}
             </button>
           ))}
         </div>
       </fieldset>
       <fieldset className="border-0 border-b m-0 p-0 pb-6" style={{ borderBottom: '1px solid var(--alice-border)' }}>
-        <legend className="font-pixel text-[10px] mb-4">Color palette</legend>
+        <legend className="font-pixel text-[10px] mb-4">{t('settings.appearance.palette')}</legend>
         <div className="grid grid-cols-2 gap-2">
           {ALL_PALETTE_IDS.map(palette => (
             <button className="alice-control alice-control--choice font-numbers" key={palette} aria-pressed={appearance.palette === palette} onClick={() => setAppearance(a => ({ ...a, palette }))}>
@@ -34,7 +36,7 @@ export function AppearanceTab() {
             </button>
           ))}
         </div>
-        <p className="text-sm mt-3" style={{ color: 'var(--alice-muted)' }}>The palette applies to backgrounds, text, borders, links and Alice. Monochrome also changes the rabbit.</p>
+        <p className="text-sm mt-3" style={{ color: 'var(--alice-muted)' }}>{t('settings.appearance.paletteHint')}</p>
       </fieldset>
     </div>
   );

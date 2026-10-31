@@ -4,35 +4,34 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { APP_URL, appQuestionUrl } from '@/lib/site';
 import { AliceMascot, NextIcon } from '@/components/icons';
+import type { CommonCopy } from '@/i18n/dictionaries/common';
 
 // Persistent "ask Alice" bar, docked to the bottom of the viewport on every page.
 // Submitting hands off to the app with the question attached (and autosend), so
 // the website never runs an AI backend of its own. The placeholder cycles
 // example questions and the button breathes a soft glow to invite a try; both
 // respect prefers-reduced-motion (the glow via CSS, the cycling by pausing).
-const EXAMPLES = [
-  'What is self-custody?',
-  'Is my AI chat private?',
-  'How do I secure my Bitcoin?',
-  'What is the Ark protocol?',
-];
+// The example questions come from the common dictionary.
 
-export function StickyAsk() {
+const withoutTrailingSlash = (path: string) => path.replace(/\/+$/, '') || '/';
+
+export function StickyAsk({ copy, homePath }: { copy: CommonCopy['ask']; homePath: string }) {
+  const examples = copy.examples;
   const [value, setValue] = useState('');
   const [phIdx, setPhIdx] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   // The home hero carries its own working ask interface on large screens
   // (HeroTour), so there the bar is phone-only; every other page keeps it.
-  const isHome = usePathname() === '/';
+  const isHome = withoutTrailingSlash(usePathname() ?? '') === withoutTrailingSlash(homePath);
 
   useEffect(() => {
     const reduce =
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (reduce) return;
-    const id = setInterval(() => setPhIdx((i) => (i + 1) % EXAMPLES.length), 3200);
+    const id = setInterval(() => setPhIdx((i) => (i + 1) % examples.length), 3200);
     return () => clearInterval(id);
-  }, []);
+  }, [examples.length]);
 
   return (
     <div
@@ -49,21 +48,21 @@ export function StickyAsk() {
       >
         <span className="hidden shrink-0 items-center gap-2 pr-1 sm:flex">
           <AliceMascot size={26} />
-          <span className="text-[15px] font-semibold text-[var(--alice-heading)]">Ask Alice</span>
+          <span className="text-[15px] font-semibold text-[var(--alice-heading)]">{copy.label}</span>
         </span>
         <input
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           disabled={submitting}
-          placeholder={EXAMPLES[phIdx]}
-          aria-label="Ask Alice a question"
+          placeholder={examples[phIdx]}
+          aria-label={copy.inputAria}
           className="min-w-0 flex-1 rounded-[3px] border border-[var(--alice-border)] bg-[var(--alice-bg)] px-4 py-2.5 text-base text-[var(--alice-heading)] placeholder:text-[var(--alice-muted)] focus:border-[var(--alice-primary)] focus:outline-none"
         />
         <button
           type="submit"
           disabled={submitting}
-          aria-label={submitting ? 'Opening Alice' : 'Ask Alice'}
+          aria-label={submitting ? copy.opening : copy.submitAria}
           aria-live="polite"
           className="cta-solid raise flex min-w-[88px] shrink-0 items-center justify-center gap-2 rounded-[4px] border border-[var(--alice-primary)] bg-[var(--alice-primary)] px-5 py-2.5 text-[15px] font-semibold text-[var(--alice-on-primary)] disabled:cursor-wait"
         >
@@ -78,7 +77,7 @@ export function StickyAsk() {
               ))}
             </span>
           ) : (
-            <>Ask <NextIcon size={16} /></>
+            <>{copy.submit} <NextIcon size={16} /></>
           )}
         </button>
       </form>

@@ -20,6 +20,7 @@ import {
   getFiatCurrency, priceApiUrl, CURRENCY_SYMBOL, type FiatCurrency,
 } from '@alice-wallet/alice-ui/fiat-currency';
 import { BITCOIN_ICON_SVG } from '@alice-wallet/alice-ui/components/bitcoin-icon-svg';
+import { formatLocale, useT } from '@/i18n';
 
 export type AmountState = {
   format: BalanceFormat;
@@ -91,13 +92,25 @@ export function formatAmount(sats: number, s: AmountState, signed = false): stri
   return `${sats < 0 ? '-' : '+'}${withUnit}`;
 }
 
+/** True for the symbol mode, the one whose unit is the ₿ glyph. */
+function isSymbolFormat(format: BalanceFormat): boolean {
+  return format !== 'sats' && format !== 'btc' && format !== 'usd';
+}
+
 /** Compact text for tight spots (bubble labels, chart axes): the same unit,
  *  abbreviated numbers (12.3k sats, 0.25 BTC, $1.2k, ₿ 45k). */
 export function formatAmountShort(sats: number, s: AmountState): string {
+  const body = formatAmountShortBody(sats, s);
+  return isSymbolFormat(s.format) ? `₿ ${body}` : body;
+}
+
+/** formatAmountShort without the '₿ ' of the symbol mode, for the labels
+ *  that draw the glyph instead (see AmountShort). */
+export function formatAmountShortBody(sats: number, s: AmountState): string {
   const compact = (n: number): string => {
     if (n >= 1e6) return `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M`;
     if (n >= 1e4) return `${(n / 1e3).toFixed(0)}k`;
-    return n.toLocaleString('en-US');
+    return n.toLocaleString(formatLocale());
   };
   const abs = Math.abs(sats);
   switch (s.format) {
@@ -109,30 +122,65 @@ export function formatAmountShort(sats: number, s: AmountState): string {
     case 'usd': {
       if (!s.price) return '...';
       const v = (abs / 1e8) * s.price;
-      return `${CURRENCY_SYMBOL[s.currency]}${v >= 10_000 ? compact(Math.round(v)) : v.toLocaleString('en-US', { maximumFractionDigits: v >= 100 ? 0 : 2 })}`;
+      return `${CURRENCY_SYMBOL[s.currency]}${v >= 10_000 ? compact(Math.round(v)) : v.toLocaleString(formatLocale(), { maximumFractionDigits: v >= 100 ? 0 : 2 })}`;
     }
     case 'symbol':
     default:
-      return `₿ ${compact(abs)}`;
+      return compact(abs);
   }
 }
 
 // The wallet's pixel-art ₿, scaled to the surrounding font and painted with
-// the surrounding colour. In plain-string contexts (SVG charts, canvas
-// tooltips) the '₿' character stands in; here, the real glyph.
+// the surrounding colour. The interface fonts have no U+20BF, so text that
+// shows the sign draws this glyph instead; only plain strings that cannot
+// hold markup (native tooltips, aria labels) keep the '₿' character.
 // 1.1em mirrors the wallet's own ratio (a 56px icon against a 48px balance):
 // the symbol deliberately stands slightly taller than the digits.
 const GLYPH_HTML = BITCOIN_ICON_SVG
   .replaceAll('{{COLOR}}', 'currentColor')
   .replace('<svg ', '<svg style="height:1.1em;width:auto;display:block" ');
 
-function BitcoinGlyph() {
+/** The ₿ glyph, inline with the text around it. `spaced` keeps the gap the
+ *  amounts put between the sign and the number. */
+export function BitcoinGlyph({ spaced = true }: { spaced?: boolean } = {}) {
   return (
     <span
       aria-hidden
-      style={{ display: 'inline-flex', alignItems: 'center', marginRight: '0.3em' }}
+      style={{ display: 'inline-flex', alignItems: 'center', verticalAlign: '-0.15em', marginRight: spaced ? '0.3em' : undefined }}
       dangerouslySetInnerHTML={{ __html: GLYPH_HTML }}
     />
+  );
+}
+
+/** `text` with each '₿' drawn as the glyph, for a sentence such as
+ *  "Plan ₿ Academy". The character stays for screen readers. */
+export function WithBitcoinGlyph({ text }: { text: string }) {
+  const parts = text.split('₿');
+  if (parts.length === 1) return <>{text}</>;
+  return (
+    <>
+      {parts.map((part, index) => (
+        <span key={index}>
+          {index > 0 && (
+            <>
+              <span className="sr-only">₿</span>
+              <BitcoinGlyph spaced={false} />
+            </>
+          )}
+          {part}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/** formatAmountShort as markup: the glyph, then the compact number. */
+export function AmountShort({ sats, unit }: { sats: number; unit: AmountState }) {
+  return (
+    <>
+      {isSymbolFormat(unit.format) && <BitcoinGlyph />}
+      <span>{formatAmountShortBody(sats, unit)}</span>
+    </>
   );
 }
 
@@ -149,12 +197,13 @@ export function Amount({
   signed?: boolean;
   style?: React.CSSProperties;
 }) {
+  const t = useT();
   const s = useAmountState();
   return (
     <span
       role="button"
       tabIndex={0}
-      title="Click to change the unit"
+      title={t('amount.cycle')}
       className="alice-amount font-numbers cursor-pointer"
       style={{ display: 'inline-flex', alignItems: 'center', ...style }}
       onClick={(e) => { e.stopPropagation(); e.preventDefault(); cycleAmountFormat(); }}

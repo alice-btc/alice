@@ -2,45 +2,15 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
-const REVIEW_BY = '2026-11-02';
-// Reviewed 2026-10-05. Only the 2 direct advisories below remain (braces and
-// node-forge, both still without a patched release); other package findings
-// are propagation through their dependency chains. The ws exception under
-// viem is closed: the scoped override now resolves it to 8.22.0.
-// See docs/security/dependency-audit.md.
-const KNOWN_HIGH_PACKAGES = new Set([
-  '@arkade-os/boltz-swap',
-  '@arkade-os/sdk',
-  '@expo/cli',
-  '@expo/code-signing-certificates',
-  '@expo/metro',
-  '@expo/metro-config',
-  '@jest/environment',
-  '@jest/fake-timers',
-  '@jest/transform',
-  '@lendasat/lendaswap-sdk-pure',
-  '@react-native/community-cli-plugin',
-  '@satora/swap',
-  'babel-jest',
-  'braces',
-  'expo',
-  'jest-environment-node',
-  'jest-haste-map',
-  'jest-message-util',
-  'metro',
-  'metro-config',
-  'metro-file-map',
-  'metro-transform-worker',
-  'micromatch',
-  'node-forge',
-  'react-native',
-]);
-const KNOWN_HIGH_ADVISORIES = new Set([1240992, 1240912]);
+const REVIEW_BY = '2026-11-28';
+// Reviewed 2026-10-31. No high advisory remains: node-forge moved to 1.4.2,
+// its patched release, inside the declared ranges, and npm no longer reports
+// braces 3.0.3. The sets below stay empty until a review accepts a new
+// exception. See docs/security/dependency-audit.md.
+const KNOWN_HIGH_PACKAGES = new Set([]);
+const KNOWN_HIGH_ADVISORIES = new Set([]);
 // Scope the exceptions to the exact reviewed package locations and versions.
-const REVIEWED_HIGH_NODES = new Map([
-  ['node_modules/braces', '3.0.3'],
-  ['node_modules/node-forge', '1.4.0'],
-]);
+const REVIEWED_HIGH_NODES = new Map([]);
 const lock = JSON.parse(readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8'));
 
 const audit = spawnSync('npm', ['audit', '--json'], { encoding: 'utf8' });

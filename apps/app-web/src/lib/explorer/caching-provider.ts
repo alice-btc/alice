@@ -21,6 +21,7 @@
 // wrapper per network), so it never crosses chains. Not-found and invalid-input
 // errors are cached too: they are stable facts, no point retrying them.
 
+import { t } from '../../i18n/translate.ts';
 import type { ChainDataProvider, RequestOptions, RequestPriority } from './provider.ts';
 import { ChainDataError } from './provider.ts';
 import type {
@@ -75,7 +76,7 @@ export type CachingOptions = {
 const realSleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
 function abortedError(): ChainDataError {
-  return new ChainDataError('aborted', 'The request was cancelled.');
+  return new ChainDataError('aborted', t('explorer.provider.cancelled'));
 }
 
 type Waiter = {

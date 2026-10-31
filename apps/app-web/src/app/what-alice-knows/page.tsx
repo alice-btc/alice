@@ -1,6 +1,7 @@
 'use client';
 
 import { SvgIcon } from '@/components/SvgIcon';
+import { useT } from '@/i18n';
 import { BACK_ICON } from '@/lib/atelier-icons';
 
 import { AliceMemoryPanel } from '@/components/settings/AliceMemoryPanel';
@@ -9,9 +10,10 @@ import { AliceMemoryPanel } from '@/components/settings/AliceMemoryPanel';
 // same screen serves both here and inside the settings dialog. Everything that
 // was this page lives in AliceMemoryPanel.
 export default function WhatAliceKnowsPage() {
+  const t = useT();
   return (
     <main style={{ width: 'min(100% - 32px, 760px)', margin: '0 auto', padding: '48px 0 72px' }}>
-      <a href="/" className="alice-control alice-control--quiet" style={{ textDecoration: 'none' }}><SvgIcon svg={BACK_ICON} size={20} /> Back to Alice</a>
+      <a href="/" className="alice-control alice-control--quiet" style={{ textDecoration: 'none' }}><SvgIcon svg={BACK_ICON} size={20} /> {t('memory.backToAlice')}</a>
       <div style={{ marginTop: 24 }}>
         <AliceMemoryPanel />
       </div>

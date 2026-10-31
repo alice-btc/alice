@@ -20,6 +20,16 @@
 // resumes from. Public data about a public wallet: no user is involved, and
 // the only database touched is the entity one.
 //
+// The walk only finds a commitment funded from one it already knows. When
+// the operator funds one from coins that came from elsewhere, or parks its
+// change in a batch output that stays put for weeks (as in October 2026),
+// the trail ends and the anchor stands still. So after its walk, each run
+// listens to the operator's live stream (GET /v1/txs), which announces every
+// commitment as it is finalized but keeps no history, until the next run is
+// due. A commitment heard there is kept as a candidate until the chain
+// confirms it, then adopted: the anchor if it is the newest, and its outputs
+// join the frontier so the walk goes on from it.
+//
 // Bark needs no walk: Second's server answers LastRoundEvent with its latest
 // finished round, signed transaction included, so the Worker just keeps the
 // newest one it has seen with its confirmation. The app asks the server
@@ -44,6 +54,33 @@ const BARK_SERVICE = 'bark_server.ArkService';
 /** The cron expression that refreshes the anchor; the hourly one runs the
  *  Worker's other scheduled work. */
 export const ANCHOR_CRON = '*/10 * * * *';
+/** How long a run lives, walk and listening together, counted from its
+ *  start: the next run is due at ten minutes, and a scheduled invocation
+ *  may live fifteen. */
+export const ANCHOR_RUN_MS = 9 * 60_000 + 30_000;
+/** Pause before reopening the stream when it ends before the run is over. */
+const STREAM_RECONNECT_MS = 2_000;
+/** A candidate the chain has not confirmed after this long is dropped: a
+ *  commitment the operator announced but never broadcast, or one replaced. */
+const CANDIDATE_TTL_MS = 7 * 24 * 60 * 60_000;
+/** How many requests a scheduled run may send in all. Cloudflare counts
+ *  every fetch of an invocation against a limit, 50 on the Workers free
+ *  plan, and past it each fetch fails at once: on 31 October 2026 the walk
+ *  spent the whole limit, the stream could not open even once and the run
+ *  reported 249 reconnections. The walk stops when only the reserve is
+ *  left, which the listener and the candidates then spend. */
+export const RUN_REQUEST_BUDGET = 45;
+const STREAM_RESERVE = 10;
+
+export class RequestBudget {
+  left: number;
+  constructor(left: number) { this.left = left; }
+  /** Takes one request, or throws when no more than `reserve` would remain. */
+  take(reserve = 0): void {
+    if (this.left <= reserve) throw new LookupError('request budget spent');
+    this.left--;
+  }
+}
 
 // The same starting points as the app's registry: real commitments of the
 // arkade.computer operator on mainnet, on three funding lines. Used once, to
@@ -59,16 +96,27 @@ const ARKADE_SEEDS: readonly string[] = [
 // thousands of sats to millions.
 const MIN_FOLLOW_SATS = 10_000;
 const MAX_FOLLOW_PER_TX = 3;
-// Per run: a run every ten minutes with this budget catches up a day of the
-// operator's activity in a couple of runs, at well under a hundred requests.
+// Per run: a run every ten minutes with this many hops catches up a day of
+// the operator's activity in a couple of runs; the request budget above
+// stops a run sooner when the hops cost more requests than it has.
 const MAX_HOPS = 40;
 const MAX_FRONTIER = 24;
+// How many spenders that are NOT commitments the walk crosses in a row
+// before letting a path go: a consolidation, then a sweep, is the most the
+// operator's wallet puts between two commitments. Beyond that the coins have
+// left for a user's or an exchange's wallet, whose spends never end: before
+// this bound the walk wandered there, filled its frontier with them, and
+// forgot the operator's own lines (the anchor stood still for weeks in
+// October 2026 while the wallet went on).
+const MAX_DRIFT = 2;
 const TIMEOUT_MS = 12_000;
 
 export type Anchor = { txid: string; height: number; timestamp: number };
 export type Anchors = { arkade?: Anchor; bark?: Anchor; updatedAt?: number };
 
-type Outpoint = { txid: string; vout: number; valueSats: number };
+/** `drift`: spenders that were not commitments crossed since the last one
+ *  (0 on a commitment's own outputs); absent on rows written before it. */
+type Outpoint = { txid: string; vout: number; valueSats: number; drift?: number };
 
 type EsploraTx = {
   txid: string;
@@ -85,6 +133,11 @@ export type AnchorDeps = {
   arkadeUrl?: string;
   barkUrl?: string;
   maxHops?: number;
+  /** Pause before reopening the operator's stream; STREAM_RECONNECT_MS by default. */
+  reconnectMs?: number;
+  /** The run's request budget, shared by the walk, the listener and the
+   *  candidates; unlimited when absent. */
+  budget?: RequestBudget;
 };
 
 export type RefreshReport = {
@@ -99,6 +152,17 @@ export type RefreshReport = {
    *  so the next run resumes there instead of starting over. */
   interrupted: boolean;
   /** The lookup that failed, as host and kind, for the technical log. */
+  failure?: string;
+};
+
+export type StreamReport = {
+  /** Commitments announced on the stream this run. */
+  heard: number;
+  /** Candidates confirmed on the chain and adopted this run, heard now or earlier. */
+  adopted: number;
+  /** Times the stream ended or failed before the run was over and was reopened. */
+  reconnects: number;
+  /** The last failure to open or read the stream, as host and kind. */
   failure?: string;
 };
 
@@ -144,7 +208,8 @@ function hostOf(url: string): string {
   try { return new URL(url).host; } catch { return 'unknown host'; }
 }
 
-async function getJson(f: typeof fetch, url: string): Promise<{ status: number; body: unknown }> {
+async function getJson(f: typeof fetch, url: string, budget?: RequestBudget, reserve = 0): Promise<{ status: number; body: unknown }> {
+  budget?.take(reserve);
   let res: Response;
   try {
     res = await f(url, { method: 'GET', signal: AbortSignal.timeout(TIMEOUT_MS) });
@@ -158,11 +223,11 @@ async function getJson(f: typeof fetch, url: string): Promise<{ status: number; 
 }
 
 /** The same Esplora path on each host in turn; the last failure propagates. */
-async function getEsploraJson(f: typeof fetch, bases: readonly string[], path: string): Promise<{ status: number; body: unknown; host: string }> {
+async function getEsploraJson(f: typeof fetch, bases: readonly string[], path: string, budget?: RequestBudget, reserve = 0): Promise<{ status: number; body: unknown; host: string }> {
   let last: LookupError | null = null;
   for (const base of bases) {
     try {
-      const { status, body } = await getJson(f, `${base}${path}`);
+      const { status, body } = await getJson(f, `${base}${path}`, budget, reserve);
       if (status === 200) return { status, body, host: hostOf(base) };
       last = new LookupError(`${hostOf(base)} answered ${status}`);
     } catch (err) {
@@ -179,12 +244,31 @@ function esploraBases(deps: AnchorDeps): readonly string[] {
   return list.map(u => u.replace(/\/+$/, ''));
 }
 
-function largestOutputs(tx: EsploraTx): Outpoint[] {
+function largestOutputs(tx: EsploraTx, drift = 0): Outpoint[] {
   return tx.vout
-    .map((o, index) => ({ txid: tx.txid, vout: index, valueSats: o.value }))
+    .map((o, index): Outpoint => (drift > 0 ? { txid: tx.txid, vout: index, valueSats: o.value, drift } : { txid: tx.txid, vout: index, valueSats: o.value }))
     .filter(o => o.valueSats >= MIN_FOLLOW_SATS)
     .sort((a, b) => b.valueSats - a.valueSats)
     .slice(0, MAX_FOLLOW_PER_TX);
+}
+
+/** One entry per output, the lowest drift kept (the later one on a tie, which
+ *  the cap forgets last): an output reached twice, by two paths or once more
+ *  than its stored copy, would otherwise take two places, and copies piling
+ *  up run after run pushed the other lines' outputs out of the cap. */
+function uniqueOutpoints(list: Outpoint[]): Outpoint[] {
+  const kept = new Map<string, Outpoint>();
+  for (const o of list) {
+    const key = `${o.txid}:${o.vout}`;
+    const prev = kept.get(key);
+    if (!prev || (o.drift ?? 0) <= (prev.drift ?? 0)) kept.set(key, o);
+  }
+  return list.filter(o => {
+    const key = `${o.txid}:${o.vout}`;
+    if (kept.get(key) !== o) return false;
+    kept.delete(key);
+    return true;
+  });
 }
 
 function parseFrontier(raw: string): Outpoint[] {
@@ -195,10 +279,39 @@ function parseFrontier(raw: string): Outpoint[] {
       typeof o === 'object' && o !== null
       && typeof (o as Outpoint).txid === 'string' && TXID.test((o as Outpoint).txid)
       && Number.isInteger((o as Outpoint).vout) && (o as Outpoint).vout >= 0
-      && typeof (o as Outpoint).valueSats === 'number');
+      && typeof (o as Outpoint).valueSats === 'number'
+      && ((o as Outpoint).drift === undefined || Number.isInteger((o as Outpoint).drift)));
   } catch {
     return [];
   }
+}
+
+/** The three questions the walk and the stream listener ask the chain and
+ *  the indexer. The indexer answers a commitment with its round, and anything
+ *  else with "batch not found"; any other answer is a failure, never "not
+ *  one". */
+function chainLookups(f: typeof fetch, esplora: readonly string[], arkade: string, budget?: RequestBudget, reserve = 0) {
+  const getTx = async (txid: string): Promise<EsploraTx> => {
+    const { body, host } = await getEsploraJson(f, esplora, `/tx/${txid}`, budget, reserve);
+    const tx = body as EsploraTx | null;
+    if (!tx || !Array.isArray(tx.vout) || typeof tx.status !== 'object') throw new LookupError(`${host} malformed tx`);
+    return tx;
+  };
+  const getOutspends = async (txid: string): Promise<EsploraOutspend[]> => {
+    const { body, host } = await getEsploraJson(f, esplora, `/tx/${txid}/outspends`, budget, reserve);
+    if (!Array.isArray(body)) throw new LookupError(`${host} malformed outspends`);
+    return body as EsploraOutspend[];
+  };
+  const negatives = new Set<string>();
+  const isCommitment = async (txid: string): Promise<boolean> => {
+    if (negatives.has(txid)) return false;
+    const { status, body } = await getJson(f, `${arkade}/v1/indexer/commitmentTx/${txid}`, budget, reserve);
+    if (status === 200) return true;
+    const message = typeof body === 'object' && body !== null ? String((body as { message?: unknown }).message ?? '') : '';
+    if (/not found/i.test(message)) { negatives.add(txid); return false; }
+    throw new LookupError(`${hostOf(arkade)} indexer answered ${status}`);
+  };
+  return { getTx, getOutspends, isCommitment };
 }
 
 /**
@@ -215,29 +328,7 @@ export async function refreshArkadeAnchor(env: Env, deps: AnchorDeps = {}): Prom
   const esplora = esploraBases(deps);
   const arkade = (deps.arkadeUrl ?? ARKADE_API_URL).replace(/\/+$/, '');
   const maxHops = deps.maxHops ?? MAX_HOPS;
-
-  const getTx = async (txid: string): Promise<EsploraTx> => {
-    const { body, host } = await getEsploraJson(f, esplora, `/tx/${txid}`);
-    const tx = body as EsploraTx | null;
-    if (!tx || !Array.isArray(tx.vout) || typeof tx.status !== 'object') throw new LookupError(`${host} malformed tx`);
-    return tx;
-  };
-  const getOutspends = async (txid: string): Promise<EsploraOutspend[]> => {
-    const { body, host } = await getEsploraJson(f, esplora, `/tx/${txid}/outspends`);
-    if (!Array.isArray(body)) throw new LookupError(`${host} malformed outspends`);
-    return body as EsploraOutspend[];
-  };
-  // The indexer answers a commitment with its round, and anything else with
-  // "batch not found". Any other answer is a failure, never "not one".
-  const negatives = new Set<string>();
-  const isCommitment = async (txid: string): Promise<boolean> => {
-    if (negatives.has(txid)) return false;
-    const { status, body } = await getJson(f, `${arkade}/v1/indexer/commitmentTx/${txid}`);
-    if (status === 200) return true;
-    const message = typeof body === 'object' && body !== null ? String((body as { message?: unknown }).message ?? '') : '';
-    if (/not found/i.test(message)) { negatives.add(txid); return false; }
-    throw new LookupError(`${hostOf(arkade)} indexer answered ${status}`);
-  };
+  const { getTx, getOutspends, isCommitment } = chainLookups(f, esplora, arkade, deps.budget, STREAM_RESERVE);
 
   let row: Row | null = null;
   try {
@@ -273,7 +364,20 @@ export async function refreshArkadeAnchor(env: Env, deps: AnchorDeps = {}): Prom
         queue.push(...largestOutputs(tx));
       }
     }
+    // The newest commitment's own outputs are watched every run, whatever
+    // the stored frontier holds: its change is where the wallet spends next,
+    // and a frontier that lost it (a detour, an older row) heals here.
+    if (newest && !queue.some(o => o.txid === newest!.txid)) {
+      queue.push(...largestOutputs(await getTx(newest.txid)));
+    }
     const explored = new Set<string>();
+    // The transactions whose outputs the run starts from were explored
+    // before, with the lowest drift they were reached at. One reached again
+    // (the newest commitment's change all spent by a transaction that is not
+    // a commitment, whose outputs the frontier already holds) is explored
+    // anew only through a path with less drift, which would follow further.
+    const reached = new Map<string, number>();
+    for (const o of queue) reached.set(o.txid, Math.min(reached.get(o.txid) ?? Infinity, o.drift ?? 0));
     const outspendsByTxid = new Map<string, EsploraOutspend[]>();
     while (queue.length > 0) {
       const op = queue[0];
@@ -285,6 +389,7 @@ export async function refreshArkadeAnchor(env: Env, deps: AnchorDeps = {}): Prom
       const spend = outspends[op.vout];
       if (!spend?.spent || !spend.txid || !TXID.test(spend.txid)) { queue.shift(); frontier.push(op); continue; }
       if (explored.has(spend.txid)) { queue.shift(); continue; }
+      if ((reached.get(spend.txid) ?? Infinity) <= (op.drift ?? 0) + 1) { queue.shift(); continue; }
       if (hops >= maxHops) { queue.shift(); frontier.push(op); continue; }
       const tx = await getTx(spend.txid);
       const hit = await isCommitment(tx.txid);
@@ -294,7 +399,8 @@ export async function refreshArkadeAnchor(env: Env, deps: AnchorDeps = {}): Prom
       explored.add(spend.txid);
       hops++;
       if (hit) { consider(tx); found++; }
-      queue.push(...largestOutputs(tx));
+      const drift = hit ? 0 : (op.drift ?? 0) + 1;
+      if (drift <= MAX_DRIFT) queue.push(...largestOutputs(tx, drift));
     }
   } catch (err) {
     if (!(err instanceof LookupError)) throw err;
@@ -305,16 +411,203 @@ export async function refreshArkadeAnchor(env: Env, deps: AnchorDeps = {}): Prom
     failure === undefined ? { anchor, hops, found, interrupted: false } : { anchor, hops, found, interrupted: true, failure };
   if (!newest) return report(null);
   // What to resume from: the unspent outputs reached, then whatever is still
-  // queued (a run cut short keeps its unexplored outputs), newest last.
-  const resume = [...frontier, ...queue].slice(-MAX_FRONTIER);
-  const now = deps.now ?? Date.now;
-  await env.ENTITY_DB.prepare(
+  // queued (a run cut short keeps its unexplored outputs), newest last, each
+  // output once. The cap forgets from the front, so outputs reached through
+  // a detour go before the commitments' own.
+  const drifted = frontier.filter(o => (o.drift ?? 0) > 0);
+  const own = frontier.filter(o => !(o.drift ?? 0));
+  const resume = uniqueOutpoints([...drifted, ...own, ...queue]).slice(-MAX_FRONTIER);
+  await storeAnchor(env, 'arkade', newest, resume, (deps.now ?? Date.now)());
+  return report(newest);
+}
+
+async function storeAnchor(env: Env, network: 'arkade' | 'bark', anchor: Anchor, frontier: Outpoint[], now: number): Promise<void> {
+  await env.ENTITY_DB!.prepare(
     `INSERT INTO explorer_anchors (network, txid, height, timestamp, frontier, updated_at)
      VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(network) DO UPDATE SET txid = excluded.txid, height = excluded.height,
        timestamp = excluded.timestamp, frontier = excluded.frontier, updated_at = excluded.updated_at`,
-  ).bind('arkade', newest.txid, newest.height, newest.timestamp, JSON.stringify(resume), now()).run();
-  return report(newest);
+  ).bind(network, anchor.txid, anchor.height, anchor.timestamp, JSON.stringify(frontier), now).run();
+}
+
+/* ------------------------- The operator's stream ------------------------- */
+
+/**
+ * The txid of the commitment a line of the operator's stream announces, or
+ * null for anything else: a keep-alive, an Ark transaction, a malformed line.
+ * grpc-gateway sends one JSON object per line, wrapped as { result: <event> };
+ * a proxy serving it as SSE would prefix it with "data:". The same reading as
+ * the app's (lib/explorer/arkade.ts, subscribeSettlements).
+ */
+export function commitmentTxidFromLine(line: string): string | null {
+  const text = line.startsWith('data:') ? line.slice(5).trim() : line.trim();
+  if (!text) return null;
+  let obj: unknown;
+  try { obj = JSON.parse(text); } catch { return null; }
+  const msg = typeof obj === 'object' && obj !== null && 'result' in obj ? (obj as { result: unknown }).result : obj;
+  const c = typeof msg === 'object' && msg !== null ? (msg as { commitmentTx?: unknown }).commitmentTx : undefined;
+  const txid = typeof c === 'object' && c !== null ? (c as { txid?: unknown }).txid : undefined;
+  return typeof txid === 'string' && TXID.test(txid) ? txid : null;
+}
+
+async function readLines(body: ReadableStream<Uint8Array>, onLine: (line: string) => Promise<void>): Promise<void> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) return;
+    buffer += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, nl);
+      buffer = buffer.slice(nl + 1);
+      await onLine(line);
+    }
+  }
+}
+
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+/**
+ * A confirmed commitment becomes the anchor when it is newer than the stored
+ * one, and its larger outputs join the frontier either way, so the walk
+ * follows the operator's wallet from it too. An unconfirmed transaction
+ * changes nothing. True when the row was written.
+ */
+async function adoptCommitment(env: Env, tx: EsploraTx, now: number): Promise<boolean> {
+  if (!tx.status.confirmed || typeof tx.status.block_height !== 'number') return false;
+  const row = await env.ENTITY_DB!.prepare('SELECT network, txid, height, timestamp, frontier, updated_at FROM explorer_anchors WHERE network = ?')
+    .bind('arkade').first<Row>();
+  const stored: Anchor | null = row && TXID.test(row.txid) ? { txid: row.txid, height: row.height, timestamp: row.timestamp } : null;
+  const anchor: Anchor = !stored || tx.status.block_height > stored.height
+    ? { txid: tx.txid, height: tx.status.block_height, timestamp: tx.status.block_time ?? 0 }
+    : stored;
+  // The commitment's own outputs go last, where the cap forgets last.
+  const frontier = uniqueOutpoints([...(row ? parseFrontier(row.frontier) : []), ...largestOutputs(tx)]).slice(-MAX_FRONTIER);
+  await storeAnchor(env, 'arkade', anchor, frontier, now);
+  return true;
+}
+
+/**
+ * The candidates the chain has confirmed since they were heard are adopted
+ * and forgotten; the stale ones are forgotten. One the chain does not know
+ * yet (not broadcast, or not in this host's mempool) waits. A failed lookup
+ * leaves the rest for the next run.
+ */
+export async function settleCandidates(env: Env, deps: AnchorDeps = {}): Promise<{ adopted: number; failure?: string }> {
+  if (!env.ENTITY_DB) return { adopted: 0 };
+  const now = (deps.now ?? Date.now)();
+  const arkade = (deps.arkadeUrl ?? ARKADE_API_URL).replace(/\/+$/, '');
+  const { getTx, isCommitment } = chainLookups(deps.fetch ?? fetch, esploraBases(deps), arkade, deps.budget);
+  let rows: { txid: string; seen_at: number }[] = [];
+  try {
+    const res = await env.ENTITY_DB.prepare('SELECT txid, seen_at FROM explorer_candidates WHERE network = ?').bind('arkade').all<{ txid: string; seen_at: number }>();
+    rows = res.results ?? [];
+  } catch {
+    // The table may not exist yet (migration pending).
+    return { adopted: 0 };
+  }
+  const forget = (txid: string) => env.ENTITY_DB!.prepare('DELETE FROM explorer_candidates WHERE network = ? AND txid = ?').bind('arkade', txid).run();
+  let adopted = 0;
+  for (const c of rows) {
+    if (!TXID.test(c.txid) || now - c.seen_at > CANDIDATE_TTL_MS) { await forget(c.txid); continue; }
+    try {
+      const tx = await getTx(c.txid);
+      if (!tx.status.confirmed) continue;
+      // Confirmed, yet the indexer does not know it as a commitment: not one.
+      if (!(await isCommitment(tx.txid))) { await forget(c.txid); continue; }
+      if (await adoptCommitment(env, tx, now)) adopted++;
+      await forget(c.txid);
+    } catch (err) {
+      if (!(err instanceof LookupError)) throw err;
+      if (/answered 404$/.test(err.failure)) continue;
+      return { adopted, failure: err.failure };
+    }
+  }
+  return { adopted };
+}
+
+/**
+ * Listen to the operator's stream until `deadline` (a time as Date.now gives
+ * it), remembering every commitment announced as a candidate; the candidates
+ * are settled before and after, so one confirmed during the run is adopted
+ * in the same run. A stream ends now and then without an event (the operator
+ * closes it, or the proxy in front of it times out): the listener reopens it
+ * after a pause, and after a failure too, until the deadline. Reaching the
+ * deadline is the normal end, not a failure.
+ */
+export async function listenArkadeStream(env: Env, deadline: number, deps: AnchorDeps = {}): Promise<StreamReport> {
+  const report: StreamReport = { heard: 0, adopted: 0, reconnects: 0 };
+  if (!env.ENTITY_DB) return report;
+  const f = deps.fetch ?? fetch;
+  const now = deps.now ?? Date.now;
+  const arkade = (deps.arkadeUrl ?? ARKADE_API_URL).replace(/\/+$/, '');
+  const pause = deps.reconnectMs ?? STREAM_RECONNECT_MS;
+  const settle = async () => {
+    const settled = await settleCandidates(env, deps);
+    report.adopted += settled.adopted;
+    if (settled.failure) report.failure = settled.failure;
+  };
+  await settle();
+  const heard = new Set<string>();
+  const remember = async (line: string) => {
+    const txid = commitmentTxidFromLine(line);
+    if (!txid || heard.has(txid)) return;
+    heard.add(txid);
+    report.heard++;
+    try {
+      await env.ENTITY_DB!.prepare('INSERT OR IGNORE INTO explorer_candidates (network, txid, seen_at) VALUES (?, ?, ?)').bind('arkade', txid, now()).run();
+    } catch {
+      report.failure = 'candidate not stored';
+    }
+  };
+  let first = true;
+  // A stream that fails as soon as it is opened, three times in a row, is
+  // not coming back this run: the request budget is spent, or the host is
+  // refusing. Reopening it every two seconds until the deadline would only
+  // burn requests.
+  let fastFailures = 0;
+  while (now() < deadline) {
+    if (!first) {
+      report.reconnects++;
+      await sleep(Math.min(pause, Math.max(0, deadline - now())));
+      if (now() >= deadline) break;
+    }
+    first = false;
+    try {
+      deps.budget?.take();
+    } catch {
+      report.failure = 'request budget spent';
+      break;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.max(0, deadline - now()));
+    const opened = now();
+    try {
+      const res = await f(`${arkade}/v1/txs`, { headers: { Accept: 'text/event-stream' }, signal: controller.signal });
+      // The operator's host sits behind Cloudflare, which gives up on an
+      // answer whose headers have not come after its origin timeout; when
+      // the gateway holds them back until a first event, a quiet stretch
+      // ends in a 524. No failure, just a stream to reopen.
+      if (res.status === 524) continue;
+      if (res.status !== 200 || !res.body) {
+        report.failure = `${hostOf(arkade)} stream answered ${res.status}`;
+        continue;
+      }
+      await readLines(res.body, remember);
+      fastFailures = 0;
+    } catch (err) {
+      if (controller.signal.aborted) break;
+      const why = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      report.failure = `${hostOf(arkade)} stream unreachable (${why.slice(0, 120)})`;
+      if (now() - opened < 1_000 && ++fastFailures >= 3) break;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  await settle();
+  return report;
 }
 
 /* --------------------------------- Bark ---------------------------------- */
@@ -438,7 +731,8 @@ function splitFrames(buf: Uint8Array): { messages: Uint8Array[]; status: string 
  * null when its last event is something else (a round in progress, a failed
  * one), which carries no transaction. A failure to reach the server throws.
  */
-async function lastFinishedBarkRound(f: typeof fetch, barkUrl: string): Promise<string | null> {
+async function lastFinishedBarkRound(f: typeof fetch, barkUrl: string, budget?: RequestBudget): Promise<string | null> {
+  budget?.take(STREAM_RESERVE);
   let res: Response;
   try {
     res = await f(`${barkUrl}/${BARK_SERVICE}/LastRoundEvent`, {
@@ -492,9 +786,9 @@ export async function refreshBarkAnchor(env: Env, deps: AnchorDeps = {}): Promis
   let txid: string | null;
   let tx: EsploraTx | null = null;
   try {
-    txid = await lastFinishedBarkRound(f, bark);
+    txid = await lastFinishedBarkRound(f, bark, deps.budget);
     if (txid && txid !== stored?.txid) {
-      const { body, host } = await getEsploraJson(f, esplora, `/tx/${txid}`);
+      const { body, host } = await getEsploraJson(f, esplora, `/tx/${txid}`, deps.budget, STREAM_RESERVE);
       const t = body as EsploraTx | null;
       if (!t || typeof t.status !== 'object') throw new LookupError(`${host} malformed tx`);
       tx = t;
@@ -508,13 +802,7 @@ export async function refreshBarkAnchor(env: Env, deps: AnchorDeps = {}): Promis
   }
   if (stored && tx.status.block_height <= stored.height) return { anchor: stored, hops: 0, found: 0, interrupted: false };
   const anchor: Anchor = { txid, height: tx.status.block_height, timestamp: tx.status.block_time ?? 0 };
-  const now = deps.now ?? Date.now;
-  await env.ENTITY_DB.prepare(
-    `INSERT INTO explorer_anchors (network, txid, height, timestamp, frontier, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT(network) DO UPDATE SET txid = excluded.txid, height = excluded.height,
-       timestamp = excluded.timestamp, frontier = excluded.frontier, updated_at = excluded.updated_at`,
-  ).bind('bark', anchor.txid, anchor.height, anchor.timestamp, '[]', now()).run();
+  await storeAnchor(env, 'bark', anchor, [], (deps.now ?? Date.now)());
   return { anchor, hops: 0, found: 1, interrupted: false };
 }
 

@@ -7,11 +7,12 @@
 // racing its own tab persistence.
 
 import { requestPendingOpen } from '@/lib/explorer/tab-storage';
+import { t } from '@/i18n/translate';
 
 export function openPlaygroundTxInExplorer(
   txid: string,
   navigate: (path: string) => void,
-  label = 'Playground transaction',
+  label = t('playground.explorerLabel.tx'),
 ): void {
   requestPendingOpen(
     'tx',
@@ -25,7 +26,7 @@ export function openPlaygroundTxInExplorer(
 export function openPlaygroundAddressInExplorer(
   address: string,
   navigate: (path: string) => void,
-  label = 'Playground address',
+  label = t('playground.explorerLabel.address'),
 ): void {
   requestPendingOpen('address', address, { label, origin: 'Playground' }, 'mutinynet');
   navigate('/explorer');

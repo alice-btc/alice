@@ -19,6 +19,7 @@
 // their own data (ExplorerBarkExitTree, ExplorerArkadeVtxo).
 
 import { useState } from 'react';
+import { formatLocale, useT } from '@/i18n';
 
 export type FunnelOutput = { amountSats: number; ours: boolean };
 
@@ -80,9 +81,9 @@ const PAD_RIGHT = 10;
 
 /** Sats in a box: "4.32M", "160k", "6,765". */
 export function compactSats(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString('en-US', { maximumFractionDigits: 2 })}M`;
-  if (n >= 10_000) return `${Math.round(n / 1_000).toLocaleString('en-US')}k`;
-  return n.toLocaleString('en-US');
+  if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString(formatLocale(), { maximumFractionDigits: 2 })}M`;
+  if (n >= 10_000) return `${Math.round(n / 1_000).toLocaleString(formatLocale())}k`;
+  return n.toLocaleString(formatLocale());
 }
 
 /** A curve from one point down to another, bending at mid-height. */
@@ -110,6 +111,7 @@ export function ExitFunnel({ model, activeStep, onActiveStep }: {
   activeStep: number | null;
   onActiveStep: (step: number | null) => void;
 }) {
+  const t = useT();
   const [unfolded, setUnfolded] = useState(false);
   const { accent, onAccent, steps } = model;
   if (steps.length === 0) return null;
@@ -187,7 +189,7 @@ export function ExitFunnel({ model, activeStep, onActiveStep }: {
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}
           role="button"
           tabIndex={0}
-          aria-label={`Steps ${r.from + 1} to ${r.to + 1}: ${model.foldLabel(r.spends, txs)}. Unfold them.`}
+          aria-label={t('explorerExit.funnel.foldAria', { from: r.from + 1, to: r.to + 1, label: model.foldLabel(r.spends, txs) })}
           style={{ cursor: 'pointer' }}
         >
           <path d={link(from.x, from.y, cx, y0)} fill="none" stroke={accent} strokeWidth={2} strokeDasharray="4 3" />
@@ -197,7 +199,7 @@ export function ExitFunnel({ model, activeStep, onActiveStep }: {
             stroke={active ? 'var(--alice-primary)' : accent} strokeDasharray="3 3"
           />
           <text x={cx - 6} y={y0 + FOLD_H / 2 + 1} textAnchor="middle" dominantBaseline="middle" fontSize={10} className="font-numbers" fill="var(--alice-text)">
-            {r.from + 1} to {r.to + 1} · {model.foldLabel(r.spends, txs)}
+            {t('explorerExit.funnel.foldRow', { from: r.from + 1, to: r.to + 1, label: model.foldLabel(r.spends, txs) })}
           </text>
           {chevron(cx + FOLD_W / 2 - 12, y0 + FOLD_H / 2, false, 'var(--alice-muted)')}
         </g>
@@ -215,12 +217,12 @@ export function ExitFunnel({ model, activeStep, onActiveStep }: {
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}
           role="button"
           tabIndex={0}
-          aria-label={`Fold steps ${r.from + 1} to ${r.to + 1} back into one row`}
+          aria-label={t('explorerExit.funnel.refoldAria', { from: r.from + 1, to: r.to + 1 })}
           style={{ cursor: 'pointer' }}
         >
           <rect x={px} y={y0} width={REFOLD_W} height={REFOLD_H} rx={REFOLD_H / 2} fill="var(--alice-bg)" stroke="var(--alice-muted)" />
           <text x={px + REFOLD_W / 2 - 5} y={y0 + REFOLD_H / 2 + 1} textAnchor="middle" dominantBaseline="middle" fontSize={9.5} className="font-numbers" fill="var(--alice-muted)">
-            fold
+            {t('explorerExit.funnel.refold')}
           </text>
           {chevron(px + REFOLD_W / 2 + 14, y0 + REFOLD_H / 2, true, 'var(--alice-muted)')}
         </g>
@@ -245,7 +247,7 @@ export function ExitFunnel({ model, activeStep, onActiveStep }: {
         {/* The hover zone of the whole row, margin included. */}
         <rect x={0} y={y0 - 12} width={W} height={ROW} fill="transparent" />
         <text x={GUTTER - 10} y={y0 + BOX_H / 2 + 1} textAnchor="end" dominantBaseline="middle" fontSize={10} className="font-numbers" fill={active ? 'var(--alice-text)' : 'var(--alice-muted)'}>
-          {range} · {s.label}{s.unsigned ? ' · unsigned' : ''}
+          {range} · {s.label}{s.unsigned ? ` · ${t('explorerExit.funnel.unsigned')}` : ''}
         </text>
         {s.outputs.map((o, k2) => {
           const bx = x0 + k2 * (BOX_W + GAP);
@@ -282,12 +284,12 @@ export function ExitFunnel({ model, activeStep, onActiveStep }: {
       width="100%"
       style={{ maxWidth: W, display: 'block', margin: '0 auto', overflow: 'visible' }}
       role="img"
-      aria-label={`Exit tree: ${total} presigned transaction${total === 1 ? '' : 's'} from the on-chain anchor to this coin`}
+      aria-label={t.plural('explorerExit.funnel.aria', total)}
     >
-      <title>{`Exit tree: ${total} presigned transactions from the on-chain anchor to this coin`}</title>
+      <title>{t('explorerExit.funnel.title', { count: total })}</title>
 
       {/* The anchor: the Bitcoin output everything below hangs from. */}
-      <g onClick={model.anchor.onOpen} style={{ cursor: model.anchor.onOpen ? 'pointer' : undefined }} role={model.anchor.onOpen ? 'link' : undefined} aria-label={model.anchor.onOpen ? 'Open the anchor transaction on Bitcoin' : undefined}>
+      <g onClick={model.anchor.onOpen} style={{ cursor: model.anchor.onOpen ? 'pointer' : undefined }} role={model.anchor.onOpen ? 'link' : undefined} aria-label={model.anchor.onOpen ? t('explorerExit.funnel.openAnchor') : undefined}>
         <text x={cx} y={7} textAnchor="middle" dominantBaseline="middle" fontSize={9} className="font-pixel" fill="var(--alice-muted)" letterSpacing={1}>
           {model.anchor.title}
         </text>
@@ -306,7 +308,7 @@ export function ExitFunnel({ model, activeStep, onActiveStep }: {
       <path d={link(prev.x, prev.y, cx, coinY)} fill="none" stroke={accent} strokeWidth={2} strokeDasharray={hasSpend ? '4 3' : undefined} />
       <rect x={cx - COIN_W / 2} y={coinY} width={COIN_W} height={COIN_H} rx={3} fill={accent} />
       <text x={cx} y={coinY + COIN_H / 2 + 1} textAnchor="middle" dominantBaseline="middle" fontSize={12} className="font-numbers" fill={onAccent}>
-        {model.coin.amountSats.toLocaleString('en-US')} sats
+        {model.coin.amountSats.toLocaleString(formatLocale())} sats
       </text>
       <text x={cx} y={coinY + COIN_H + 14} textAnchor="middle" dominantBaseline="middle" fontSize={9} className="font-pixel" fill="var(--alice-muted)" letterSpacing={1}>
         {model.coin.caption}

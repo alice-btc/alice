@@ -73,3 +73,24 @@ test('the actual RAG + Learn bridge shares a hard text budget and reports only e
   assert.ok(tiny.learnContext.includes('No guarantee is implied.'));
   assert.ok(tiny.learnContext.length <= 100);
 });
+
+test('the sources of a Learn excerpt ride with the turn, and a source whose text was cut is dropped', async () => {
+  const runtime = await loadRagEvaluationRuntime(`
+    export { buildRagTurnContext } from './packages/alice-ai/src/rag.ts';
+    export { registerLearnContextProvider } from './packages/alice-ai/src/learn-context.ts';
+  `);
+  const definition = { kind: 'definition', label: 'UTXO', path: '/learn/?definition=utxo', attribution: 'Loïc Pandul, CC BY-NC-SA 4.0' };
+  const course = { kind: 'course', label: 'BTC101 · UTXOs', path: '/learn/?course=btc101', attribution: 'Plan ₿ Network, CC BY-SA 4.0' };
+  runtime.registerLearnContextProvider(async () => ({
+    label: 'Dictionnaire de Bitcoin · UTXO',
+    excerpt: `Un UTXO est une sortie non dépensée.\n\nBTC101 · UTXOs\n${'Coins are outputs. '.repeat(40)}`,
+    sources: [definition, course],
+  }));
+  const whole = await runtime.buildRagTurnContext('What is a UTXO?', undefined, { maxChunks: 1 });
+  assert.deepEqual(whole.learnSources, [definition, course]);
+  // A budget that keeps only the definition's paragraph leaves the course out of the sources too.
+  const tight = await runtime.buildRagTurnContext('What is a UTXO?', undefined, { maxChunks: 1, maxContextChars: 700 });
+  assert.ok(tight.learnContext?.includes('Un UTXO est une sortie'), tight.learnContext ?? 'no learn context');
+  assert.ok(!tight.learnContext?.includes('Coins are outputs'), 'the course paragraph did not fit');
+  assert.deepEqual(tight.learnSources, [definition]);
+});

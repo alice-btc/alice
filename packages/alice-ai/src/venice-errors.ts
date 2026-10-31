@@ -28,6 +28,9 @@ export type VeniceErrorCode =
   | 'attestation_blocked'
   | 'attestation_invalid'
   | 'network'
+  /** The message and the system instructions alone exceed the request size
+   *  limit. Refused on the device, before anything was encrypted or sent. */
+  | 'request_too_large'
   | 'api_error';
 
 export class VeniceAPIError extends Error {

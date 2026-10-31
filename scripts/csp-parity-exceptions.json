@@ -1,5 +1,5 @@
 {
-  "$comment": "Documented differences between the three Content Security Policies compared by scripts/check-csp-parity.mjs (site and app-web from their vercel.json; desktop from tauri.conf.json). Each entry says in which policies a source is expected, and why it is absent from the others. A source present in every policy needs no entry. Keep the reasons honest: mark what is not verified.",
+  "$comment": "Documented differences between the five Content Security Policies compared by scripts/check-csp-parity.mjs (site and app-web from their vercel.json; desktop from tauri.conf.json; android from tauri.android.conf.json; ios from tauri.ios.conf.json). Each entry says in which policies a source is expected, and why it is absent from the others. A source present in every policy needs no entry. Keep the reasons honest: mark what is not verified.",
   "exceptions": [
     {
       "directive": "default-src",
@@ -8,25 +8,25 @@
         "asset:",
         "ipc:",
         "blob:",
-        "'unsafe-inline'",
-        "'unsafe-eval'"
+        "'unsafe-inline'"
       ],
       "expectedIn": [
-        "desktop"
+        "desktop",
+        "android",
+        "ios"
       ],
-      "reason": "Tauri's own schemes (tauri:, asset:, ipc:) exist only inside the desktop WebView. The desktop policy has no script-src, style-src or worker-src, so default-src carries what the web hosts put there: 'unsafe-inline', 'unsafe-eval' and blob: for the bundled engine and its workers."
+      "reason": "Tauri's own schemes (tauri:, asset:, ipc:) exist only inside the app WebViews, desktop, Android and iOS. Those policies have no style-src or worker-src, so default-src carries what the web hosts put there: 'unsafe-inline' for styles and blob: for the bundled engine. Scripts have their own script-src (see the 'wasm-unsafe-eval' entry)."
     },
     {
       "directive": "script-src",
       "sources": [
-        "'self'",
         "'unsafe-inline'"
       ],
       "expectedIn": [
         "site",
         "app-web"
       ],
-      "reason": "The desktop policy has no script-src: scripts fall back to default-src, which allows 'self' and 'unsafe-inline'."
+      "reason": "Tauri adds a hash of every bundled script and inline script to the desktop script-src when it serves a page, and a hash makes 'unsafe-inline' inert, so the desktop leaves it out. Inline scripts run because they are hashed, as on Alice Web, whose exported pages carry the same hashes in a meta policy."
     },
     {
       "directive": "script-src",
@@ -34,9 +34,12 @@
         "'wasm-unsafe-eval'"
       ],
       "expectedIn": [
-        "app-web"
+        "app-web",
+        "desktop",
+        "android",
+        "ios"
       ],
-      "reason": "The site runs no WebAssembly. The desktop covers WebAssembly with 'unsafe-eval' in default-src."
+      "reason": "The semantic engine compiles WebAssembly in Alice Web and its desktop, Android and iOS builds; 'wasm-unsafe-eval' allows that without allowing eval() or new Function(). The site runs no WebAssembly."
     },
     {
       "directive": "script-src",
@@ -87,9 +90,11 @@
         "asset:"
       ],
       "expectedIn": [
-        "desktop"
+        "desktop",
+        "android",
+        "ios"
       ],
-      "reason": "Tauri's asset protocol, desktop only."
+      "reason": "Tauri's asset protocol, in the desktop, Android and iOS apps only."
     },
     {
       "directive": "img-src",
@@ -98,7 +103,9 @@
       ],
       "expectedIn": [
         "app-web",
-        "desktop"
+        "desktop",
+        "android",
+        "ios"
       ],
       "reason": "QR codes and generated images are drawn from blobs in the apps; the site shows no generated image."
     },
@@ -110,31 +117,33 @@
       ],
       "expectedIn": [
         "app-web",
-        "desktop"
+        "desktop",
+        "android",
+        "ios"
       ],
-      "reason": "Learn pack illustrations come from the packs repository (raw.githubusercontent.com) and its jsDelivr mirror; Alice Web and its desktop build share them. The site loads no remote image."
+      "reason": "Learn pack illustrations come from the packs repository (raw.githubusercontent.com) and its jsDelivr mirror; Alice Web and its desktop, Android and iOS builds share them. The site loads no remote image."
     },
     {
       "directive": "connect-src",
       "sources": [
-        "ipc:",
-        "http://localhost:*",
-        "http://127.0.0.1:*"
+        "ipc:"
       ],
       "expectedIn": [
-        "desktop"
+        "desktop",
+        "android",
+        "ios"
       ],
-      "reason": "Tauri IPC, and a local model server on a loopback port (the AI tab accepts a server URL such as http://localhost:11434/v1). A web page must not reach loopback hosts."
+      "reason": "Tauri IPC between the page and the Rust side, in the desktop, Android and iOS apps."
     },
     {
       "directive": "connect-src",
       "sources": [
-        "https://api.venice.ai"
+        "http://ipc.localhost"
       ],
       "expectedIn": [
-        "desktop"
+        "android"
       ],
-      "reason": "The desktop can call Venice directly through the alice-ai Venice transport; the web hosts go through the Worker (proxy.alicebtc.com) only. Not verified that the desktop build still uses the direct path."
+      "reason": "On Android, Tauri's WebView reaches the Rust side through http://ipc.localhost instead of the ipc: scheme."
     },
     {
       "directive": "connect-src",
@@ -150,64 +159,28 @@
     {
       "directive": "connect-src",
       "sources": [
-        "https://*.alicebtc.com",
-        "https://huggingface.co",
-        "https://*.hf.co",
-        "https://mempool.space",
-        "https://mutinynet.com",
-        "https://arkade.computer",
-        "https://arkade.space",
-        "https://*.arkade.sh",
-        "https://delegate.arkade.money"
+        "https:",
+        "wss:"
       ],
       "expectedIn": [
-        "desktop"
+        "app-web",
+        "desktop",
+        "android",
+        "ios"
       ],
-      "reason": "The Worker, the semantic model files, Esplora (mainnet for Explorer, Mutinynet for the Playground) and the Arkade operators (Explorer) are used by Alice Web and its desktop build. The public site needs none of them. Alice Web reaches them through its scheme-wide connect-src (see the https: entry), so its policy names no host."
+      "reason": "Alice Web and the apps allow any HTTPS or secure WebSocket destination because Custom AI servers and custom Explorer nodes are chosen by the user and can be anywhere (a VPS, an Umbrel, an OpenAI-compatible API); a policy is the same for every user and cannot name the one server a user typed. Connecting to one's own node is a privacy gain. It does not prevent exfiltration by code that already runs (docs/security/web-storage-hardening.md, docs/security/csp-tools.md)."
     },
     {
       "directive": "connect-src",
       "sources": [
-        "https:",
         "http:",
-        "wss:",
         "ws:"
       ],
       "expectedIn": [
-        "app-web"
-      ],
-      "reason": "Alice Web's enforced policy (docs/security/web-storage-hardening.md) allows any HTTP(S) or WebSocket destination because Custom AI endpoints and custom Explorer nodes are chosen by the user. It does not prevent exfiltration by code that already runs. The desktop keeps a host list, and does not list raw.githubusercontent.com (Learn markdown) or api.coinbase.com (price feed): whether the desktop build fetches them is not verified, to confirm with the crawl script on the desktop."
-    },
-    {
-      "directive": "connect-src",
-      "sources": [
-        "https://cdn.jsdelivr.net",
-        "https://api.trustedservices.intel.com",
-        "https://certificates.trustedservices.intel.com",
-        "https://mempool.emzy.de",
-        "https://blockstream.info",
-        "https://liquid.network",
-        "https://ark.second.tech",
-        "https://0.spark.lightspark.com",
-        "https://spark-operator.breez.technology",
-        "https://2.spark.flashnet.xyz",
-        "https://api.sparkscan.io",
-        "wss://updates.sparkscan.io"
-      ],
-      "expectedIn": [
+        "app-web",
         "desktop"
       ],
-      "reason": "Learn packs (jsDelivr), the Private Cloud attestation (Intel) and the explorer providers (Esplora mirrors, Liquid, Ark, Spark) belong to Alice Web and its desktop build; Alice Web reaches them through its scheme-wide connect-src. The site has no explorer and no Learn."
-    },
-    {
-      "directive": "connect-src",
-      "sources": [
-        "https://mutinynetswap.lendasat.com"
-      ],
-      "expectedIn": [
-        "desktop"
-      ],
-      "reason": "The Satora swap provider on Mutinynet. No source in this repository calls it: the Playground is on-chain only, with no swap. The desktop policy still names it; left as found, a candidate for removal, not verified."
+      "reason": "Plain HTTP and WebSocket stay allowed in Alice Web and the desktop for a Custom AI server or an Explorer node on the local network. The Android app leaves them out: Android refuses cleartext traffic in a release build, so a server there has to answer over HTTPS. The iOS app leaves them out too; whether App Transport Security would block cleartext without them is not verified."
     },
     {
       "directive": "worker-src",
@@ -218,7 +191,7 @@
       "expectedIn": [
         "app-web"
       ],
-      "reason": "The semantic engine runs in workers built from blobs. The site has no worker. The desktop has no worker-src: workers fall back to default-src, which allows 'self' and blob:."
+      "reason": "The semantic engine runs in workers built from blobs. The site has no worker. The desktop has no worker-src: workers fall back to its script-src, which does not allow blob:. Not verified whether the desktop build starts a blob: worker; check with the crawl script on the desktop before adding one."
     },
     {
       "directive": "frame-src",
@@ -227,9 +200,11 @@
       ],
       "expectedIn": [
         "app-web",
-        "desktop"
+        "desktop",
+        "android",
+        "ios"
       ],
-      "reason": "Learn embeds videos through the privacy-enhanced YouTube player, in Alice Web and its desktop build; the site embeds nothing."
+      "reason": "Learn embeds videos through the privacy-enhanced YouTube player, in Alice Web and its desktop, Android and iOS builds; the site embeds nothing."
     },
     {
       "directive": "frame-ancestors",

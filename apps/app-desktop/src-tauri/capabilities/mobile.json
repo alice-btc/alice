@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "mobile",
+  "description": "Opens links in the system browser on Android and iOS",
+  "platforms": ["android", "iOS"],
+  "windows": ["main"],
+  "permissions": [
+    "opener:default"
+  ]
+}

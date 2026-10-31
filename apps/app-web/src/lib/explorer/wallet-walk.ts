@@ -22,8 +22,18 @@ import type { ChainReader, KVStorage } from './arkade-onchain.ts';
 import type { NormalizedOutspend, NormalizedTransaction } from './types.ts';
 import type { RequestOptions } from './provider.ts';
 
-/** An output the walker watches: where the wallet may spend next. */
-export type Outpoint = { txid: string; vout: number; valueSats: number };
+/** An output the walker watches: where the wallet may spend next. `drift`
+ *  counts the spenders that were not settlements crossed since the last one
+ *  (0 on a settlement's own outputs); absent in frontiers stored before it. */
+export type Outpoint = { txid: string; vout: number; valueSats: number; drift?: number };
+
+/** How many spenders that are not settlements a path crosses in a row before
+ *  the walk lets it go: a consolidation, then a sweep, is the most an
+ *  operator's wallet puts between two settlements. Beyond that the coins have
+ *  left for a user's or an exchange's wallet, whose spends never end: without
+ *  this bound the walk wandered there, filled its frontier with them and
+ *  forgot the operator's own lines. */
+export const MAX_DRIFT = 2;
 
 /** Answers whether a txid is a settlement of the operator. */
 export type SettlementProbe = (txid: string, signal?: AbortSignal) => Promise<boolean>;
@@ -60,6 +70,25 @@ export function largestOutputs(tx: NormalizedTransaction, minSats: number, max: 
     .map(o => ({ txid: tx.txid, vout: o.index, valueSats: o.valueSats }));
 }
 
+/** One entry per output, the lowest drift kept (the later one on a tie, which
+ *  the cap forgets last): an output reached twice, by two paths or once more
+ *  than its stored copy, would otherwise take two places, and copies piling
+ *  up pass after pass pushed the other lines' outputs out of the cap. */
+function uniqueOutpoints(list: Outpoint[]): Outpoint[] {
+  const kept = new Map<string, Outpoint>();
+  for (const o of list) {
+    const key = `${o.txid}:${o.vout}`;
+    const prev = kept.get(key);
+    if (!prev || (o.drift ?? 0) <= (prev.drift ?? 0)) kept.set(key, o);
+  }
+  return list.filter(o => {
+    const key = `${o.txid}:${o.vout}`;
+    if (kept.get(key) !== o) return false;
+    kept.delete(key);
+    return true;
+  });
+}
+
 /**
  * Walk the wallet forward from `start`, breadth first. Each hop fetches one
  * spender and asks the probe about it; `maxHops` bounds the pass, and what
@@ -69,9 +98,9 @@ export async function walkWalletForward(
   chain: ChainReader,
   walk: WalletWalk,
   start: Outpoint[],
-  opts: { signal?: AbortSignal; maxHops?: number; maxFrontier?: number } = {},
+  opts: { signal?: AbortSignal; maxHops?: number; maxFrontier?: number; maxDrift?: number } = {},
 ): Promise<WalletWalkResult> {
-  const { signal, maxHops = 60, maxFrontier = 12 } = opts;
+  const { signal, maxHops = 60, maxFrontier = 12, maxDrift = MAX_DRIFT } = opts;
   const found: string[] = [];
   const frontier: Outpoint[] = [];
   let exhausted = false;
@@ -80,6 +109,13 @@ export async function walkWalletForward(
   // Spenders already explored this pass: several outputs can be spent by one
   // transaction (a consolidation), which is explored once.
   const explored = new Set<string>();
+  // The transactions whose outputs the pass starts from were explored
+  // before, with the lowest drift they were reached at. One reached again
+  // (the newest settlement's change all spent by a transaction that is not
+  // a settlement, whose outputs the frontier already holds) is explored anew
+  // only through a path with less drift, which would follow further.
+  const reached = new Map<string, number>();
+  for (const o of start) reached.set(o.txid, Math.min(reached.get(o.txid) ?? Infinity, o.drift ?? 0));
   const outspendsByTxid = new Map<string, NormalizedOutspend[]>();
   let hops = 0;
   try {
@@ -93,6 +129,7 @@ export async function walkWalletForward(
       const spend = outspends[op.vout];
       if (!spend?.spent || !spend.txid) { frontier.push(op); continue; }
       if (explored.has(spend.txid)) continue;
+      if ((reached.get(spend.txid) ?? Infinity) <= (op.drift ?? 0) + 1) continue;
       // Out of budget: the output stays in the frontier, spent, and its
       // spender is explored by the next pass.
       if (hops >= maxHops) { frontier.push(op); exhausted = true; continue; }
@@ -101,16 +138,22 @@ export async function walkWalletForward(
       const tx = await chain.getTransaction(spend.txid, { signal, priority: BULK });
       const hit = await walk.probe(tx.txid, signal);
       if (hit) { walk.record(tx); found.push(tx.txid); }
-      queue.push(...walk.follow(tx, hit));
+      const drift = hit ? 0 : (op.drift ?? 0) + 1;
+      // A settlement's own outputs stay plain, as stored frontiers already are.
+      if (drift <= maxDrift) queue.push(...walk.follow(tx, hit).map(o => (drift > 0 ? { ...o, drift } : o)));
     }
   } catch {
     // Aborted or a provider hiccup: keep what was found, resume from the
     // same start next pass.
     return { found, frontier: start, interrupted: true, exhausted: false };
   }
-  // The newest discoveries sit last; a frontier polluted by a detour into a
-  // user's wallet forgets the oldest entries first.
-  return { found, frontier: frontier.slice(-maxFrontier), interrupted: false, exhausted };
+  // The newest discoveries sit last and the cap forgets from the front, so
+  // outputs reached through a detour go before the settlements' own. Each
+  // output once; none with a cap of 0, which slice(-0) would not apply.
+  const drifted = frontier.filter(o => (o.drift ?? 0) > 0);
+  const own = frontier.filter(o => !(o.drift ?? 0));
+  const kept = maxFrontier > 0 ? uniqueOutpoints([...drifted, ...own]).slice(-maxFrontier) : [];
+  return { found, frontier: kept, interrupted: false, exhausted };
 }
 
 export type WalletBackwardWalk = {

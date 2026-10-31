@@ -2,8 +2,11 @@
 
 import { SvgIcon } from '@/components/SvgIcon';
 import { SEARCH_ICON } from '@/lib/atelier-icons';
+import { finePointer } from '@/lib/pointer';
 
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '@/i18n';
+import type { MessageKey } from '@/i18n';
 import type { ReactNode } from 'react';
 import { classifySearch } from '@/lib/explorer/search';
 import { getNetwork } from '@/lib/explorer/networks';
@@ -93,12 +96,12 @@ function FeatureCard({ glyph, title, text }: { glyph: ReactNode; title: string; 
   );
 }
 
-const KIND_LABEL: Record<'tx' | 'block' | 'address' | 'xpub' | 'vtxo', string> = {
-  tx: 'TX',
-  block: 'BLOCK',
-  address: 'ADDRESS',
-  xpub: 'WALLET',
-  vtxo: 'VTXO',
+const KIND_LABEL: Record<'tx' | 'block' | 'address' | 'xpub' | 'vtxo', MessageKey> = {
+  tx: 'explorer.search.kind.tx',
+  block: 'explorer.search.kind.block',
+  address: 'explorer.search.kind.address',
+  xpub: 'explorer.search.kind.xpub',
+  vtxo: 'explorer.search.kind.vtxo',
 };
 
 // One clickable chip per curated chain item (see explore-examples.ts).
@@ -178,6 +181,7 @@ export function ExplorerOverviewTab({
    *  parameters replace the curated history. */
   spark?: boolean;
 }) {
+  const t = useT();
   const [raw, setRaw] = useState('');
   // Mirrors exactly what triggers the remote entity lookup (see ExplorerPanel's
   // remoteEntities prop), so the disclosure below never claims a request the
@@ -187,11 +191,13 @@ export function ExplorerOverviewTab({
   // only on these two networks and only with a proxy configured; the
   // disclosure names it exactly when the build makes it.
   const anchorsNote = (arkade || bark) && anchorsConfigured()
-    ? ' Alice\u2019s own server is also asked, when the view opens, for the newest settlement it has found on that chain: a request that carries nothing about you or what you look up.'
+    ? t('explorer.overview.anchorsNote')
     : '';
   const inputRef = useRef<HTMLInputElement>(null);
-  // Focus without scrolling, so the hero above the field stays in view on load.
-  useEffect(() => { inputRef.current?.focus({ preventScroll: true }); }, []);
+  // Focus without scrolling, so the hero above the field stays in view on
+  // load; only with a physical keyboard, so a phone does not open its
+  // on-screen one over the page.
+  useEffect(() => { if (finePointer()) inputRef.current?.focus({ preventScroll: true }); }, []);
   const trimmed = raw.trim();
   const result = classifySearch(trimmed, {
     arkAddresses: !!arkade || !!bark,
@@ -205,12 +211,12 @@ export function ExplorerOverviewTab({
   const showError = trimmed.length > 0 && !routable;
 
   function errorMessage(): string {
-    if (spark) return 'Not recognised as a Spark address (spark1…), a Spark transfer or leaf id, a transaction id, address, block or extended key.';
+    if (spark) return t('explorer.search.error.spark');
     return bark
-      ? 'Not recognised as a transaction id, VTXO id (txid:vout) or export, address (bc1… or ark1…), block or extended key.'
+      ? t('explorer.search.error.bark')
       : arkade
-        ? 'Not recognised as a transaction id, VTXO id (txid:vout), address (bc1… or ark1…), block or extended key.'
-        : 'Not recognised as a transaction id, address, block or extended key.';
+        ? t('explorer.search.error.arkade')
+        : t('explorer.search.error.bitcoin');
   }
 
   function open(
@@ -235,11 +241,11 @@ export function ExplorerOverviewTab({
     <div className="flex flex-col gap-8">
       <header className="workspace-heading">
         <h1 className="font-pixel">Explorer</h1>
-        <p>Follow transactions, inspect blocks and understand the network.</p>
+        <p>{t('explorer.overview.lead')}</p>
       </header>
       {/* The universal search, centrepiece of the page. */}
       <div className="flex flex-col gap-2">
-        <label htmlFor="explorer-search" className="font-numbers text-sm">Transaction, address, block or extended key</label>
+        <label htmlFor="explorer-search" className="font-numbers text-sm">{t('explorer.search.label')}</label>
         <div className="relative">
           <input
             id="explorer-search"
@@ -253,10 +259,10 @@ export function ExplorerOverviewTab({
             onChange={(e) => setRaw(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
             placeholder={spark
-              ? 'Search a Spark address (spark1…), a transfer or leaf id, or a Bitcoin transaction, block or address'
+              ? t('explorer.search.placeholder.spark')
               : bark
-                ? 'Search a transaction, block, address (bc1… or ark1…) or VTXO id (txid:vout)'
-                : arkade ? 'Search a transaction, block, address (bc1… or ark1…) or VTXO id (txid:vout)' : 'Search a transaction, address or block'}
+                ? t('explorer.search.placeholder.ark')
+                : arkade ? t('explorer.search.placeholder.ark') : t('explorer.search.placeholder.bitcoin')}
             className="alice-field w-full font-numbers "
             style={{
               height: 46,
@@ -284,7 +290,7 @@ export function ExplorerOverviewTab({
                 borderRadius: 'var(--alice-radius-control)',
               }}
             >
-              {KIND_LABEL[result.kind]}
+              {t(KIND_LABEL[result.kind])}
             </span>
           )}
         </div>
@@ -298,8 +304,8 @@ export function ExplorerOverviewTab({
             {showError
               ? errorMessage()
               : routable
-                ? 'Press Enter to open it in a new tab.'
-                : 'Paste anything, Explorer recognises the format.'}
+                ? t('explorer.search.hint.enter')
+                : t('explorer.search.hint.paste')}
           </span>
           <button
             type="button"
@@ -313,7 +319,7 @@ export function ExplorerOverviewTab({
               opacity: routable ? 1 : 0.5,
             }}
           >
-            <SvgIcon svg={SEARCH_ICON} size={16} /> Search
+            <SvgIcon svg={SEARCH_ICON} size={16} /> {t('explorer.search.submit')}
           </button>
         </div>
 
@@ -356,39 +362,39 @@ export function ExplorerOverviewTab({
         // addresses, so the first dive needs zero knowledge. Hover for the story.
         <div className="flex flex-col gap-4">
           <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-            EXPLORE BITCOIN HISTORY
+            {t('explorer.overview.history')}
           </span>
-          <ExploreGroup title="FAMOUS TRANSACTIONS" items={EXPLORE_TXS} onOpen={open} />
-          <ExploreGroup title="MILESTONE BLOCKS" items={EXPLORE_BLOCKS} onOpen={open} />
-          <ExploreGroup title="NOTORIOUS ADDRESSES" items={EXPLORE_ADDRESSES} onOpen={open} />
+          <ExploreGroup title={t('explorer.overview.famousTxs')} items={EXPLORE_TXS} onOpen={open} />
+          <ExploreGroup title={t('explorer.overview.milestoneBlocks')} items={EXPLORE_BLOCKS} onOpen={open} />
+          <ExploreGroup title={t('explorer.overview.notoriousAddresses')} items={EXPLORE_ADDRESSES} onOpen={open} />
         </div>
       )}
 
       {/* What is down the hole: one card per explorer view. */}
       <div className="flex flex-col gap-3">
         <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-          WHAT YOU CAN EXPLORE
+          {t('explorer.overview.features')}
         </span>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <FeatureCard
             glyph={<FlowGlyph />}
-            title="TRANSACTION FLOW"
-            text="Follow the coins through a transaction with a visual flow of its inputs and outputs."
+            title={t('explorer.overview.feature.flow.title')}
+            text={t('explorer.overview.feature.flow.text')}
           />
           <FeatureCard
             glyph={<BlockMapGlyph />}
-            title="BLOCK MAP"
-            text="See a whole block as a map, every transaction sized by the fees it pays."
+            title={t('explorer.overview.feature.map.title')}
+            text={t('explorer.overview.feature.map.text')}
           />
           <FeatureCard
             glyph={<BubblesGlyph />}
-            title="ADDRESS INSIGHTS"
-            text="Balance history and live UTXOs for any address, drawn as bubbles you can compare at a glance."
+            title={t('explorer.overview.feature.insights.title')}
+            text={t('explorer.overview.feature.insights.text')}
           />
           <FeatureCard
             glyph={<SignalsGlyph />}
-            title="PRIVACY SIGNALS"
-            text="Deterministic heuristics flag what a transaction exposes: reused addresses, round amounts, traceable change."
+            title={t('explorer.overview.feature.signals.title')}
+            text={t('explorer.overview.feature.signals.text')}
           />
         </div>
       </div>
@@ -404,25 +410,23 @@ export function ExplorerOverviewTab({
         }}
       >
         <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-          DATA SOURCE
+          {t('explorer.overview.dataSource')}
         </span>
         <p className="font-numbers m-0" style={{ fontSize: 12.5, lineHeight: '18px', color: 'var(--alice-muted)' }}>
           {spark
-            ? 'Spark settles on Bitcoin mainnet, so on-chain data (deposits, exits) comes from the same source as the Bitcoin view (mempool.space). Off-chain data (balances, leaves, transfers) is read from the Spark operators themselves (Lightspark, Breez, Flashnet), which answer about any wallet whose owner has not turned privacy on; the network feed and the token lines come from Sparkscan. Each of these servers can see which item is looked up and the network address it is requested from.'
+            ? t('explorer.overview.source.spark')
             : arkade
-            ? `Arkade settles on Bitcoin mainnet, so on-chain data comes from the same source as the Bitcoin view (mempool.space); off-chain VTXO data comes from the public Arkade gateway. Both servers can see which item is looked up and the network address it is requested from.${anchorsNote}`
+            ? t('explorer.overview.source.arkade', { anchors: anchorsNote })
             : bark
-              ? `Bark settles on Bitcoin mainnet, so on-chain data comes from the same source as the Bitcoin view (mempool.space); the round events and parameters come from Second\u2019s public Bark server, which is also asked whether a transaction is a round. Both servers can see which item is looked up and the network address it is requested from. A Bark address is decoded on your device and never sent; your own coins open from the search, by VTXO id (looked up on the server) or by export (decoded on your device).${anchorsNote}`
-              : 'Blockchain data is fetched from mempool.space. That server can see which transaction is looked up and the network address it is requested from. Connecting a personal node is planned for a later version.'}
+              ? t('explorer.overview.source.bark', { anchors: anchorsNote })
+              : t('explorer.overview.source.bitcoin')}
         </p>
         {/* The entity lookup is a second server, so it gets its own sentence: the
             bundled dataset alone never leaves the device, but the giant packs are
             queried on demand and that request carries the address being viewed. */}
         {showsRemoteEntities ? (
           <p className="font-numbers m-0" style={{ fontSize: 12.5, lineHeight: '18px', color: 'var(--alice-muted)' }}>
-            Naming a known address (an exchange, a sanctioned entity) uses a dataset bundled in the app, plus a
-            lookup on Alice&rsquo;s own server for the large sets the app cannot ship. That lookup sends the address
-            you are viewing, and nothing else. It is never sent to a third party, and no request body is logged.
+            {t('explorer.overview.entitiesNote')}
           </p>
         ) : null}
       </div>

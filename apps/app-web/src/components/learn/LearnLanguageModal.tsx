@@ -13,6 +13,7 @@ import {
 } from '@/lib/learn/language';
 import { downloadLanguage } from '@/lib/learn/language-downloads';
 import { isTauriDesktop } from '@alice-wallet/alice-ai';
+import { useLearnT } from './learn-locale';
 
 // The PlanB-style language picker: every corpus language, its native name and
 // course coverage. Installed languages switch immediately.
@@ -42,7 +43,7 @@ export function LearnLanguageModal({
 }) {
   const [phase, setPhase] = useState<Phase>({ step: 'browse' });
   const installed = installedLanguages();
-  const fr = currentLang === 'fr';
+  const t = useLearnT(currentLang);
 
   const pick = (lang: string) => {
     if (installed.includes(lang)) {
@@ -91,7 +92,7 @@ export function LearnLanguageModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={fr ? 'Langue des cours' : 'Course language'}
+        aria-label={t('learn.languages.dialog')}
         onKeyDown={(event) => { if (event.key === 'Escape') onClose(); }}
         className="flex flex-col"
         style={{
@@ -105,13 +106,13 @@ export function LearnLanguageModal({
       >
         <div className="flex items-center justify-between shrink-0" style={{ padding: '14px 16px', borderBottom: '1px solid var(--alice-border)' }}>
           <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-primary)' }}>
-            {fr ? 'LANGUE DES COURS' : 'COURSE LANGUAGE'}
+            {t('learn.languages.title')}
           </span>
           <button
             type="button"
             onClick={onClose}
             autoFocus
-            aria-label={fr ? 'Fermer' : 'Close'}
+            aria-label={t('common.close')}
             className="alice-control alice-control--tool"
             style={{ lineHeight: '18px' }}
           >
@@ -140,13 +141,13 @@ export function LearnLanguageModal({
                     {languageName(entry.lang)}
                   </span>
                   <span className="font-numbers shrink-0" style={{ fontSize: 12, color: 'var(--alice-muted)', gridColumn: '2', gridRow: '2' }}>
-                    {entry.courses} {fr ? 'cours' : 'courses'}
+                    {t('learn.languages.courses', { count: entry.courses })}
                   </span>
                   <span
                     className="font-numbers shrink-0"
                     style={{ fontSize: 12, gridColumn: '1 / -1', gridRow: '3', textAlign: 'left', color: isInstalled ? 'var(--alice-primary)' : 'var(--alice-muted)' }}
                   >
-                    {isCurrent ? (fr ? 'Active' : 'Active') : isEmbeddedLang(entry.lang) ? (fr ? 'Incluse · utiliser' : 'Included · use') : isInstalled ? (fr ? 'Disponible · utiliser' : 'Available · use') : !isTauriDesktop() ? (fr ? 'Lire en ligne' : 'Read online') : (fr ? 'Télécharger' : 'Download')}
+                    {isCurrent ? t('learn.languages.active') : isEmbeddedLang(entry.lang) ? t('learn.languages.included') : isInstalled ? t('learn.languages.available') : !isTauriDesktop() ? t('learn.languages.readOnline') : t('learn.languages.download')}
                   </span>
                   <span style={{ gridColumn: 3, gridRow: 1 }}><SvgIcon svg={isCurrent || isInstalled ? CHECK_ICON : DOWNLOAD_ICON} size={20} /></span>
                 </button>
@@ -158,14 +159,10 @@ export function LearnLanguageModal({
         {phase.step === 'confirm' && (
           <div style={{ padding: '18px 16px' }}>
             <p className="font-numbers" style={{ margin: 0, fontSize: 15, lineHeight: '24px', color: 'var(--alice-text)' }}>
-              {fr
-                ? `Voulez-vous télécharger les cours Bitcoin en ${languageName(phase.lang)} ?`
-                : `Download the Bitcoin courses in ${languageName(phase.lang)}?`}
+              {t('learn.languages.confirm', { language: languageName(phase.lang) })}
             </p>
             <p className="font-numbers" style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--alice-muted)' }}>
-              {fr
-                ? 'La langue rejoindra ensuite votre sélecteur rapide.'
-                : 'The language will then join your quick selector.'}
+              {t('learn.languages.joinSelector')}
             </p>
             <div className="flex gap-3" style={{ marginTop: 18 }}>
               <button
@@ -174,7 +171,7 @@ export function LearnLanguageModal({
                 style={{ padding: '10px 16px' }}
                 onClick={() => startDownload(phase.lang)}
               >
-                <SvgIcon svg={DOWNLOAD_ICON} size={20} /> {fr ? 'Télécharger et utiliser' : 'Download and use'}
+                <SvgIcon svg={DOWNLOAD_ICON} size={20} /> {t('learn.languages.downloadAndUse')}
               </button>
               <button
                 type="button"
@@ -182,7 +179,7 @@ export function LearnLanguageModal({
                 style={{ padding: '10px 16px' }}
                 onClick={() => setPhase({ step: 'browse' })}
               >
-                {fr ? 'ANNULER' : 'CANCEL'}
+                {t('learn.languages.cancel')}
               </button>
             </div>
           </div>
@@ -191,9 +188,9 @@ export function LearnLanguageModal({
         {phase.step === 'downloading' && (
           <div style={{ padding: '18px 16px' }}>
             <p className="font-numbers" style={{ margin: 0, fontSize: 14, color: 'var(--alice-text)' }}>
-              {fr ? `Téléchargement du ${languageName(phase.lang)}…` : `Downloading ${languageName(phase.lang)}…`}
+              {t('learn.languages.downloading', { language: languageName(phase.lang) })}
             </p>
-            <div role="progressbar" aria-label={fr ? 'Téléchargement de la langue' : 'Language download'} aria-valuenow={Math.round(phase.progress * 100)} aria-valuemin={0} aria-valuemax={100} style={{ marginTop: 12, height: 8, border: '1px solid var(--alice-border)', borderRadius: 'var(--alice-radius-control)' }}>
+            <div role="progressbar" aria-label={t('learn.languages.progress.aria')} aria-valuenow={Math.round(phase.progress * 100)} aria-valuemin={0} aria-valuemax={100} style={{ marginTop: 12, height: 8, border: '1px solid var(--alice-border)', borderRadius: 'var(--alice-radius-control)' }}>
               <div style={{ height: '100%', width: `${Math.round(phase.progress * 100)}%`, background: 'var(--alice-primary)' }} />
             </div>
             <p className="font-numbers" style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--alice-muted)' }}>
@@ -205,9 +202,7 @@ export function LearnLanguageModal({
         {phase.step === 'error' && (
           <div role="alert" style={{ padding: '18px 16px' }}>
             <p className="font-numbers" style={{ margin: 0, fontSize: 14, color: 'var(--alice-text)' }}>
-              {fr
-                ? `Le téléchargement du ${languageName(phase.lang)} a échoué : ${phase.message}`
-                : `Downloading ${languageName(phase.lang)} failed: ${phase.message}`}
+              {t('learn.languages.failed', { language: languageName(phase.lang), message: phase.message })}
             </p>
             <button
               type="button"
@@ -215,7 +210,7 @@ export function LearnLanguageModal({
               style={{ marginTop: 14, padding: '10px 16px' }}
               onClick={() => setPhase({ step: 'browse' })}
             >
-              <SvgIcon svg={BACK_ICON} size={16} /> {fr ? 'Retour' : 'Back'}
+              <SvgIcon svg={BACK_ICON} size={16} /> {t('common.back')}
             </button>
           </div>
         )}

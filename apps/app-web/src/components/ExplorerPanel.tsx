@@ -4,10 +4,11 @@ import { SvgIcon } from '@/components/SvgIcon';
 import { BACK_ICON, CLOSE_ICON } from '@/lib/atelier-icons';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { registerPack, useChat } from '@alice-wallet/alice-ai';
 import { buildExplorerKnowledgePack } from '@/lib/explorer/fiche-corpus';
-import { WorkspaceShell } from '@/components/WorkspaceShell';
-import { ExplorerTabBar } from '@/components/ExplorerTabBar';
+import { WorkspaceHeaderActions, WorkspaceShell } from '@/components/WorkspaceShell';
+import { ExplorerTabBar, NetworkButton } from '@/components/ExplorerTabBar';
 import { ExplorerOverviewTab } from '@/components/ExplorerOverviewTab';
 import { ExplorerTxTab } from '@/components/ExplorerTxTab';
 import { ExplorerBlockTab } from '@/components/ExplorerBlockTab';
@@ -26,6 +27,7 @@ import { ExplorerIntroModal, wasIntroDismissed } from '@/components/ExplorerIntr
 import { AskAliceDock } from '@/components/AskAliceDock';
 import { AskAliceFab } from '@/components/AskAliceFab';
 import { MempoolProvider } from '@/lib/explorer/mempool';
+import { useT } from '@/i18n';
 import { CachingProvider } from '@/lib/explorer/caching-provider';
 import { FailoverProvider } from '@/lib/explorer/failover-provider';
 import { createIdbCache } from '@/lib/explorer/idb-cache';
@@ -40,6 +42,7 @@ import { DEFAULT_NETWORK_ID, getNetwork } from '@/lib/explorer/networks';
 import { getDefaultNetworkId } from '@/lib/explorer/prefs';
 import { ASK_WIDTH_DEFAULT, clampAskWidth, loadAskWidth, saveAskWidth } from '@/lib/ask-width';
 import { askContextLabel, explorerPageNote } from '@/lib/explorer/ask-context';
+import { setAskHandoff, usePhoneLayout } from '@/lib/explorer/ask-handoff';
 import { looksLikeArkadeAddress } from '@/lib/explorer/arkade';
 import { looksLikeSparkAddress } from '@/lib/explorer/spark';
 import { arkAddressFlavor } from '@/lib/explorer/bark';
@@ -63,6 +66,7 @@ function ensureFichePack() {
 }
 
 function ExplorerWorkspace() {
+  const t = useT();
   // Start from the default so the server and the first client render match; the
   // saved tabs are pulled in on mount, after hydration.
   const [tabs, setTabs] = useState<Tab[]>(() => [overviewTab(DEFAULT_NETWORK_ID)]);
@@ -90,6 +94,11 @@ function ExplorerWorkspace() {
   const [signalsByTab, setSignalsByTab] = useState<Record<string, PrivacySignal[]>>({});
   // The identified-mode full description each tab publishes alongside them.
   const [fullByTab, setFullByTab] = useState<Record<string, FullContext | null>>({});
+  // On a phone the dock has no room beside the page: the Ask-Alice bubble
+  // hands the active page over to the main chat instead, as a new
+  // conversation carrying the same attachment (see ask-handoff.ts).
+  const phone = usePhoneLayout();
+  const router = useRouter();
 
   // Session-to-tabs linkage. A conversation touched from the Ask-Alice sidebar
   // records the tabs open alongside it; opening such a session from history
@@ -287,6 +296,24 @@ function ExplorerWorkspace() {
     if (!askOpen) return;
     if (active.kind === kind && active.query === query) return;
     if (chatMessages.some(m => m.role === 'user')) clearMessages();
+  }
+
+  // The phone's version of opening the dock: a new conversation in the main
+  // chat, with the active page attached exactly as the dock would attach it
+  // (the previous conversation stays in history). The tabs open now ride
+  // along so the conversation can be linked to this exploration.
+  function handOffToChat() {
+    if (chatMessages.some(m => m.role === 'user')) clearMessages();
+    setAskHandoff({
+      contextId: active.id,
+      contextLabel: askContextLabel(active.kind, active.query, activeNetwork.kind),
+      pageNote: explorerPageNote(active.kind, activeNetwork),
+      signals: signalsByTab[active.id] ?? [],
+      fullContext: fullByTab[active.id] ?? null,
+      tabs,
+      activeTabId: active.id,
+    });
+    router.push('/');
   }
 
   // The optional network pins a subject to the chain it belongs to. The
@@ -499,26 +526,26 @@ function ExplorerWorkspace() {
     if (kind === 'arkade' || onMainnet) {
       marks.push({
         txids: new Set(arkSettlements.byTxid.keys()), byHeight: arkSettlementsByHeight,
-        color: ARKADE_ACCENT, textColor: ARKADE_ACCENT_SOFT, label: 'Arkade commitment transaction',
-        badge: <SettlementBadge />, headerBadge: <SettlementBadge>BLOCK CONFIRMING THE ARKADE COMMITMENT TRANSACTION</SettlementBadge>,
+        color: ARKADE_ACCENT, textColor: ARKADE_ACCENT_SOFT, label: t('explorer.marks.arkade'),
+        badge: <SettlementBadge />, headerBadge: <SettlementBadge>{t('explorer.marks.arkadeHeader')}</SettlementBadge>,
       });
     }
     if (kind === 'bark' || onMainnet) {
       marks.push({
         txids: new Set(barkRounds.byTxid.keys()), byHeight: barkRoundsByHeight,
-        color: BARK_ACCENT, textColor: BARK_ACCENT, label: 'Bark round',
-        badge: <BarkRoundBadge />, headerBadge: <BarkRoundBadge>BLOCK CONFIRMING A BARK ROUND</BarkRoundBadge>,
+        color: BARK_ACCENT, textColor: BARK_ACCENT, label: t('explorer.marks.bark'),
+        badge: <BarkRoundBadge />, headerBadge: <BarkRoundBadge>{t('explorer.marks.barkHeader')}</BarkRoundBadge>,
       });
     }
     if (kind === 'spark' || onMainnet) {
       marks.push({
         txids: sparkOnchain.txids, byHeight: new Map(),
-        color: SPARK_ACCENT, textColor: SPARK_ACCENT, label: 'Spark deposit or exit',
+        color: SPARK_ACCENT, textColor: SPARK_ACCENT, label: t('explorer.marks.spark'),
         badge: sparkTxBadge, headerBadge: null,
       });
     }
     return marks;
-  }, [active.networkId, arkSettlements.byTxid, arkSettlementsByHeight, barkRounds.byTxid, barkRoundsByHeight, sparkOnchain.txids, sparkTxBadge]);
+  }, [active.networkId, arkSettlements.byTxid, arkSettlementsByHeight, barkRounds.byTxid, barkRoundsByHeight, sparkOnchain.txids, sparkTxBadge, t]);
 
   // Every tab kind renders inside one shared scroll container, so a freshly
   // opened (or switched-to) tab must start at the top, not wherever the
@@ -538,6 +565,12 @@ function ExplorerWorkspace() {
           it is the SAME Bitcoin mainnet ribbon (same provider, same data,
           keyed by data network so switching does not even remount it) with the
           settlement blocks marked on top. */}
+      {/* On a phone the network button sits in the shell's header, at the
+          right of the "Explorer" title: the tab bar keeps Home pinned at the
+          left instead (see ExplorerTabBar). */}
+      <WorkspaceHeaderActions>
+        <NetworkButton activeNetworkId={activeNetworkId} onSelectNetwork={selectNetwork} align="right" />
+      </WorkspaceHeaderActions>
       <div className="shrink-0 pt-3">
         <ExplorerBlocks
           key={dataNetworkId(activeNetworkId)}
@@ -549,14 +582,14 @@ function ExplorerWorkspace() {
             color: activeNetwork.color,
             onColor: '#ffffff',
             name: 'Arkade',
-            subject: 'an Arkade commitment transaction',
+            subject: t('explorer.highlight.arkadeSubject'),
             busy: arkSettlements.sync.catchingUp,
           } : isBark ? {
             heights: barkRounds.heights,
             color: activeNetwork.color,
             onColor: 'var(--alice-bg)',
             name: 'Bark',
-            subject: 'a Bark round',
+            subject: t('explorer.highlight.barkSubject'),
             busy: barkRounds.sync.catchingUp,
           } : undefined}
         />
@@ -603,13 +636,13 @@ function ExplorerWorkspace() {
               style={{ fontSize: 13, padding: '6px 10px', borderRadius: 3, color: 'var(--alice-primary)' }}
             >
               <SvgIcon svg={BACK_ICON} size={16} />
-              {arrival.origin.toLowerCase().includes('chat') ? 'Back to chat' : 'Back to course'}
+              {arrival.origin.toLowerCase().includes('chat') ? t('explorer.arrival.backToChat') : t('explorer.arrival.backToCourse')}
             </button>
           )}
           <button
             type="button"
             onClick={() => setArrival(null)}
-            aria-label="Dismiss"
+            aria-label={t('explorer.arrival.dismiss')}
             className="alice-control alice-control--quiet cursor-pointer shrink-0 bg-transparent border-none ml-auto"
             style={{ color: 'var(--alice-muted)', fontSize: 14, lineHeight: '14px' }}
           >
@@ -766,17 +799,13 @@ function ExplorerWorkspace() {
       </div>
 
       {/* Optional Alice companion, docked on the right like the left sidebar
-          and persistent across tabs and pages; an overlay below md. The bubble
-          reopens it when closed. */}
-      {askOpen ? (
+          and persistent across tabs and pages. The bubble reopens it when
+          closed; on a phone the bubble hands the page over to the main chat
+          instead, and the dock never shows. */}
+      {askOpen && !phone ? (
         <>
           <div
-            className="fixed inset-0 z-40 md:hidden"
-            onClick={() => setAskOpen(false)}
-            style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)' }}
-          />
-          <div
-            className="fixed inset-y-0 right-0 z-50 flex md:relative md:z-auto md:shrink-0 w-[min(420px,100vw)] md:w-[var(--ask-w,420px)]"
+            className="relative flex shrink-0 w-[var(--ask-w,420px)]"
             style={{ ['--ask-w' as string]: `${askWidth}px`, borderLeft: '1px solid var(--alice-border)' } as React.CSSProperties}
           >
             <div
@@ -800,7 +829,7 @@ function ExplorerWorkspace() {
           </div>
         </>
       ) : (
-        <AskAliceFab onOpen={() => setAskOpen(true)} />
+        <AskAliceFab onOpen={() => (phone ? handOffToChat() : setAskOpen(true))} />
       )}
     </div>
   );

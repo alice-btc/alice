@@ -23,6 +23,8 @@ export function applyWebTheme(mode: ThemeMode, palette: PaletteId, persist = tru
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', tokens['--alice-bg']);
   root.style.colorScheme = mode;
   root.classList.toggle('dark', mode === 'dark');
+  // The Android app colours its status bar icons from this (MainActivity.kt).
+  (window as { aliceSystemBars?: { postMessage(message: string): void } }).aliceSystemBars?.postMessage(mode);
   if (persist) {
     try {
       localStorage.setItem('alice_theme_mode', mode);

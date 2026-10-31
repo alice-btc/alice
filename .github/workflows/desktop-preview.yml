@@ -64,7 +64,7 @@ jobs:
             scripts/data/semantic-model
           key: private-preview-assets-${{ runner.os }}-${{ hashFiles('scripts/prepare-learn-packs.mjs', 'scripts/prepare-semantic-model.mjs', 'packages/alice-content/src/generated/planb-learn-catalog.ts', 'package-lock.json') }}
       - name: Install the npm dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
       - name: Build private desktop preview
         shell: bash
         env:
@@ -105,7 +105,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - name: Install the npm dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
       - run: npm run build --workspace @alice-wallet/site
       - name: Build web application
         shell: bash

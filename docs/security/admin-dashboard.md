@@ -93,10 +93,10 @@ would call `/account`.
 | `support` | Read-only: overview, analytics, events, account search, account sheet, audit log. |
 | `admin` | Everything, including suspend/reactivate, credit adjustment, promo codes, role changes, and permanent deletion. |
 
-### Re-authentication for irreversible actions
+### Re-authentication for sensitive actions
 
-Permanently deleting an account, granting dashboard access, and revoking it
-all require the acting admin to re-enter their **own** password in the same
+Permanently deleting an account, suspending or reactivating one, changing its
+credits, granting dashboard access, and revoking it all require the acting admin to re-enter their **own** password in the same
 request (`admin_password` in the body). A stolen or left-open session is
 therefore not enough on its own to destroy data or grant itself company. The
 check is rate-limited per admin so it cannot be used as a password oracle,
@@ -232,6 +232,36 @@ Demoting the last remaining full admin is refused server-side
 (`409 last_admin`) so the team can never lock itself out.
 
 ## What the dashboard shows
+
+**Launch** (`GET /admin/api/launch`), the tab the console opens on: new
+installations, confirmed AI requests, new accounts and technical errors over
+the last 24 hours against the 24 before (rolling windows, fair at any hour),
+installations active in the last 24 hours, hourly curves over 48 hours, and
+the product events of today and yesterday in UTC, since `events_daily` keeps
+days only. Downloads and site visits are added on the page from the two
+sources below.
+
+**Downloads** (no Alice API): the page asks GitHub's public releases API for
+`alice-btc/alice` and `alice-btc/alice-wallet` and counts every installer
+(`.dmg`, `.msi`, `.exe`, `.AppImage`, `.deb`, `.rpm`, `.apk`) by platform and
+version. Checksums and signatures are left out: they are fetched to verify
+an installer, not to install Alice. GitHub only gives running totals, so the
+page keeps one snapshot of counts per file per day in this browser's
+`localStorage` and shows what is new since the last earlier day it was
+opened, naming that day. GitHub counts repeats and knows nothing Alice could
+use about who downloaded.
+
+**Site** (`GET /admin/api/site-analytics`): visits and page views per day
+over 30 days, top pages, countries and referrers over 7 days, read from
+Cloudflare Web Analytics (`rumPageloadEventsAdaptiveGroups` on the GraphQL
+API). The site already loads that cookie-free beacon, so this collects
+nothing new. It needs `CF_ANALYTICS_API_TOKEN` and `CF_ACCOUNT_ID` in the
+local `.dev.vars`; without them the endpoint answers `configured: false` and
+the tab explains the setup. The site tag is looked up by exact host
+(`alicebtc.com`, or `CF_WEB_ANALYTICS_HOST`) unless
+`CF_WEB_ANALYTICS_SITE_TAG` is set; with no exact match the tab says so
+rather than show another site of the account. A Cloudflare error is shown on the card
+instead of failing the page.
 
 **Overview** (`GET /admin/api/overview`): accounts created vs. anonymous
 installations (distinguished by the existing `anon_<hash>` user id prefix, no new table), confirmed Private Cloud requests over 24h/7d/30d (from the
@@ -436,6 +466,35 @@ does not rely on SQLite's `ON DELETE CASCADE` being active for the
 connection, it is correct regardless of D1's per-connection foreign-key
 pragma state.
 
+### One-off reset of the beta data
+
+`apps/venice-proxy-worker/scripts/reset-beta-data.sql` clears the private
+beta before the public launch. It deletes every anonymous account (nothing
+of its own: no identity, password, passkey, admin role, paid plan, invoice,
+billing contact or account email) in the same explicit order as above, the
+installations nothing references any more, and the statistics: product
+counters, technical errors, request history and faucet claims. Every other
+account, invoices, billing contacts, the audit trail, access denials, promo
+codes and flagged installations stay. Request rows still reserved or from
+the last 24 hours stay too, so a request in flight can still settle.
+
+`reset-beta-data-count.sql` previews the same rule read-only, and
+`src/reset-beta-data.test.ts` checks that the two agree. Procedure, from
+`apps/venice-proxy-worker`:
+
+1. `npx wrangler d1 execute alice-accounts --remote --file scripts/reset-beta-data-count.sql`
+2. `npx wrangler d1 time-travel info alice-accounts` and keep the bookmark.
+3. `npx wrangler d1 execute alice-accounts --remote --file scripts/reset-beta-data.sql`
+4. Run the preview again: nothing left to delete.
+
+Undo within the Time Travel window:
+`npx wrangler d1 time-travel restore alice-accounts --bookmark=<bookmark>`.
+An app whose anonymous account is gone signs in again silently with a new
+one and a fresh free quota, at the latest when its 15-minute access token
+comes up for refresh. Until then its Private Cloud requests can fail with
+"Sign in", so run the reset at a quiet hour. Conversations are never on the server, so
+nothing on the device changes.
+
 ## Environment variables and secrets
 
 | Name | Kind | Required | Notes |
@@ -445,6 +504,10 @@ pragma state.
 | `ADMIN_BOOTSTRAP_SECRET` | secret | new, admin-only | ≥32 bytes. Only used by `POST /admin/api/bootstrap`. Safe to rotate/remove after the first admin exists. |
 | `ADMIN_ALLOWED_USERNAMES` | var | optional | Comma-separated usernames. When set, a session must match one of these **and** have an `admin_users` row. See below. |
 | `ADMIN_DASHBOARD_PATH` | secret | optional | Secret path for the dashboard, e.g. `/console-7fq2xk`. When set, `/admin` stops existing. Set it as a secret, not a `[vars]` entry, so it does not sit in git. |
+| `CF_ANALYTICS_API_TOKEN` | local `.dev.vars` only | optional | Cloudflare API token with only *Account Analytics: Read*. Lets the Site tab read Web Analytics. Never set it on the deployed Worker. |
+| `CF_ACCOUNT_ID` | local `.dev.vars` only | optional | The Cloudflare account the token reads. |
+| `CF_WEB_ANALYTICS_SITE_TAG` | local `.dev.vars` only | optional | Web Analytics site tag, when the lookup by host does not find the site. |
+| `CF_WEB_ANALYTICS_HOST` | local `.dev.vars` only | optional | Host to find the site by. Defaults to `alicebtc.com`. |
 | `EXPO_PUBLIC_ALICE_APP_VERSION` | client build var | optional | `x.y.z`. Inlined into the app builds so they can report their version. Malformed values are simply not reported. |
 
 ### Locking the dashboard to specific people

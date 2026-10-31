@@ -7,6 +7,9 @@ export const PLAY_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2
 export const PLUS_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="20" height="20" fill="{{COLOR}}" shape-rendering="crispEdges" aria-hidden="true"><path d="M9 2h2v7h7v2h-7v7H9v-7H2V9h7z"/></svg>`;
 export const HISTORY_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="20" height="20" fill="{{COLOR}}" shape-rendering="crispEdges" aria-hidden="true"><path d="M6 2h8v2h3v3h2v7h-2v3h-3v2H6v-2H3v-3h2v2h2v1h6v-1h2v-2h2V8h-2V5h-2V4H7v1H5v2h3v2H1V2h2v3h1V4h2zm3 4h2v5h3v2H9z"/></svg>`;
 export const SETTINGS_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="20" height="20" fill="{{COLOR}}" shape-rendering="crispEdges" aria-hidden="true"><path d="M2 4h3V2h2v2h11v2H7v2H5V6H2zm0 5h10V7h2v2h4v2h-4v2h-2v-2H2zm0 5h5v-2h2v2h9v2H9v2H7v-2H2z"/></svg>`;
+// The cog of the old wallet app's settings, traced onto a 19 px grid from
+// packages/alice-ui's settings-icon.svg: 8 teeth and a round hole.
+export const NUT_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 19 19" width="20" height="20" fill="{{COLOR}}" shape-rendering="crispEdges" aria-hidden="true"><path d="M8 0h3v1h-3zM7 1h5v1h-5zM3 2h2v1h-2zM7 2h5v1h-5zM14 2h2v1h-2zM2 3h4v1h-4zM7 3h5v1h-5zM13 3h4v1h-4zM2 4h15v1h-15zM3 5h13v1h-13zM4 6h4v1h-4zM11 6h4v1h-4zM1 7h6v1h-6zM12 7h6v1h-6zM0 8h6v1h-6zM13 8h6v1h-6zM0 9h6v1h-6zM13 9h6v1h-6zM0 10h6v1h-6zM13 10h6v1h-6zM1 11h6v1h-6zM12 11h6v1h-6zM4 12h4v1h-4zM11 12h4v1h-4zM3 13h13v1h-13zM2 14h15v1h-15zM2 15h4v1h-4zM7 15h5v1h-5zM13 15h4v1h-4zM3 16h2v1h-2zM7 16h5v1h-5zM14 16h2v1h-2zM7 17h5v1h-5zM8 18h3v1h-3z"/></svg>`;
 export const UP_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="20" height="20" fill="{{COLOR}}" shape-rendering="crispEdges" aria-hidden="true"><path d="M9 3h2v2h2v2h2v2h2v2h-3V9h-3v9H9V9H6v2H3V9h2V7h2V5h2z"/></svg>`;
 
 // Settings use the same 20px grid and full-opacity ink as the navigation.
@@ -31,6 +34,7 @@ export const EYE_OPEN_ICON = settingsGlyph('M6 4h8v2h3v2h2v4h-2v2h-3v2H6v-2H3v-2
 export const EYE_CLOSED_ICON = settingsGlyph('M1 7h2v2h2v2h3v2h4v-2h3V9h2V7h2v4h-2v2h-2v2h-3v3H8v-3H5v-2H3v-2H1zM2 14h2v3H2zm14 0h2v3h-2z');
 
 // Additional glyphs approved in the page atlas; keep currentColor at the call site.
+export const DICTIONARY_ICON = settingsGlyph('M3 2h14v16H3zm2 2v12h10V4zM6 4h1v12H6zm4 2h3v1h-3zM9 7h1v7H9zm4 0h1v7h-1zm-3 3h3v1h-3z');
 export const SEARCH_ICON = settingsGlyph('M4 2h8v2h2v8h-2v2H4v-2H2V4h2zm0 2v8h8V4zm9 9h2v2h2v2h2v2h-3v-2h-2v-2h-1z');
 export const NEXT_ICON = settingsGlyph('M11 3h2v2h2v2h2v2h2v2h-2v2h-2v2h-2v2h-2v-3h2v-3H1V9h12V6h-2z');
 export const BACK_ICON = settingsGlyph('M7 3h2v3H7v3h12v2H7v3h2v3H7v-2H5v-2H3v-2H1V9h2V7h2V5h2z');

@@ -9,6 +9,7 @@ import type {
   LearnCatalogTutorial,
 } from '@alice-wallet/alice-content/src/learn-types';
 import type { LearnLangMeta } from './lang-meta';
+import type { MessageKey } from '../../i18n/translate.ts';
 
 // Display order chosen for the Learn home, mirroring the Plan B Academy site
 // sections. Topics come straight from each course.yml.
@@ -21,33 +22,42 @@ export const SECTION_ORDER = [
   'mining',
 ] as const;
 
-export const SECTION_LABELS: Record<string, { fr: string; en: string }> = {
-  bitcoin: { fr: 'Bitcoin', en: 'Bitcoin' },
-  security: { fr: 'Sécurité', en: 'Security' },
-  'social studies': { fr: 'Études sociales', en: 'Social studies' },
-  business: { fr: 'Entreprises', en: 'Business' },
-  protocol: { fr: 'Protocoles', en: 'Protocols' },
-  mining: { fr: 'Minage', en: 'Mining' },
+// The words for each section, tutorial category and level live in the
+// interface dictionaries (learn.section.*, learn.tutorialCategory.*,
+// learn.level.*); an id missing here is shown as is.
+export const SECTION_LABEL_KEYS: Record<string, MessageKey> = {
+  bitcoin: 'learn.section.bitcoin',
+  security: 'learn.section.security',
+  'social studies': 'learn.section.socialStudies',
+  business: 'learn.section.business',
+  protocol: 'learn.section.protocol',
+  mining: 'learn.section.mining',
 };
 
-export const TUTORIAL_CATEGORY_LABELS: Record<string, { fr: string; en: string }> = {
-  wallet: { fr: 'Wallet', en: 'Wallet' },
-  node: { fr: 'Nœud', en: 'Node' },
-  privacy: { fr: 'Confidentialité', en: 'Privacy' },
-  mining: { fr: 'Minage', en: 'Mining' },
-  exchange: { fr: 'Exchange', en: 'Exchange' },
-  'computer-security': { fr: 'Sécurité informatique', en: 'Computer security' },
-  contribution: { fr: 'Contribution', en: 'Contribution' },
-  business: { fr: 'Entreprises', en: 'Business' },
+export const TUTORIAL_CATEGORY_LABEL_KEYS: Record<string, MessageKey> = {
+  wallet: 'learn.tutorialCategory.wallet',
+  node: 'learn.tutorialCategory.node',
+  privacy: 'learn.tutorialCategory.privacy',
+  mining: 'learn.tutorialCategory.mining',
+  exchange: 'learn.tutorialCategory.exchange',
+  'computer-security': 'learn.tutorialCategory.computerSecurity',
+  contribution: 'learn.tutorialCategory.contribution',
+  business: 'learn.tutorialCategory.business',
 };
 
-export const LEVEL_LABELS: Record<string, { fr: string; en: string }> = {
-  beginner: { fr: 'Débutant', en: 'Beginner' },
-  intermediate: { fr: 'Intermédiaire', en: 'Intermediate' },
-  advanced: { fr: 'Avancé', en: 'Advanced' },
-  expert: { fr: 'Expert', en: 'Expert' },
-  wizard: { fr: 'Expert+', en: 'Wizard' },
+export const LEVEL_LABEL_KEYS: Record<string, MessageKey> = {
+  beginner: 'learn.level.beginner',
+  intermediate: 'learn.level.intermediate',
+  advanced: 'learn.level.advanced',
+  expert: 'learn.level.expert',
+  wizard: 'learn.level.wizard',
 };
+
+/** The label of a section, category or level id, the id itself when unknown. */
+export function catalogLabel(t: (key: MessageKey) => string, keys: Record<string, MessageKey>, id: string): string {
+  const key = keys[id];
+  return key ? t(key) : id;
+}
 
 // Course thumbnails and tutorial covers, processed per family by the build
 // script: keyed drawings float on the card, photographic/banner artwork is

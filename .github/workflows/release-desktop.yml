@@ -97,14 +97,8 @@ jobs:
             os: ubuntu-latest
             extensions: .AppImage,.deb
             artifact_name: alice-desktop-linux
-    env:
-      APPLE_CERTIFICATE_SECRET: ${{ secrets.APPLE_CERTIFICATE }}
-      APPLE_CERTIFICATE_PASSWORD_SECRET: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-      APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
-      APPLE_PASSWORD_SECRET: ${{ secrets.APPLE_PASSWORD }}
-      APPLE_TEAM_ID_SECRET: ${{ secrets.APPLE_TEAM_ID }}
-      WINDOWS_CERTIFICATE_SECRET: ${{ secrets.WINDOWS_CERTIFICATE }}
-      WINDOWS_CERTIFICATE_PASSWORD_SECRET: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+    # No secret at job level: each one is handed only to the steps that use it,
+    # so dependency code run by the install and the builds never sees them.
     steps:
       - uses: actions/checkout@v4
 
@@ -149,12 +143,23 @@ jobs:
             scripts/data/semantic-model
           key: desktop-assets-${{ runner.os }}-${{ hashFiles('scripts/prepare-learn-packs.mjs', 'scripts/prepare-semantic-model.mjs', 'packages/alice-content/src/generated/planb-learn-catalog.ts', 'package-lock.json') }}
 
+      # Without lifecycle scripts, like CI. A dependency's install script would
+      # otherwise run code from the registry on the runner that signs Alice.
+      # None is needed: esbuild and workerd ship their binaries as optional
+      # packages, onnxruntime-node only fetches CUDA files, protobufjs only
+      # prints a notice.
       - name: Install the npm dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Check the optional Apple secrets
         if: matrix.platform == 'macos'
         shell: bash
+        env:
+          APPLE_CERTIFICATE_SECRET: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD_SECRET: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD_SECRET: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID_SECRET: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
           certificate_values=0
@@ -239,9 +244,44 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npm run build --workspace @alice-wallet/app-desktop -- --bundles dmg --target universal-apple-darwin
 
+      # Tauri notarises the application, not the disk image around it. Apple
+      # recommends notarising what is distributed: the image's ticket covers its
+      # content, and stapled to the file it is checked even offline.
+      - name: Notarise and staple the DMG itself
+        if: matrix.platform == 'macos' && env.APPLE_SIGNING_READY == 'true' && env.APPLE_NOTARIZATION_READY == 'true'
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          dmgs=()
+          while IFS= read -r file; do dmgs+=("$file"); done < <(find apps/app-desktop/src-tauri/target -path '*/bundle/dmg/*.dmg' -type f)
+          if [[ "${#dmgs[@]}" -ne 1 ]]; then
+            echo "Expected one DMG to notarise, found ${#dmgs[@]}." >&2
+            exit 1
+          fi
+          dmg="${dmgs[0]}"
+          result="$(xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait --timeout 2h --output-format json)"
+          echo "$result"
+          status="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).status || "")' "$result")"
+          if [[ "$status" != "Accepted" ]]; then
+            submission="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).id || "")' "$result")"
+            [[ -n "$submission" ]] && xcrun notarytool log "$submission" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" || true
+            echo "Apple did not accept the DMG: ${status:-no status}." >&2
+            exit 1
+          fi
+          xcrun stapler staple "$dmg"
+          xcrun stapler validate "$dmg"
+          spctl -a -vv -t open --context context:primary-signature "$dmg"
+
       - name: Check the optional Windows secrets
         if: matrix.platform == 'windows'
         shell: bash
+        env:
+          WINDOWS_CERTIFICATE_SECRET: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD_SECRET: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: |
           set -euo pipefail
           certificate_values=0

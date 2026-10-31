@@ -3,8 +3,8 @@
 Alice ships as three surfaces from one repository, and they are versioned
 together: a single number means a tester and a log line refer to the same code.
 
-- `Unreleased`, landed since `0.2.6`, to be numbered at release
-- `0.2.6`, current release
+- `0.2.7`, current release
+- `0.2.6`, previous release
 - `0.2.5`, previous release
 - `0.2.4`, previous release
 - `0.2.3`, previous release
@@ -15,7 +15,185 @@ together: a single number means a tester and a log line refer to the same code.
 - `0.0.1`, first public baseline
 - `1.0.0`, public launch, planned
 
-## Unreleased
+## 0.2.7
+
+Desktop installers for macOS, Windows and Linux ship with this release.
+
+This release gives Private Cloud the thread of the conversation, an app
+language with a French interface and French knowledge, the *Dictionnaire de
+Bitcoin* in Learn, an Explorer that keeps up with Arkade, and the first
+builds of Alice for Android and iOS, which are not yet distributed.
+
+### Private Cloud
+
+- Alice keeps the thread of a Private Cloud conversation. Every turn, her
+  earlier replies included, now travels to the enclave encrypted in its own
+  role, so a question such as "what would you think about her?" is read
+  against the whole conversation instead of alone. Until now Private sent
+  each question single-shot, with at most the last exchange re-encoded as a
+  transcript, on the belief that Venice left assistant turns in clear; the
+  enclave in fact decrypts them and rejects any plaintext turn (verified on
+  29 October 2026). The history is bounded by a character budget and the
+  proxy's message limit, and the public texts no longer describe Private as
+  single-shot.
+- Before anything is encrypted, Private Cloud measures the exact size of the
+  request and drops the oldest turns of a very long conversation to stay
+  under the proxy's limit, refusing locally, with nothing sent, only when
+  the instructions and your latest message alone are too large.
+
+### Language
+
+- Alice App has an app language, French or English, in Settings › General.
+  It follows the device language until one is chosen there: French on a
+  French device, English on every other. No question is asked at first
+  launch. Alice answers in the app language by default; "Auto", which follows
+  the language of each message, is a choice. A short message such as "Thanks"
+  or "Ark?" no longer switches the answer to another language, and the
+  history of the conversation now counts in that decision.
+- The interface speaks French when the app language is French: chat,
+  Settings, Explorer, Playground, Learn, notices and dialogs, from one
+  dictionary per language. The interface says "vous"; Alice says "tu" in
+  her answers. English pages are unchanged.
+- The knowledge Alice reads before answering exists in English as well as
+  French (403 notes, machine-translated and marked as such), so an English
+  question is answered from English notes, with the same retrieval cost.
+- The site exists in French under `/fr`, with the contact menu, hreflang and
+  a sitemap per language. English pages are unchanged.
+- A language asked for in a message ("answer in English", "reviens au
+  français") holds for the rest of that conversation, and for it only: a new
+  conversation starts from the Settings choice again. The FR/EN badge the
+  chat briefly showed is gone.
+
+### Chat
+
+- What Alice remembers about you is sent to her with the day each fact was
+  noted and the rule that the current conversation comes first: she no
+  longer presents a remembered fact as something said in this conversation,
+  nor asks you to choose between a memory and what you just said.
+- Alice never calls Ark a layer 1 or a base-layer protocol, in her notes and
+  in a check on her answers, including when the dictionary's definition of
+  Ark is what she read.
+- On a phone, the message field grows with the text up to three lines, then
+  scrolls inside, so the conversation stays visible; the keyboard's return
+  key starts a new line and the send button sends. With a physical keyboard,
+  Enter sends and Shift+Enter starts a new line, as before.
+
+### Custom server
+
+- An address ending in `/v1`, as clients' examples often show it, works: the
+  app adds the paths itself and no longer asked for `/v1/v1/models`. The
+  example in the address field no longer shows `/v1`.
+- Settings says "connected to your custom server" only once the server
+  answered at that address, and otherwise that it does not answer there;
+  before, a saved address was reported as connected while the chat could
+  not reach it.
+
+- A custom server running Qwen3.5 or SmolLM3 (llama-server, Ollama, LM
+  Studio) answers instead of failing with "Connection error". The backend now
+  reads what the server speaks and serves from its model list: the OpenAI
+  shape whenever `/v1/models` answers, Ollama's `/api/chat` only as a
+  fallback, no longer guessed from the presence of an API key; a model family
+  whose template takes a single leading system message gets Alice's context
+  as user turns, as on the bundled local model; and thinking is switched off
+  for those families, with any `<think>` block hidden from the answer in
+  every case.
+
+### Explorer
+
+- When Sparkscan's request limit is reached, the Explorer stops asking until
+  Sparkscan says it may, and tells how long to wait ("Try again in about 2
+  minutes"), instead of sending requests that would be refused.
+- An Arkade address with more than 500 coins shows them all and its whole
+  balance: the lookup now reads every page of the operator's indexer before
+  showing a figure, and a page that fails shows an error rather than a
+  partial balance. A coin's expiry keeps its unit, a block height or a date,
+  instead of a date in 1970 for a height; a spent coin later swept by the
+  operator stays "spent".
+- The newest Arkade commitment the Explorer starts from no longer stands
+  still for weeks. The walk of the operator's wallet that finds it lets a
+  trail go after two spenders that are not commitments (it followed coins
+  into users' wallets and forgot the operator's own lines), keeps each
+  output to watch once, and the Worker that does the walk for everyone now
+  also listens to the operator's live stream between two walks, so a
+  commitment funded from coins the walk never saw is still found, once the
+  chain confirms it.
+
+### Learn
+
+- The *Dictionnaire de Bitcoin* by Loïc Pandul, 1408 definitions in French
+  (CC BY-NC-SA 4.0, embedded with the author's agreement of 17 October 2026),
+  is read in Learn from A to Z and from the home search, each definition
+  with a way to ask Alice about it. When a question names a definition, Alice reads it
+  before the course excerpt, and every reply that leaned on Learn material
+  (a chapter, a tutorial, a definition) ends with a short sentence naming its
+  source and shows a SOURCES block that opens the page in the app, with the
+  author and licence.
+
+### Desktop
+
+- The macOS DMG is notarised by Apple and its ticket stapled, like the
+  application inside it already was: the disk image itself now passes
+  Gatekeeper's check, offline too.
+- The app's content security policy no longer allows `eval`; it allows
+  WebAssembly instead, which on-device search needs.
+- A custom Explorer node or a custom AI server can be on another machine,
+  an Umbrel or a VPS for instance, as on Alice Web; the app reached only
+  servers on the same computer before.
+- On Linux, when the system keychain is unavailable (no Secret Service, a
+  locked keyring, a dismissed prompt), the app says so in a banner naming
+  GNOME Keyring or KWallet, keeps the conversation in memory, and a Retry
+  button saves it once the keychain answers, without reloading. What the
+  disk already holds wins over what was written while the keychain was
+  away. The window no longer goes white while GNOME asks to unlock the
+  keyring.
+- Shortcuts read `Ctrl` on Linux and Windows and `⌘` on macOS, and the
+  sidebar answers the right key on each. Every surface opens on Private at
+  first launch. The bitcoin sign `₿` is drawn by the app's own glyph where
+  the system font lacks it. The `.deb` package carries its category and
+  description.
+
+### Phones
+
+- Alice builds for Android and iOS from this repository, with the phone
+  layout, the local models that fit a phone and the same Private Cloud,
+  Explorer, Learn and Playground. These builds are not distributed yet;
+  the store listings will follow. In the store builds nothing is for sale.
+
+### Accounts
+
+- Replacing an account password asks for the current one. A signed-in
+  session alone could change it before, so a stolen session or an unlocked
+  device was enough to lock the owner out. Forgetting it is still covered by
+  the reset with a code sent to the account's address.
+- A new password, chosen or reset, signs out every other device at once, and
+  the address on file receives a short notice that the password changed.
+- The login code is no longer in the email's subject, which a locked phone
+  shows in its notification; it is in the body only.
+- Signing in with a name that does not exist takes as long as a wrong
+  password, instead of a slower check that told the two apart.
+- A promo code's last place goes to one account only, even when two redeem
+  it at the same moment.
+
+### Server
+
+- Suspending or reactivating an account and changing its credits ask for the
+  admin password again, like deletion already did.
+- Deleting an account from the admin console also removes its address,
+  invoices and reminders by name, instead of counting on the database to
+  cascade.
+- The public routes that need no session (collateral relay, Explorer entity
+  lookup, uptime alert) are limited per network and per hour, and every
+  per-IP limit counts an IPv6 client by its /64, the block one connection
+  owns, rather than by address.
+- The admin console opens on a Launch tab: the last 24 hours against the 24
+  before for installations, AI requests and accounts, hourly curves over 48
+  hours, errors, app events today and yesterday, downloads and site visits.
+- A Downloads tab counts every installer of Alice and the wallet by
+  platform and version, from GitHub's public counters, and what is new since
+  the last day the console was opened.
+- A Site tab shows alicebtc.com's visits, pages, countries and referrers from
+  Cloudflare Web Analytics, which the site already uses without cookies. It
+  needs a read-only Cloudflare token in the local `.dev.vars`, never deployed.
 
 ### Site
 

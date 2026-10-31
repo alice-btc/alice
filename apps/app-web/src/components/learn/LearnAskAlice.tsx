@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { enterSends, useComposerFit } from '@/lib/composer-field';
 import { useChat } from '@alice-wallet/alice-ai';
 import type { LearnCoursePack } from '@alice-wallet/alice-content/src/learn-types';
 import { ModelSelector } from '@/components/ModelSelector';
@@ -12,24 +13,39 @@ import { LEARN_ASK_EVENT, consumeLearnAsk, type LearnAskRequest } from '@/lib/le
 import { findCourse, findTutorial } from '@/lib/learn/catalog';
 import type { LearnLang } from '@/lib/learn/language';
 import { fetchCoursePack } from '@/lib/learn/packs';
+import { fetchDefinition } from '@/lib/learn/dictionary-packs';
 import type { LearnView } from '@/lib/learn/route';
+import { useLearnT } from './learn-locale';
 
 // The Learn twin of the Explorer's Ask-Alice sidebar: same shell, same shared
 // chat, but the attachment is the page being READ (course/chapter/tutorial),
 // public catalog metadata only. The chip shows exactly what rides along with
 // the question, and is removable.
 
-interface LearnContext {
+export interface LearnContext {
   /** Short human label on the chip. */
   label: string;
   /** The exact prefix sent with the question. */
   text: string;
 }
 
-function useLearnContext(view: LearnView, lang: LearnLang): LearnContext | null {
+export function useLearnContext(view: LearnView, lang: LearnLang): LearnContext | null {
+  const t = useLearnT(lang);
   const [pack, setPack] = useState<LearnCoursePack | null>(null);
 
   const code = view.kind === 'course' || view.kind === 'chapter' || view.kind === 'quiz' ? view.code : null;
+  // A definition's exact title (accents, spacing) comes from its pack.
+  const definitionSlug = view.kind === 'definition' ? view.slug : null;
+  const [term, setTerm] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setTerm(null);
+    if (!definitionSlug) return;
+    fetchDefinition(definitionSlug)
+      .then((definition) => { if (!cancelled) setTerm(definition?.title ?? null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [definitionSlug]);
   useEffect(() => {
     let cancelled = false;
     setPack(null);
@@ -41,6 +57,25 @@ function useLearnContext(view: LearnView, lang: LearnLang): LearnContext | null 
   }, [code, lang]);
 
   return useMemo(() => {
+    if (view.kind === 'definition') {
+      const title = term ?? view.slug.replace(/-/g, ' ').toUpperCase();
+      return {
+        label: t('learn.ask.definitionLabel', { title }),
+        text:
+          lang === 'fr'
+            ? `Contexte : je lis la définition « ${title} » du Dictionnaire de Bitcoin de Loïc Pandul. `
+            : `Context: I am reading the definition "${title}" in the Dictionnaire de Bitcoin by Loïc Pandul. `,
+      };
+    }
+    if (view.kind === 'dictionary') {
+      return {
+        label: t('learn.home.dictionary'),
+        text:
+          lang === 'fr'
+            ? 'Contexte : je parcours le Dictionnaire de Bitcoin de Loïc Pandul. '
+            : 'Context: I am browsing the Dictionnaire de Bitcoin by Loïc Pandul. ',
+      };
+    }
     if (view.kind === 'tutorial') {
       const tutorial = findTutorial(view.category, view.slug);
       const name = tutorial?.i18n[lang]?.name ?? view.slug;
@@ -72,7 +107,7 @@ function useLearnContext(view: LearnView, lang: LearnLang): LearnContext | null 
           ? `Contexte : je consulte le cours ${code.toUpperCase()} « ${courseName} » (Plan B Academy). `
           : `Context: I am looking at course ${code.toUpperCase()} "${courseName}" (Plan B Academy). `,
     };
-  }, [view, lang, code, pack]);
+  }, [view, lang, code, pack, term, t]);
 }
 
 export function LearnAskAlice({
@@ -86,14 +121,10 @@ export function LearnAskAlice({
 }) {
   const { messages, send, busy, aiEnabled, backendType, setBackendType, setAiEnabled, clearMessages } = useChat();
   const pageContext = useLearnContext(view, lang);
+  const t = useLearnT(lang);
   const [input, setInput] = useState('');
   const composerRef = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    const element = composerRef.current;
-    if (!element) return;
-    element.style.height = '26px';
-    element.style.height = Math.min(Math.max(element.scrollHeight, 26), 96) + 'px';
-  }, [input]);
+  useComposerFit(composerRef, input);
   const [attached, setAttached] = useState(true);
   const [payloadOpen, setPayloadOpen] = useState(false);
   // A quiz debrief or selection rescue overrides the page attachment with its
@@ -138,10 +169,7 @@ export function LearnAskAlice({
     setPayloadOpen(false);
   }, [contextKey]);
 
-  const questionChips =
-    lang === 'fr'
-      ? ['Explique-moi ce chapitre autrement', 'Donne-moi un exemple concret', 'Pourquoi est-ce important ?']
-      : ['Explain this chapter differently', 'Give me a concrete example', 'Why does this matter?'];
+  const questionChips = [t('learn.ask.chip.differently'), t('learn.ask.chip.example'), t('learn.ask.chip.why')];
 
   function requestSend(raw?: string) {
     const q = (raw ?? input).trim();
@@ -153,7 +181,7 @@ export function LearnAskAlice({
   return (
     <div
       className="alice-ask-panel relative flex flex-col h-full w-full min-h-0"
-      aria-label="Ask Alice about this course"
+      aria-label={t('learn.ask.panel.aria')}
       style={{ backgroundColor: 'var(--alice-bg-soft)', borderLeft: '1px solid var(--alice-border)' }}
     >
       <div className="flex items-center justify-end px-4 py-2 shrink-0">
@@ -162,8 +190,8 @@ export function LearnAskAlice({
             type="button"
             onClick={() => clearMessages()}
             className="alice-control alice-control--tool"
-            aria-label="New conversation"
-            title={lang === 'fr' ? 'Nouvelle discussion' : 'New conversation'}
+            aria-label={t('learn.ask.new')}
+            title={t('learn.ask.new')}
           >
             <SvgIcon svg={PLUS_ICON} size={16} />
           </button>
@@ -171,45 +199,45 @@ export function LearnAskAlice({
             type="button"
             onClick={onClose}
             className="alice-control alice-control--tool"
-            aria-label="Close"
+            aria-label={t('common.close')}
           >
             <SvgIcon svg={CLOSE_ICON} size={16} />
           </button>
         </div>
       </div>
 
-      <SideChatConversation input={input} questions={questionChips} onQuestion={requestSend} lang={lang === 'fr' ? 'fr' : 'en'} />
+      <SideChatConversation input={input} questions={questionChips} onQuestion={requestSend} lang={t.locale} />
 
       <div className="alice-panel-composer flex flex-col gap-2 shrink-0">
         {payloadOpen && attached && context && (
           <div className="flex flex-col gap-2 px-3 py-2" style={{ border: '1px solid var(--alice-border)', borderRadius: 2, backgroundColor: 'var(--alice-bg)' }}>
             <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-              SENT TO ALICE, EXACTLY:
+              {t('learn.ask.sentExactly')}
             </span>
             <p className="font-numbers m-0" style={{ fontSize: 11, lineHeight: '16px', color: 'var(--alice-text)' }}>
               {context.text}
             </p>
             <p className="font-numbers m-0" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-              Public course metadata only; nothing about your wallet rides along.
+              {t('learn.ask.metadataOnly')}
             </p>
           </div>
         )}
 
         <textarea
-          aria-label="Message Alice"
+          aria-label={t('learn.ask.message.aria')}
           ref={composerRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+            if (enterSends(e)) {
               e.preventDefault();
               requestSend();
             }
           }}
-          placeholder={lang === 'fr' ? 'Une question sur ce cours…' : 'Ask about this course…'}
+          placeholder={t('learn.ask.placeholder')}
           rows={1}
           className="font-numbers w-full resize-none bg-transparent outline-none"
-          style={{ fontSize: 16, lineHeight: '26px', height: 26, minHeight: 26, maxHeight: 96, color: 'var(--alice-text)', border: 0, overflowY: 'auto' }}
+          style={{ fontSize: 16, lineHeight: '26px', height: 26, minHeight: 26, color: 'var(--alice-text)', border: 0 }}
         />
 
         <div className="flex items-center justify-between gap-2">
@@ -221,7 +249,7 @@ export function LearnAskAlice({
                 type="button"
                 onClick={() => setPayloadOpen((v) => !v)}
                 aria-expanded={payloadOpen}
-                title="Show the exact text sent to the model"
+                title={t('learn.ask.showPayload')}
                 className="alice-control alice-control--quiet alice-attachment-label"
               >
                 <SvgIcon svg={ATTACHMENT_ICON} size={16} />
@@ -232,7 +260,7 @@ export function LearnAskAlice({
               <button
                 type="button"
                 onClick={() => { setAttached(false); setOverride(null); }}
-                aria-label="Remove this attachment"
+                aria-label={t('learn.ask.removeAttachment')}
                 className="alice-control alice-control--tool"
               >
                 <SvgIcon svg={CLOSE_ICON} size={16} />
@@ -249,11 +277,11 @@ export function LearnAskAlice({
             setAiEnabled={setAiEnabled}
             placement="composer"
           />
-          <SendMessageButton onClick={() => requestSend()} disabled={busy || !input.trim() || !aiEnabled} label={lang === 'fr' ? 'Envoyer le message' : 'Send message'} />
+          <SendMessageButton onClick={() => requestSend()} disabled={busy || !input.trim() || !aiEnabled} label={t('learn.ask.send')} />
         </div>
         {!aiEnabled && (
           <p className="font-numbers m-0" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>
-            Alice is turned off. Turn it on in Settings to ask.
+            {t('learn.ask.off')}
           </p>
         )}
       </div>

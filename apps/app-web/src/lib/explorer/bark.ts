@@ -15,6 +15,7 @@
 // unknown fields are skipped, so a newer server does not break the view.
 
 import { bech32m } from '@scure/base';
+import { t as tr } from '../../i18n/translate.ts';
 import { sha256 } from '@noble/hashes/sha2.js';
 
 const SERVICE = 'bark_server.ArkService';
@@ -47,7 +48,7 @@ function readVarint(buf: Uint8Array, pos: number): [number, number] {
   let mul = 1;
   for (;;) {
     const b = buf[pos++];
-    if (b === undefined) throw new BarkError('Truncated message from the Bark server.');
+    if (b === undefined) throw new BarkError(tr('explorerBark.error.truncated'));
     value += (b & 0x7f) * mul;
     if (b < 0x80) return [value, pos];
     mul *= 128;
@@ -68,7 +69,7 @@ export function readMessage(buf: Uint8Array): Message {
       [value, pos] = readVarint(buf, pos);
     } else if (wire === 2) {
       const [len, start] = readVarint(buf, pos);
-      if (start + len > buf.length) throw new BarkError('Truncated message from the Bark server.');
+      if (start + len > buf.length) throw new BarkError(tr('explorerBark.error.truncated'));
       value = buf.subarray(start, start + len);
       pos = start + len;
     } else if (wire === 1) {
@@ -78,7 +79,7 @@ export function readMessage(buf: Uint8Array): Message {
       pos += 4;
       continue;
     } else {
-      throw new BarkError('Unreadable message from the Bark server.');
+      throw new BarkError(tr('explorerBark.error.unreadable'));
     }
     const list = out.get(field);
     if (list) list.push(value); else out.set(field, [value]);
@@ -141,7 +142,7 @@ export function takeFrames(buf: Uint8Array): GrpcWebFrames {
       }
     } else if (flag & 0x01) {
       // We never offer compression, so a compressed frame is a server bug.
-      throw new BarkError('The Bark server answered in an unexpected encoding.');
+      throw new BarkError(tr('explorerBark.error.encoding'));
     } else {
       messages.push(body);
     }
@@ -153,7 +154,7 @@ function statusError(status: string | null | undefined, message: string | null |
   if (!status || status === '0') return null;
   let msg = '';
   try { msg = decodeURIComponent(message ?? ''); } catch { msg = message ?? ''; }
-  return new BarkError(msg || `Bark server error (status ${status}).`, Number(status));
+  return new BarkError(msg || tr('explorerBark.error.status', { status }), Number(status));
 }
 
 async function open(base: string, method: string, signal?: AbortSignal, request: Uint8Array = new Uint8Array()): Promise<Response> {
@@ -167,9 +168,9 @@ async function open(base: string, method: string, signal?: AbortSignal, request:
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw err;
-    throw new BarkError('Could not reach the Bark server.');
+    throw new BarkError(tr('explorerBark.error.unreachable'));
   }
-  if (!res.ok) throw new BarkError(`Bark server error ${res.status}.`);
+  if (!res.ok) throw new BarkError(tr('explorerBark.error.http', { status: res.status }));
   // A call that fails before any message answers "trailers-only": the status
   // travels in the HTTP headers instead of a trailer frame.
   const early = statusError(res.headers.get('grpc-status'), res.headers.get('grpc-message'));
@@ -276,12 +277,12 @@ export async function getBarkNextRoundTime(base: string, opts: { signal?: AbortS
  * coin is looked up and from where. Returns the serialized VTXO.
  */
 export async function fetchBarkVtxo(base: string, vtxoId: Uint8Array, opts: { signal?: AbortSignal } = {}): Promise<Uint8Array> {
-  if (vtxoId.length !== 36) throw new BarkError('A VTXO id is 36 bytes.');
+  if (vtxoId.length !== 36) throw new BarkError(tr('explorerBark.error.idLength'));
   // GetVtxoRequest { bytes vtxo_id = 1 }
   const request = new Uint8Array([0x0a, 36, ...vtxoId]);
   const reply = await unary(base, 'GetVtxo', opts.signal, request);
   const vtxo = bytes(reply, 1);
-  if (!vtxo || vtxo.length === 0) throw new BarkError('The Bark server returned an empty VTXO.');
+  if (!vtxo || vtxo.length === 0) throw new BarkError(tr('explorerBark.error.emptyVtxo'));
   return vtxo;
 }
 
@@ -302,7 +303,7 @@ export type BarkRoundEvent =
 export function txidFromRawTx(raw: Uint8Array): string {
   let pos = 4;
   const need = (n: number) => {
-    if (pos + n > raw.length) throw new BarkError('Truncated round transaction.');
+    if (pos + n > raw.length) throw new BarkError(tr('explorerBark.error.truncatedRound'));
   };
   const compact = (): number => {
     need(1);
@@ -377,7 +378,7 @@ export async function subscribeBarkRounds(
   opts: { signal?: AbortSignal } = {},
 ): Promise<void> {
   const res = await open(base, 'SubscribeRounds', opts.signal);
-  if (!res.body) throw new BarkError('The Bark server sent no stream.');
+  if (!res.body) throw new BarkError(tr('explorerBark.error.noStream'));
   const reader = res.body.getReader();
   let buffer: Uint8Array = new Uint8Array();
   for (;;) {
@@ -440,24 +441,24 @@ export function arkIdFor(serverPubkeyHex: string): string {
 
 export function decodeBarkAddress(input: string): BarkAddress {
   const address = input.trim().toLowerCase();
-  if (arkAddressFlavor(address) !== 'bark') throw new BarkError('That is not a Bark address.');
+  if (arkAddressFlavor(address) !== 'bark') throw new BarkError(tr('explorerBark.error.notBarkAddress'));
   let words: number[];
   let prefix: string;
   try {
     // Bark addresses run past bech32's usual 90-character limit.
     ({ prefix, words } = bech32m.decode(address as `${string}1${string}`, false));
   } catch {
-    throw new BarkError('That Bark address has an invalid checksum.');
+    throw new BarkError(tr('explorerBark.error.checksum'));
   }
   let payload: Uint8Array;
   try {
     payload = bech32m.fromWords(words.slice(1));
   } catch {
-    throw new BarkError('Could not decode that Bark address.');
+    throw new BarkError(tr('explorerBark.error.decodeAddress'));
   }
 
   let pos = 0;
-  const truncated = () => new BarkError('That Bark address is truncated.');
+  const truncated = () => new BarkError(tr('explorerBark.error.truncatedAddress'));
   const compact = (): number => {
     if (pos >= payload.length) throw truncated();
     const first = payload[pos++];

@@ -22,6 +22,14 @@ import { Amount } from '@/components/AmountDisplay';
 import { ExplorerCopy, FieldLabel, Metric, SectionTitle, Skeleton, SkeletonLines } from '@/components/ExplorerUI';
 import { SPARK_ACCENT, SparkAddressLink, SparkBadge } from '@/components/ExplorerSpark';
 import { ExitFunnel, type FunnelModel, type FunnelStep } from '@/components/ExitFunnel';
+import { formatLocale, type MessageKey, type Translator, useT } from '@/i18n';
+
+const KIND_LABEL: Record<SparkExitStep['kind'], MessageKey> = {
+  root: 'explorerSpark.leafTab.kind.root',
+  split: 'explorerSpark.leafTab.kind.split',
+  node: 'explorerSpark.leafTab.kind.node',
+  leaf: 'explorerSpark.leafTab.kind.leaf',
+};
 
 function shortHex(s: string, head = 10, tail = 8): string {
   return s.length > head + tail + 1 ? `${s.slice(0, head)}…${s.slice(-tail)}` : s;
@@ -29,11 +37,11 @@ function shortHex(s: string, head = 10, tail = 8): string {
 
 /** The funnel model of a Spark leaf, in Spark's words. The refund
  *  transaction is the last row: the exit to the owner. */
-export function sparkFunnelModel(path: SparkExitPath, onOpenDeposit: () => void): FunnelModel {
+export function sparkFunnelModel(path: SparkExitPath, onOpenDeposit: () => void, t: Translator): FunnelModel {
   const rows: FunnelStep[] = path.steps.map((s, i) => ({
     from: i,
     to: i,
-    label: s.kind,
+    label: t(KIND_LABEL[s.kind]),
     kind: 'tree',
     outputs: s.outputs,
     branchSats: s.branchSats,
@@ -41,7 +49,7 @@ export function sparkFunnelModel(path: SparkExitPath, onOpenDeposit: () => void)
   rows.push({
     from: path.steps.length,
     to: path.steps.length,
-    label: 'refund',
+    label: t('explorerSpark.leafTab.kind.refund'),
     kind: 'tree',
     outputs: [{ amountSats: path.refund.amountSats, ours: true }],
     branchSats: path.refund.amountSats,
@@ -52,37 +60,37 @@ export function sparkFunnelModel(path: SparkExitPath, onOpenDeposit: () => void)
     onAccent: '#1a1300',
     anchor: {
       amountSats: path.anchorSats,
-      title: 'DEPOSIT TRANSACTION · ON-CHAIN',
-      detail: `output ${path.depositVout} · ${path.anchorSats.toLocaleString('en-US')} sats`,
+      title: t('explorerSpark.leafTab.funnel.anchor'),
+      detail: t('explorerSpark.leafTab.funnel.anchorDetail', { vout: path.depositVout, amount: path.anchorSats.toLocaleString(formatLocale()) }),
       id: `${shortHex(path.depositTxid, 8, 6)}:${path.depositVout}`,
       onOpen: onOpenDeposit,
     },
     steps: rows,
     zone: { title: '', caption: '' },
     foldLabel: () => '',
-    coin: { amountSats: path.refund.amountSats, caption: 'YOUR LEAF' },
-    wait: `timelocks on the way add up to ${formatSparkBlocks(path.totalWaitBlocks)}`,
+    coin: { amountSats: path.refund.amountSats, caption: t('explorerSpark.leafTab.funnel.coin') },
+    wait: t('explorerSpark.leafTab.funnel.wait', { blocks: formatSparkBlocks(path.totalWaitBlocks, t.locale) }),
   };
 }
 
-function stepTitle(s: SparkExitStep): string {
-  if (s.kind === 'root') return 'Root split (node transaction)';
-  if (s.kind === 'leaf') return 'Leaf (node transaction)';
-  if (s.kind === 'node') return 'Node passing the coin on whole (node transaction)';
-  return 'Split (node transaction)';
+function stepTitle(s: SparkExitStep, t: Translator): string {
+  if (s.kind === 'root') return t('explorerSpark.leafTab.step.root');
+  if (s.kind === 'leaf') return t('explorerSpark.leafTab.step.leaf');
+  if (s.kind === 'node') return t('explorerSpark.leafTab.step.node');
+  return t('explorerSpark.leafTab.step.split');
 }
 
-function stepDetail(s: SparkExitStep): string {
+function stepDetail(s: SparkExitStep, t: Translator): string {
   const parts: string[] = [shortHex(s.txid, 10, 6)];
-  if (s.kind === 'root') parts.push('spends the deposit; the operators deleted the key that could spend it any other way');
-  if (s.kind === 'node') parts.push('one output: the leaf above was renewed or extended into this one');
-  parts.push(s.timelockBlocks === null || s.timelockBlocks === 0 ? 'no timelock' : `waits ${s.timelockBlocks.toLocaleString('en-US')} blocks after its parent confirms`);
+  if (s.kind === 'root') parts.push(t('explorerSpark.leafTab.detail.root'));
+  if (s.kind === 'node') parts.push(t('explorerSpark.leafTab.detail.node'));
+  parts.push(s.timelockBlocks === null || s.timelockBlocks === 0 ? t('explorerSpark.leafTab.detail.noTimelock') : t('explorerSpark.leafTab.detail.waits', { blocks: s.timelockBlocks.toLocaleString(formatLocale()) }));
   const others = s.outputs.filter(o => !o.ours);
   if (others.length) {
-    const total = others.reduce((t, o) => t + o.amountSats, 0);
-    parts.push(`${others.length} other output${others.length === 1 ? '' : 's'}, ${total.toLocaleString('en-US')} sats`);
+    const total = others.reduce((sum, o) => sum + o.amountSats, 0);
+    parts.push(t.plural('explorerSpark.leafTab.detail.others', others.length, { sats: total.toLocaleString(formatLocale()) }));
   }
-  parts.push(`not broadcast · ${sparkLeafStatusLabel(s.status).toLowerCase()}`);
+  parts.push(t('explorerSpark.leafTab.detail.notBroadcast', { status: sparkLeafStatusLabel(s.status, t.locale).toLowerCase() }));
   return parts.join(' · ');
 }
 
@@ -104,6 +112,7 @@ export function ExplorerSparkLeafTab({ leafId, provider, onOpenTx, onOpenAddress
       (shape only, de-identified) and the full description for identified mode. */
   onSignals?: (signals: PrivacySignal[], full?: FullContext) => void;
 }) {
+  const t = useT();
   const [state, setState] = useState<TabState>({ kind: 'loading' });
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   // The page's context for Ask Alice: the leaf and its exit path once read,
@@ -126,7 +135,7 @@ export function ExplorerSparkLeafTab({ leafId, provider, onOpenTx, onOpenAddress
         const id = leafId.trim().toLowerCase();
         const nodes = await getSparkLeafChain(id, { signal: controller.signal });
         const leaf = nodes.find(n => n.id === id);
-        if (!leaf) throw new SparkError('No Spark operator knows this leaf. A private wallet’s leaves are hidden.');
+        if (!leaf) throw new SparkError(t('explorerSpark.leafTab.error.unknownLeaf'));
         const path = buildSparkExitPath(nodes, id);
         if (controller.signal.aborted) return;
         setState({ kind: 'loaded', leaf, path });
@@ -138,7 +147,7 @@ export function ExplorerSparkLeafTab({ leafId, provider, onOpenTx, onOpenAddress
           .catch(() => {});
       } catch (e) {
         if (controller.signal.aborted) return;
-        setState({ kind: 'error', message: e instanceof SparkError ? e.message : 'Could not load this leaf.' });
+        setState({ kind: 'error', message: e instanceof SparkError ? e.message : t('explorerSpark.leafTab.error.load') });
       }
     })();
     return () => controller.abort();
@@ -146,7 +155,7 @@ export function ExplorerSparkLeafTab({ leafId, provider, onOpenTx, onOpenAddress
 
   if (state.kind === 'loading') {
     return (
-      <div className="flex flex-col gap-3 px-4 py-3" aria-label="Reading the leaf from the Spark operators" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3 }}>
+      <div className="flex flex-col gap-3 px-4 py-3" aria-label={t('explorerSpark.leafTab.reading')} style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3 }}>
         <Skeleton width="60%" />
         <SkeletonLines lines={3} />
       </div>
@@ -155,7 +164,7 @@ export function ExplorerSparkLeafTab({ leafId, provider, onOpenTx, onOpenAddress
   if (state.kind === 'error') {
     return (
       <div className="flex flex-col gap-1 px-4 py-3" role="alert" style={{ border: '1px solid var(--alice-danger)', borderRadius: 3 }}>
-        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>COULD NOT LOAD</span>
+        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-danger)' }}>{t('explorerSpark.leafTab.couldNotLoad')}</span>
         <p className="font-numbers m-0" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{state.message}</p>
       </div>
     );
@@ -163,7 +172,7 @@ export function ExplorerSparkLeafTab({ leafId, provider, onOpenTx, onOpenAddress
 
   const { leaf, path } = state;
   const openDeposit = () => onOpenTx(path.depositTxid, 'mainnet');
-  const model = sparkFunnelModel(path, openDeposit);
+  const model = sparkFunnelModel(path, openDeposit, t);
   const owner = sparkAddressOf(leaf.ownerPubkey);
   const txCount = path.steps.length + 1;
 
@@ -171,54 +180,51 @@ export function ExplorerSparkLeafTab({ leafId, provider, onOpenTx, onOpenAddress
     <div className="flex flex-col gap-4 rh-fade-in">
       <div className="flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderLeft: `3px solid ${SPARK_ACCENT}`, borderRadius: 3 }}>
         <div className="flex items-center gap-2 flex-wrap">
-          <SparkBadge>SPARK LEAF</SparkBadge>
-          <span className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>from the Spark operators</span>
+          <SparkBadge>{t('explorerSpark.leafTab.badge')}</SparkBadge>
+          <span className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{t('explorerSpark.leafTab.source')}</span>
         </div>
         <div className="flex items-start gap-2">
           <p className="font-numbers m-0 break-all min-w-0 flex-1" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{leaf.id}</p>
-          <ExplorerCopy value={leaf.id} label="leaf id" />
+          <ExplorerCopy value={leaf.id} label={t('explorerSpark.leafTab.copyId')} />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
-          <Metric label="AMOUNT" value={<Amount sats={leaf.valueSats} style={{ fontSize: 15, color: 'var(--alice-text)' }} />} />
-          <Metric label="STATE" value={sparkLeafStatusLabel(leaf.status)} title="Available: spendable by its owner. Split: replaced by smaller leaves. Locked: a transfer or split in progress. Exited: on-chain." />
-          <Metric label="EXIT PATH" value={`${txCount} tx${txCount === 1 ? '' : 's'}`} title="Pre-signed transactions to broadcast to leave without the operators (unilateral exit): the nodes down to the leaf, then the refund." />
-          <Metric label="THEN WAIT" value={formatSparkBlocks(path.totalWaitBlocks)} title="The relative timelocks on the path, added up: each pre-signed transaction waits its own after its parent confirms." />
-          <Metric label="DEPOSITED" value={anchor === null ? 'checking…' : anchor.confirmed && anchor.blockHeight !== undefined ? `block ${anchor.blockHeight.toLocaleString('en-US')}` : 'not confirmed'} title="When the tree's deposit landed on Bitcoin." />
-          {anchor?.blockTime !== undefined && <Metric label="ON" value={formatDateTime(anchor.blockTime)} />}
-          {leaf.createdAt && <Metric label="LEAF CREATED" value={formatDateTime(leaf.createdAt)} />}
-          <Metric label="OPERATORS" value="Lightspark, Breez, Flashnet" />
+          <Metric label={t('explorerSpark.leafTab.metric.amount')} value={<Amount sats={leaf.valueSats} style={{ fontSize: 15, color: 'var(--alice-text)' }} />} />
+          <Metric label={t('explorerSpark.leafTab.metric.state')} value={sparkLeafStatusLabel(leaf.status, t.locale)} title={t('explorerSpark.leafTab.stateTitle')} />
+          <Metric label={t('explorerSpark.leafTab.metric.exitPath')} value={t.plural('explorerSpark.leafTab.exitTxs', txCount)} title={t('explorerSpark.leafTab.exitPathTitle')} />
+          <Metric label={t('explorerSpark.leafTab.metric.thenWait')} value={formatSparkBlocks(path.totalWaitBlocks, t.locale)} title={t('explorerSpark.leafTab.thenWaitTitle')} />
+          <Metric label={t('explorerSpark.leafTab.metric.deposited')} value={anchor === null ? t('explorerSpark.leafTab.checking') : anchor.confirmed && anchor.blockHeight !== undefined ? t('explorerSpark.leafTab.depositedBlock', { height: anchor.blockHeight.toLocaleString(formatLocale()) }) : t('explorerSpark.leafTab.notConfirmed')} title={t('explorerSpark.leafTab.depositedTitle')} />
+          {anchor?.blockTime !== undefined && <Metric label={t('explorerSpark.leafTab.metric.on')} value={formatDateTime(anchor.blockTime)} />}
+          {leaf.createdAt && <Metric label={t('explorerSpark.leafTab.metric.leafCreated')} value={formatDateTime(leaf.createdAt)} />}
+          <Metric label={t('explorerSpark.leafTab.metric.operators')} value="Lightspark, Breez, Flashnet" />
         </div>
         {owner && (
           <div className="flex flex-col gap-0.5">
-            <FieldLabel>OWNER</FieldLabel>
+            <FieldLabel>{t('explorerSpark.leafTab.owner')}</FieldLabel>
             <SparkAddressLink address={owner} label={owner} onOpenAddress={onOpenAddress} />
           </div>
         )}
         <div className="flex flex-col gap-0.5">
-          <FieldLabel>DEPOSIT TRANSACTION</FieldLabel>
+          <FieldLabel>{t('explorerSpark.leafTab.depositTx')}</FieldLabel>
           <button
             type="button"
             onClick={openDeposit}
             className="alice-control alice-control--quiet font-numbers text-left break-all cursor-pointer bg-transparent self-start"
             style={{ fontSize: 12, color: 'var(--alice-primary)', padding: '2px 0' }}
-            title="Open the Bitcoin transaction this tree hangs from"
+            title={t('explorerSpark.leafTab.openDepositTitle')}
           >
             {path.depositTxid}:{path.depositVout}
           </button>
         </div>
         <div className="flex flex-col gap-0.5">
-          <FieldLabel>TREE</FieldLabel>
+          <FieldLabel>{t('explorerSpark.leafTab.tree')}</FieldLabel>
           <span className="font-numbers break-all" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>{path.treeId}</span>
         </div>
       </div>
 
       <div className="flex flex-col gap-2">
-        <SectionTitle>EXIT TREE</SectionTitle>
+        <SectionTitle>{t('explorerSpark.leafTab.exitTree')}</SectionTitle>
         <p className="font-numbers m-0" style={{ fontSize: 12, lineHeight: '17px', color: 'var(--alice-muted)' }}>
-          The pre-signed transactions between the on-chain deposit and this leaf, as the operators serve them: the root
-          and each split down to your leaf, then the refund transaction that pays you. Broadcast in order, each after the
-          timelock it waits, they take the coin on-chain without the operators (a unilateral exit). Your branch is filled;
-          the other outputs lead to other people&rsquo;s leaves.
+          {t('explorerSpark.leafTab.exitTreeIntro')}
         </p>
         <div className="px-2 py-3" style={{ borderTop: '1px solid var(--alice-border)' }}>
           <ExitFunnel model={model} activeStep={activeStep} onActiveStep={setActiveStep} />
@@ -238,8 +244,8 @@ export function ExplorerSparkLeafTab({ leafId, provider, onOpenTx, onOpenAddress
             >
               <span className="font-numbers shrink-0" style={{ fontSize: 12, color: 'var(--alice-muted)', width: 18, textAlign: 'right' }}>{i + 1}</span>
               <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{stepTitle(s)}</span>
-                <span className="font-numbers" style={{ fontSize: 11.5, color: 'var(--alice-muted)' }}>{stepDetail(s)}</span>
+                <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{stepTitle(s, t)}</span>
+                <span className="font-numbers" style={{ fontSize: 11.5, color: 'var(--alice-muted)' }}>{stepDetail(s, t)}</span>
               </div>
             </li>
           ))}
@@ -255,14 +261,14 @@ export function ExplorerSparkLeafTab({ leafId, provider, onOpenTx, onOpenAddress
           >
             <span className="font-numbers shrink-0" style={{ fontSize: 12, color: 'var(--alice-muted)', width: 18, textAlign: 'right' }}>{path.steps.length + 1}</span>
             <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-              <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-text)' }}>Refund transaction (the exit to the owner)</span>
+              <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-text)' }}>{t('explorerSpark.leafTab.refund.title')}</span>
               <span className="font-numbers" style={{ fontSize: 11.5, color: 'var(--alice-muted)' }}>
                 {[
                   shortHex(path.refund.txid, 10, 6),
-                  path.refund.timelockBlocks === null ? 'no timelock' : `waits ${path.refund.timelockBlocks.toLocaleString('en-US')} blocks after the leaf transaction confirms`,
-                  `pays ${path.refund.amountSats.toLocaleString('en-US')} sats to the owner`,
-                  'signed anew at every transfer, 100 blocks shorter each time',
-                  path.directTimelockBlocks !== null ? `a direct path for the watchtower waits ${path.directTimelockBlocks.toLocaleString('en-US')} blocks` : '',
+                  path.refund.timelockBlocks === null ? t('explorerSpark.leafTab.detail.noTimelock') : t('explorerSpark.leafTab.refund.waits', { blocks: path.refund.timelockBlocks.toLocaleString(formatLocale()) }),
+                  t('explorerSpark.leafTab.refund.pays', { sats: path.refund.amountSats.toLocaleString(formatLocale()) }),
+                  t('explorerSpark.leafTab.refund.renewed'),
+                  path.directTimelockBlocks !== null ? t('explorerSpark.leafTab.refund.direct', { blocks: path.directTimelockBlocks.toLocaleString(formatLocale()) }) : '',
                 ].filter(Boolean).join(' · ')}
               </span>
             </div>

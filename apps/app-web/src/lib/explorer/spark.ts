@@ -22,6 +22,7 @@
 // (see sparkscan.ts).
 
 import { bech32m } from '@scure/base';
+import { formatLocale, t as tr, translate, translatePlural, type Locale } from '../../i18n/translate.ts';
 import { sha256 } from '@noble/hashes/sha2.js';
 
 export class SparkError extends Error {
@@ -156,7 +157,7 @@ function readVarint(buf: Uint8Array, pos: number): [number, number] {
   let mul = 1;
   for (;;) {
     const b = buf[pos++];
-    if (b === undefined) throw new SparkError('Truncated message from the Spark operator.');
+    if (b === undefined) throw new SparkError(tr('explorerSpark.error.truncated'));
     value += (b & 0x7f) * mul;
     if (b < 0x80) return [value, pos];
     mul *= 128;
@@ -177,7 +178,7 @@ export function readMessage(buf: Uint8Array): Message {
       [value, pos] = readVarint(buf, pos);
     } else if (wire === 2) {
       const [len, start] = readVarint(buf, pos);
-      if (start + len > buf.length) throw new SparkError('Truncated message from the Spark operator.');
+      if (start + len > buf.length) throw new SparkError(tr('explorerSpark.error.truncated'));
       value = buf.subarray(start, start + len);
       pos = start + len;
     } else if (wire === 1) {
@@ -187,7 +188,7 @@ export function readMessage(buf: Uint8Array): Message {
       pos += 4;
       continue;
     } else {
-      throw new SparkError('Unreadable message from the Spark operator.');
+      throw new SparkError(tr('explorerSpark.error.unreadable'));
     }
     const list = out.get(field);
     if (list) list.push(value); else out.set(field, [value]);
@@ -485,7 +486,7 @@ export function takeFrames(buf: Uint8Array): Frames {
         if (i > 0) trailers[line.slice(0, i).trim().toLowerCase()] = line.slice(i + 1).trim();
       }
     } else if (flag & 0x01) {
-      throw new SparkError('The Spark operator answered in an unexpected encoding.');
+      throw new SparkError(tr('explorerSpark.error.encoding'));
     } else {
       messages.push(body);
     }
@@ -497,7 +498,7 @@ function statusError(status: string | null | undefined, message: string | null |
   if (!status || status === '0') return null;
   let msg = '';
   try { msg = decodeURIComponent(message ?? ''); } catch { msg = message ?? ''; }
-  return new SparkError(msg || `Spark operator error (status ${status}).`, Number(status));
+  return new SparkError(msg || tr('explorerSpark.error.status', { status }), Number(status));
 }
 
 function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal {
@@ -519,9 +520,9 @@ async function unaryAt(base: string, method: string, request: Uint8Array, signal
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError' && signal?.aborted) throw err;
-    throw new SparkError('Could not reach the Spark operator.');
+    throw new SparkError(tr('explorerSpark.error.unreachable'));
   }
-  if (!res.ok) throw new SparkError(`Spark operator error ${res.status}.`);
+  if (!res.ok) throw new SparkError(tr('explorerSpark.error.http', { status: res.status }));
   // A call refused before any message answers "trailers-only": the status
   // travels in the HTTP headers.
   const early = statusError(res.headers.get('grpc-status'), res.headers.get('grpc-message'));
@@ -535,8 +536,9 @@ async function unaryAt(base: string, method: string, request: Uint8Array, signal
 /**
  * One unary call, tried on each operator in turn when the previous one could
  * not be reached (never on an answer: a refusal is the same everywhere).
+ * Exported for the contract tests, which stand in for the operators.
  */
-async function unary(method: string, request: Uint8Array, signal?: AbortSignal, timeoutMs = TIMEOUT_MS): Promise<Uint8Array> {
+export async function unary(method: string, request: Uint8Array, signal?: AbortSignal, timeoutMs = TIMEOUT_MS): Promise<Uint8Array> {
   let last: unknown;
   for (const op of SPARK_OPERATORS) {
     try {
@@ -547,7 +549,7 @@ async function unary(method: string, request: Uint8Array, signal?: AbortSignal, 
       throw err;
     }
   }
-  throw last instanceof Error ? last : new SparkError('Could not reach any Spark operator.');
+  throw last instanceof Error ? last : new SparkError(tr('explorerSpark.error.noOperator'));
 }
 
 /* ------------------------------ operator reads ----------------------------- */
@@ -590,12 +592,21 @@ export async function getSparkTransfers(pubkey: string, opts: { limit?: number; 
     return decodeTransfersResponse(await unary('query_all_transfers', request, opts.signal, TRANSFERS_TIMEOUT_MS));
   };
   const [sent, received] = await Promise.all([side('sender', from.sent), side('receiver', from.received)]);
-  const next = (page: SparkPage<SparkTransfer> | null): number | null => page && page.items.length >= limit ? page.nextOffset : null;
-  const cursor: SparkTransferCursor = { sent: next(sent), received: next(received) };
   return {
     items: mergeSparkTransfers(sent?.items ?? [], received?.items ?? []),
-    cursor: cursor.sent === null && cursor.received === null ? null : cursor,
+    cursor: nextSparkCursor({ sent, received }, limit),
   };
+}
+
+/**
+ * Where the next page of each side starts, from the pages just read: a side
+ * that was not asked (null), came back short, or carried the end marker is
+ * done; null when both are. Exported for tests.
+ */
+export function nextSparkCursor(pages: { sent: SparkPage<SparkTransfer> | null; received: SparkPage<SparkTransfer> | null }, limit: number): SparkTransferCursor | null {
+  const next = (page: SparkPage<SparkTransfer> | null): number | null => page && page.items.length >= limit ? page.nextOffset : null;
+  const cursor: SparkTransferCursor = { sent: next(pages.sent), received: next(pages.received) };
+  return cursor.sent === null && cursor.received === null ? null : cursor;
 }
 
 /** One transfer by id, null when no operator knows it (or its wallets are
@@ -648,7 +659,7 @@ export function isAnchorOutput(o: { valueSats: number; scriptHex: string }): boo
  *  compute its txid. Exported for tests. */
 export function parseRawTx(raw: Uint8Array): SparkRawTx {
   let pos = 0;
-  const need = (n: number) => { if (pos + n > raw.length) throw new SparkError('Truncated pre-signed transaction.'); };
+  const need = (n: number) => { if (pos + n > raw.length) throw new SparkError(tr('explorerSpark.error.truncatedTx')); };
   const u32 = (): number => { need(4); const v = raw[pos] + raw[pos + 1] * 256 + raw[pos + 2] * 65536 + raw[pos + 3] * 16777216; pos += 4; return v; };
   const u64 = (): number => { need(8); let v = 0; for (let i = 7; i >= 0; i--) v = v * 256 + raw[pos + i]; pos += 8; return v; };
   const compact = (): number => {
@@ -713,12 +724,15 @@ export function sequenceBlocks(sequence: number): number | null {
   return sequence & 0xffff;
 }
 
-/** "1,000 blocks (about 7 days)". */
-export function formatSparkBlocks(blocks: number): string {
+/** "1,000 blocks (about 7 days)". English unless a locale is given: the Ask
+ *  Alice context keeps the English text. */
+export function formatSparkBlocks(blocks: number, locale: Locale = 'en'): string {
   const days = blocks / 144;
   const hours = Math.max(1, Math.round(blocks / 6));
-  const about = days >= 2 ? `about ${Math.round(days)} days` : days >= 1 ? 'about a day' : `about ${hours} hour${hours === 1 ? '' : 's'}`;
-  return `${blocks.toLocaleString('en-US')} block${blocks === 1 ? '' : 's'} (${about})`;
+  const about = days >= 2 ? translate(locale, 'explorerSpark.about.days', { count: Math.round(days) })
+    : days >= 1 ? translate(locale, 'explorerSpark.about.day')
+      : translatePlural(locale, 'explorerSpark.about.hours', hours);
+  return translatePlural(locale, 'explorerSpark.blocks', blocks, { blocks: blocks.toLocaleString(formatLocale(locale)), about });
 }
 
 /* --------------------------------- labels --------------------------------- */
@@ -727,35 +741,38 @@ export function isSparkSsp(pubkey: string): boolean {
   return pubkey.toLowerCase() === SPARK_SSP_PUBKEY;
 }
 
+// The labels below are English unless a locale is given: the Ask Alice
+// context (layer-context.ts) keeps the English words and compares them.
+
 /** Spark's name for a transfer type, as the Explorer shows it. */
-export function sparkTransferLabel(t: Pick<SparkTransfer, 'type' | 'senderPubkey' | 'receiverPubkey'>): string {
+export function sparkTransferLabel(t: Pick<SparkTransfer, 'type' | 'senderPubkey' | 'receiverPubkey'>, locale: Locale = 'en'): string {
   switch (t.type) {
-    case 'preimage-swap': return isSparkSsp(t.senderPubkey) ? 'Lightning payment received' : isSparkSsp(t.receiverPubkey) ? 'Lightning payment sent' : 'Lightning payment';
-    case 'cooperative-exit': return 'Cooperative exit to Bitcoin';
-    case 'transfer': return 'Spark transfer';
-    case 'utxo-swap': return 'Deposit claimed';
-    case 'swap': case 'counter-swap': case 'primary-swap': case 'counter-swap-v3': return 'Swap';
-    default: return 'Transfer';
+    case 'preimage-swap': return translate(locale, isSparkSsp(t.senderPubkey) ? 'explorerSpark.label.lightningReceived' : isSparkSsp(t.receiverPubkey) ? 'explorerSpark.label.lightningSent' : 'explorerSpark.label.lightning');
+    case 'cooperative-exit': return translate(locale, 'explorerSpark.label.coopExit');
+    case 'transfer': return translate(locale, 'explorerSpark.label.transfer');
+    case 'utxo-swap': return translate(locale, 'explorerSpark.label.depositClaimed');
+    case 'swap': case 'counter-swap': case 'primary-swap': case 'counter-swap-v3': return translate(locale, 'explorerSpark.label.swap');
+    default: return translate(locale, 'explorerSpark.label.other');
   }
 }
 
-export function sparkStatusLabel(s: SparkTransferStatus): string {
-  if (s === 'completed') return 'Completed';
-  if (s === 'expired') return 'Expired';
-  if (s === 'returned') return 'Returned';
-  return 'Pending';
+export function sparkStatusLabel(s: SparkTransferStatus, locale: Locale = 'en'): string {
+  if (s === 'completed') return translate(locale, 'explorerSpark.status.completed');
+  if (s === 'expired') return translate(locale, 'explorerSpark.status.expired');
+  if (s === 'returned') return translate(locale, 'explorerSpark.status.returned');
+  return translate(locale, 'explorerSpark.status.pending');
 }
 
-export function sparkLeafStatusLabel(s: SparkLeafStatus): string {
+export function sparkLeafStatusLabel(s: SparkLeafStatus, locale: Locale = 'en'): string {
   switch (s) {
-    case 'available': return 'Available';
-    case 'split': return 'Split';
-    case 'transfer-locked': case 'split-locked': case 'aggregate-lock': case 'renew-locked': return 'Locked';
-    case 'aggregated': case 'consolidated': return 'Consolidated';
-    case 'on-chain': case 'exited': case 'parent-exited': case 'watchtower-exited': case 'watchtower-exit-recovered': return 'Exited';
-    case 'frozen': return 'Frozen';
-    case 'creating': return 'Creating';
-    case 'unavailable': return 'Unavailable';
-    default: return 'Unknown';
+    case 'available': return translate(locale, 'explorerSpark.leafStatus.available');
+    case 'split': return translate(locale, 'explorerSpark.leafStatus.split');
+    case 'transfer-locked': case 'split-locked': case 'aggregate-lock': case 'renew-locked': return translate(locale, 'explorerSpark.leafStatus.locked');
+    case 'aggregated': case 'consolidated': return translate(locale, 'explorerSpark.leafStatus.consolidated');
+    case 'on-chain': case 'exited': case 'parent-exited': case 'watchtower-exited': case 'watchtower-exit-recovered': return translate(locale, 'explorerSpark.leafStatus.exited');
+    case 'frozen': return translate(locale, 'explorerSpark.leafStatus.frozen');
+    case 'creating': return translate(locale, 'explorerSpark.leafStatus.creating');
+    case 'unavailable': return translate(locale, 'explorerSpark.leafStatus.unavailable');
+    default: return translate(locale, 'explorerSpark.leafStatus.unknown');
   }
 }

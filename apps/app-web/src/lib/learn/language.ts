@@ -3,12 +3,19 @@ import {
   LEARN_LANGUAGES,
 } from '@alice-wallet/alice-content/src/generated/planb-learn-catalog';
 
-// The reading language is independent from the app/chat language and persisted
-// separately. fr/en ship with the app; every other whitelisted corpus language
-// can be added from the PlanB-style language picker (packs are fetched on
-// demand, the "download" marks the language as installed here).
+// The reading language is its own setting, persisted separately from the app
+// language. Until the user picks one in Learn it follows the app language:
+// the device language by default, and Settings › General seeds a change,
+// marked as followed, until a choice is made here. fr/en ship with the app; every other
+// whitelisted corpus language can be added from the PlanB-style language
+// picker (packs are fetched on demand, the "download" marks the language as
+// installed here).
 const STORAGE_KEY = 'alice.learn.language.v1';
 const INSTALLED_KEY = 'alice.learn.languages.v1';
+// '1' chosen in Learn, '0' following the app language. Absent beside a saved
+// language means a choice saved before this marker existed: a choice.
+const CHOSEN_KEY = 'alice.learn.language.chosen.v1';
+const CHANGE_EVENT = 'alice:learn-language';
 
 export type LearnLang = string;
 
@@ -71,13 +78,41 @@ export function loadLearnLanguage(): LearnLang | null {
   }
 }
 
-export function saveLearnLanguage(lang: LearnLang): void {
+/** Saves the reading language the user picked; it no longer follows the app language. */
+export function saveLearnLanguage(lang: LearnLang, { chosen = true }: { chosen?: boolean } = {}): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(STORAGE_KEY, lang);
+    window.localStorage.setItem(CHOSEN_KEY, chosen ? '1' : '0');
   } catch {
     // Best-effort, same policy as the rest of the app.
   }
+  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+}
+
+/** True once the user picked a reading language in Learn (or before the marker existed). */
+export function hasChosenLearnLanguage(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const marker = window.localStorage.getItem(CHOSEN_KEY);
+    if (marker !== null) return marker === '1';
+    return loadLearnLanguage() !== null;
+  } catch {
+    return false;
+  }
+}
+
+/** The app language changed: Learn reads in it too, unless a reading language was picked. */
+export function followAppLanguage(appLanguage: string): void {
+  if (hasChosenLearnLanguage() || !isWhitelistedLang(appLanguage)) return;
+  saveLearnLanguage(appLanguage, { chosen: false });
+}
+
+/** Called after any save, so an open Learn panel follows a change made in Settings. */
+export function subscribeLearnLanguage(listener: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener(CHANGE_EVENT, listener);
+  return () => window.removeEventListener(CHANGE_EVENT, listener);
 }
 
 /** Languages available in the quick toggle: the embedded pair plus whatever

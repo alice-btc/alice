@@ -29,6 +29,7 @@ import {
   type PracticeUtxo,
 } from '@alice-wallet/practice-wallet';
 import { playgroundVault as localVault } from './playground-vault.ts';
+import { t } from '../i18n/translate.ts';
 
 // Pre-rename prefix, kept so practice wallets created before the Playground
 // rename keep working. Do not change without a data migration.
@@ -44,7 +45,7 @@ const MAX_ADDRESSES_PER_CHAIN = 50;
 function browserBackend(): PracticeStorageBackend {
   const storage = async () => {
     if (typeof window === 'undefined') {
-      throw new Error('The Playground is only available in the browser.');
+      throw new Error(t('playground.error.browserOnly'));
     }
     await localVault.ready();
     return localVault;
@@ -94,7 +95,7 @@ export async function deletePlayground(): Promise<void> {
 /** The 12 recovery words, for the backup lesson. */
 export async function getPlaygroundMnemonicWords(): Promise<string[]> {
   const mnemonic = await getStore().loadMnemonic();
-  if (!mnemonic) throw new Error('No Playground wallet exists yet in this browser.');
+  if (!mnemonic) throw new Error(t('playground.error.noWallet'));
   return mnemonic.trim().split(/\s+/);
 }
 
@@ -128,7 +129,7 @@ export async function getPlaygroundAccountXpub(): Promise<string | null> {
 
 async function getKeyring(): Promise<PracticeKeyring> {
   const mnemonic = await getStore().loadMnemonic();
-  if (!mnemonic) throw new Error('No Playground wallet exists yet in this browser.');
+  if (!mnemonic) throw new Error(t('playground.error.noWallet'));
   return new PracticeKeyring(mnemonic);
 }
 
@@ -344,7 +345,7 @@ export async function claimPlaygroundFaucet(): Promise<PlaygroundFaucetClaim> {
     const message =
       payload && typeof payload.error?.message === 'string'
         ? payload.error.message
-        : `The faucet relay failed (${response.status}).`;
+        : t('playground.error.faucetRelay', { status: response.status });
     return { kind: 'error', message, address, faucetUrl: PRACTICE_FAUCET_URL };
   } catch {
     return { kind: 'manual', address, faucetUrl: PRACTICE_FAUCET_URL };
@@ -415,7 +416,7 @@ export async function broadcastPlaygroundSend(
 ): Promise<string> {
   if (!signed.review.matchesPlan) {
     throw new Error(
-      `This transaction failed verification and was not sent: ${signed.review.issues.join(' ')}`,
+      t('playground.error.verification', { issues: signed.review.issues.join(' ') }),
     );
   }
   const txid = await getClient().broadcastTx(signed.txHex);

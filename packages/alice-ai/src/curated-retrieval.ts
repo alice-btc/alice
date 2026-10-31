@@ -1,4 +1,4 @@
-import type { KnowledgeChunk } from './knowledge-packs';
+import { preferKnowledgeLocale, type KnowledgeChunk, type KnowledgeLocale } from './knowledge-packs';
 import { isBroadBitcoinDefinition, isGeneralBitcoinFeeQuestion, isExplicitRbfQuestion, isSmallOutputSpendingQuestion, isMultisigRecoveryQuestion, isUtxoValidationQuestion, isComparisonRagQuery } from './rag-query-policy';
 
 export type CuratedMatch = KnowledgeChunk & {
@@ -99,14 +99,78 @@ function covered(alias: string[], query: Set<string>): boolean {
   return alias.length > 0 && alias.every(t => query.has(t));
 }
 function concept(chunk: KnowledgeChunk): string { return chunk.conceptId ?? chunk.id.replace(/^curated-/, ''); }
+const isTranslation = (chunk: KnowledgeChunk) => !!chunk.locale && !!chunk.sourceLocale && chunk.locale !== chunk.sourceLocale;
 
-/** BM25 field evidence plus a per-query gate. Parent links grant context, never relevance. */
+type Variants = { source: KnowledgeChunk[]; byConcept: Map<string, KnowledgeChunk[]> };
+const variantSets = new WeakMap<KnowledgeChunk[], Variants>();
+/**
+ * Every rule below assumes one curated chunk per concept (anchors, parent
+ * lookups, BM25 statistics), and its tuning, checked by the reference sets in
+ * both languages, scores the French source. So the source variant of each
+ * concept is scored and the variant in the target locale is served in its
+ * place. A corpus without translations is used as is: same result, same index.
+ * Downloaded chunks (no tier) are not curated variants and pass through.
+ */
+function localeVariants(chunks: KnowledgeChunk[]): Variants | null {
+  if (!chunks.some(isTranslation)) return null;
+  const cached = variantSets.get(chunks);
+  if (cached) return cached;
+  const curated = chunks.filter(chunk => chunk.tier);
+  const kept = new Set(preferKnowledgeLocale(curated));
+  const byConcept = new Map<string, KnowledgeChunk[]>();
+  for (const chunk of curated) byConcept.set(concept(chunk), [...(byConcept.get(concept(chunk)) ?? []), chunk]);
+  const variants = { source: chunks.filter(chunk => !chunk.tier || kept.has(chunk)), byConcept };
+  variantSets.set(chunks, variants);
+  return variants;
+}
+
+/** The selected concepts in the target locale when that variant exists, else as scored. */
+function serveInLocale(matches: CuratedMatch[], variants: Variants | null, language?: KnowledgeLocale): CuratedMatch[] {
+  if (!variants || !language) return matches;
+  return matches.map(match => {
+    if (!match.tier) return match;
+    const [variant] = preferKnowledgeLocale(variants.byConcept.get(concept(match)) ?? [], language);
+    return variant && variant.id !== match.id
+      ? { ...variant, retrievalReason: match.retrievalReason, retrievalScore: match.retrievalScore } : match;
+  });
+}
+
+/** A semantic index may hold every variant of a concept: score the scored one with the best of them. */
+function fuseSemanticByConcept(matches: { id: string; score: number }[], all: KnowledgeChunk[], kept: KnowledgeChunk[]): { id: string; score: number }[] {
+  if (all === kept) return matches;
+  const keptByConcept = new Map(kept.filter(chunk => chunk.tier).map(chunk => [concept(chunk), chunk.id]));
+  const idOf = new Map(all.filter(chunk => chunk.tier).map(chunk => [chunk.id, keptByConcept.get(concept(chunk)) ?? chunk.id]));
+  const fused = new Map<string, number>();
+  for (const match of matches) {
+    const id = idOf.get(match.id) ?? match.id;
+    fused.set(id, Math.max(fused.get(id) ?? -Infinity, match.score));
+  }
+  return [...fused].map(([id, score]) => ({ id, score })).sort((a, b) => b.score - a.score);
+}
+
+/**
+ * BM25 field evidence plus a per-query gate. Parent links grant context, never
+ * relevance. Locale variants of a concept count once: the source is scored and
+ * the target-locale variant served, so maxChunks counts concepts.
+ */
 export function selectCuratedKnowledge(
   query: string,
+  allChunks: KnowledgeChunk[],
+  options: { maxChunks?: number; semanticMatches?: { id: string; score: number }[]; targetLanguage?: KnowledgeLocale } = {},
+): CuratedMatch[] {
+  const variants = localeVariants(allChunks);
+  const chunks = variants?.source ?? allChunks;
+  const semanticMatches = options.semanticMatches && fuseSemanticByConcept(options.semanticMatches, allChunks, chunks);
+  return serveInLocale(selectSourceKnowledge(query, chunks, { maxChunks: options.maxChunks, semanticMatches }), variants, options.targetLanguage);
+}
+
+function selectSourceKnowledge(
+  query: string,
   chunks: KnowledgeChunk[],
-  options: { maxChunks?: number; semanticMatches?: { id: string; score: number }[] } = {},
+  options: { maxChunks?: number; semanticMatches?: { id: string; score: number }[] },
 ): CuratedMatch[] {
   const max = Number.isFinite(options.maxChunks) ? Math.max(1, Math.min(3, Math.floor(options.maxChunks!))) : 3;
+  const semanticMatches = options.semanticMatches;
   const index = getIndex(chunks);
   const normalizedQuery = normalizeCuratedText(query);
   // Educational notes contain no account telemetry. Do not retrieve balances
@@ -160,7 +224,7 @@ export function selectCuratedKnowledge(
   }
   const querySet = new Set(queryTerms);
   if (!/\bbitcoin\b/.test(normalizedQuery) && !index.docs.some(d => queryTerms.some(t => d.identity.has(t)))) return [];
-  const semantic = new Map((options.semanticMatches ?? []).filter(s => s.score >= .82).map(s => [s.id, s.score]));
+  const semantic = new Map((semanticMatches ?? []).filter(s => s.score >= .82).map(s => [s.id, s.score]));
   const totalQueryWeight = queryTerms.reduce((n, t) => n + idf(index, t), 0);
   const scored = index.docs.map(doc => {
     const exact = doc.aliases.filter(a => covered(a, querySet));

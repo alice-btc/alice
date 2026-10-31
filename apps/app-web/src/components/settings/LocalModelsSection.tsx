@@ -17,14 +17,21 @@ import {
   formatSize,
   getActiveModelId,
   setActiveModelId,
-  isTauriDesktop,
+  hasLocalEngine,
+  isTauriMobile,
   getDesktopModelStatus,
+  getDeviceMemory,
   deleteDesktopModel,
   deleteAllDesktopModels,
+  deviceMemoryShortfall,
+  mobileFileSizeRefusal,
+  mobileModelRefusal,
+  type DeviceMemory,
   useChat,
 } from '@alice-wallet/alice-ai';
 import { DANGER, SectionHint, SectionLabel, inputStyle, sectionStyle, useDialogFocus } from './ui';
 import { MODEL_DOWNLOAD_EVENT, getModelDownloads, startModelDownload } from '@/lib/model-downloads';
+import { useT } from '@/i18n';
 
 type LocalModelState = {
   status: ModelStatus;
@@ -41,12 +48,17 @@ const defaultLocalModelStates = Object.fromEntries(
 ) as Record<LocalModelId, LocalModelState>;
 
 /**
- * Downloads, activates and deletes the on-device models. Desktop only: the web
- * build has nowhere to put a multi-gigabyte weight file.
+ * Downloads, activates and deletes the on-device models, in the desktop,
+ * Android and iOS apps; the web build has nowhere to put a multi-gigabyte
+ * weight file. A phone is offered the catalog up to 4B parameters and told,
+ * before a download, when its memory is short for a model.
  */
 export function LocalModelsSection() {
+  const t = useT();
   const chat = useChat();
-  const isDesktop = isTauriDesktop();
+  const hasEngine = hasLocalEngine();
+  const phone = isTauriMobile();
+  const [deviceMemory, setDeviceMemory] = useState<DeviceMemory | null>(null);
   const [activeModelId, setActiveModelState] = useState<LocalModelId>(DEFAULT_LOCAL_MODEL_ID);
   const [localModelStates, setLocalModelStates] = useState<Record<LocalModelId, LocalModelState>>(defaultLocalModelStates);
   const [selectedLocalModel, setSelectedLocalModel] = useState<LocalModelId | null>(null);
@@ -64,7 +76,8 @@ export function LocalModelsSection() {
     (async () => {
       try {
         setActiveModelState(await getActiveModelId());
-        if (!isDesktop) return;
+        if (!hasEngine) return;
+        if (phone) getDeviceMemory().then(setDeviceMemory).catch(() => {});
         const models = await listKnownLocalModels();
         setKnownModels(models);
         const statuses = await Promise.all(
@@ -84,7 +97,7 @@ export function LocalModelsSection() {
         /* ignore */
       }
     })();
-  }, [isDesktop]);
+  }, [hasEngine, phone]);
 
   const refreshDesktopModelStates = async () => {
     const models = await listKnownLocalModels();
@@ -150,7 +163,7 @@ export function LocalModelsSection() {
     try {
       setHfListing(await fetchHuggingFaceGgufListing(hfRepo));
     } catch (error) {
-      setHfError(error instanceof Error ? error.message : 'Could not read this repository.');
+      setHfError(error instanceof Error ? error.message : t('settings.localModels.hfReadError'));
     } finally {
       setHfBusy(false);
     }
@@ -166,7 +179,7 @@ export function LocalModelsSection() {
       await refreshDesktopModelStates();
       startModelDownload(entry.id);
     } catch (error) {
-      setHfError(error instanceof Error ? error.message : 'Could not add this model.');
+      setHfError(error instanceof Error ? error.message : t('settings.localModels.hfAddError'));
     }
   };
 
@@ -188,25 +201,33 @@ export function LocalModelsSection() {
     return status === 'installed' || status === 'downloading';
   });
   // Previous catalog entries are never offered again; a file already on disk
-  // stays listed above as installed.
-  const downloadableLocalModels = knownModels.filter(model => model.source !== 'legacy' && (localModelStates[model.id]?.status ?? 'not-installed') === 'not-installed');
+  // stays listed above as installed. A phone is not offered the models it
+  // cannot hold (the 9B file), nor the Hugging Face files of that size.
+  const downloadableLocalModels = knownModels.filter(model => model.source !== 'legacy'
+    && (localModelStates[model.id]?.status ?? 'not-installed') === 'not-installed'
+    && !(phone && mobileModelRefusal(model)));
+  const listedHfFiles = hfListing ? hfListing.files.filter(file => !phone || !mobileFileSizeRefusal(file.sizeBytes)) : [];
+  const hiddenHfFiles = hfListing ? hfListing.files.length - listedHfFiles.length : 0;
   const selectedLocalModelEntry = selectedLocalModel
     ? knownModels.find((model) => model.id === selectedLocalModel)
     : null;
   const selectedLocalModelState = selectedLocalModel
     ? localModelStates[selectedLocalModel] ?? { status: 'not-installed' as ModelStatus, downloadProgress: null }
     : null;
+  // On a phone, a model that may not fit the app's memory budget of the
+  // moment gets a notice before the download, which goes ahead; the engine
+  // checks again, on the memory of that moment, before loading it.
+  const selectedMemoryShortfall = phone && selectedLocalModelEntry && selectedLocalModelState?.status !== 'installed'
+    ? deviceMemoryShortfall(selectedLocalModelEntry.sizeBytes, deviceMemory)
+    : null;
 
   return (
     <>
       <div style={sectionStyle}>
-        <SectionLabel>LOCAL MODELS</SectionLabel>
-        {isDesktop ? (
+        <SectionLabel>{t('settings.localModels.title')}</SectionLabel>
+        {hasEngine ? (
           <>
-            <SectionHint>
-              Same local model catalog as Alice mobile. Models download on
-              demand; none is preinstalled.
-            </SectionHint>
+            <SectionHint>{t(phone ? 'settings.localModels.hintPhone' : 'settings.localModels.hint')}</SectionHint>
             <div className="flex flex-col" >
               {installedLocalModels.map((model, index) => {
                 const state = localModelStates[model.id] ?? { status: 'not-installed' as ModelStatus, downloadProgress: null };
@@ -237,19 +258,19 @@ export function LocalModelsSection() {
                           {model.description}
                         </p>
                         <div className="flex gap-2 mt-2 flex-wrap">
-                          {active && <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-primary)' }}>ACTIVE</span>}
-                          {installed && <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>INSTALLED</span>}
-                          {!installed && !downloading && <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>NOT INSTALLED</span>}
-                          {model.source === 'legacy' && <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>PREVIOUS CATALOG</span>}
-                          {model.source === 'custom' && <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>CUSTOM, UNTESTED</span>}
-                          <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>{`RAM ${model.ramNeeded}`}</span>
+                          {active && <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-primary)' }}>{t('settings.localModels.active')}</span>}
+                          {installed && <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>{t('settings.localModels.installed')}</span>}
+                          {!installed && !downloading && <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>{t('settings.localModels.notInstalled')}</span>}
+                          {model.source === 'legacy' && <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>{t('settings.localModels.previousCatalog')}</span>}
+                          {model.source === 'custom' && <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>{t('settings.localModels.customUntested')}</span>}
+                          <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>{t('settings.localModels.ram', { ram: model.ramNeeded })}</span>
                         </div>
                         <p className="font-numbers m-0 mt-2" style={{ fontSize: 13, opacity: 1 }}>
-                          {downloading ? (state.verifying ? 'Verifying the file...' : 'Downloading...') : 'Open details'}
+                          {downloading ? (state.verifying ? t('settings.localModels.verifyingFile') : t('settings.localModels.downloading')) : t('settings.localModels.openDetails')}
                         </p>
                         {downloading && progress !== null && (
                           <div className="flex items-center gap-2 mt-2">
-                            <div role="progressbar" aria-label={`${state.verifying ? 'Verifying' : 'Downloading'} ${model.name}`} aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} style={{ height: 6, flex: 1, border: '1px solid var(--alice-border)' }}>
+                            <div role="progressbar" aria-label={t(state.verifying ? 'settings.localModels.progressVerifying' : 'settings.localModels.progressDownloading', { model: model.name })} aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} style={{ height: 6, flex: 1, border: '1px solid var(--alice-border)' }}>
                               <div style={{ height: '100%', width: `${progress}%`, backgroundColor: 'var(--alice-primary)' }} />
                             </div>
                             <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>{progress}%</span>
@@ -266,7 +287,7 @@ export function LocalModelsSection() {
               {installedLocalModels.length === 0 && (
                 <div style={{ padding: 12 }}>
                   <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>
-                    NO LOCAL MODEL INSTALLED
+                    {t('settings.localModels.none')}
                   </span>
                 </div>
               )}
@@ -278,7 +299,7 @@ export function LocalModelsSection() {
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
               disabled={downloadableLocalModels.length === 0}
             >
-              <span>{downloadableLocalModels.length === 0 ? 'All local models installed' : 'Choose a model to download'}</span>
+              <span>{downloadableLocalModels.length === 0 ? t('settings.localModels.allInstalled') : t('settings.localModels.choose')}</span>
               <span style={{ transform: localDownloadOpen ? 'rotate(180deg)' : undefined }}><SvgIcon svg={CHEVRON_DOWN_ICON} size={16} color="currentColor" /></span>
             </button>
             {localDownloadOpen && downloadableLocalModels.length > 0 && (
@@ -313,20 +334,17 @@ export function LocalModelsSection() {
               </div>
             )}
             <div className="mt-4">
-              <SectionLabel>ADD A MODEL FROM HUGGING FACE</SectionLabel>
-              <SectionHint>
-                Any public gguf file. Alice has not tested these models: answers,
-                language and safety behaviour are unverified.
-              </SectionHint>
+              <SectionLabel>{t('settings.localModels.hfTitle')}</SectionLabel>
+              <SectionHint>{t('settings.localModels.hfHint')}</SectionHint>
               <div className="flex gap-2 mt-2">
                 <input
                   id="hf-repo"
-                  aria-label="Hugging Face repository, owner slash name"
+                  aria-label={t('settings.localModels.hfRepoAria')}
                   aria-invalid={hfError ? true : undefined}
                   aria-describedby={hfError ? 'hf-repo-error' : undefined}
                   value={hfRepo}
                   onChange={(event) => { setHfRepo(event.target.value); setHfError(null); setHfListing(null); }}
-                  placeholder="owner/repository (e.g. unsloth/Qwen3.5-2B-GGUF)"
+                  placeholder={t('settings.localModels.hfRepoPlaceholder')}
                   className="font-numbers flex-1"
                   style={inputStyle}
                   autoCapitalize="none"
@@ -338,11 +356,11 @@ export function LocalModelsSection() {
                   onClick={() => { void handleFetchHuggingFace(); }}
                   disabled={hfBusy || !hfRepo.trim()}
                   aria-busy={hfBusy || undefined}
-                  aria-label={hfBusy ? 'Looking up the repository files' : 'List the gguf files of this repository'}
+                  aria-label={hfBusy ? t('settings.localModels.hfLookingUpAria') : t('settings.localModels.hfListAria')}
                   className="alice-control alice-control--quiet font-numbers"
                   style={{ opacity: hfBusy || !hfRepo.trim() ? 0.55 : 1 }}
                 >
-                  {hfBusy ? 'LOOKING UP...' : 'LIST FILES'}
+                  {hfBusy ? t('settings.localModels.hfLookingUp') : t('settings.localModels.hfListFiles')}
                 </button>
               </div>
               <div role="alert" aria-live="polite">
@@ -350,21 +368,26 @@ export function LocalModelsSection() {
                   <p id="hf-repo-error" className="font-numbers m-0 mt-2" style={{ fontSize: 14, color: DANGER }}>{hfError}</p>
                 )}
               </div>
+              {hfListing && hiddenHfFiles > 0 && (
+                <p className="font-numbers m-0 mt-2" style={{ fontSize: 14, opacity: 1 }}>
+                  {mobileFileSizeRefusal(Number.POSITIVE_INFINITY)}
+                </p>
+              )}
               {hfListing && (
                 <div className="mt-2" style={{ border: '2px solid var(--alice-primary)', borderRadius: 2, overflow: 'hidden' }}>
-                  {hfListing.files.map((file, index) => (
+                  {listedHfFiles.map((file, index) => (
                     <button
                       key={file.filename}
                       type="button"
                       onClick={() => { void handleAddCustomModel(file.filename); }}
-                      aria-label={`Add and download ${file.filename}, ${formatSize(file.sizeBytes)}`}
+                      aria-label={t('settings.localModels.hfAddFileAria', { file: file.filename, size: formatSize(file.sizeBytes) })}
                       className="font-numbers w-full text-left"
                       style={{ fontSize: 15, padding: '10px 12px', backgroundColor: 'transparent', color: 'var(--alice-primary)', border: 'none', borderTop: index === 0 ? 'none' : '1px solid var(--alice-border)', cursor: 'pointer', outline: 'none' }}
                     >
                       <span className="font-numbers" style={{ fontSize: 10 }}>{file.filename}</span>
                       <span style={{ opacity: 0.5, marginLeft: 8, fontSize: 14 }}>{formatSize(file.sizeBytes)}</span>
                       <div style={{ opacity: 0.6, marginTop: 4, lineHeight: '18px' }}>
-                        {hfListing.license ? `License ${hfListing.license}. ` : ''}Click to add and download.
+                        {hfListing.license ? t('settings.localModels.hfLicense', { license: hfListing.license }) : ''}{t('settings.localModels.hfClickToAdd')}
                       </div>
                     </button>
                   ))}
@@ -379,21 +402,20 @@ export function LocalModelsSection() {
                 }}
                 className="alice-control alice-control--danger font-numbers"
               >
-                Remove all local models
+                {t('settings.localModels.removeAll')}
               </button>
             </div>
           </>
         ) : (
           <p className="font-numbers m-0 mt-2" style={{ fontSize: 15, opacity: 1 }}>
-            Local models run inside the Alice desktop and mobile apps, where
-            they can use your hardware.{' '}
+            {t('settings.localModels.webOnly')}{' '}
             <a
               href="https://alicebtc.com/"
               target="_blank"
               rel="noreferrer"
               style={{ color: 'var(--alice-primary)', textDecoration: 'underline' }}
             >
-              Get the app
+              {t('settings.ai.getTheApp')}
             </a>
             .
           </p>
@@ -438,7 +460,7 @@ export function LocalModelsSection() {
                 onClick={() => setSelectedLocalModel(null)}
                 className="alice-control alice-control--quiet font-numbers"
               >
-                BACK
+                {t('settings.localModels.back')}
               </button>
             </div>
 
@@ -448,11 +470,11 @@ export function LocalModelsSection() {
 
             <div className="grid grid-cols-2 gap-2 mt-4">
               <div style={{ borderBottom: '1px solid var(--alice-border)', padding: '10px 0' }}>
-                <p className="font-numbers  m-0" style={{ fontSize: 13, opacity: 1 }}>SPEED</p>
+                <p className="font-numbers  m-0" style={{ fontSize: 13, opacity: 1 }}>{t('settings.localModels.speed')}</p>
                 <p className="font-numbers m-0 mt-2" style={{ fontSize: 14 }}>{selectedLocalModelEntry.speed}</p>
               </div>
               <div style={{ borderBottom: '1px solid var(--alice-border)', padding: '10px 0' }}>
-                <p className="font-numbers  m-0" style={{ fontSize: 13, opacity: 1 }}>RAM NEEDED</p>
+                <p className="font-numbers  m-0" style={{ fontSize: 13, opacity: 1 }}>{t('settings.localModels.ramNeeded')}</p>
                 <p className="font-numbers m-0 mt-2" style={{ fontSize: 14 }}>{selectedLocalModelEntry.ramNeeded}</p>
               </div>
             </div>
@@ -462,6 +484,13 @@ export function LocalModelsSection() {
                 {selectedLocalModelEntry.recommendation}
               </p>
             </div>
+            {selectedMemoryShortfall && (
+              <div className="mt-3" style={{ borderTop: '1px solid var(--alice-border)', paddingTop: 12 }}>
+                <p className="font-numbers m-0" style={{ fontSize: 14, lineHeight: '18px', opacity: 0.8 }}>
+                  {selectedMemoryShortfall}
+                </p>
+              </div>
+            )}
 
             <div className="flex gap-2 mt-4 flex-wrap">
               {selectedLocalModelState.status !== 'installed' && (
@@ -470,7 +499,7 @@ export function LocalModelsSection() {
                   className="alice-control alice-control--primary font-numbers"
                 >
                   <SvgIcon svg={DOWNLOAD_ICON} size={20} color="currentColor" />
-                  {`DOWNLOAD ${formatSize(selectedLocalModelEntry.sizeBytes)}`}
+                  {t('settings.localModels.download', { size: formatSize(selectedLocalModelEntry.sizeBytes) })}
                 </button>
               )}
               {selectedLocalModelState.status === 'installed' && selectedLocalModelEntry.id !== activeModelId && (
@@ -478,7 +507,7 @@ export function LocalModelsSection() {
                   onClick={() => handleActivateLocalModel(selectedLocalModelEntry.id)}
                   className="alice-control alice-control--primary font-numbers"
                 >
-                  <SvgIcon svg={CHECK_ICON} size={20} color="currentColor" /> Use this model
+                  <SvgIcon svg={CHECK_ICON} size={20} color="currentColor" /> {t('settings.localModels.useThisModel')}
                 </button>
               )}
               {selectedLocalModelState.status === 'installed' && (
@@ -486,14 +515,14 @@ export function LocalModelsSection() {
                   onClick={() => handleDeleteLocalModel(selectedLocalModelEntry.id)}
                   className="alice-control alice-control--danger font-numbers"
                 >
-                  <SvgIcon svg={DELETE_ICON} size={16} color="currentColor" /> Remove
+                  <SvgIcon svg={DELETE_ICON} size={16} color="currentColor" /> {t('settings.localModels.remove')}
                 </button>
               )}
               <button
                 onClick={() => setSelectedLocalModel(null)}
                 className="alice-control alice-control--quiet font-numbers"
               >
-                CANCEL
+                {t('settings.localModels.cancel')}
               </button>
             </div>
           </div>

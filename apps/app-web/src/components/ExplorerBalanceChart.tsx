@@ -1,14 +1,15 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { formatLocale, type MessageKey, useT } from '@/i18n';
 import type { BalancePoint } from '@/lib/explorer/balance-history';
-import { formatAmountShort, formatAmount, useAmountState } from '@/components/AmountDisplay';
+import { AmountShort, formatAmount, useAmountState, WithBitcoinGlyph } from '@/components/AmountDisplay';
 
-const RANGES: { label: string; seconds: number | null }[] = [
-  { label: '3M', seconds: 90 * 86400 },
-  { label: '1Y', seconds: 365 * 86400 },
-  { label: '5Y', seconds: 5 * 365 * 86400 },
-  { label: 'ALL', seconds: null },
+const RANGES: { label: MessageKey; seconds: number | null }[] = [
+  { label: 'explorer.chart.range3m', seconds: 90 * 86400 },
+  { label: 'explorer.chart.range1y', seconds: 365 * 86400 },
+  { label: 'explorer.chart.range5y', seconds: 5 * 365 * 86400 },
+  { label: 'explorer.chart.rangeAll', seconds: null },
 ];
 
 const VW = 640;
@@ -26,7 +27,7 @@ function btc(sats: number): string {
 }
 
 function formatDate(sec: number): string {
-  return new Date(sec * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  return new Date(sec * 1000).toLocaleDateString(formatLocale(), { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 // Balance over time as a stepped area chart, with range buttons and a hover
@@ -42,6 +43,7 @@ export function ExplorerBalanceChart({
   /** Playground: valueless sats must never display as fiat. */
   noFiat?: boolean;
 }) {
+  const t = useT();
   const rawUnit = useAmountState();
   const unit = noFiat && rawUnit.format === 'usd' ? { ...rawUnit, format: 'symbol' as const } : rawUnit;
   const [rangeIdx, setRangeIdx] = useState(RANGES.length - 1); // default ALL
@@ -92,7 +94,7 @@ export function ExplorerBalanceChart({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>BALANCE</span>
+        <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorer.address.balance')}</span>
         <div className="flex gap-1">
           {RANGES.map((r, i) => (
             <button
@@ -106,7 +108,7 @@ export function ExplorerBalanceChart({
                 color: i === rangeIdx ? 'var(--alice-primary)' : 'var(--alice-muted)',
               }}
             >
-              {r.label}
+              {t(r.label)}
             </button>
           ))}
         </div>
@@ -114,7 +116,7 @@ export function ExplorerBalanceChart({
 
       {!view ? (
         <p className="font-numbers m-0" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-          Not enough history in this range to chart.
+          {t('explorer.chart.notEnough')}
         </p>
       ) : (
         <div style={{ border: '1px solid var(--alice-border)', borderRadius: 3, position: 'relative' }}>
@@ -137,7 +139,12 @@ export function ExplorerBalanceChart({
             <path d={view.area} fill="url(#rh-bal-fill)" />
             <path d={view.line} fill="none" stroke="var(--alice-primary)" strokeWidth={1.5} />
             {/* Max balance label. */}
-            <text x={PAD_L} y={PAD_T} fontSize={9} fill="var(--alice-muted)">{formatAmountShort(view.maxBal, unit)}</text>
+            {/* HTML rather than <text>, so the ₿ can be the glyph. */}
+            <foreignObject x={PAD_L} y={PAD_T - 10} width={VW - PAD_L - PAD_R} height={12}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', height: '100%', fontSize: 9, lineHeight: 1, color: 'var(--alice-muted)', whiteSpace: 'nowrap' }}>
+                <AmountShort sats={view.maxBal} unit={unit} />
+              </div>
+            </foreignObject>
             {/* Date range. */}
             <text x={PAD_L} y={VH - 6} fontSize={9} fill="var(--alice-muted)">{formatDate(view.t0)}</text>
             <text x={VW - PAD_R} y={VH - 6} fontSize={9} fill="var(--alice-muted)" textAnchor="end">{formatDate(view.t1)}</text>
@@ -157,7 +164,7 @@ export function ExplorerBalanceChart({
                 backgroundColor: 'var(--alice-bg)', zIndex: 10,
               }}
             >
-              <div className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-text)' }}>{formatAmount(hover.bal, unit)}</div>
+              <div className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-text)' }}><WithBitcoinGlyph text={formatAmount(hover.bal, unit)} /></div>
               <div className="font-numbers" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{formatDate(hover.t)}</div>
             </div>
           )}
@@ -166,7 +173,7 @@ export function ExplorerBalanceChart({
 
       {partial && (
         <p className="font-numbers m-0" style={{ fontSize: 11, color: 'var(--alice-muted)', opacity: 0.7 }}>
-          Only recent transactions were loaded, so the chart shows the recent trajectory.
+          {t('explorer.chart.partial')}
         </p>
       )}
     </div>
