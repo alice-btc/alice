@@ -96,8 +96,9 @@ npm run build --workspace @alice-wallet/site
 ```
 
 Before a release, record the shared version, commit, and known limits in
-`CHANGELOG.md`, update every release declaration, and add the highlights to
-`packages/alice-ai/src/whats-new.ts`. Do not maintain that file list by hand.
+`CHANGELOG.md`, update every release declaration, and add the highlights, in
+English and in French, to `packages/alice-ai/src/whats-new.ts`. Do not
+maintain that file list by hand.
 `npm run check:release-version` covers the package and lock manifests,
 Tauri, the native Cargo crate, the Worker endpoint, the example
 environments, the changelog, and the in-app notes. Then run the platform QA

@@ -4,6 +4,8 @@
  * Talks to the public Mutinynet explorer API. Deliberately independent from
  * the Arkade/Boltz stack: the practice wallet is on-chain only.
  */
+import { PracticeWalletError } from './errors.ts';
+
 export const PRACTICE_ESPLORA_URL = 'https://mutinynet.com/api';
 export const PRACTICE_EXPLORER_URL = 'https://mutinynet.com';
 
@@ -63,9 +65,11 @@ export class PracticeEsploraClient {
     const response = await fetchImpl(`${this.baseUrl}${path}`, init);
     if (!response.ok) {
       const detail = (await response.text().catch(() => '')).slice(0, 200);
-      throw new Error(
+      throw new PracticeWalletError(
+        'explorer_request_failed',
         `Mutinynet explorer request failed (${response.status}) for ${path}.` +
           (detail ? ` ${detail}` : ''),
+        { status: response.status, path, detail },
       );
     }
     return response;
@@ -75,7 +79,7 @@ export class PracticeEsploraClient {
     const response = await this.request('/blocks/tip/height');
     const height = Number((await response.text()).trim());
     if (!Number.isInteger(height) || height < 0) {
-      throw new Error('Mutinynet explorer returned an invalid tip height.');
+      throw new PracticeWalletError('explorer_bad_tip', 'Mutinynet explorer returned an invalid tip height.');
     }
     return height;
   }
@@ -126,7 +130,7 @@ export class PracticeEsploraClient {
     const response = await this.request('/tx', { method: 'POST', body: txHex });
     const txid = (await response.text()).trim();
     if (!/^[0-9a-f]{64}$/i.test(txid)) {
-      throw new Error(`Mutinynet explorer returned an invalid txid: ${txid.slice(0, 80)}`);
+      throw new PracticeWalletError('explorer_bad_txid', `Mutinynet explorer returned an invalid txid: ${txid.slice(0, 80)}`, { txid: txid.slice(0, 80) });
     }
     return txid;
   }

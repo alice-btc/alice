@@ -40,7 +40,7 @@ import { conceptsForCourse } from '@/lib/learn/course-concepts';
 import { courseChapterCount } from '@/lib/learn/catalog';
 import { LEARN_COURSES } from '@alice-wallet/alice-content/src/generated/planb-learn-catalog';
 import { LEARN_ASK_EVENT, consumeLearnAsk, type LearnAskRequest } from '@/lib/learn/ask';
-import { letterOfSlug } from '@/lib/learn/dictionary';
+import { dictionaryLanguage, fetchDictionaryIndex } from '@/lib/learn/dictionary-packs';
 import { LEARN_RESET_EVENT, learnViewToSearch, parseLearnView, type LearnView } from '@/lib/learn/route';
 
 const ASK_OPEN_KEY = 'alice.learn.ask-open';
@@ -283,9 +283,12 @@ function LearnWorkspace() {
       >
         {view.kind !== 'home' && (
           <button
-            onClick={() => {
+            onClick={async () => {
               if (view.kind === 'chapter' || view.kind === 'quiz') navigate({ kind: 'course', code: view.code });
-              else if (view.kind === 'definition') navigate({ kind: 'dictionary', letter: letterOfSlug(view.slug) });
+              else if (view.kind === 'definition') {
+                const index = await fetchDictionaryIndex(dictionaryLanguage(t.locale)).catch(() => null);
+                navigate({ kind: 'dictionary', letter: index?.entries.find(entry => entry.slug === view.slug)?.letter });
+              }
               else navigate({ kind: 'home' });
             }}
             className="alice-control alice-control--quiet"

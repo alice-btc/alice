@@ -7,6 +7,7 @@ import {
   answerRuleCorrectionsIn,
   answerRuleNoteIdsIn,
   answerRuleNoteIdsInMessages,
+  answerRuleNoteIdsOnSubject,
   answerRulesBlock,
   withAnswerRuleCorrections,
 } from './answer-rules.ts';
@@ -18,9 +19,11 @@ import { loadRagEvaluationRuntime } from '../../../scripts/rag-eval-runtime.mjs'
 const ARK = ['asp-operator', 'ark-rounds-exits'];
 const RBF = ['replace-by-fee', 'transaction-finality'];
 const MULTISIG = ['multisig'];
+const SEED = ['seed-backup'];
 const COMBINATIONS = [
   ['ark-rounds-exits'], ['asp-operator'], ['asp-operator', 'ark-rounds-exits'], ['ark-rounds-exits', 'asp-operator'],
   ['multisig'], ['replace-by-fee'], ['transaction-finality'], ['replace-by-fee', 'transaction-finality'],
+  ['seed-backup'], ['seed-backup', 'multisig'], ['multisig', 'seed-backup'],
 ];
 
 const retrievedText = (...titles: string[]) => titles.map(title => `Topic: ${title}\nLevel: advanced\nNotes: text`).join('\n\n');
@@ -42,6 +45,10 @@ test('the instruction block states the mandatory points of the notes in context,
   const multisig = answerRulesBlock(['multisig'], 'en');
   assert.match(multisig, /a 2-of-3 wallet spends with any two of its three keys/);
   assert.match(multisig, /that a 2-of-3 wallet needs three signatures or the third seed/);
+  const seed = answerRulesBlock(['seed-backup'], 'fr');
+  assert.match(seed, /à la main sur papier ou grave-la sur métal/);
+  assert.match(seed, /^- qu'une photo, une capture d'écran, un fichier dans le cloud, une note ou un gestionnaire de mots de passe convient pour la phrase, même chiffré$/m);
+  assert.match(answerRulesBlock(['seed-backup'], 'en'), /^- that a single copy, or a copy kept with the device, is enough$/m);
   assert.equal(answerRulesBlock([], 'en'), '');
   assert.equal(answerRulesBlock(['bitcoin-basics', 'lightning-introduction'], 'fr'), '');
 });
@@ -125,6 +132,15 @@ const WRONG_CLAIMS: [string, string, string[], string][] = [
   ['fr', "Cette méthode ne fonctionne que si le réseau accepte le remplacement de votre transaction spécifique (selon sa politique de relais) et que vous avez signalé l'option RBF.", RBF, 'rbf-opt-in-precondition'],
   ['fr', "Si le paiement était déjà très rapide ou si l'option n'était pas activée, le remplacement peut être impossible.", RBF, 'rbf-opt-in-precondition'],
   ['fr', 'Si RBF n’est pas activé : vous ne pouvez pas remplacer la transaction.', RBF, 'rbf-opt-in-precondition'],
+  // The Private Cloud model on the seed backup questions, 2026-11-02: a digital copy accepted under a condition.
+  ['en', 'Yes, you can keep a photo of your recovery phrase in your password manager as long as the vault is encrypted and protected by a strong master password.', SEED, 'seed-digital-copy'],
+  ['en', 'Storing an encrypted copy of your seed in the cloud is a reasonable backup.', SEED, 'seed-digital-copy'],
+  ['en', 'A note on your phone is fine if the device is locked.', SEED, 'seed-digital-copy'],
+  ['en', 'You can also save the words in an encrypted file on a USB stick.', SEED, 'seed-digital-copy'],
+  ['fr', 'Oui, tu peux garder une photo de ta phrase dans ton gestionnaire de mots de passe si celui-ci est chiffré.', SEED, 'seed-digital-copy'],
+  ['fr', 'Un fichier chiffré dans le cloud reste une sauvegarde acceptable.', SEED, 'seed-digital-copy'],
+  ['fr', "Une note sur ton téléphone suffit si l'appareil est verrouillé.", SEED, 'seed-digital-copy'],
+  ['fr', 'Tu peux aussi enregistrer les mots dans une note chiffrée.', SEED, 'seed-digital-copy'],
 ];
 
 const RIGHT_CLAIMS: [string, string, string[]][] = [
@@ -150,6 +166,18 @@ const RIGHT_CLAIMS: [string, string, string[]][] = [
   ['fr', 'Le signalage améliore la prévisibilité, mais n’est pas une condition indispensable partout.', RBF],
   ['fr', 'Je vous recommande de vérifier si votre wallet utilise un seuil différent, par exemple 2 de 3, ou si vous avez une clé de secours spécifique pour cette troisième signature.', MULTISIG],
   ['fr', 'Vous ne devez jamais envoyer vos seeds ou fragments de clés par chat ou à un agent de support.', MULTISIG],
+  ['en', 'Never keep a photo of your recovery phrase in your password manager or in the cloud.', SEED],
+  ['en', 'A password manager is fine for your passwords, not for your recovery phrase.', SEED],
+  ['en', 'A password manager is a good place for your website passwords.', SEED],
+  ['en', 'Write it by hand on paper or stamp it on metal, and keep two copies in separate places.', SEED],
+  ['en', 'Is a photo in my password manager acceptable? No, a photo can be stolen with the phone.', SEED],
+  ['en', 'You can restore the wallet on your phone with the phrase.', SEED],
+  ['fr', 'Ne garde jamais ta phrase en photo, dans une note ou dans un gestionnaire de mots de passe.', SEED],
+  ['fr', 'Un gestionnaire de mots de passe convient pour tes mots de passe, pas pour ta phrase de récupération.', SEED],
+  ['fr', 'Le gestionnaire de mots de passe est une bonne solution pour tes comptes en ligne.', SEED],
+  ['fr', 'Écris-la sur papier ou sur métal, en deux copies rangées dans des lieux différents.', SEED],
+  ['fr', 'Une photo sur un téléphone connecté expose la phrase à tout logiciel malveillant.', SEED],
+  ['fr', 'Tu peux restaurer le portefeuille sur ton téléphone avec la phrase.', SEED],
 ];
 
 test('the never-claim checks catch the recorded wrong sentences, in French and in English', () => {
@@ -171,7 +199,7 @@ test('the checks leave the recorded correct sentences and the deterministic repl
   // The correction sentences themselves never trigger a check.
   for (const check of NEVER_CLAIM_CHECKS) {
     for (const language of ['en', 'fr'] as const) {
-      assert.deepEqual(withAnswerRuleCorrections(`Answer. ${check.correction[language]}`, language, [...ARK, ...RBF, ...MULTISIG]).applied, []);
+      assert.deepEqual(withAnswerRuleCorrections(`Answer. ${check.correction[language]}`, language, [...ARK, ...RBF, ...MULTISIG, ...SEED]).applied, []);
     }
   }
 });
@@ -183,6 +211,26 @@ test('a check runs only for the notes in context and defers to a threshold the u
   assert.deepEqual(withAnswerRuleCorrections(inflated, 'en', MULTISIG, 'I have 2 of my 3 multisig seeds. Is that enough?').applied, ['multisig-quorum-inflated']);
   assert.deepEqual(withAnswerRuleCorrections(inflated, 'en', MULTISIG, 'My wallet is a 3-of-3 and I hold two seeds.').applied, []);
   assert.deepEqual(withAnswerRuleCorrections('Dans votre cas, il faut 3 signatures sur 3.', 'fr', MULTISIG, "J'ai un multisig 3 de 3.").applied, []);
+});
+
+test('the Ark rules follow a retrieved Ark note only when the user raised Ark', () => {
+  // fr-a03 retrieved "Entrer et sortir d’Ark" on 2026-11-02 and the answer got an exit paragraph.
+  const mempool = "Où attend ma transaction avant d'entrer dans un bloc ?";
+  assert.deepEqual(answerRuleNoteIdsOnSubject(['ark-rounds-exits', 'asp-operator', 'dictionary-ark'], mempool), []);
+  assert.deepEqual(answerRuleNoteIdsOnSubject(['ark-rounds-exits', 'multisig', 'replace-by-fee'], mempool), ['multisig', 'replace-by-fee']);
+  assert.deepEqual(answerRuleNoteIdsOnSubject(['asp-operator'], 'Why is a Lightning payment sometimes not cheaper than an on-chain one?'), []);
+  for (const question of [
+    "Si l'opérateur Ark disparaît demain, mes fonds sont-ils perdus ?",
+    'What can an Ark operator do with my money?',
+    'How do Arkade rounds work?',
+    'Can a VTXO expire?',
+    "C'est quoi un ASP ?",
+    // A follow-up keeps the subject of the earlier turn.
+    "Que peut faire un opérateur Ark ?\nEt s'il disparaît ?",
+  ]) assert.deepEqual(answerRuleNoteIdsOnSubject(['asp-operator', 'ark-rounds-exits'], question), ['asp-operator', 'ark-rounds-exits'], question);
+  assert.deepEqual(answerRuleNoteIdsOnSubject(['dictionary-ark'], 'Is Ark a layer 1?'), ['dictionary-ark']);
+  assert.deepEqual(answerRuleNoteIdsOnSubject(['seed-backup', 'multisig'], 'Can I keep a photo of my recovery phrase?'), ['seed-backup', 'multisig']);
+  assert.deepEqual(answerRuleNoteIdsOnSubject([], mempool), []);
 });
 
 test('corrections are appended once, in the answer language, and survive a second pass', () => {
@@ -232,6 +280,15 @@ test('every rule names a note of the shipped corpus by its exact title, and a re
   const multisig: string | null = runtime.retrieveContext('I have 2 of my 3 multisig seeds. Is that enough to recover my coins?', { targetLanguage: 'en', maxChunks: 2 });
   assert.ok(multisig);
   assert.deepEqual(runtime.answerRuleNoteIdsIn(multisig), ['multisig']);
+  // The two seed backup questions of the acceptance set, in the budgets of both backends.
+  for (const [language, question] of [
+    ['en', 'Can I keep a photo of my recovery phrase in my password manager as a backup?'],
+    ['fr', 'Puis-je garder une photo de ma phrase de récupération dans mon gestionnaire de mots de passe comme sauvegarde ?'],
+  ] as const) for (const maxChunks of [1, 3]) {
+    const seed: string | null = runtime.retrieveContext(question, { targetLanguage: language, maxChunks });
+    assert.ok(seed, question);
+    assert.ok(runtime.answerRuleNoteIdsIn(seed).includes('seed-backup'), `${question} (${maxChunks}): ${runtime.answerRuleNoteIdsIn(seed)}`);
+  }
 });
 
 test('review probes: another quorum, refutations, questions, quotes and wallet limitations do not fire', () => {

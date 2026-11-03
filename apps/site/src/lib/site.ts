@@ -28,7 +28,7 @@ export const ANDROID_APK_URL = `${SOURCE_URL}/releases/download/v${ANDROID_VERSI
 // number; the APK above does not have to follow, and the last Android build
 // published here is 0.2.0. File names are what the release workflow emits
 // (Tauri's naming), copied verbatim.
-export const DESKTOP_VERSION = '0.2.7';
+export const DESKTOP_VERSION = '0.2.8';
 export const DESKTOP_RELEASE_URL = `${SOURCE_URL}/releases/tag/v${DESKTOP_VERSION}`;
 const DESKTOP_DOWNLOAD_BASE = `${SOURCE_URL}/releases/download/v${DESKTOP_VERSION}`;
 export const DESKTOP_MAC_URL = `${DESKTOP_DOWNLOAD_BASE}/Alice_${DESKTOP_VERSION}_universal.dmg`;
@@ -47,6 +47,9 @@ export const SITE_NAME = 'Alice';
 // Organization schema all read them from here.
 export const CONTACT_EMAIL = 'contact@alicebtc.com';
 export const X_URL = 'https://x.com/askAliceBTC';
+// The person carrying the project, named on the about page.
+export const FOUNDER_X_URL = 'https://x.com/mariusoffchain';
+export const OFFCHAIN_URL = 'https://offchain.media';
 export const NOSTR_URL =
   'https://primal.net/p/nprofile1qqs922jm7zh6kzjr3rs2kpzv5prnpc6ard7kpacmtgeuu3tm9gzxt3qckk3sr';
 
@@ -97,5 +100,6 @@ export const SITE_ROUTES = [
   '/privacy/',
   '/memory/',
   '/credits/',
+  '/about/',
   '/vs/chatgpt/',
 ] as const;

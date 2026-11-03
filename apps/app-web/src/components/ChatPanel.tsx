@@ -13,7 +13,7 @@ import { useAutoScroll } from '@/hooks/use-auto-scroll';
 import { useQuestionParam } from '@/hooks/use-question-param';
 import { ChatMessage } from '@/components/ChatMessage';
 import { ExpiryBanner } from '@/components/ExpiryBanner';
-import { LearnChatResources } from '@/components/learn/LearnChatResources';
+import { useLearnChatResources } from '@/components/learn/LearnChatResources';
 import { defaultLearnLanguage, loadLearnLanguage } from '@/lib/learn/language';
 import { useT, type MessageKey } from '@/i18n';
 import { loadChatResources, takeChatResources, type LearnChatResources as ChatResources } from '@/lib/learn/suggest-catalog';
@@ -141,6 +141,9 @@ export function ChatPanel() {
   const visible = messages.filter(msg => !(busy && msg.role === 'assistant' && !msg.content));
   const streamingId = busy && assistantReplyStarted
     ? [...visible].reverse().find(m => m.role === 'assistant')?.id : undefined;
+  // The suggested resources join the recommended courses button of the last reply.
+  const lastMessageId = messages[messages.length - 1]?.id;
+  const recommended = useLearnChatResources({ resources: chatResources, question: resourcesQuestion, messages, busy, lang: t.locale });
 
   // A page handed over by the Explorer on a phone: the composer becomes the
   // Ask-Alice composer, with the page's attachment, until the chip is removed
@@ -172,6 +175,15 @@ export function ChatPanel() {
   const rabbitAlone = inlineRabbit && !showTypingIndicator && !rabbitMessageId;
   const rabbit = <span className="atelier-inline-rabbit"><AliceRabbit state={rabbitState} connected={available} size={32} /></span>;
 
+  // The model's state reads in the conversation, by the waiting line, not
+  // under the composer: a line added there sits beneath a phone's keyboard
+  // and shifts the whole screen when it appears.
+  const modelStatus = !aiEnabled ? 'chat.status.aiDisabled'
+    : lastRequestFailed ? 'chat.status.lastFailed'
+    : backendStatus.state === 'loading' ? 'chat.status.loadingModel'
+    : backendStatus.state !== 'ready' ? 'chat.status.modelUnavailable'
+    : null;
+
   return (
     <div className="atelier-shell flex h-full overflow-hidden">
       <Sidebar
@@ -195,7 +207,14 @@ export function ChatPanel() {
             <div ref={scrollRef} className="atelier-history" role="region" aria-label={t('chat.panel.conversation')} tabIndex={0}>
               <div className="atelier-messages">
                 {showLocalNotice ? <LocalNotice /> : visible.map(msg => (
-                  <ChatMessage key={msg.id} message={msg} streaming={msg.id === streamingId} showAvatar={false} leading={msg.id === rabbitMessageId ? rabbit : undefined} />
+                  <ChatMessage
+                    key={msg.id}
+                    message={msg}
+                    streaming={msg.id === streamingId}
+                    showAvatar={false}
+                    leading={msg.id === rabbitMessageId ? rabbit : undefined}
+                    recommended={msg.id === lastMessageId && !showLocalNotice ? recommended : undefined}
+                  />
                 ))}
                 {!showLocalNotice && showTypingIndicator && (
                   <div className="atelier-waiting-row">
@@ -204,7 +223,7 @@ export function ChatPanel() {
                   </div>
                 )}
                 {!showLocalNotice && rabbitAlone && <div className="atelier-waiting-row">{rabbit}</div>}
-                {!showLocalNotice && <LearnChatResources resources={chatResources} question={resourcesQuestion} messages={messages} busy={busy} lang={t.locale} />}
+                {!showLocalNotice && modelStatus && <p className="atelier-waiting atelier-model-status" role="status">{t(modelStatus)}</p>}
               </div>
             </div>
           </div>
@@ -236,9 +255,6 @@ export function ChatPanel() {
               modelSelector={<ModelSelector backendType={backendType} setBackendType={setBackendType} setAiEnabled={setAiEnabled} placement="composer" />} />
           ))}
           {showLocalNotice && <div className="chat-composer-shell"><ModelSelector backendType={backendType} setBackendType={setBackendType} setAiEnabled={setAiEnabled} placement="composer" /></div>}
-          {(!aiEnabled || lastRequestFailed || backendStatus.state !== 'ready') && <div className="atelier-model-status" role="status">
-            {t(!aiEnabled ? 'chat.status.aiDisabled' : lastRequestFailed ? 'chat.status.lastFailed' : backendStatus.state === 'loading' ? 'chat.status.loadingModel' : 'chat.status.modelUnavailable')}
-          </div>}
         </div>
       </main>
       {nudgeOpen && <LocalModelNudge onClose={() => setNudgeOpen(false)} />}

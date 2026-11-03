@@ -13,7 +13,7 @@ import { LEARN_ASK_EVENT, consumeLearnAsk, type LearnAskRequest } from '@/lib/le
 import { findCourse, findTutorial } from '@/lib/learn/catalog';
 import type { LearnLang } from '@/lib/learn/language';
 import { fetchCoursePack } from '@/lib/learn/packs';
-import { fetchDefinition } from '@/lib/learn/dictionary-packs';
+import { dictionaryLanguage, dictionaryWorkName, fetchDefinition } from '@/lib/learn/dictionary-packs';
 import type { LearnView } from '@/lib/learn/route';
 import { useLearnT } from './learn-locale';
 
@@ -34,18 +34,19 @@ export function useLearnContext(view: LearnView, lang: LearnLang): LearnContext 
   const [pack, setPack] = useState<LearnCoursePack | null>(null);
 
   const code = view.kind === 'course' || view.kind === 'chapter' || view.kind === 'quiz' ? view.code : null;
-  // A definition's exact title (accents, spacing) comes from its pack.
+  // A definition's title comes from the pack shown by the reader.
   const definitionSlug = view.kind === 'definition' ? view.slug : null;
+  const dictionaryLang = dictionaryLanguage(t.locale);
   const [term, setTerm] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     setTerm(null);
     if (!definitionSlug) return;
-    fetchDefinition(definitionSlug)
+    fetchDefinition(definitionSlug, dictionaryLang)
       .then((definition) => { if (!cancelled) setTerm(definition?.title ?? null); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [definitionSlug]);
+  }, [definitionSlug, dictionaryLang]);
   useEffect(() => {
     let cancelled = false;
     setPack(null);
@@ -62,18 +63,18 @@ export function useLearnContext(view: LearnView, lang: LearnLang): LearnContext 
       return {
         label: t('learn.ask.definitionLabel', { title }),
         text:
-          lang === 'fr'
+          t.locale === 'fr'
             ? `Contexte : je lis la définition « ${title} » du Dictionnaire de Bitcoin de Loïc Pandul. `
-            : `Context: I am reading the definition "${title}" in the Dictionnaire de Bitcoin by Loïc Pandul. `,
+            : `Context: I am reading the definition "${title}" in ${dictionaryWorkName(dictionaryLang)}. `,
       };
     }
     if (view.kind === 'dictionary') {
       return {
         label: t('learn.home.dictionary'),
         text:
-          lang === 'fr'
+          t.locale === 'fr'
             ? 'Contexte : je parcours le Dictionnaire de Bitcoin de Loïc Pandul. '
-            : 'Context: I am browsing the Dictionnaire de Bitcoin by Loïc Pandul. ',
+            : `Context: I am browsing ${dictionaryWorkName(dictionaryLang)}. `,
       };
     }
     if (view.kind === 'tutorial') {
@@ -107,7 +108,7 @@ export function useLearnContext(view: LearnView, lang: LearnLang): LearnContext 
           ? `Contexte : je consulte le cours ${code.toUpperCase()} « ${courseName} » (Plan B Academy). `
           : `Context: I am looking at course ${code.toUpperCase()} "${courseName}" (Plan B Academy). `,
     };
-  }, [view, lang, code, pack, term, t]);
+  }, [view, lang, code, pack, term, t, dictionaryLang]);
 }
 
 export function LearnAskAlice({

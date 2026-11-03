@@ -3,7 +3,8 @@
 Alice ships as three surfaces from one repository, and they are versioned
 together: a single number means a tester and a log line refer to the same code.
 
-- `0.2.7`, current release
+- `0.2.8`, current release
+- `0.2.7`, previous release
 - `0.2.6`, previous release
 - `0.2.5`, previous release
 - `0.2.4`, previous release
@@ -14,6 +15,180 @@ together: a single number means a tester and a log line refer to the same code.
 - `0.1.0`, previous closed beta
 - `0.0.1`, first public baseline
 - `1.0.0`, public launch, planned
+
+## 0.2.8
+
+Desktop installers for macOS, Windows and Linux ship with this release.
+
+This release makes Alice answer in the language you write in, translates
+most of what the French interface still showed in English, brings the
+*Dictionnaire de Bitcoin* to English and into the replies as links, gathers
+the courses Alice recommends behind one button, lets the desktop window
+move from its title bar again, draws the Playground like the rest of the
+app, says in your language why a message could not be sent, and gives the
+free Private Cloud answers twice the room.
+
+### Language
+
+- The response language is "Auto" by default: Alice answers in the language
+  you write in, French or English, on every surface. A message too short to
+  tell, such as "Thanks" or "Ark?", keeps the language of the conversation,
+  then the app language. "Same as app" and a pinned language stay available
+  in Settings › General and are now remembered as a choice. An install that
+  never changed this setting moves to Auto with the update.
+- The French interface no longer falls back to English on the screens fed
+  by the packages: the local model catalog, palette names, learning
+  concepts, account, payment and faucet errors, the Playground lessons and
+  their errors, and the what's-new highlights. Sizes read 2,7 Go and 533 Mo.
+  Two Playground labels that still said "tu" now say "vous".
+- The French interface says "vous" everywhere: 19 strings still said "tu",
+  among them plan and account notices, reminders, the Playground tagline and
+  the Learn quiz label. Alice keeps "tu" in her own answers. A course with a
+  single chapter reads "0/1 chapitre lu".
+- Five French terms are settled: "Unité des montants" in the Playground as in
+  Settings, "Fermer" for notices and toasts, "CONFIANCE FORTE" without a
+  colon, "dépersonnalisé" everywhere, and "Entrée" and "Sortie" for the token
+  figures. The warning about identified mode now says that identified mode
+  sends the identifiers, in both languages.
+- Read on a phone, the French interface still said "tu" in the Explorer
+  lead, its search hint and its coin-flow feature, in the Playground QR
+  hint and in its backup warning, and in the warning of Alice's memory: all
+  say "vous". "Lite" named a model absent from the French catalog, now "le
+  modèle 0.6B", and the decoded-outputs review line no longer reads
+  "1 sorties".
+- French capitals keep their accents outside the pixel font. About a hundred
+  labels and buttons set in the reading font, such as "DÉTAILS TECHNIQUES",
+  "CRÉER UN COMPTE" or "CLÉ PUBLIQUE DU SERVEUR", had lost them along with
+  the pixel labels; only the pixel font, which has no accented capitals, goes
+  without. The Explorer's loading placeholders use the label font of the
+  loaded view.
+
+### Chat
+
+- Dictionary terms in a reply, French or English, are links: a tap opens the
+  start of the definition over the conversation, with its author and
+  licence, and a way to the full page in Learn. Up to 6 terms per reply, each
+  linked once, the definition the reply drew on first.
+- The courses and tutorials a reply drew on, and the resources suggested
+  after it, sit behind one "Recommended courses" chip at the start of the
+  reply's action row, next to Alice ("To explore" when the Playground or the
+  Explorer is among them). Its list opens upwards, on hover with a mouse and
+  on a tap otherwise, so it never covers the composer. A dictionary
+  definition is not listed there, and Alice no longer ends her replies with a
+  sentence naming her source.
+- Under a message, Copy and Edit are small muted icons; Delete and the reply
+  figures (speed, tokens) move behind "…", a compact menu. With a mouse, the
+  icons show only while the message is hovered; the recommended courses chip
+  stays visible.
+- When a message cannot be sent, the chat says why in the app language and
+  what to do, in one sentence: free or plan quota reached, plan restriction,
+  too many installations, lost session, cloud not configured, service
+  unavailable, verification blocked or failed, message too long, no
+  connection, local model not ready or its context full, custom server not
+  configured, unreachable or in error, unreadable answer. The technical line
+  (class, code, HTTP status, original message) moves out of the bubble into
+  the message menu. A session request that never completed reads as no
+  connection, not as an unreadable answer.
+- A Private Cloud answer that stops before its end is marked as cut, every
+  time. The notice was lost when the automatic continuation ended on a round
+  with no visible text, and when the stream closed without a finish reason;
+  both now leave the answer marked.
+- The model's state, loading, unavailable, last request failed or AI off,
+  reads in the conversation by the waiting line, in the main chat and in the
+  side dock. Under the composer, it sat beneath a phone's keyboard and
+  shifted the whole screen when it appeared.
+- Each bubble carries the language its text is written in, so a screen
+  reader pronounces an English reply in the French app with English rules,
+  and the reverse. Nothing is written when the language is unclear.
+
+### Answers
+
+- The Ark rules, and the correction they can append, apply only when the
+  recent messages mention Ark, Arkade, Bark, a VTXO, a round, an ASP or an
+  operator. A question on the mempool or on Lightning fees no longer ends
+  with an Ark paragraph.
+- Asked how to back up a recovery phrase, Alice says paper or metal, several
+  copies in different places and a restore test, and never a photo, a note,
+  a cloud file or a password manager, even encrypted. An answer that accepts
+  a digital copy of the phrase gets a correction appended.
+- Three sheets join the curated corpus, 405 in all: the recovery phrase
+  backup; dust, which keeps the relay dust limit (546, 294 and 330 sats at
+  the default relay fee) apart from an output uneconomic to spend at the
+  current fee rate; and the pruned node, off by default, 550 MiB at least,
+  the whole chain, about 760 GB in summer 2026, downloaded and validated
+  once, so a laptop with 100 GB free runs one. "Where does my transaction
+  wait before a block?" reaches the mempool sheet in both languages, and
+  "mots de passe" no longer counts as the recovery words.
+
+### Private Cloud
+
+- The free plan's answer budget goes from 2048 to 4096 tokens. Venice counts
+  the model's reasoning against the cap, so at 2048 the visible answer was
+  cut once the thinking had taken its share. The Worker also strips the
+  reasoning depth from the request, as it strips the Venice parameters:
+  depth is billed as output, and the model's default is already its lowest
+  level.
+
+### Learn
+
+- The *Dictionnaire de Bitcoin* by Loïc Pandul reads in English too: an
+  unofficial translation of its 1408 definitions, made for Alice with the
+  author's agreement of 2 November 2026 until the author's own translation
+  replaces it, not reviewed by the author, under the same CC BY-NC-SA 4.0
+  licence. Learn shows the dictionary in its reading language, and a
+  definition keeps its address in both languages. In the chat, Alice reads
+  the definition in the language of her answer, finds a term named in
+  English or in French, and the definition a term opens names the
+  translation. The translations are versioned with the hash of the French
+  text each one renders, and the build refuses a missing or outdated one.
+
+### Desktop
+
+- The window moves again when you drag its title bar, and a double click on
+  the bar maximizes it. Both were refused by the window permissions on every
+  release since 0.2.0, without any error shown.
+
+### Playground
+
+- The practice wallet is drawn like Learn and the Explorer: the reading font,
+  bordered cards and the same controls, with the pixel font kept for short
+  section labels. The home screen is a balance card, a row of three actions
+  with the useful one raised, a quiet backup reminder and the history as a
+  list in a card; the Receive screen puts the QR and the address in one card
+  beside the amount and the lesson. The texts leave their capitals for
+  sentence case, in English and in French, and amounts read in sats.
+- The "Free test sats" dialog keeps both of its buttons inside the card; the
+  Receive button no longer runs past its right edge, and Cancel shows a cross
+  rather than an arrow.
+
+### Settings
+
+- The category headings of Alice's memory, set in the pixel font, drop their
+  accents as the app's other pixel labels do: the font has no accented
+  capitals, so "Préférences" read "PRéFéRENCES". The Hugging Face repository
+  field and its button wrap on a phone instead of running past the screen
+  edge.
+
+### Site
+
+- /pricing says that the free plan needs no account and that a Cloud plan
+  needs one, so it follows you to another device. While the satoshi quote
+  loads, the card reads "Priced in sats at today's rate", which is also what
+  crawlers see; the live quote still replaces it.
+- /trust explains DCAP, PCCS, TCB and "attested-unpinned" in one sentence
+  each, before the page uses them. The end-to-end wording is unchanged.
+- A new /about page, in English and French, says who builds Alice, why, and
+  where to write for partnerships and press. It is linked from the footer.
+- The home FAQ no longer answers "Not with real funds" next to a mainnet
+  wallet: Alice App holds no real funds, its Playground uses Mutinynet test
+  coins, and Alice Wallet, the separate experimental project, is the one
+  that can hold real bitcoin on mainnet, in beta and not audited.
+
+### Mobile
+
+- On a phone, the Android and iOS builds stay in portrait; tablets and the
+  iPad keep rotating, checked on a Galaxy A15 and on the iPhone and iPad
+  simulators. These builds are still not distributed.
 
 ## 0.2.7
 

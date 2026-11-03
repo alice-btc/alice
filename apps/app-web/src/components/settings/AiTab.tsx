@@ -118,7 +118,7 @@ export function AiTab() {
       setPreset('local', 'balanced'),
       setPreset('cloud', 'balanced'),
       setAliceInstructions(''),
-      setResponseLanguagePreference('app'),
+      setResponseLanguagePreference('auto'),
       setActiveCloudModelId('alice-cloud'),
       setActiveModelId(DEFAULT_LOCAL_MODEL_ID),
       setCustomServer(null),
@@ -351,7 +351,7 @@ export function AiTab() {
 
       {confirmReset && (
         <ConfirmDialog
-          title={t('settings.ai.resetToDefault')}
+          title={t('settings.ai.resetToDefaultTitle')}
           body={t('settings.ai.resetBody')}
           confirmLabel={t('settings.ai.reset')}
           onCancel={() => setConfirmReset(false)}

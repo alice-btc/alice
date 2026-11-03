@@ -1,5 +1,6 @@
 import { Address, OutScript, TEST_NETWORK, Transaction } from '@scure/btc-signer';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
+import { PracticeWalletError, type PracticeWalletErrorCode } from './errors.ts';
 import type { PracticeKeyring } from './practice-keys.ts';
 
 /**
@@ -74,12 +75,28 @@ export type PracticeTxPlan = {
   totalInputSats: number;
 };
 
+/** One mismatch between the signed bytes and the plan, with its figures. */
+export type PracticeTxProblem = {
+  code:
+    | 'input_undecodable'
+    | 'inputs_mismatch'
+    | 'output_undecodable'
+    | 'output_script_unknown'
+    | 'recipient_missing'
+    | 'output_count'
+    | 'fee_mismatch';
+  params: Record<string, string | number>;
+};
+
 export type PracticeTxReview = {
   txid: string;
   outputs: PracticeTxOutput[];
   feeSats: number;
   matchesPlan: boolean;
+  /** The problems in English, one sentence each. */
   issues: string[];
+  /** The same problems, coded, in the same order. */
+  problems: PracticeTxProblem[];
 };
 
 /**
@@ -98,11 +115,12 @@ export function estimatePracticeVbytes(
   return TX_OVERHEAD_VBYTES + inputCount * INPUT_VBYTES + outputVbytes;
 }
 
-function assertPracticeAddress(address: string, label: string): void {
+function assertPracticeAddress(address: string, label: string, code: PracticeWalletErrorCode): void {
   try {
     Address(TEST_NETWORK).decode(address);
   } catch {
-    throw new Error(
+    throw new PracticeWalletError(
+      code,
       `${label} is not a valid Mutinynet address. Practice addresses start with tb1.`,
     );
   }
@@ -152,16 +170,16 @@ export function planPracticeTransaction(params: {
 }): PracticeTxPlan {
   const { utxos, recipientAddress, amountSats, feeRateSatVb, changeAddress } = params;
   if (!Number.isInteger(amountSats) || amountSats <= 0) {
-    throw new Error('The amount to send must be a whole number of sats above zero.');
+    throw new PracticeWalletError('amount_not_whole', 'The amount to send must be a whole number of sats above zero.');
   }
   if (amountSats < PRACTICE_DUST_SATS) {
-    throw new Error(`The amount to send must be at least ${PRACTICE_DUST_SATS} sats.`);
+    throw new PracticeWalletError('amount_below_dust', `The amount to send must be at least ${PRACTICE_DUST_SATS} sats.`, { min: PRACTICE_DUST_SATS });
   }
   if (!Number.isFinite(feeRateSatVb) || feeRateSatVb < 1) {
-    throw new Error('The fee rate must be at least 1 sat/vB.');
+    throw new PracticeWalletError('fee_rate_too_low', 'The fee rate must be at least 1 sat/vB.');
   }
-  assertPracticeAddress(recipientAddress, 'The recipient address');
-  assertPracticeAddress(changeAddress, 'The change address');
+  assertPracticeAddress(recipientAddress, 'The recipient address', 'recipient_address_invalid');
+  assertPracticeAddress(changeAddress, 'The change address', 'change_address_invalid');
 
   // Measured once: the recipient's script size is whatever they gave us.
   const recipientOnly = [recipientAddress];
@@ -219,9 +237,11 @@ export function planPracticeTransaction(params: {
   }
 
   const available = candidates.reduce((sum, utxo) => sum + utxo.valueSats, 0);
-  throw new Error(
+  throw new PracticeWalletError(
+    'insufficient_funds',
     `Insufficient practice funds: ${available} sats available, ` +
       `${amountSats} sats plus fees needed.`,
+    { available, amount: amountSats },
   );
 }
 
@@ -267,13 +287,22 @@ export function reviewPracticeTransaction(txHex: string, plan: PracticeTxPlan): 
     allowUnknownOutputs: true,
   });
   const issues: string[] = [];
+  const problems: PracticeTxProblem[] = [];
+  const flag = (
+    code: PracticeTxProblem['code'],
+    params: PracticeTxProblem['params'],
+    issue: string,
+  ) => {
+    problems.push({ code, params });
+    issues.push(issue);
+  };
 
   const plannedOutpoints = new Set(plan.inputs.map((input) => `${input.txid}:${input.vout}`));
   const actualOutpoints = new Set<string>();
   for (let i = 0; i < tx.inputsLength; i += 1) {
     const input = tx.getInput(i);
     if (!input.txid || input.index === undefined) {
-      issues.push(`Input ${i} could not be decoded.`);
+      flag('input_undecodable', { index: i }, `Input ${i} could not be decoded.`);
       continue;
     }
     actualOutpoints.add(`${bytesToHex(input.txid)}:${input.index}`);
@@ -282,7 +311,7 @@ export function reviewPracticeTransaction(txHex: string, plan: PracticeTxPlan): 
     actualOutpoints.size !== plannedOutpoints.size ||
     [...actualOutpoints].some((outpoint) => !plannedOutpoints.has(outpoint))
   ) {
-    issues.push('The signed transaction does not spend the planned coins.');
+    flag('inputs_mismatch', {}, 'The signed transaction does not spend the planned coins.');
   }
 
   const outputs: PracticeTxOutput[] = [];
@@ -290,7 +319,7 @@ export function reviewPracticeTransaction(txHex: string, plan: PracticeTxPlan): 
   for (let i = 0; i < tx.outputsLength; i += 1) {
     const output = tx.getOutput(i);
     if (!output.script || output.amount === undefined) {
-      issues.push(`Output ${i} could not be decoded.`);
+      flag('output_undecodable', { index: i }, `Output ${i} could not be decoded.`);
       continue;
     }
     const valueSats = Number(output.amount);
@@ -299,7 +328,7 @@ export function reviewPracticeTransaction(txHex: string, plan: PracticeTxPlan): 
     try {
       address = Address(TEST_NETWORK).encode(OutScript.decode(output.script));
     } catch {
-      issues.push(`Output ${i} pays to a script this wallet cannot decode.`);
+      flag('output_script_unknown', { index: i }, `Output ${i} pays to a script this wallet cannot decode.`);
       continue;
     }
     const planned = plan.outputs.find(
@@ -312,20 +341,28 @@ export function reviewPracticeTransaction(txHex: string, plan: PracticeTxPlan): 
     (output) => output.address === plan.recipientAddress && output.valueSats === plan.amountSats,
   );
   if (!recipientOk) {
-    issues.push(
+    flag(
+      'recipient_missing',
+      { amount: plan.amountSats, address: plan.recipientAddress },
       `No output pays ${plan.amountSats} sats to the planned recipient ${plan.recipientAddress}.`,
     );
   }
   if (outputs.length !== plan.outputs.length) {
-    issues.push(
+    flag(
+      'output_count',
+      { actual: outputs.length, expected: plan.outputs.length },
       `The transaction has ${outputs.length} decoded outputs, the plan expected ${plan.outputs.length}.`,
     );
   }
 
   const feeSats = plan.totalInputSats - totalOutputSats;
   if (feeSats !== plan.feeSats) {
-    issues.push(`The actual fee is ${feeSats} sats, the plan expected ${plan.feeSats} sats.`);
+    flag(
+      'fee_mismatch',
+      { actual: feeSats, expected: plan.feeSats },
+      `The actual fee is ${feeSats} sats, the plan expected ${plan.feeSats} sats.`,
+    );
   }
 
-  return { txid: tx.id, outputs, feeSats, matchesPlan: issues.length === 0, issues };
+  return { txid: tx.id, outputs, feeSats, matchesPlan: issues.length === 0, issues, problems };
 }

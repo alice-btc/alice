@@ -50,7 +50,7 @@ test('explicit request also wins over the app language', () => {
   assert.equal(decision.source, 'explicit');
 });
 
-test('by default Alice answers in the app language, whatever the message looks like', () => {
+test('Same as app answers in the app language, whatever the message looks like', () => {
   for (const message of ['Explain Lightning', 'Tell me more', 'Thanks', 'Bitcoin halving', 'Ark?']) {
     const decision = resolveResponseLanguage({
       message,
@@ -60,7 +60,7 @@ test('by default Alice answers in the app language, whatever the message looks l
     });
     assert.deepEqual(decision, { targetLanguage: 'en', source: 'app', confidence: 1 }, message);
   }
-  // A French question in an English app still gets English: the app language is the rule.
+  // A French question in an English app still gets English: with 'app', the app language is the rule.
   assert.equal(resolveResponseLanguage({
     message: "Qu'est-ce que le proof of work et pourquoi est-il utile ?",
     preference: 'app',
@@ -68,16 +68,30 @@ test('by default Alice answers in the app language, whatever the message looks l
   }).targetLanguage, 'en');
 });
 
-test('a missing preference means the app language', () => {
-  const decision = resolveResponseLanguage({ message: 'What is Bitcoin?', appLanguage: 'fr' });
-  assert.deepEqual(decision, { targetLanguage: 'fr', source: 'app', confidence: 1 });
+test('a missing preference means Auto: a French question in an English app gets French', () => {
+  const decision = resolveResponseLanguage({
+    message: "Qu'est-ce que le proof of work et pourquoi est-il utile ?",
+    appLanguage: 'en',
+    interfaceLanguage: 'en-US',
+  });
+  assert.equal(decision.targetLanguage, 'fr');
+  assert.equal(decision.source, 'message');
 });
 
-test('without a chosen app language, the interface locale stands in for it', () => {
-  assert.equal(resolveResponseLanguage({ message: 'UTXO?', interfaceLanguage: 'fr-FR' }).targetLanguage, 'fr');
-  assert.equal(resolveResponseLanguage({ message: 'UTXO?', interfaceLanguage: 'en-US' }).targetLanguage, 'en');
-  assert.equal(resolveResponseLanguage({ message: 'UTXO?', interfaceLanguage: 'de-DE' }).targetLanguage, 'en');
-  assert.equal(resolveResponseLanguage({ message: 'UTXO?', interfaceLanguage: 'de-DE' }).source, 'app');
+test('by default a message too short to tell its language falls back to the app language', () => {
+  for (const message of ['Thanks', 'Ark?', 'UTXO?']) {
+    const decision = resolveResponseLanguage({ message, appLanguage: 'fr', interfaceLanguage: 'en-US' });
+    assert.deepEqual(decision, { targetLanguage: 'fr', source: 'app', confidence: 0.5 }, message);
+  }
+});
+
+test('with Same as app and no chosen app language, the interface locale stands in for it', () => {
+  const sameAsApp = (interfaceLanguage: string) =>
+    resolveResponseLanguage({ message: 'UTXO?', preference: 'app', interfaceLanguage });
+  assert.equal(sameAsApp('fr-FR').targetLanguage, 'fr');
+  assert.equal(sameAsApp('en-US').targetLanguage, 'en');
+  assert.equal(sameAsApp('de-DE').targetLanguage, 'en');
+  assert.equal(sameAsApp('de-DE').source, 'app');
 });
 
 test('Auto follows a clear current message first', () => {
@@ -119,16 +133,14 @@ test('Auto history keeps only the last 5 user turns and breaks a tie with the mo
   assert.equal(dominantHistoryLanguage([{ role: 'assistant', content: english.content }]), null);
 });
 
-test('Auto falls back to the interface locale when nothing is conclusive', () => {
-  const decision = resolveResponseLanguage({
-    message: 'Ark?',
-    preference: 'auto',
-    appLanguage: 'en',
-    history: [{ role: 'user', content: 'UTXO?' }],
-    interfaceLanguage: 'fr-FR',
-  });
-  assert.equal(decision.targetLanguage, 'fr');
-  assert.equal(decision.source, 'interface');
+test('Auto falls back to the app language, then the interface locale, when nothing is conclusive', () => {
+  const inconclusive = { message: 'Ark?', preference: 'auto' as const, history: [{ role: 'user', content: 'UTXO?' }] };
+  const withApp = resolveResponseLanguage({ ...inconclusive, appLanguage: 'en', interfaceLanguage: 'fr-FR' });
+  assert.equal(withApp.targetLanguage, 'en');
+  assert.equal(withApp.source, 'app');
+  const withoutApp = resolveResponseLanguage({ ...inconclusive, interfaceLanguage: 'fr-FR' });
+  assert.equal(withoutApp.targetLanguage, 'fr');
+  assert.equal(withoutApp.source, 'interface');
 });
 
 test('rejects a clear wrong-language response but accepts technical fragments', () => {

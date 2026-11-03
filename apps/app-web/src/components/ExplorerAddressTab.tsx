@@ -1,6 +1,6 @@
 'use client';
 
-import { ExplorerCopy } from '@/components/ExplorerUI';
+import { ExplorerCopy, FieldLabel } from '@/components/ExplorerUI';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -289,7 +289,7 @@ export function ExplorerAddressTab({
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
             {[t('explorer.address.balance'), t('explorer.address.transactions'), t('explorer.address.timesReceived'), t('explorer.address.received'), t('explorer.address.firstSeen'), t('explorer.address.avgCoinAge')].map(l => (
               <div key={l} className="flex flex-col gap-1">
-                <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{l}</span>
+                <FieldLabel>{l}</FieldLabel>
                 <Skeleton width="60%" />
               </div>
             ))}

@@ -11,6 +11,8 @@ export type TrustCopy = {
   title: string;
   intro: Rich;
   notice: Rich;
+  glossaryTitle: string;
+  glossary: [string, string][];
   privateTitle: string;
   privateBody: Rich;
   partiesTitle: string;
@@ -53,6 +55,13 @@ const en: TrustCopy = {
     ' display “E2EE verified”, see the ',
     { href: '#status', text: 'status' },
     ' below for why.',
+  ],
+  glossaryTitle: 'Terms on this page',
+  glossary: [
+    ['DCAP', 'Intel’s method for checking an enclave’s attestation, a signed statement of the hardware and software running inside it. Alice runs this check before every message.'],
+    ['PCCS', 'The service that hands out Intel’s public certificates and security status needed for that check. Here it is run by Phala, and it never sees a message.'],
+    ['TCB', 'The enclave’s level of security updates, as Intel reports it. Alice refuses an enclave that is not up to date.'],
+    ['attested-unpinned', 'Alice has verified a genuine, up-to-date enclave, but cannot yet compare the code it runs with an official fingerprint published by Venice. That last step would make it “pinned”.'],
   ],
   privateTitle: 'What “private” means',
   privateBody: [
@@ -147,6 +156,13 @@ const fr: TrustCopy = {
     ' « E2EE vérifié » : la section ',
     { href: '#status', text: 'État' },
     ' plus bas explique pourquoi.',
+  ],
+  glossaryTitle: 'Les termes de cette page',
+  glossary: [
+    ['DCAP', 'La méthode d’Intel pour vérifier l’attestation d’une enclave, c’est-à-dire une déclaration signée du matériel et du logiciel qui y tournent. Alice fait cette vérification avant chaque message.'],
+    ['PCCS', 'Le service qui fournit les certificats publics et l’état de sécurité d’Intel nécessaires à cette vérification. Ici, il est opéré par Phala et ne voit aucun message.'],
+    ['TCB', 'Le niveau de mises à jour de sécurité de l’enclave, tel qu’Intel le déclare. Alice refuse une enclave qui n’est pas à jour.'],
+    ['attested-unpinned', 'Alice a vérifié une enclave authentique et à jour, mais ne peut pas encore comparer le code qu’elle exécute à une empreinte officielle publiée par Venice. Cette dernière étape la rendrait « épinglée ».'],
   ],
   privateTitle: 'Ce que « privé » veut dire',
   privateBody: [

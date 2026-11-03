@@ -3,7 +3,7 @@ import type { Message } from './llm';
 import { generateWithContinuation, type GenerationOutcome } from './generate-with-continuation.ts';
 import { parseAliceMemoryResponse, type AliceMemoryCandidate } from './alice-memory-core.ts';
 import { withLiveValueCaveat } from './live-value-caveat.ts';
-import { answerRuleNoteIdsInMessages, withAnswerRuleCorrections } from './answer-rules.ts';
+import { answerRuleNoteIdsInMessages, answerRuleNoteIdsOnSubject, withAnswerRuleCorrections } from './answer-rules.ts';
 import {
   detectTextLanguage,
   isResponseLanguageAcceptable,
@@ -62,10 +62,12 @@ export async function generateLanguageChecked(input: {
   answerRuleCorrections: string[];
 }> {
   const started = now();
-  // The rule notes are read from the system turns actually sent, and the
-  // question lets a check defer to what the user stated (a threshold).
-  const answerRuleNoteIds = answerRuleNoteIdsInMessages(input.history);
-  const question = input.history.findLast(message => message.role === 'user')?.content ?? '';
+  // The rule notes are read from the system turns actually sent, kept only
+  // when the user's recent turns name their subject, and the question lets a
+  // check defer to what the user stated (a threshold).
+  const userTurns = input.history.filter(message => message.role === 'user').map(message => message.content);
+  const answerRuleNoteIds = answerRuleNoteIdsOnSubject(answerRuleNoteIdsInMessages(input.history), userTurns.slice(-4).join('\n'));
+  const question = userTurns.at(-1) ?? '';
   let firstDisplayMs: number | undefined;
   for (let attempt = 0; attempt < LANGUAGE_CHECKED_ATTEMPTS; attempt += 1) {
     let released = false;

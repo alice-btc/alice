@@ -27,6 +27,13 @@ export function SideChatConversation({ input, questions, onQuestion, disabled = 
   const visible = messages.filter(message => !(busy && message.role === 'assistant' && !message.content));
   const streamingId = busy && replyStarted
     ? [...visible].reverse().find(message => message.role === 'assistant')?.id : undefined;
+  // In the conversation, as the main chat does: a line under the dock would
+  // move it when it appears.
+  const modelStatus = !aiEnabled ? null
+    : lastRequestFailed ? 'chat.status.lastFailed'
+    : backendStatus.state === 'loading' ? 'chat.status.loadingModel'
+    : backendStatus.state !== 'ready' ? 'chat.status.modelUnavailable'
+    : null;
 
   return <>
     <div className="atelier-stage alice-side-stage">
@@ -38,6 +45,7 @@ export function SideChatConversation({ input, questions, onQuestion, disabled = 
             {greetingFor(t.locale)}
           </p>}
           {busy && !replyStarted && <p className="atelier-waiting" role="status">{t('chat.panel.preparing')}</p>}
+          {modelStatus && <p className="atelier-waiting atelier-model-status" role="status">{t(modelStatus)}</p>}
         </div>
       </div>
     </div>
@@ -46,8 +54,5 @@ export function SideChatConversation({ input, questions, onQuestion, disabled = 
         <span>{question}</span>
       </button>)}
     </div>}
-    {aiEnabled && (lastRequestFailed || backendStatus.state !== 'ready') && <p className="alice-side-model-status" role="status">
-      {t(lastRequestFailed ? 'chat.status.lastFailed' : backendStatus.state === 'loading' ? 'chat.status.loadingModel' : 'chat.status.modelUnavailable')}
-    </p>}
   </>;
 }

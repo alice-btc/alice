@@ -91,7 +91,7 @@ export function LearnCourse({
       )}
 
       <p role="status" style={{ marginTop: 24, color: 'var(--alice-muted)', fontSize: 14 }}>
-        {t('learn.course.chaptersRead', { read: allChapters.filter((chapter) => chapter.chapterId && read[chapter.chapterId]).length, total: allChapters.length })}
+        {t.plural('learn.course.chaptersRead', allChapters.length, { read: allChapters.filter((chapter) => chapter.chapterId && read[chapter.chapterId]).length, total: allChapters.length })}
       </p>
       <div style={{ marginTop: 24 }}>
         {pack.parts.map((part, partIndex) => (

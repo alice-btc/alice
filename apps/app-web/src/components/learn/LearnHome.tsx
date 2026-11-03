@@ -29,10 +29,11 @@ import { readCount, resumeList } from '@/lib/learn/progress';
 import type { LearnView } from '@/lib/learn/route';
 import type { DictionaryIndex } from '@alice-wallet/alice-content/src/dictionary-types';
 import { searchDictionary } from '@/lib/learn/dictionary';
-import { fetchDictionaryIndex } from '@/lib/learn/dictionary-packs';
+import { dictionaryLanguage, fetchDictionaryIndex } from '@/lib/learn/dictionary-packs';
 import { formatCount } from './LearnDictionary';
 import { useOnline } from './LearnMarkdown';
 import { useLearnT } from './learn-locale';
+import { CONCEPT_LABEL_KEYS } from '@/lib/concept-labels';
 import { WithBitcoinGlyph } from '@/components/AmountDisplay';
 
 const cardBorder: React.CSSProperties = { border: '1px solid var(--alice-border)', borderRadius: 'var(--alice-radius-control)' };
@@ -318,13 +319,16 @@ export function LearnHome({
 
   // The Dictionnaire de Bitcoin: its index is small and joins the search box,
   // so a term typed here opens its definition. Absent until loaded, never an
-  // error on the home.
+  // error on the home. Same pack as the dictionary screens: English for an
+  // English interface, French otherwise.
+  const dictionaryLang = dictionaryLanguage(t.locale);
   const [dictionary, setDictionary] = useState<DictionaryIndex | null>(null);
   useEffect(() => {
     let cancelled = false;
-    fetchDictionaryIndex().then((index) => { if (!cancelled) setDictionary(index); }).catch(() => {});
+    setDictionary(null);
+    fetchDictionaryIndex(dictionaryLang).then((index) => { if (!cancelled) setDictionary(index); }).catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [dictionaryLang]);
   const definitionHits = searching && dictionary ? searchDictionary(dictionary.entries, query, 8) : [];
 
   return (
@@ -422,7 +426,7 @@ export function LearnHome({
                       {courseMeta(entry.course, lang, langMeta)?.name ?? entry.course.code}
                     </div>
                     <div className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)', marginTop: 6 }}>
-                      {t('learn.home.forYou.reason', { label: entry.conceptLabel })}
+                      {t('learn.home.forYou.reason', { label: t(CONCEPT_LABEL_KEYS[entry.concept]) })}
                     </div>
                   </button>
                 ))}
@@ -494,7 +498,7 @@ export function LearnHome({
                     {dictionary && <span>{formatCount(dictionary.count, t.locale)}</span>}
                   </div>
                   <div className="font-numbers flex items-center" style={{ fontSize: 15, marginTop: 8, gap: 8 }}>
-                    <SvgIcon svg={DICTIONARY_ICON} size={18} /> Dictionnaire de Bitcoin
+                    <SvgIcon svg={DICTIONARY_ICON} size={18} /> {t('learn.dictionary.title')}
                   </div>
                   <div className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)', marginTop: 6 }}>
                     {t('learn.home.dictionary.description')}

@@ -100,6 +100,11 @@ type AccountContextValue = {
   pendingEmail: string;
   resendSeconds: number;
   error: string | null;
+  /**
+   * The code behind `error`: the Worker's, or the client's (`network`,
+   * `account_request_failed`), so an interface can say it in its language.
+   */
+  errorCode: string | null;
   requestSignIn: (reason?: AliceSignInReason) => void;
   /** Why the sign-in was opened, so surfaces can drop copy that contradicts it. */
   signInReason: AliceSignInReason;
@@ -146,15 +151,17 @@ type AccountContextValue = {
 
 const AccountContext = createContext<AccountContextValue | null>(null);
 
-function messageFor(error: unknown): string {
+type AccountFailure = { code: string; message: string };
+
+function failureFor(error: unknown): AccountFailure {
   if (error instanceof AliceAccountError) {
-    if (error.code === 'rate_limited') return 'Too many attempts. Try again later.';
-    if (error.code === 'too_many_new_installations') return error.message;
-    if (error.code === 'invalid_code') return 'That code is invalid or expired.';
-    if (error.code === 'network') return 'Network error. Check your connection and try again.';
-    return error.message;
+    const { code } = error;
+    if (code === 'rate_limited') return { code, message: 'Too many attempts. Try again later.' };
+    if (code === 'invalid_code') return { code, message: 'That code is invalid or expired.' };
+    if (code === 'network') return { code, message: 'Network error. Check your connection and try again.' };
+    return { code, message: error.message };
   }
-  return 'Alice could not complete this account request.';
+  return { code: 'account_request_failed', message: 'Alice could not complete this account request.' };
 }
 
 export function AccountProvider({ children }: { children: ReactNode }) {
@@ -168,7 +175,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [signInReason, setSignInReason] = useState<AliceSignInReason>('default');
   const [pendingEmail, setPendingEmail] = useState('');
   const [resendSeconds, setResendSeconds] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<AccountFailure | null>(null);
 
   useEffect(() => {
     if (resendSeconds <= 0) return;
@@ -292,50 +299,50 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, [pendingCheckout, billing, refreshBilling]);
 
   const requestSignIn = useCallback((reason: AliceSignInReason = 'default') => {
-    setError(null);
+    setFailure(null);
     setSignInReason(reason);
     setSignInOpen(true);
   }, []);
 
   const dismissSignIn = useCallback(() => {
-    setError(null);
+    setFailure(null);
     setSignInOpen(false);
     setSignInReason('default');
   }, [status]);
 
   const sendCode = useCallback(async (email: string) => {
-    setError(null);
+    setFailure(null);
     try {
       const result = await startEmailLogin(email);
       setPendingEmail(email.trim());
       setResendSeconds(result.retry_after_seconds);
     } catch (cause) {
-      setError(messageFor(cause));
+      setFailure(failureFor(cause));
       throw cause;
     }
   }, []);
 
   const startEmailSignup = useCallback(async (email: string) => {
-    setError(null);
+    setFailure(null);
     try {
       await ensureAnonymousAccountSession();
       const result = await startEmailIdentityLink(email);
       setPendingEmail(email.trim());
       setResendSeconds(result.retry_after_seconds);
     } catch (cause) {
-      setError(messageFor(cause));
+      setFailure(failureFor(cause));
       throw cause;
     }
   }, []);
 
   const changeEmail = useCallback(() => {
-    setError(null);
+    setFailure(null);
     setPendingEmail('');
     setResendSeconds(0);
   }, []);
 
   const verifyCode = useCallback(async (code: string, newPassword?: string) => {
-    setError(null);
+    setFailure(null);
     try {
       const result = await verifyEmailLogin(pendingEmail, code, newPassword);
       setAccount(result.account);
@@ -344,13 +351,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setPendingEmail('');
       setResendSeconds(0);
     } catch (cause) {
-      setError(messageFor(cause));
+      setFailure(failureFor(cause));
       throw cause;
     }
   }, [pendingEmail]);
 
   const verifyEmailSignup = useCallback(async (code: string) => {
-    setError(null);
+    setFailure(null);
     try {
       const result = await verifyEmailIdentityLink(pendingEmail, code);
       setAccount(result);
@@ -358,7 +365,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setPendingEmail('');
       setResendSeconds(0);
     } catch (cause) {
-      setError(messageFor(cause));
+      setFailure(failureFor(cause));
       throw cause;
     }
   }, [pendingEmail]);
@@ -366,14 +373,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const acceptLogin = useCallback(async (
     login: () => Promise<{ account: AliceAccount }>,
   ) => {
-    setError(null);
+    setFailure(null);
     try {
       const result = await login();
       setAccount(result.account);
       setStatus('signed_in');
       setSignInOpen(false);
     } catch (cause) {
-      setError(messageFor(cause));
+      setFailure(failureFor(cause));
       throw cause;
     }
   }, []);
@@ -394,11 +401,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const updateSignedInAccount = useCallback(async (
     operation: () => Promise<AliceAccount>,
   ) => {
-    setError(null);
+    setFailure(null);
     try {
       setAccount(await operation());
     } catch (cause) {
-      setError(messageFor(cause));
+      setFailure(failureFor(cause));
       throw cause;
     }
   }, []);
@@ -430,11 +437,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     [updateSignedInAccount],
   );
   const addEmail = useCallback(async (email: string) => {
-    setError(null);
+    setFailure(null);
     try {
       await startEmailIdentityLink(email);
     } catch (cause) {
-      setError(messageFor(cause));
+      setFailure(failureFor(cause));
       throw cause;
     }
   }, []);
@@ -531,7 +538,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     signInReason,
     pendingEmail,
     resendSeconds,
-    error,
+    error: failure?.message ?? null,
+    errorCode: failure?.code ?? null,
     requestSignIn,
     dismissSignIn,
     sendCode,
@@ -556,7 +564,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     chooseProductUpdates,
     logout,
     deleteAccount,
-    clearError: () => setError(null),
+    clearError: () => setFailure(null),
   }), [
     account,
     billing,
@@ -566,7 +574,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     changeEmail,
     deleteAccount,
     dismissSignIn,
-    error,
+    failure,
     logout,
     pendingEmail,
     resendSeconds,

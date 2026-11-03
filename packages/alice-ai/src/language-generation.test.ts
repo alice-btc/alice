@@ -87,6 +87,33 @@ test('streams an accepted answer while keeping private memory metadata hidden', 
   assert.equal(result.memoryCandidates.length, 1);
 });
 
+test('a never-claim correction follows a retrieved note only when the user raised its subject', async () => {
+  const note = { role: 'system' as const, content: 'Use the following retrieved notes as private background.\n\nTopic: Les hypothèses de sécurité d’Ark\nLevel: advanced\nNotes: The operator coordinates rounds.' };
+  const answer = 'If the operator disappears, your funds are gone.';
+  const generate = (history: { role: 'system' | 'user' | 'assistant'; content: string }[]) => generateLanguageChecked({
+    backend: backendWithAnswers([answer], []),
+    history,
+    allowContinuation: false,
+    targetLanguage: 'en',
+    requestId: 'req_language_test_0005',
+  });
+  const ark = await generate([note, { role: 'user', content: 'If the Ark operator disappears tomorrow, are my funds gone?' }]);
+  assert.deepEqual(ark.answerRuleCorrections, ['ark-funds-lost']);
+  assert.match(ark.text, /\n\nCorrection: with valid exit data/);
+  // The same note retrieved next to a mempool question (fr-a03, 2026-11-02) corrects nothing.
+  const mempool = await generate([note, { role: 'user', content: 'Where does my transaction wait before it gets into a block?' }]);
+  assert.deepEqual(mempool.answerRuleCorrections, []);
+  assert.equal(mempool.text, answer);
+  // A follow-up keeps the subject of the earlier turn.
+  const followUp = await generate([
+    { role: 'user', content: 'What can an Ark operator do with my money?' },
+    { role: 'assistant', content: 'It coordinates rounds.' },
+    note,
+    { role: 'user', content: 'And if it disappears?' },
+  ]);
+  assert.deepEqual(followUp.answerRuleCorrections, ['ark-funds-lost']);
+});
+
 test('holds a split private-memory marker out of the visible stream', () => {
   assert.equal(visibleStreamingText('Visible answer.<alice_mem'), 'Visible answer.');
   assert.equal(visibleStreamingText('Visible answer.<alice_memory>{"items":[]}'), 'Visible answer.');

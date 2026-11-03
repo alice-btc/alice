@@ -3,8 +3,9 @@ import { createContext, useContext, useState, useEffect, useRef, useCallback, us
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AIBackend, AIBackendType, AIBackendStatus, TokenUsage } from './ai-backend';
-import { VeniceAPIError, type Message } from './llm';
+import type { Message } from './llm';
 import { quotaBlockOf } from './venice-errors';
+import { describeSendError, SEND_ERROR_TEXT, type SendError } from './send-error';
 import { createBackend, canUseLocal } from './ai-backend-factory';
 import { subscribeLocalModelInstalled } from './local-model-events';
 import { generateLanguageChecked, LANGUAGE_CHECKED_ATTEMPTS, WrongResponseLanguageError } from './language-generation';
@@ -135,115 +136,20 @@ function logLanguageFailure(err: unknown, backendType: AIBackendType, language: 
 }
 
 /**
- * The one technical line a failure is allowed to show, when it carries one.
- *
- * Alice has no diagnostics screen, so until now a beta tester could report
- * nothing beyond the sentence they were shown, and three different causes wear
- * the same sentence. This appends a closed-vocabulary line they can copy into
- * a report: no server text, no prompt, no key, nothing derived from a message.
+ * What a failed send leaves in the conversation: the sentence the message
+ * stores, and the case the interface renders in its own language with the
+ * technical line behind the message menu. An answer that came back in the
+ * wrong language is the one failure already worded in the user's language,
+ * by the language rules: it keeps that sentence and carries no case.
  */
-function technicalDetailOf(err: unknown): string | null {
-  if (err instanceof VeniceAPIError && err.detail) return err.detail;
-  return null;
-}
-
-function userFacingSendError(err: unknown, backendType: AIBackendType): string {
-  const message = sendErrorText(err, backendType);
-  const detail = technicalDetailOf(err);
-  return detail ? `${message}\n\n\`${detail}\`` : message;
-}
-
-function sendErrorText(err: unknown, backendType: AIBackendType): string {
+function failedSend(err: unknown, backendType: AIBackendType): { content: string; sendError?: SendError } {
   if (err instanceof WrongResponseLanguageError) {
     // Small local models are the ones that drift; Private Cloud holds the
     // language, so the failure says where an answer can come from.
-    return backendType === 'local' ? languageDefinition(err.targetLanguage).localAnswerFailure : err.message;
+    return { content: backendType === 'local' ? languageDefinition(err.targetLanguage).localAnswerFailure : err.message };
   }
-  if (err instanceof VeniceAPIError) {
-    if (err.code === 'account_required') {
-      return 'Private Cloud could not restore its session. Try again.';
-    }
-    if (err.code === 'too_many_new_installations') {
-      // The server's own words, which say what happened and what to do; the
-      // local model is the way to keep going today.
-      return `${err.message} Alice Local is still available.`;
-    }
-    if (err.code === 'free_quota_exhausted') {
-      return 'You have used your 21 free Private Cloud requests. Alice Local is still available.';
-    }
-    if (err.code === 'plan_quota_exhausted') {
-      // Says what actually happens next, because on a paid plan the allowance
-      // returns on its own and most people should simply wait rather than buy.
-      return 'This month\'s Private Cloud allowance is used up. It renews on its own,'
-        + ' and Alice Local is still available in the meantime.';
-    }
-    if (err.code === 'plan_restricted') {
-      return 'This Private Cloud model is not included in your current plan.';
-    }
-    if (err.code === 'missing_api_key') {
-      return 'Private Cloud is not configured yet. Add a Venice API key to use cloud answers.';
-    }
-    if (err.code === 'auth') {
-      return 'The Venice API key was rejected. Check that the key is valid and still active, then try again.';
-    }
-    if (err.code === 'insufficient_credits') {
-      return 'Venice credits are exhausted. Add credits to the Venice account, then try again.';
-    }
-    if (err.code === 'model_unavailable') {
-      return 'The selected Venice model is unavailable right now. Try another cloud model or try again later.';
-    }
-    if (err.code === 'rate_limit') {
-      return 'Too many requests to Venice right now. Wait a moment, then try again.';
-    }
-    if (err.code === 'provider_unavailable') {
-      return 'Venice is having trouble on their side. Try again in a few minutes.';
-    }
-    if (err.code === 'attestation_unavailable') {
-      return 'Private Cloud security verification is temporarily unavailable. Try again shortly.';
-    }
-    if (err.code === 'attestation_blocked') {
-      // Deliberately not "try again shortly": the request did not complete, so
-      // either this device cannot reach the service, or something on the way is
-      // stopping it. Repeating it changes nothing until that does.
-      return 'Alice could not reach the Private Cloud security check from this device,'
-        + ' so nothing was sent. Check your connection, or any VPN, firewall or'
-        + ' blocker in the way. Alice Local still works offline.';
-    }
-    if (err.code === 'attestation_invalid') {
-      return 'Private Cloud security verification failed. For your privacy, Alice did not send your message.';
-    }
-    if (err.code === 'request_too_large') {
-      return 'This message is too long for Private Cloud, with the instructions Alice adds to it.'
-        + ' Nothing was sent and nothing was cut. Shorten your message or the pasted text, then try again.';
-    }
-    if (err.code === 'network') {
-      return 'Network error. Check your connection and try again.';
-    }
-    return err.status
-      ? `Venice API error ${err.status}. Try again later.`
-      : 'Venice API error. Try again later.';
-  }
-
-  if (backendType === 'cloud' && err instanceof TypeError) {
-    return 'Network error. Check your connection and try again.';
-  }
-
-  if (backendType === 'cloud') {
-    return 'Private Cloud connection error. Try again later.';
-  }
-
-  if (backendType === 'local') {
-    const message = err instanceof Error ? err.message.toLowerCase() : '';
-    if (message.includes('context is full') || message.includes('prompt is too long')) {
-      return 'Alice Local ran out of context. Start a new conversation or shorten your message. Nothing was sent to the cloud.';
-    }
-    if (message.includes('model not loaded') || message.includes('no local model installed')) {
-      return 'The local model is not ready. Open AI settings and select an installed model. Nothing was sent to the cloud.';
-    }
-    return 'Alice Local could not generate a response. Nothing was sent to the cloud.';
-  }
-
-  return 'Connection error.';
+  const sendError = describeSendError(err, backendType);
+  return { content: SEND_ERROR_TEXT[sendError.kind], sendError };
 }
 
 export type MessageVariant = {
@@ -283,6 +189,12 @@ export type ChatMsg = {
    * available: the reply offers to ask the same question there.
    */
   cloudRetry?: boolean;
+  /**
+   * This reply is a failed send. The interface shows the case in its own
+   * language and keeps the technical line behind the message menu; `content`
+   * holds the English sentence for everything else.
+   */
+  sendError?: SendError;
 };
 
 type ChatContextValue = {
@@ -859,15 +771,16 @@ export function ChatProvider({
       logLanguageFailure(err, backendType, turnLanguage);
       const cloudRetry = canRetryOnPrivateCloud(err) || undefined;
       setMessages(prev => {
-        const content = userFacingSendError(err, backendType);
+        const { content, sendError } = failedSend(err, backendType);
         const quotaBlocked = quotaBlockOf(err) ?? undefined;
         const next = pendingAssistantId
-          ? prev.map(message => message.id === pendingAssistantId ? { ...message, content, quotaBlocked, cloudRetry } : message)
+          ? prev.map(message => message.id === pendingAssistantId ? { ...message, content, sendError, quotaBlocked, cloudRetry } : message)
           : [...prev, {
             id: (Date.now() + 2).toString(),
             role: 'assistant' as const,
             content,
             time: new Date(),
+            sendError,
             quotaBlocked,
             cloudRetry,
           }];
@@ -1044,7 +957,7 @@ export function ChatProvider({
             if (m.id !== assistantMsg.id) return m;
             const vs = [...(m.variants ?? [])];
             vs[newAIdx] = { content: full, time: new Date(), usage: result.usage, durationMs: result.durationMs };
-            return { ...m, content: full, variants: vs, activeVariant: newAIdx, usage: result.usage, durationMs: result.durationMs, truncated: result.truncated && !buffered, language, cloudRetry: undefined };
+            return { ...m, content: full, variants: vs, activeVariant: newAIdx, usage: result.usage, durationMs: result.durationMs, truncated: result.truncated && !buffered, language, cloudRetry: undefined, sendError: undefined };
           });
           persistSessionMessages(next);
           return next;
@@ -1093,18 +1006,18 @@ export function ChatProvider({
       setLastRequestFailed(true);
       logLanguageFailure(err, backendType, turnLanguage);
       if (pendingAssistantId) {
-        const errorMessage = userFacingSendError(err, backendType);
+        const { content: errorMessage, sendError } = failedSend(err, backendType);
         const quotaBlocked = quotaBlockOf(err) ?? undefined;
         const cloudRetry = canRetryOnPrivateCloud(err) || undefined;
         setMessages(p => {
           const next = p.map(message => {
             if (message.id !== pendingAssistantId) return message;
             if (!message.variants || message.activeVariant == null) {
-              return { ...message, content: errorMessage, quotaBlocked, cloudRetry };
+              return { ...message, content: errorMessage, sendError, quotaBlocked, cloudRetry };
             }
             const variants = [...message.variants];
             variants[message.activeVariant] = { ...variants[message.activeVariant], content: errorMessage };
-            return { ...message, content: errorMessage, variants, quotaBlocked, cloudRetry };
+            return { ...message, content: errorMessage, sendError, variants, quotaBlocked, cloudRetry };
           });
           persistSessionMessages(next);
           return next;

@@ -5,8 +5,8 @@ import type { DictionaryDefinition, DictionaryIndex } from '@alice-wallet/alice-
 import { SvgIcon } from '@/components/SvgIcon';
 import { NEXT_ICON } from '@/lib/atelier-icons';
 import { requestLearnAsk } from '@/lib/learn/ask';
-import { definitionExcerpt } from '@/lib/learn/dictionary';
-import { fetchDefinition, fetchDictionaryIndex } from '@/lib/learn/dictionary-packs';
+import { definitionExcerpt, letterOfSlug, otherLanguageName } from '@/lib/learn/dictionary';
+import { dictionaryLanguage, dictionaryWorkName, fetchDefinition, fetchDictionaryIndex, type DictionaryLang } from '@/lib/learn/dictionary-packs';
 import type { LearnLang } from '@/lib/learn/language';
 import type { LearnView } from '@/lib/learn/route';
 import { DictionaryAttribution } from './LearnDictionary';
@@ -15,18 +15,18 @@ import { useLearnT } from './learn-locale';
 
 // One definition of the Dictionnaire de Bitcoin, read like a tutorial page:
 // the term, its equivalent in the other language when the dictionary gives
-// one, the author's text, the terms it points to, and a way to ask Alice about
-// it with the definition attached.
+// one, the author's text or its translation, the terms it points to, and a way
+// to ask Alice about it with the definition attached.
 
-const ui = (lang: string): 'fr' | 'en' => (lang === 'fr' ? 'fr' : 'en');
-
-export function definitionAskRequest(definition: DictionaryDefinition, lang: 'fr' | 'en') {
+// A French reading language always reads the French pack, so only the English
+// sentence has a translation to name.
+export function definitionAskRequest(definition: DictionaryDefinition, lang: 'fr' | 'en', pack: DictionaryLang) {
   const excerpt = definitionExcerpt(definition.body, 900);
   return {
     label: `${lang === 'fr' ? 'DÉFINITION' : 'DEFINITION'} · ${definition.title}`,
     text: lang === 'fr'
       ? `Contexte : je lis la définition « ${definition.title} » du Dictionnaire de Bitcoin de Loïc Pandul : « ${excerpt} » `
-      : `Context: I am reading the definition "${definition.title}" in the Dictionnaire de Bitcoin by Loïc Pandul: "${excerpt}" `,
+      : `Context: I am reading the definition "${definition.title}" in ${dictionaryWorkName(pack)}: "${excerpt}" `,
     draft: lang === 'fr' ? `Explique-moi « ${definition.title} » plus simplement.` : `Explain "${definition.title}" more simply, in English.`,
   };
 }
@@ -44,22 +44,24 @@ export function LearnDefinition({
   const [index, setIndex] = useState<DictionaryIndex | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
   const t = useLearnT(lang);
-  const text = ui(lang);
+  const text = t.locale;
+  const pack = dictionaryLanguage(t.locale);
 
   useEffect(() => {
     let cancelled = false;
     setDefinition(null);
+    setIndex(null);
     setState('loading');
-    fetchDefinition(slug)
-      .then((found) => {
+    Promise.all([fetchDefinition(slug, pack), fetchDictionaryIndex(pack)])
+      .then(([found, loaded]) => {
         if (cancelled) return;
         setDefinition(found);
+        setIndex(loaded);
         setState(found ? 'ready' : 'missing');
       })
       .catch(() => { if (!cancelled) setState('error'); });
-    fetchDictionaryIndex().then((loaded) => { if (!cancelled) setIndex(loaded); }).catch(() => {});
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [slug, pack]);
 
   const frame: React.CSSProperties = { width: 'min(100% - 32px, 760px)', margin: '0 auto', padding: '24px 0 72px', color: 'var(--alice-text)' };
 
@@ -85,12 +87,13 @@ export function LearnDefinition({
     );
   }
 
-  const equivalent = definition.english
-    ? t('learn.definition.inEnglish', { term: definition.english })
-    : definition.french
-      ? t('learn.definition.inFrench', { term: definition.french })
-      : null;
-  const sourceUrl = index ? `${index.source.definitionsBase}/${definition.letter}/${definition.slug}/definition.md` : undefined;
+  const other = otherLanguageName(definition, pack);
+  const equivalent = other
+    ? t(other.lang === 'en' ? 'learn.definition.inEnglish' : 'learn.definition.inFrench', { term: other.name })
+    : null;
+  // The original sits in the French repository's folder of the slug's letter,
+  // whatever letter the translated title starts with.
+  const sourceUrl = index ? `${index.source.definitionsBase}/${letterOfSlug(definition.slug)}/${definition.slug}/definition.md` : undefined;
 
   return (
     <div style={frame}>
@@ -122,7 +125,7 @@ export function LearnDefinition({
 
       <div style={{ marginTop: 28 }}>
         <button
-          onClick={() => requestLearnAsk(definitionAskRequest(definition, text))}
+          onClick={() => requestLearnAsk(definitionAskRequest(definition, text, pack))}
           className="alice-control"
           style={{ padding: '10px 14px' }}
         >

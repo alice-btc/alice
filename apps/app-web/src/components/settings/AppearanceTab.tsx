@@ -1,11 +1,22 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { PALETTES, ALL_PALETTE_IDS } from '@alice-wallet/alice-content';
+import { PALETTES, ALL_PALETTE_IDS, type PaletteId } from '@alice-wallet/alice-content';
 import { SvgIcon } from '@/components/SvgIcon';
 import { CHECK_ICON } from '@/lib/atelier-icons';
 import { applyWebTheme, readAppearance } from '@/lib/theme-init';
-import { useT } from '@/i18n';
+import { useT, type MessageKey } from '@/i18n';
+
+const PALETTE_NAME_KEYS: Record<PaletteId, MessageKey> = {
+  blue: 'settings.appearance.paletteName.blue',
+  green: 'settings.appearance.paletteName.green',
+  coral: 'settings.appearance.paletteName.coral',
+  red: 'settings.appearance.paletteName.red',
+  flame: 'settings.appearance.paletteName.flame',
+  indigo: 'settings.appearance.paletteName.indigo',
+  bitcoin: 'settings.appearance.paletteName.bitcoin',
+  mono: 'settings.appearance.paletteName.mono',
+};
 
 export function AppearanceTab() {
   const t = useT();
@@ -31,7 +42,7 @@ export function AppearanceTab() {
           {ALL_PALETTE_IDS.map(palette => (
             <button className="alice-control alice-control--choice font-numbers" key={palette} aria-pressed={appearance.palette === palette} onClick={() => setAppearance(a => ({ ...a, palette }))}>
               <span aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0, background: PALETTES[palette][appearance.mode].primary }} />
-              {PALETTES[palette].label}
+              {t(PALETTE_NAME_KEYS[palette])}
               {appearance.palette === palette && <SvgIcon svg={CHECK_ICON} size={16} color="currentColor" />}
             </button>
           ))}

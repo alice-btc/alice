@@ -36,6 +36,7 @@ export type CommonCopy = {
     privacy: string;
     memory: string;
     credits: string;
+    about: string;
     disclaimer: string;
     badge: string;
     contact: string;
@@ -138,6 +139,7 @@ const en: CommonCopy = {
     privacy: 'Privacy',
     memory: 'Memory',
     credits: 'Credits',
+    about: 'About',
     disclaimer:
       'Alice is educational software, not financial advice. Bitcoin involves risk; you are responsible for your own keys and funds.',
     badge: 'No tracking · No cookies',
@@ -255,6 +257,7 @@ const fr: CommonCopy = {
     privacy: 'Confidentialité',
     memory: 'Mémoire',
     credits: 'Crédits',
+    about: 'À propos',
     disclaimer:
       'Alice est un logiciel éducatif, pas un conseil financier. Bitcoin comporte des risques ; vous êtes responsable de vos propres clés et de vos fonds.',
     badge: 'Ni pistage, ni cookie',

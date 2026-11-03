@@ -73,7 +73,13 @@ ALLOWED_ORIGINS = "https://alicebtc.com,https://app.alicebtc.com,https://wallet.
 AUTH_EMAIL_FROM = "login@auth.alicebtc.com"
 AUTH_EMAIL_PROVIDER = "resend"
 FREE_CLOUD_MODELS = "e2ee-gpt-oss-120b-p"
-FREE_CLOUD_MAX_TOKENS = "2048"
+# Answer budget of a free request, reasoning included: Venice counts the
+# tokens gpt-oss spends thinking against max_tokens, and reports 'length'
+# when the cap is hit. At 2048 answers were cut mid-sentence after the
+# thinking had taken its share. 4096 is what the app's default preset asks
+# for; at 0.65 USD per million output tokens the worst case is 0.27 cents a
+# request, 5.6 cents for the 21 requests of one installation.
+FREE_CLOUD_MAX_TOKENS = "4096"
 FREE_CLOUD_MAX_REQUEST_BYTES = "262144"
 
 # What a paid plan may reach. Deep Research is the one model gated by plan

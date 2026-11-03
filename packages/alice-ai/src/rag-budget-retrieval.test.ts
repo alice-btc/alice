@@ -217,8 +217,8 @@ test('fee economics, tiny-output spending and multisig backup keep their evidenc
   const questions = [
     ['en', 'Does sending a larger amount of bitcoin cost more in fees?', 'transaction-fees'],
     ['fr', 'Envoyer un montant plus important en bitcoin coûte-t-il plus cher en frais ?', 'transaction-fees'],
-    ['en', 'Why do wallets sometimes refuse to spend very small amounts of bitcoin?', 'coin-selection-tradeoffs'],
-    ['fr', 'Pourquoi certains portefeuilles refusent-ils de dépenser de très petits montants en bitcoin ?', 'coin-selection-tradeoffs'],
+    ['en', 'Why do wallets sometimes refuse to spend very small amounts of bitcoin?', 'dust'],
+    ['fr', 'Pourquoi certains portefeuilles refusent-ils de dépenser de très petits montants en bitcoin ?', 'dust'],
     ['en', 'How should I think about backups when using a multisig Bitcoin wallet?', 'multisig'],
     ['fr', 'Comment dois-je penser aux sauvegardes lorsque j’utilise un portefeuille Bitcoin multisig ?', 'multisig'],
   ];
@@ -231,9 +231,8 @@ test('fee economics, tiny-output spending and multisig backup keep their evidenc
     try {
       for (const [language, query, concept] of questions) for (const local of [true, false]) {
         const ids = await retrieve(query, local, language);
-        const accepted = concept === 'coin-selection-tradeoffs' ? ['bitcoin-utxo', 'coin-selection-tradeoffs'] : [concept];
-        assert.ok(accepted.includes(ids[0]), `${query}, local=${local}: ${ids}`);
-        if (concept === 'coin-selection-tradeoffs' || concept === 'multisig') assert.equal(ids.length, 1);
+        assert.equal(ids[0], concept, `${query}, local=${local}: ${ids}`);
+        if (concept === 'dust' || concept === 'multisig') assert.equal(ids.length, 1);
       }
     } finally { runtime.setEvaluationSemanticMatcher(null); }
   }
@@ -285,8 +284,11 @@ test('the acceptance subjects the lexical path used to miss reach their notes fr
     ['Je n\'ai qu\'un portable avec 100 Go de libre. Puis-je quand même vérifier Bitcoin moi-même ?', 'fr', ['pruned-node', 'bitcoin-node']],
     ['My wallet did not mark the transaction as replaceable. Does that mean nobody can replace it?', 'en', ['replace-by-fee']],
     ['Mon portefeuille n\'a pas marqué la transaction comme remplaçable. Personne ne peut donc la remplacer ?', 'fr', ['replace-by-fee']],
-    ['Someone sent me 300 sats. Why does my wallet say it may be uneconomic to spend?', 'en', ['bitcoin-utxo', 'coin-selection-tradeoffs']],
-    ['Quelqu\'un m\'a envoyé 300 sats. Pourquoi mon portefeuille dit-il que ce serait non rentable à dépenser ?', 'fr', ['bitcoin-utxo', 'coin-selection-tradeoffs']],
+    ['Someone sent me 300 sats. Why does my wallet say it may be uneconomic to spend?', 'en', ['dust']],
+    ['Quelqu\'un m\'a envoyé 300 sats. Pourquoi mon portefeuille dit-il que ce serait non rentable à dépenser ?', 'fr', ['dust']],
+    // fr-a03 reached the Ark exit note through "entrer" on 2026-11-02; the waiting transaction is the queue.
+    ['Where does my transaction wait before it gets into a block?', 'en', ['bitcoin-mempool']],
+    ['Où attend ma transaction avant d\'entrer dans un bloc ?', 'fr', ['bitcoin-mempool']],
     ['I have 2 of my 3 multisig seeds. Is that enough to recover my coins?', 'en', ['multisig']],
     ['Puis-je annuler un paiement Bitcoin envoyé par erreur ?', 'fr', ['replace-by-fee', 'bitcoin-finality']],
   ] as const) {

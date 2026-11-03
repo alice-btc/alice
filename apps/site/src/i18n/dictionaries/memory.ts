@@ -47,7 +47,7 @@ const en: MemoryCopy = {
       'She may misread a sentence and keep something she should not have kept, and the filters described here can miss a case they did not anticipate. They are a safeguard, not a guarantee. Do not fully trust what is shown as remembered or as forgotten. The real protection is to give Alice only the minimum your question needs, and never an address, a key, a recovery phrase, an amount or anything that identifies you. What you type in the conversation remains your responsibility.',
     intro: [
       'Alice keeps two memories, both on your device. The personal memory holds short facts you said about yourself: a preference for short answers, the hardware you use, a project you are building, a constraint to keep in mind, or a sentence you asked her to keep. The learning profile holds how familiar you are with fourteen Bitcoin concepts, so she can pick the right vocabulary and depth. Neither is stored on our servers, and neither is a source of truth for Alice: they only change how she answers, never what she holds to be true.',
-      'This page describes what the code does today, in Alice App 0.2.7 on the web and on desktop. The parts that are decided and not yet in the app are listed at the end, under “Coming”, and nowhere else.',
+      'This page describes what the code does today, in Alice App 0.2.8 on the web and on desktop. The parts that are decided and not yet in the app are listed at the end, under “Coming”, and nowhere else.',
     ],
     capture: {
       heading: 'What Alice remembers, and how',
@@ -191,7 +191,7 @@ const fr: MemoryCopy = {
       'Elle peut mal comprendre une phrase et retenir quelque chose qu’elle n’aurait pas dû retenir, et les filtres décrits ici peuvent laisser passer un cas qu’ils n’ont pas prévu. Ils sont un garde-fou, pas une garantie. Ne faites pas entièrement confiance à ce qui est affiché comme retenu ou comme oublié. La vraie protection, c’est de ne donner à Alice que le minimum dont votre question a besoin, et jamais une adresse, une clé, une phrase de récupération (seed phrase), un montant ou quoi que ce soit qui vous identifie. Ce que vous écrivez dans la conversation reste sous votre responsabilité.',
     intro: [
       'Alice tient 2 mémoires, l’une et l’autre sur votre appareil. La mémoire personnelle garde de courts faits que vous avez dits sur vous : une préférence pour des réponses courtes, le matériel que vous utilisez, un projet que vous construisez, une contrainte à garder en tête, ou une phrase que vous lui avez demandé de retenir. Le profil d’apprentissage garde votre degré de familiarité avec 14 notions Bitcoin, pour qu’elle choisisse le bon vocabulaire et la bonne profondeur. Aucune des deux n’est stockée sur nos serveurs, et aucune n’est une source de vérité pour Alice : elles changent seulement sa façon de répondre, jamais ce qu’elle tient pour vrai.',
-      'Cette page décrit ce que fait le code aujourd’hui, dans Alice App 0.2.7 sur le web et sur le bureau. Les éléments décidés mais pas encore dans l’app sont listés à la fin, sous « À venir », et nulle part ailleurs.',
+      'Cette page décrit ce que fait le code aujourd’hui, dans Alice App 0.2.8 sur le web et sur le bureau. Les éléments décidés mais pas encore dans l’app sont listés à la fin, sous « À venir », et nulle part ailleurs.',
     ],
     capture: {
       heading: 'Ce qu’Alice retient, et comment',

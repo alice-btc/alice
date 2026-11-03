@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isExpectedModelFileSize } from './model-file-validation';
 import type { ResponseLanguagePreference } from './language-policy';
 import { isSupportedLanguage, languageFromLocale, type SupportedLanguage } from './languages';
-import { isAllowedModelDownloadUrl, modelDownloadRefusal, parseStoredCustomModels, type LocalModelEntry, type LocalModelSource } from './local-model-registry';
+import { LocalModelError, isAllowedModelDownloadUrl, modelDownloadRefusal, parseStoredCustomModels, type LocalModelEntry, type LocalModelSource } from './local-model-registry';
 
 export type AIPreset = 'fast' | 'balanced' | 'deep';
 /** Ids of the default catalog; a legacy or custom entry carries any other string. */
@@ -268,16 +268,20 @@ export async function setAliceInstructions(instructions: string): Promise<void> 
   }
 }
 
-/** Nothing stored means 'app': answer in the app language. */
+/**
+ * Nothing stored means 'auto': answer in the language the user writes in.
+ * Until 0.2.8 the default was 'app' and was never stored, so an install that
+ * never touched this setting moves to Auto with the update.
+ */
 export async function getResponseLanguagePreference(): Promise<ResponseLanguagePreference> {
   const stored = await AsyncStorage.getItem(RESPONSE_LANGUAGE_KEY);
-  if (stored === 'auto' || isSupportedLanguage(stored)) return stored;
-  return 'app';
+  if (stored === 'app' || stored === 'auto' || isSupportedLanguage(stored)) return stored;
+  return 'auto';
 }
 
+/** Every choice is stored, 'app' included, so it outlives a change of default. */
 export async function setResponseLanguagePreference(preference: ResponseLanguagePreference): Promise<void> {
-  if (preference === 'app') await AsyncStorage.removeItem(RESPONSE_LANGUAGE_KEY);
-  else await AsyncStorage.setItem(RESPONSE_LANGUAGE_KEY, preference);
+  await AsyncStorage.setItem(RESPONSE_LANGUAGE_KEY, preference);
   notifyLanguagePreferences();
 }
 
@@ -342,9 +346,9 @@ async function saveCustomModels(entries: ModelEntry[]): Promise<void> {
 
 /** Registers a user-chosen Hugging Face file; the download is a separate step. */
 export async function addCustomModel(entry: ModelEntry): Promise<void> {
-  if (entry.source !== 'custom' || !isAllowedModelDownloadUrl(entry.url)) throw new Error('Only Hugging Face gguf files can be added.');
+  if (entry.source !== 'custom' || !isAllowedModelDownloadUrl(entry.url)) throw new LocalModelError('not_huggingface', 'Only Hugging Face gguf files can be added.');
   if (MODEL_CATALOG.some(m => m.id === entry.id || m.filename === entry.filename) || LEGACY_MODELS.some(m => m.filename === entry.filename)) {
-    throw new Error('This model is already in the catalog.');
+    throw new LocalModelError('already_in_catalog', 'This model is already in the catalog.');
   }
   const current = (await getCustomModels()).filter(m => m.id !== entry.id && m.filename !== entry.filename);
   await saveCustomModels([...current, entry]);

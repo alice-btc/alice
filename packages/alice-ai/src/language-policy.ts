@@ -6,8 +6,8 @@ import {
 
 export type { SupportedLanguage } from './languages.ts';
 /**
- * 'app' (the default, nothing stored) answers in the app language; 'auto'
- * follows the conversation, for bilingual users; a language code pins it.
+ * 'auto' (the default, nothing stored) follows the language the user writes
+ * in; 'app' answers in the app language; a language code pins it.
  */
 export type ResponseLanguagePreference = 'app' | 'auto' | SupportedLanguage;
 export type LanguageDecisionSource = 'explicit' | 'preference' | 'app' | 'message' | 'history' | 'interface';
@@ -120,11 +120,12 @@ export function dominantHistoryLanguage(
 }
 
 /**
- * The language of the next answer. Alice answers in the app language; the
- * exceptions are voluntary: an explicit request in the message, a pinned
- * response language (or a per-conversation override passed as the
- * preference), and the opt-in Auto mode, which reads the current message,
- * then the recent user turns, then the interface locale.
+ * The language of the next answer. An explicit request in the message wins,
+ * then a pinned response language (or a per-conversation override passed as
+ * the preference). By default, Auto reads the current message, then the
+ * recent user turns, and falls back to the app language when neither is
+ * conclusive, so "Thanks" or "Ark?" never switch the answer on their own.
+ * 'app' answers in the app language whatever the message looks like.
  */
 export function resolveResponseLanguage(input: {
   message: string;
@@ -138,7 +139,7 @@ export function resolveResponseLanguage(input: {
   const explicit = detectExplicitResponseLanguage(input.message);
   if (explicit) return { targetLanguage: explicit, source: 'explicit', confidence: 1 };
 
-  const preference = input.preference ?? 'app';
+  const preference = input.preference ?? 'auto';
   if (preference !== 'app' && preference !== 'auto') {
     return { targetLanguage: preference, source: 'preference', confidence: 1 };
   }
@@ -150,6 +151,7 @@ export function resolveResponseLanguage(input: {
     const dominant = dominantHistoryLanguage(input.history ?? []);
     if (dominant) return { targetLanguage: dominant.language, source: 'history', confidence: dominant.confidence };
 
+    if (input.appLanguage) return { targetLanguage: input.appLanguage, source: 'app', confidence: 0.5 };
     return { targetLanguage: languageFromLocale(input.interfaceLanguage), source: 'interface', confidence: 0.5 };
   }
 

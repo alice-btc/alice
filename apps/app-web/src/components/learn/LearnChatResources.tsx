@@ -1,25 +1,21 @@
 'use client';
 
-import { SvgIcon } from '@/components/SvgIcon';
-import { NEXT_ICON } from '@/lib/atelier-icons';
-
 import { useRouter } from 'next/navigation';
 import type { ChatMsg } from '@alice-wallet/alice-ai';
-import type { LearnExplorerAnchor } from '@alice-wallet/alice-content/src/learn-anchors';
 import { openAnchorFromChat } from '@/lib/learn/explorer-link';
 import { loadProgress, readCount } from '@/lib/learn/progress';
 import { requestPlaygroundView } from '@/lib/playground-open';
 import type { LearnChatResources as Resources } from '@/lib/learn/suggest-catalog';
 import { useT } from '@/i18n';
 import { anchorTypeLabel } from './learn-locale';
+import type { Recommendation } from './RecommendationsMenu';
 
-// The "Pour aller plus loin" block, visually attached to the end of Alice's
-// reply: a hairline, a small label, then one compact row per resource (course
-// or tutorial from the deterministic scorer, verified Explorer anchors from
-// the hand-curated table). The resources are computed by the SEND HANDLER;
-// this component only decides WHEN to show them: after the reply that answers
-// the suggesting message is done.
-export function LearnChatResources({
+// The resources suggested after Alice's reply, as recommendations (course or
+// tutorial from the deterministic scorer, verified Explorer anchors from the
+// hand-curated table). The resources are computed by the SEND HANDLER;
+// this hook only decides WHEN to offer them: after the reply that answers the
+// suggesting message is done, and none otherwise.
+export function useLearnChatResources({
   resources,
   question,
   messages,
@@ -27,115 +23,64 @@ export function LearnChatResources({
   lang,
 }: {
   resources: Resources | null;
-  /** The user message these resources answer; the block only shows while it
-      is still the conversation's latest question (survives remounts). */
+  /** The user message these resources answer; they only show while it is
+      still the conversation's latest question (survives remounts). */
   question: string;
   messages: ChatMsg[];
   busy: boolean;
   lang: 'fr' | 'en';
-}) {
+}): Recommendation[] {
   const router = useRouter();
   const t = useT(lang);
-  if (!resources || busy) return null;
+  if (!resources || busy) return [];
   const { learn, chapter, anchors, playground } = resources;
-  if (!learn && !chapter && anchors.length === 0 && !playground) return null;
   const last = messages[messages.length - 1];
-  if (!last || last.role !== 'assistant' || !last.content.trim()) return null;
+  if (!last || last.role !== 'assistant' || !last.content.trim()) return [];
   const lastUser = [...messages].reverse().find((m) => m.role === 'user');
-  if (!lastUser || lastUser.content.trim() !== question) return null;
+  if (!lastUser || lastUser.content.trim() !== question) return [];
 
-  const started = learn?.kind === 'course' && readCount(loadProgress(), learn.code) > 0;
-
-  return (
-    <div
-      className="flex flex-col"
-      style={{
-        margin: '2px 0 8px',
-        paddingTop: 10,
-        borderTop: '1px solid var(--alice-border)',
-        maxWidth: 480,
-      }}
-    >
-      <span className="font-pixel" style={{ fontSize: 9, letterSpacing: 0, color: 'var(--alice-muted)' }}>
-        {t('learn.resources.title')}
-      </span>
-
-      {learn && (
-        <button
-          onClick={() =>
-            router.push(learn.kind === 'course' ? `/learn/?course=${learn.code}` : `/learn/?tutorial=${learn.code}`)
-          }
-          className="alice-control alice-control--row flex items-center gap-3 text-left"
-          style={{ padding: '8px 2px' }}
-        >
-          <span className="font-numbers shrink-0" style={{ fontSize: 12, color: 'var(--alice-primary)' }}>
-            LEARN
-          </span>
-          <span className="font-numbers min-w-0 truncate" style={{ fontSize: 14 }}>{learn.title}</span>
-          <span className="font-numbers shrink-0" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-            {learn.kind === 'course'
-              ? started
-                ? t('learn.resources.resume', { code: learn.code.toUpperCase() })
-                : learn.code.toUpperCase()
-              : t('learn.resources.tutorial')}
-          </span>
-          <span className="ml-auto"><SvgIcon svg={NEXT_ICON} size={16} /></span>
-        </button>
-      )}
-
-      {chapter && (
-        <button
-          onClick={() => router.push(`/learn/?course=${chapter.courseCode}&chapter=${chapter.chapterId}`)}
-          className="alice-control alice-control--row flex items-center gap-3 text-left"
-          style={{ padding: '8px 2px' }}
-        >
-          <span className="font-numbers shrink-0" style={{ fontSize: 12, color: 'var(--alice-primary)' }}>
-            LEARN
-          </span>
-          <span className="font-numbers min-w-0 truncate" style={{ fontSize: 14 }}>{chapter.title}</span>
-          <span className="font-numbers shrink-0" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-            {chapter.courseCode.toUpperCase()}
-          </span>
-          <span className="ml-auto"><SvgIcon svg={NEXT_ICON} size={16} /></span>
-        </button>
-      )}
-
-      {playground && (
-        <button
-          onClick={() => {
-            requestPlaygroundView(playground);
-            router.push('/playground');
-          }}
-          className="alice-control alice-control--row flex items-center gap-3 text-left"
-          style={{ padding: '8px 2px' }}
-        >
-          <span className="font-numbers shrink-0" style={{ fontSize: 12, color: 'var(--alice-primary)' }}>
-            PLAYGROUND
-          </span>
-          <span className="font-numbers min-w-0 truncate" style={{ fontSize: 14 }}>
-            {t('learn.resources.playground')}
-          </span>
-          <span className="ml-auto"><SvgIcon svg={NEXT_ICON} size={16} /></span>
-        </button>
-      )}
-
-      {anchors.map((anchor: LearnExplorerAnchor) => (
-        <button
-          key={`${anchor.type}:${anchor.id}`}
-          onClick={() => openAnchorFromChat(anchor, lang, (path) => router.push(path))}
-          className="alice-control alice-control--row flex items-center gap-3 text-left"
-          style={{ padding: '8px 2px' }}
-        >
-          <span className="font-numbers shrink-0" style={{ fontSize: 12, color: 'var(--alice-primary)' }}>
-            EXPLORER
-          </span>
-          <span className="font-numbers min-w-0 truncate" style={{ fontSize: 14 }}>{anchor.label[lang]}</span>
-          <span className="font-numbers shrink-0" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-            {anchorTypeLabel(t, anchor)}
-          </span>
-          <span className="ml-auto"><SvgIcon svg={NEXT_ICON} size={16} /></span>
-        </button>
-      ))}
-    </div>
-  );
+  const items: Recommendation[] = [];
+  if (learn) {
+    const code = learn.code.toUpperCase();
+    const path = learn.kind === 'course' ? `/learn/?course=${learn.code}` : `/learn/?tutorial=${learn.code}`;
+    const started = learn.kind === 'course' && readCount(loadProgress(), learn.code) > 0;
+    items.push({
+      key: path,
+      kind: learn.kind === 'course' ? 'course' : 'tutorial',
+      title: learn.title,
+      detail: learn.kind === 'course'
+        ? t(started ? 'chat.recommended.resume' : 'chat.recommended.course', { code })
+        : t('chat.recommended.tutorial'),
+      open: () => router.push(path),
+    });
+  }
+  if (chapter) {
+    const path = `/learn/?course=${chapter.courseCode}&chapter=${chapter.chapterId}`;
+    items.push({
+      key: path,
+      kind: 'chapter',
+      title: chapter.title,
+      detail: t('chat.recommended.chapter', { code: chapter.courseCode.toUpperCase() }),
+      open: () => router.push(path),
+    });
+  }
+  if (playground) {
+    items.push({
+      key: 'playground',
+      kind: 'playground',
+      title: t('learn.resources.playground'),
+      detail: t('chat.recommended.playground'),
+      open: () => { requestPlaygroundView(playground); router.push('/playground'); },
+    });
+  }
+  for (const anchor of anchors) {
+    items.push({
+      key: `${anchor.type}:${anchor.id}`,
+      kind: 'explorer',
+      title: anchor.label[lang],
+      detail: `${t('chat.recommended.explorer')} · ${anchorTypeLabel(t, anchor)}`,
+      open: () => openAnchorFromChat(anchor, lang, (path) => router.push(path)),
+    });
+  }
+  return items;
 }

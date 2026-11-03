@@ -302,6 +302,47 @@ describe('readEncryptedStream', () => {
     assert.deepEqual(seen, ['first '], 'only the authentic chunk was emitted before the hard stop');
   });
 
+  it('marks an answer cut by the connection: no finish reason, no usage, no [DONE]', async () => {
+    const client = generateEphemeralKeyPair();
+    const stream = sseStream([
+      encryptedFrame(client.publicKey, 'A UTXO is an unspent '),
+      encryptedFrame(client.publicKey, 'transaction out'),
+    ]);
+    const result = await readEncryptedStream(stream, client.secretKey);
+    assert.equal(result.content, 'A UTXO is an unspent transaction out');
+    assert.equal(result.truncated, true);
+  });
+
+  it('trusts an answer that ends on stop, with or without the closing frames', async () => {
+    const client = generateEphemeralKeyPair();
+    const withFrames = await readEncryptedStream(sseStream([
+      encryptedFrame(client.publicKey, 'Done.', { finish_reason: 'stop' }),
+      `data: ${JSON.stringify({ usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 } })}\n`,
+      'data: [DONE]\n',
+    ]), client.secretKey);
+    assert.equal(withFrames.truncated, false);
+    const stopOnly = await readEncryptedStream(sseStream([
+      encryptedFrame(client.publicKey, 'Done.', { finish_reason: 'stop' }),
+    ]), client.secretKey);
+    assert.equal(stopOnly.truncated, false);
+  });
+
+  it('marks a budget cut reported as length on an empty delta', async () => {
+    // Reasoning counts against max_tokens, so the cap can land between two
+    // visible tokens or before the first one. Either way the last frame says
+    // 'length' with nothing left to show.
+    const client = generateEphemeralKeyPair();
+    const stream = sseStream([
+      encryptedFrame(client.publicKey, 'Half a sen'),
+      `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'length' }] })}\n`,
+      `data: ${JSON.stringify({ usage: { prompt_tokens: 10, completion_tokens: 2048, total_tokens: 2058 } })}\n`,
+      'data: [DONE]\n',
+    ]);
+    const result = await readEncryptedStream(stream, client.secretKey);
+    assert.equal(result.content, 'Half a sen');
+    assert.equal(result.truncated, true);
+  });
+
   it('passes usage and [DONE] through without treating them as content', async () => {
     const client = generateEphemeralKeyPair();
     const stream = sseStream([

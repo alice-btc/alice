@@ -125,7 +125,11 @@ async function sendE2EEMessage(
               ? 'account_required'
               : err.code === 'too_many_new_installations'
                 ? 'too_many_new_installations'
-                : 'api_error',
+                // The session request never completed: the chat says the
+                // device is offline, not that an answer could not be read.
+                : err.code === 'network'
+                  ? 'network'
+                  : 'api_error',
             err.message,
             err.status,
           );

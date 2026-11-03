@@ -169,7 +169,8 @@ test('a Learn excerpt is headed by its authors and licences, and the model is as
   );
   const system = result.at(-2)?.content ?? '';
   assert.match(system, /Learn excerpts, quoted from Loïc Pandul, CC BY-NC-SA 4.0 and Plan ₿ Network, CC BY-SA 4.0/);
-  assert.match(system, /end with one short sentence saying which source helped/);
+  assert.match(system, /Do not name or cite it in the answer/);
+  assert.doesNotMatch(system, /which source helped/);
   assert.match(system, /Un UTXO est une sortie non dépensée/);
   // Without sources, the historical Plan B wording stands.
   const legacy = composeGenerationHistory(

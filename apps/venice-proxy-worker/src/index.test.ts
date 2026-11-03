@@ -325,6 +325,17 @@ describe('sanitizeChatBody', () => {
     assert.equal(JSON.parse(body).venice_parameters, undefined);
   });
 
+  it('strips client-controlled reasoning depth', () => {
+    const { body } = sanitizeChatBody(JSON.stringify({
+      ...VALID_BODY,
+      reasoning_effort: 'high',
+      reasoning: { effort: 'high' },
+    }));
+    const sent = JSON.parse(body);
+    assert.equal('reasoning_effort' in sent, false);
+    assert.equal('reasoning' in sent, false);
+  });
+
   it('refuses a non-streaming request', () => {
     assert.throws(() => sanitizeChatBody(JSON.stringify({ ...VALID_BODY, stream: false })), /streaming/i);
     assert.throws(() => sanitizeChatBody(JSON.stringify({ model: 'x', messages: [] })), /streaming/i);
@@ -429,6 +440,32 @@ describe('chat relay', () => {
     // and without it this would wait forever.
     await res.text();
     await Promise.all(backgroundWrites);
+  });
+
+  it('caps a free request at the configured free ceiling', async () => {
+    const calls = stubUpstream(() => new Response('data: {}\n'));
+    await worker.fetch(
+      chatRequest({ ...VALID_BODY, max_tokens: 8192 }),
+      { ...ENV, FREE_CLOUD_MAX_TOKENS: '4096' },
+    );
+    assert.equal(JSON.parse(calls[0].init.body).max_tokens, 4096);
+  });
+
+  it('leaves a free request under the ceiling alone', async () => {
+    const calls = stubUpstream(() => new Response('data: {}\n'));
+    await worker.fetch(
+      chatRequest({ ...VALID_BODY, max_tokens: 1000 }),
+      { ...ENV, FREE_CLOUD_MAX_TOKENS: '4096' },
+    );
+    assert.equal(JSON.parse(calls[0].init.body).max_tokens, 1000);
+  });
+
+  it('falls back to 2048 when the free ceiling is unset or unusable', async () => {
+    for (const env of [ENV, { ...ENV, FREE_CLOUD_MAX_TOKENS: 'lots' }, { ...ENV, FREE_CLOUD_MAX_TOKENS: '0' }]) {
+      const calls = stubUpstream(() => new Response('data: {}\n'));
+      await worker.fetch(chatRequest({ ...VALID_BODY, max_tokens: 8192 }), env);
+      assert.equal(JSON.parse(calls[0].init.body).max_tokens, 2048);
+    }
   });
 
   it('rejects a non-streaming body before contacting Venice', async () => {

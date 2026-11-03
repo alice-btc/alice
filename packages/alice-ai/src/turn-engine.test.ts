@@ -878,6 +878,28 @@ test('a retrieved rule note adds the answer-rules block to the system turn and t
   assert.match(french.history.at(-2)?.content ?? '', /\[Answer rules\]\nLes notes récupérées rendent obligatoires/);
   assert.match(french.history.at(-2)?.content ?? '', /^À ne jamais affirmer :$/m);
 
+  // The Ark note next to a question about something else brings no Ark rule.
+  const mempool = await prepareAliceTurn({
+    history: [{ role: 'user', content: "Où attend ma transaction avant d'entrer dans un bloc ?" }],
+    userMessage: "Où attend ma transaction avant d'entrer dans un bloc ?",
+    backendType: 'cloud',
+    targetLanguage: 'fr',
+  }, withArkNote);
+  assert.deepEqual(mempool.diagnostics.answerRuleNoteIds, []);
+  assert.doesNotMatch(mempool.history.at(-2)?.content ?? '', /\[Answer rules\]/);
+  // A follow-up keeps the subject of the earlier user turn.
+  const followUp = await prepareAliceTurn({
+    history: [
+      { role: 'user', content: 'What can an Ark operator do with my money?' },
+      { role: 'assistant', content: 'It coordinates rounds and can stop cooperating.' },
+      { role: 'user', content: 'And if it disappears tomorrow?' },
+    ],
+    userMessage: 'And if it disappears tomorrow?',
+    backendType: 'local',
+    targetLanguage: 'en',
+  }, withArkNote);
+  assert.deepEqual(followUp.diagnostics.answerRuleNoteIds, ['asp-operator']);
+
   // A note without rules adds nothing.
   const plain = await prepareAliceTurn({
     history: [{ role: 'user', content: 'What is a block?' }],

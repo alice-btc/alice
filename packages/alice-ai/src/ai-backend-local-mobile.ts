@@ -5,6 +5,7 @@
 // the same commands as the desktop (ai-backend-local-desktop.ts).
 
 import type { AIBackend, AIBackendStatus, AIResponse, SendMessageOptions } from './ai-backend';
+import { AIBackendError } from './backend-error';
 import type { Message } from './llm';
 import { getActiveModelId, getModelEntry } from './ai-preferences';
 import { applyAliceResponseConstraints } from './ai-system-prompt';
@@ -76,7 +77,7 @@ export class LocalMobileAIBackend implements AIBackend {
   }
 
   async sendMessage(messages: Message[], onChunk?: (chunk: string) => void, options?: SendMessageOptions): Promise<AIResponse> {
-    if (this._status.state !== 'ready') throw new Error('Local AI is not ready.');
+    if (this._status.state !== 'ready') throw new AIBackendError('local_not_ready', 'Local AI is not ready.');
     const prepared = await prepareLocalRequest(messages, options, LOCAL_CONTEXT_TOKENS, 'condensed');
     const streamFn = prepared.buffered ? undefined : onChunk;
     const onPiece = createTauriChannel<string>(piece => { streamFn?.(piece); });

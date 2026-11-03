@@ -16,7 +16,6 @@ import {
   listKnownLocalModels,
   DEFAULT_LOCAL_MODEL_ID,
   type ModelEntry,
-  formatSize,
   getActiveCloudModelId,
   getActiveModelId,
   getCustomServer,
@@ -28,6 +27,7 @@ import {
   setPreset,
 } from '@alice-wallet/alice-ai';
 import { useT, type MessageKey } from '@/i18n';
+import { formatModelSize } from '@/lib/format-size';
 
 const REASONING_LABELS: Record<AIPreset, MessageKey> = {
   fast: 'models.reasoning.fast',
@@ -278,7 +278,7 @@ export function ModelSelector({
             <MenuItem
               key={model.id}
               label={model.name}
-              detail={formatSize(model.sizeBytes)}
+              detail={formatModelSize(model.sizeBytes, t.locale)}
               active={backendType === 'local' && model.id === activeLocalModelId}
               onClick={() => handleLocalModel(model.id)}
             />
@@ -315,7 +315,7 @@ export function ModelSelector({
             <MenuItem
               key={model.id}
               label="Private"
-              detail={model.description}
+              detail={t('models.cloud.description')}
               active={backendType === 'cloud' && model.id === activeCloudModelId}
               onClick={() => handleCloudModel(model.id)}
             />

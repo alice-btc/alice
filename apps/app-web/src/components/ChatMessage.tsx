@@ -1,18 +1,23 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import { SvgIcon } from '@/components/SvgIcon';
-import { COPY_ICON, CHECK_ICON, EDIT_ICON, DELETE_ICON, CHEVRON_LEFT_ICON, CHEVRON_RIGHT_ICON } from '@/lib/atelier-icons';
+import { COPY_ICON, CHECK_ICON, EDIT_ICON, DELETE_ICON, CHEVRON_LEFT_ICON, CHEVRON_RIGHT_ICON, MORE_ICON } from '@/lib/atelier-icons';
 import { AliceIcon } from '@/components/AliceIcon';
 import { splitAskAliceMessage, type MessageAttachment } from '@/lib/explorer/ask-alice';
 import { useOpenSettings } from '@/lib/settings-url';
 import { useRouter } from 'next/navigation';
-import { useChat } from '@alice-wallet/alice-ai';
+import { detectTextLanguage, useChat } from '@alice-wallet/alice-ai';
 import { relativeTime, type RelativeTimeLang } from '@/lib/relative-time';
-import type { TokenUsage, MessageVariant, LearnSource } from '@alice-wallet/alice-ai';
-import { NEXT_ICON } from '@/lib/atelier-icons';
+import type { TokenUsage, MessageVariant, LearnSource, SendError } from '@alice-wallet/alice-ai';
 import { useT, type Translator } from '@/i18n';
 import { sellsPlans } from '@/lib/store-rules';
+import { DefinitionPeek } from '@/components/learn/DefinitionPeek';
+import { RecommendationsMenu, uniqueRecommendations, type Recommendation } from '@/components/learn/RecommendationsMenu';
+import { dictionaryLanguage } from '@/lib/learn/dictionary-packs';
+import { chooseLinkedTerms, linkTerms, type TermMatcher } from '@/lib/learn/term-links';
+import { useTermMatcher } from '@/lib/learn/use-term-links';
+import { useDismiss } from '@/lib/use-dismiss';
 
 interface ChatMessageProps {
   /** Panel mode (the Explorer sidebar): no left avatar (narrow column), a
@@ -29,6 +34,10 @@ interface ChatMessageProps {
   /** Language of the surface the chat sits in (Learn's course language);
       the app language otherwise. */
   lang?: RelativeTimeLang;
+  /** Resources suggested after the reply, offered with the courses it drew
+      on behind the reply's "recommended" button: the main chat passes them
+      for its last reply. */
+  recommended?: Recommendation[];
   message: {
     id: string;
     role: 'user' | 'assistant' | 'system';
@@ -42,42 +51,32 @@ interface ChatMessageProps {
     quotaBlocked?: 'free' | 'plan';
     sources?: LearnSource[];
     cloudRetry?: boolean;
+    sendError?: SendError;
   };
 }
 
-// What a reply drew on, named under it with a way to open it: the chapter,
-// tutorial or dictionary definition that was quoted in the model's context.
-// Deterministic, from the turn itself, never from what the model claims; the
-// source page carries the author, the licence and the link to the original.
-function SourcesNotice({ sources, t }: { sources: LearnSource[]; t: Translator }) {
-  const router = useRouter();
-  const tag = (source: LearnSource) => (source.kind === 'definition' ? t('chat.sources.dictionary') : source.kind === 'tutorial' ? t('chat.sources.tutorial') : 'LEARN');
-  return (
-    <div className="flex flex-col" style={{ margin: '10px 0 2px', paddingTop: 8, borderTop: '1px solid var(--alice-border)', maxWidth: 480 }} aria-label={t('chat.sources.label')}>
-      <span className="font-pixel" style={{ fontSize: 9, letterSpacing: 0, color: 'var(--alice-muted)' }}>{t('chat.sources.heading')}</span>
-      {sources.map((source) => (
-        <button
-          key={`${source.kind}:${source.path}`}
-          type="button"
-          onClick={() => router.push(source.path)}
-          className="alice-control alice-control--row flex items-center gap-3 text-left"
-          style={{ padding: '6px 2px' }}
-          title={source.attribution}
-        >
-          <span className="font-numbers shrink-0" style={{ fontSize: 12, color: 'var(--alice-primary)' }}>{tag(source)}</span>
-          <span className="font-numbers min-w-0 truncate" style={{ fontSize: 14 }}>{source.label}</span>
-          <span className="font-numbers shrink-0 hidden sm:inline" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>{source.attribution}</span>
-          <span className="ml-auto"><SvgIcon svg={NEXT_ICON} size={16} /></span>
-        </button>
-      ))}
-    </div>
-  );
+// A course or tutorial the reply drew on, offered as a recommendation.
+// A dictionary definition is not: its term is a link inside the reply.
+function sourceRecommendation(source: LearnSource, t: Translator, open: (path: string) => void): Recommendation {
+  if (source.kind === 'tutorial') {
+    return { key: source.path, kind: 'tutorial', title: source.label, detail: t('chat.recommended.tutorial'), open: () => open(source.path) };
+  }
+  // A course source is labelled "BTC102 · Chapter title".
+  const [code, ...rest] = source.label.split(' · ');
+  const chapter = source.path.includes('chapter=');
+  return {
+    key: source.path,
+    kind: chapter ? 'chapter' : 'course',
+    title: rest.join(' · ') || source.label,
+    detail: t(chapter ? 'chat.recommended.chapter' : 'chat.recommended.course', { code }),
+    open: () => open(source.path),
+  };
 }
 
-function renderInlineMarkdown(text: string): React.ReactNode[] {
+function renderInlineMarkdown(text: string, link?: (plain: string) => ReactNode): React.ReactNode[] {
   return text.split(/(\*\*.+?\*\*|`[^`]+`)/g).map((part, index) => {
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
-      return <strong key={index}>{part.slice(2, -2)}</strong>;
+      return <strong key={index}>{link ? link(part.slice(2, -2)) : part.slice(2, -2)}</strong>;
     }
     if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
       return (
@@ -95,18 +94,58 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
         </code>
       );
     }
-    return <span key={index}>{part}</span>;
+    return <span key={index}>{link ? link(part) : part}</span>;
   });
 }
 
-function ChatMarkdownText({ content, streaming = false }: { content: string; streaming?: boolean }) {
+/** "chemin-de-derivation" from "/learn/?definition=chemin-de-derivation". */
+function definitionSlug(path: string): string | null {
+  return new URLSearchParams(path.split('?')[1] ?? '').get('definition');
+}
+
+interface TermLinks {
+  matcher: TermMatcher;
+  /** The definitions this reply links to (chooseLinkedTerms). */
+  chosen: Set<string>;
+  onOpen: (slug: string) => void;
+}
+
+function ChatMarkdownText({ content, streaming = false, terms }: { content: string; streaming?: boolean; terms?: TermLinks }) {
   const lines = (content || (streaming ? '' : '...')).split('\n');
+  // The text's own language on its element, whenever it is clear: a screen
+  // reader then pronounces an English reply in the French app as English.
+  const lang = useMemo(() => detectTextLanguage(content)?.language, [content]);
+  // Lines render in order, so the set marks each term linked at its first appearance.
+  const linked = new Set<string>();
+  const link = terms ? (plain: string): ReactNode => {
+    const segments = linkTerms(plain, terms.matcher, terms.chosen, linked);
+    if (!segments.some(segment => segment.slug)) return plain;
+    return segments.map((segment, index) => {
+      const slug = segment.slug;
+      if (!slug) return <span key={index}>{segment.text}</span>;
+      return (
+        <a
+          key={index}
+          href={`/learn/?definition=${slug}`}
+          className="alice-term-link"
+          onClick={event => {
+            if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+            event.preventDefault();
+            terms.onOpen(slug);
+          }}
+        >
+          {segment.text}
+        </a>
+      );
+    });
+  } : undefined;
+  const inline = (text: string) => renderInlineMarkdown(text, link);
   // Markdown separators and trailing blank lines have no visible text to follow.
   const lastTextLine = lines.findLastIndex(line => line.trim() && !/^\s*\|[\s:|-]+\|\s*$/.test(line));
   const cursor = streaming ? <span className="stream-cursor" aria-hidden="true" /> : null;
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1" lang={lang}>
       {lines.map((line, index) => {
         const lineCursor = index === lastTextLine ? cursor : null;
         // Headings: models reach for them even when asked not to, so render
@@ -119,7 +158,7 @@ function ChatMarkdownText({ content, streaming = false }: { content: string; str
               className="m-0 mt-2 first:mt-0"
               style={{ fontWeight: 700, fontSize: heading[1].length <= 2 ? '1.15em' : '1.05em' }}
             >
-              {renderInlineMarkdown(heading[2])}{lineCursor}
+              {inline(heading[2])}{lineCursor}
             </p>
           );
         }
@@ -133,7 +172,7 @@ function ChatMarkdownText({ content, streaming = false }: { content: string; str
             <div key={index} className="flex flex-col gap-0.5 my-1">
               {cells.map((cell, cellIndex) => (
                 <div key={cellIndex} className={cellIndex === 0 ? '' : 'pl-3'} style={{ opacity: cellIndex === 0 ? 1 : 0.85 }}>
-                  {cellIndex === 0 ? <strong>{renderInlineMarkdown(cell)}</strong> : renderInlineMarkdown(cell)}
+                  {cellIndex === 0 ? <strong>{inline(cell)}</strong> : inline(cell)}
                   {cellIndex === cells.length - 1 && lineCursor}
                 </div>
               ))}
@@ -146,7 +185,7 @@ function ChatMarkdownText({ content, streaming = false }: { content: string; str
           return (
             <div key={index} className="flex items-start gap-1.5">
               <span className="shrink-0" style={{ minWidth: '1.25em' }}>{numbered[1]}.</span>
-              <span className="flex-1">{renderInlineMarkdown(numbered[2])}{lineCursor}</span>
+              <span className="flex-1">{inline(numbered[2])}{lineCursor}</span>
             </div>
           );
         }
@@ -156,12 +195,12 @@ function ChatMarkdownText({ content, streaming = false }: { content: string; str
           return (
             <div key={index} className="flex items-start gap-1.5">
               <span className="w-3 text-center shrink-0">&bull;</span>
-              <span className="flex-1">{renderInlineMarkdown(bullet[1])}{lineCursor}</span>
+              <span className="flex-1">{inline(bullet[1])}{lineCursor}</span>
             </div>
           );
         }
         if (!line.trim()) return <div key={index} className="h-1.5" />;
-        return <p key={index} className="m-0">{renderInlineMarkdown(line)}{lineCursor}</p>;
+        return <p key={index} className="m-0">{inline(line)}{lineCursor}</p>;
       })}
       {lastTextLine === -1 && cursor && <p className="m-0">{cursor}</p>}
     </div>
@@ -268,23 +307,12 @@ function CheckIcon() {
   return <SvgIcon svg={CHECK_ICON} size={16} />;
 }
 
-function TrashIcon() {
-  return <SvgIcon svg={DELETE_ICON} size={16} />;
+function MoreIcon() {
+  return <SvgIcon svg={MORE_ICON} size={16} />;
 }
 
 function EditIcon() {
   return <SvgIcon svg={EDIT_ICON} size={16} />;
-}
-
-function GaugeIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
-      <path d="M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />
-      <path d="M13.41 10.59l2.59 -2.59" />
-      <path d="M7 12a5 5 0 0 1 5 -5" />
-    </svg>
-  );
 }
 
 function BoltIcon() {
@@ -373,10 +401,11 @@ function VariantNav({ messageId, variants, activeVariant, t }: { messageId: stri
 
 // --- Action button ---
 
-function ActionButton({ onClick, title, children, danger = false }: { onClick: () => void; title: string; children: React.ReactNode; danger?: boolean }) {
+function ActionButton({ onClick, title, children, expanded }: { onClick: () => void; title: string; children: React.ReactNode; expanded?: boolean }) {
   return (
     <button type="button" onClick={onClick} title={title} aria-label={title}
-      className={`alice-control alice-control--tool${danger ? ' alice-control--danger' : ''}`}>
+      aria-haspopup={expanded === undefined ? undefined : 'menu'} aria-expanded={expanded}
+      className="alice-control alice-control--tool">
       {children}
     </button>
   );
@@ -386,15 +415,15 @@ function ActionButton({ onClick, title, children, danger = false }: { onClick: (
 
 function MetricRow({ icon, label, value, unit, primary }: { icon: React.ReactNode; label: string; value: string; unit: string; primary?: boolean }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-      <span style={{ fontSize: 13, color: 'var(--alice-muted)', opacity: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+      <span style={{ fontSize: 12, color: 'var(--alice-muted)', opacity: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ width: 12, height: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: 1 }}>
           {icon}
         </span>
         {label}
       </span>
       <span style={{
-        fontSize: 13,
+        fontSize: 12,
         fontFamily: 'monospace',
         color: 'var(--alice-muted)',
         opacity: 1,
@@ -405,14 +434,18 @@ function MetricRow({ icon, label, value, unit, primary }: { icon: React.ReactNod
   );
 }
 
-function TokenTooltip({ usage, durationMs, t }: { usage?: TokenUsage; durationMs?: number; t: Translator }) {
-  const [show, setShow] = useState(false);
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+// The technical line of a failed send (class, code, HTTP status, original
+// message), for a bug report; the bubble shows the case in the app language.
+function SendErrorDetail({ detail, t }: { detail: string; t: Translator }) {
+  return (
+    <div className="alice-menu-metrics">
+      <span style={{ fontSize: 12, color: 'var(--alice-muted)' }}>{t('chat.sendError.detail')}</span>
+      <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--alice-muted)', overflowWrap: 'anywhere' }}>{detail}</span>
+    </div>
+  );
+}
 
-  useEffect(() => {
-    return () => { if (hideTimer.current) clearTimeout(hideTimer.current); };
-  }, []);
-
+function TokenMetrics({ usage, durationMs, t }: { usage?: TokenUsage; durationMs?: number; t: Translator }) {
   if (!usage && !durationMs) return null;
 
   const speed = usage?.completionTokens && durationMs
@@ -420,73 +453,54 @@ function TokenTooltip({ usage, durationMs, t }: { usage?: TokenUsage; durationMs
     : null;
   const duration = durationMs ? (durationMs / 1000).toFixed(1) : null;
 
-  const handleEnter = () => {
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-    setShow(true);
+  return (
+    <div className="alice-menu-metrics">
+      {speed && <MetricRow icon={<BoltIcon />} label={t('chat.metrics.speed')} value={speed} unit="tokens/s" primary />}
+      {duration && <MetricRow icon={<ClockIcon />} label={t('chat.metrics.duration')} value={duration} unit="s" primary />}
+      {usage?.promptTokens != null && <MetricRow icon={<ArrowUpIcon />} label={t('chat.metrics.prompt')} value={String(usage.promptTokens)} unit="tokens" />}
+      {usage?.completionTokens != null && <MetricRow icon={<ArrowDownIcon />} label={t('chat.metrics.completion')} value={String(usage.completionTokens)} unit="tokens" />}
+      {usage?.totalTokens != null && <MetricRow icon={<SigmaIcon />} label={t('chat.metrics.total')} value={String(usage.totalTokens)} unit="tokens" primary />}
+    </div>
+  );
+}
+
+const MENU_WIDTH = 200;
+
+// The less used actions of a message behind "…": its figures (speed,
+// tokens) and Delete, so a stray tap on a phone does not remove a message.
+function MoreMenu({ message, t }: { message: ChatMessageProps['message']; t: Translator }) {
+  const { deleteMessage } = useChat();
+  const [open, setOpen] = useState(false);
+  // The menu opens rightwards from the button, leftwards when the screen
+  // has no room for it on that side (the button near a phone's right edge).
+  const [leftwards, setLeftwards] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const toggle = () => {
+    const box = ref.current?.getBoundingClientRect();
+    setLeftwards(box ? box.left + MENU_WIDTH + 8 > window.innerWidth : false);
+    setOpen(value => !value);
   };
-  const handleLeave = () => {
-    hideTimer.current = setTimeout(() => setShow(false), 150);
-  };
+
+  useDismiss(open, ref, setOpen);
 
   return (
-    <div className="relative" style={{ display: 'inline-flex' }}>
-      <div
-        onMouseEnter={handleEnter}
-        onMouseLeave={handleLeave}
-        style={{
-          cursor: 'pointer',
-          opacity: 1,
-          transition: 'opacity 0.15s',
-          padding: 4,
-          display: 'flex',
-          alignItems: 'center',
-          color: 'var(--alice-primary)',
-        }}
-      >
-        <GaugeIcon />
-      </div>
-
-      {show && (
-        <div
-          onMouseEnter={handleEnter}
-          onMouseLeave={handleLeave}
-          style={{
-            position: 'absolute',
-            bottom: 28,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            backgroundColor: 'var(--alice-bg)',
-            border: '1px solid var(--alice-border, rgba(255,255,255,0.15))',
-            borderRadius: 8,
-            padding: '10px 14px',
-            minWidth: 210,
-            zIndex: 50,
-            boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {speed && <MetricRow icon={<BoltIcon />} label={t('chat.metrics.speed')} value={speed} unit="tokens/s" primary />}
-            {duration && <MetricRow icon={<ClockIcon />} label={t('chat.metrics.duration')} value={duration} unit="s" primary />}
-            {(usage?.promptTokens != null || usage?.completionTokens != null) && (
-              <div style={{ borderTop: '1px solid var(--alice-border, rgba(255,255,255,0.1))', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {usage?.promptTokens != null && <MetricRow icon={<ArrowUpIcon />} label={t('chat.metrics.prompt')} value={String(usage.promptTokens)} unit="tokens" />}
-                {usage?.completionTokens != null && <MetricRow icon={<ArrowDownIcon />} label={t('chat.metrics.completion')} value={String(usage.completionTokens)} unit="tokens" />}
-                {usage?.totalTokens != null && <MetricRow icon={<SigmaIcon />} label={t('chat.metrics.total')} value={String(usage.totalTokens)} unit="tokens" primary />}
-              </div>
-            )}
-          </div>
-          <div style={{
-            position: 'absolute',
-            bottom: -5,
-            left: '50%',
-            marginLeft: -5,
-            width: 10,
-            height: 10,
-            backgroundColor: 'var(--alice-bg)',
-            borderRight: '1px solid var(--alice-border, rgba(255,255,255,0.15))',
-            borderBottom: '1px solid var(--alice-border, rgba(255,255,255,0.15))',
-            transform: 'rotate(45deg)',
-          }} />
+    <div ref={ref} className="relative" style={{ display: 'inline-flex' }}>
+      <ActionButton onClick={toggle} title={t('chat.actions.more')} expanded={open}>
+        <MoreIcon />
+      </ActionButton>
+      {open && (
+        <div role="menu" aria-label={t('chat.actions.more')} className={`alice-menu${leftwards ? ' alice-menu--leftwards' : ''}`}>
+          {message.role === 'assistant' && <TokenMetrics usage={message.usage} durationMs={message.durationMs} t={t} />}
+          {message.sendError && <SendErrorDetail detail={message.sendError.detail} t={t} />}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => { setOpen(false); deleteMessage(message.id); }}
+            className="alice-menu-item alice-menu-item--danger font-numbers"
+          >
+            <SvgIcon svg={DELETE_ICON} size={14} />
+            {t('common.delete')}
+          </button>
         </div>
       )}
     </div>
@@ -567,6 +581,7 @@ function MessageActions({
   compact = false,
   t,
   leading,
+  recommendations = [],
 }: {
   message: ChatMessageProps['message'];
   onEdit: () => void;
@@ -575,8 +590,8 @@ function MessageActions({
   /** The main chat has a single fixed mascot outside its message history. */
   showAvatar?: boolean;
   leading?: ReactNode;
+  recommendations?: Recommendation[];
 }) {
-  const { deleteMessage } = useChat();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(() => {
@@ -591,7 +606,7 @@ function MessageActions({
 
   return (
     <div
-      className="alice-message-actions"
+      className={`alice-message-actions${recommendations.length > 0 ? ' alice-message-actions--reco' : ''}`}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -603,7 +618,8 @@ function MessageActions({
       }}
     >
       {leading}
-      <span style={{ fontSize: 10, color: 'var(--alice-muted)', opacity: 1, marginRight: 4, fontFamily: 'var(--font-numbers, monospace)' }}>
+      {recommendations.length > 0 && <RecommendationsMenu items={recommendations} t={t} />}
+      <span className="alice-message-time" style={{ fontSize: 10, color: 'var(--alice-muted)', marginRight: 4, fontFamily: 'var(--font-numbers, monospace)' }}>
         {relativeTime(time, t.locale)}
       </span>
 
@@ -624,13 +640,7 @@ function MessageActions({
         <EditIcon />
       </ActionButton>
 
-      <ActionButton onClick={() => deleteMessage(message.id)} title={t('common.delete')} danger>
-        <TrashIcon />
-      </ActionButton>
-
-      {!isUser && (
-        <TokenTooltip usage={message.usage} durationMs={message.durationMs} t={t} />
-      )}
+      <MoreMenu message={message} t={t} />
     </div>
   );
 }
@@ -689,9 +699,11 @@ function SentAttachment({ att }: { att: MessageAttachment }) {
 // blocks folded into chips below it.
 function UserMessageBody({ content }: { content: string }) {
   const { question, attachments } = splitAskAliceMessage(content);
+  // Same rule as the reply: the question's language, not the attachment's.
+  const lang = useMemo(() => detectTextLanguage(question)?.language, [question]);
   return (
     <div className="flex flex-col gap-2">
-      <p className="font-numbers text-lg leading-[26px] m-0" style={{ color: 'var(--alice-text)' }}>
+      <p className="font-numbers text-lg leading-[26px] m-0" style={{ color: 'var(--alice-text)' }} lang={lang}>
         {question || content || '...'}
       </p>
       {attachments.map(att => <SentAttachment key={att.kind} att={att} />)}
@@ -699,10 +711,35 @@ function UserMessageBody({ content }: { content: string }) {
   );
 }
 
-export function ChatMessage({ message, compact = false, streaming = false, showAvatar = true, lang, leading }: ChatMessageProps) {
+export function ChatMessage({ message, compact = false, streaming = false, showAvatar = true, lang, leading, recommended }: ChatMessageProps) {
   const { editMessage } = useChat();
+  const router = useRouter();
   const t = useT(lang);
   const [editing, setEditing] = useState(false);
+  const [peek, setPeek] = useState<string | null>(null);
+  const closePeek = useCallback(() => setPeek(null), []);
+
+  // Dictionary terms become links once the reply is complete, in the pack of
+  // the language the reply is written in; a reply whose language is unclear
+  // gets none.
+  const termLanguage = useMemo(() => {
+    if (message.role !== 'assistant' || message.id === 'greeting') return null;
+    const detected = detectTextLanguage(message.content)?.language;
+    return detected === 'fr' || detected === 'en' ? dictionaryLanguage(detected) : null;
+  }, [message.role, message.id, message.content]);
+  const matcher = useTermMatcher(streaming ? null : termLanguage);
+  const quoted = useMemo(() => new Set(
+    (message.sources ?? [])
+      .filter(source => source.kind === 'definition')
+      .map(source => definitionSlug(source.path))
+      .filter((slug): slug is string => Boolean(slug)),
+  ), [message.sources]);
+  const chosen = useMemo(() => (matcher ? chooseLinkedTerms(message.content, matcher, quoted) : null), [matcher, message.content, quoted]);
+  const recommendations = uniqueRecommendations([
+    ...(message.sources ?? []).filter(source => source.kind !== 'definition').map(source => sourceRecommendation(source, t, path => router.push(path))),
+    ...(recommended ?? []),
+  ]);
+  const terms = matcher && chosen && chosen.size > 0 ? { matcher, chosen, onOpen: setPeek } : undefined;
 
   if (message.role === 'system') {
     return (
@@ -756,18 +793,20 @@ export function ChatMessage({ message, compact = false, streaming = false, showA
               className="font-numbers text-lg leading-[26px]"
               style={{ color: 'var(--alice-text)' }}
             >
-              <ChatMarkdownText content={message.content} streaming={streaming} />
+              {message.sendError
+                ? <p className="m-0" title={message.sendError.detail}>{t(`chat.sendError.${message.sendError.kind}`)}</p>
+                : <ChatMarkdownText content={message.content} streaming={streaming} terms={streaming ? undefined : terms} />}
               {message.truncated && <TruncatedNotice t={t} />}
               {message.quotaBlocked && <QuotaNotice kind={message.quotaBlocked} t={t} />}
               {message.cloudRetry && <CloudRetryNotice messageId={message.id} t={t} />}
-              {!streaming && message.sources && message.sources.length > 0 && <SourcesNotice sources={message.sources} t={t} />}
             </div>
           )}
         </div>
       </div>
       {!editing && message.content && message.id !== 'greeting' && (
-        <MessageActions message={message} onEdit={() => setEditing(true)} compact={compact || !showAvatar} t={t} leading={leading} />
+        <MessageActions message={message} onEdit={() => setEditing(true)} compact={compact || !showAvatar} t={t} leading={leading} recommendations={streaming ? [] : recommendations} />
       )}
+      {peek && termLanguage && <DefinitionPeek slug={peek} lang={termLanguage} onClose={closePeek} t={t} />}
     </div>
   );
 }

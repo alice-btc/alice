@@ -135,6 +135,36 @@ describe('generateWithContinuation', () => {
     assert.equal(outcome.truncated, true);
   });
 
+  it('keeps the cut visible when the continuation adds nothing and claims to have finished', async () => {
+    // gpt-oss can spend the continuation round reasoning, then stop with no
+    // visible text. The answer still ends where the cut was.
+    const { outcome, callCount } = await run([
+      { content: 'A UTXO is an unspent ', truncated: true },
+      { content: '', truncated: false },
+    ]);
+    assert.equal(callCount, 2);
+    assert.equal(outcome.text, 'A UTXO is an unspent ');
+    assert.equal(outcome.truncated, true);
+  });
+
+  it('treats a continuation made only of the memory block as adding nothing', async () => {
+    const block = '<alice_memory>{"items":[]}</alice_memory>';
+    const { outcome } = await run([
+      { content: 'A UTXO is an unspent ', truncated: true },
+      { content: block, truncated: false },
+    ]);
+    assert.equal(outcome.truncated, true);
+  });
+
+  it('clears the flag once a continuation really extends the answer', async () => {
+    const { outcome } = await run([
+      { content: 'A UTXO is an unspent ', truncated: true },
+      { content: 'transaction output.', truncated: false },
+    ]);
+    assert.equal(outcome.text, 'A UTXO is an unspent transaction output.');
+    assert.equal(outcome.truncated, false);
+  });
+
   it('does not continue when the first round is truncated but blank', async () => {
     // A reasoning model can burn the whole budget before writing a word. There
     // is nothing to extend, so no second call is made.

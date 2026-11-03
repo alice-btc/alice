@@ -377,7 +377,11 @@ export async function readEncryptedStream(
   let full = '';
   let buffer = '';
   let usage: E2EEStreamResult['usage'];
-  let truncated = false;
+  // How the answer ended, from the frames that say so: the finish reason,
+  // the usage frame that follows it, the closing [DONE]. None of the three
+  // means the connection closed on an unfinished answer.
+  let finishReason: string | null = null;
+  let doneFrame = false;
   let responseDecryptionMs = 0;
   let encryptedChunks = 0;
 
@@ -385,7 +389,11 @@ export async function readEncryptedStream(
     const trimmed = line.trimEnd();
     if (!trimmed.startsWith('data: ')) return;
     const json = trimmed.slice(6).trim();
-    if (!json || json === '[DONE]') return;
+    if (!json) return;
+    if (json === '[DONE]') {
+      doneFrame = true;
+      return;
+    }
 
     let parsed: any;
     try {
@@ -405,7 +413,8 @@ export async function readEncryptedStream(
         totalTokens: u.total_tokens ?? (u.prompt_tokens ?? 0) + (u.completion_tokens ?? 0),
       };
     }
-    if (parsed.choices?.[0]?.finish_reason === 'length') truncated = true;
+    const reason = parsed.choices?.[0]?.finish_reason;
+    if (typeof reason === 'string' && reason) finishReason = reason;
 
     // Anything under delta.content is user-visible model output and MUST be
     // encrypted. It is never shown just because it looks like text.
@@ -443,6 +452,12 @@ export async function readEncryptedStream(
     for (const line of lines) handleLine(line);
   }
 
+  // 'length' is the budget running out, reasoning included on gpt-oss (Venice
+  // counts both against max_tokens and reports 'length' when the cap is hit).
+  // A stream that ends with no finish reason, no usage and no [DONE] was cut
+  // by the connection, not by the model: the answer is just as unfinished.
+  const truncated = finishReason === 'length'
+    || (finishReason === null && !usage && !doneFrame);
   return {
     content: full,
     usage,

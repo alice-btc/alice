@@ -12,14 +12,9 @@ import {
   MAX_CHAT_SESSIONS,
 } from '@alice-wallet/alice-ai';
 import { useT } from '@/i18n';
+import { formatStorageSize } from '@/lib/format-size';
 import { ConfirmDialog, SectionLabel, sectionStyle } from './ui';
 import { LearnLanguagesSection } from './LearnLanguagesSection';
-
-function formatStorageSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 export function DataTab() {
   const t = useT();
@@ -69,7 +64,7 @@ export function DataTab() {
             {t('settings.data.conversationCount', { count, max: MAX_CHAT_SESSIONS })}
           </span>
           <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>
-            {formatStorageSize(chatStorage?.estimatedBytes ?? 0)}
+            {formatStorageSize(chatStorage?.estimatedBytes ?? 0, t.locale)}
           </span>
         </div>
         <p className="font-numbers m-0 mt-3" style={{ fontSize: 14, lineHeight: '19px', opacity: 1 }}>

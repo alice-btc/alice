@@ -94,7 +94,7 @@ export const ALICE_MEMORY_CATEGORY_LABELS: Record<SupportedLanguage, Record<Alic
 
 export const ALICE_MEMORY_WARNING: Record<SupportedLanguage, string> = {
   en: 'Alice can get this wrong: these filters are a safeguard, not a guarantee. Give her the minimum, never an address, a key, a recovery phrase or an amount.',
-  fr: 'Alice peut se tromper\u00a0: ces filtres sont un garde-fou, pas une garantie. Donne-lui le minimum, jamais d’adresse, de clé, de phrase de récupération ni de montant.',
+  fr: 'Alice peut se tromper\u00a0: ces filtres sont un garde-fou, pas une garantie. Donnez-lui le minimum, jamais d’adresse, de clé, de phrase de récupération ni de montant.',
 };
 
 const CATEGORIES = new Set<AliceMemoryCategory>(ALICE_MEMORY_CATEGORIES);

@@ -44,15 +44,13 @@ targets:
         UIRequiredDeviceCapabilities: [arm64, metal]
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-          - UIInterfaceOrientationLandscapeLeft
-          - UIInterfaceOrientationLandscapeRight
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 0.2.7
-        CFBundleVersion: "0.2.7"
+        CFBundleShortVersionString: 0.2.8
+        CFBundleVersion: "0.2.8"
     entitlements:
       path: alice-desktop_iOS/alice-desktop_iOS.entitlements
     scheme:

@@ -3,8 +3,9 @@ import {
   LEARN_TUTORIALS,
 } from '@alice-wallet/alice-content/src/generated/planb-learn-catalog';
 import { registerLearnContextProvider, type LearnTurnContext } from '@alice-wallet/alice-ai';
+import { currentLocale } from '../../i18n/translate.ts';
 import { definitionExcerpt, matchDictionaryTerm } from './dictionary';
-import { fetchDefinition, fetchDictionaryIndex, prefetchDictionaryIndex } from './dictionary-packs';
+import { dictionaryAttribution, dictionaryLanguage, fetchDefinition, fetchDictionaryIndex, prefetchDictionaryIndex } from './dictionary-packs';
 import { fetchCoursePack, fetchTutorialPack } from './packs';
 import { defaultLearnLanguage, isWhitelistedLang, loadLearnLanguage } from './language';
 import { takeSuggestion } from './suggest';
@@ -72,25 +73,31 @@ async function courseContext(query: string, options?: { targetLanguage?: 'fr' | 
 // the question names a dictionary term as whole words, its definition goes
 // first, the course excerpt after it, under the same context budget (the
 // bridge cuts at a paragraph boundary, so a long definition simply leaves the
-// course out). The dictionary is French; the model reads both languages, and
-// the label says where the text comes from.
-async function dictionaryContext(query: string): Promise<LearnTurnContext | null> {
+// course out). The pack follows the answer's language, else the app language:
+// the English translation for English, the French original otherwise. The
+// English index keeps each French title, so a French term in an English
+// question still finds its entry. The label, shown to the model and under the
+// answer, says where the text comes from and when it is a translation.
+async function dictionaryContext(query: string, options?: { targetLanguage?: 'fr' | 'en' }): Promise<LearnTurnContext | null> {
   try {
-    const index = await fetchDictionaryIndex();
-    const match = matchDictionaryTerm(index.entries, query);
+    const lang = dictionaryLanguage(options?.targetLanguage ?? currentLocale());
+    const index = await fetchDictionaryIndex(lang);
+    const match = matchDictionaryTerm(index.entries, query, lang);
     if (!match) return null;
-    const definition = await fetchDefinition(match.entry.slug);
+    const definition = await fetchDefinition(match.entry.slug, lang);
     if (!definition) return null;
     const excerpt = definitionExcerpt(definition.body);
     if (!excerpt) return null;
+    const attribution = dictionaryAttribution(index.source);
+    const label = `${index.source.title} · ${definition.title} (${attribution})`;
     return {
-      label: `${index.source.title} · ${definition.title} (${index.source.author}, ${index.source.license})`,
+      label,
       excerpt,
       sources: [{
         kind: 'definition',
-        label: definition.title,
+        label,
         path: `/learn/?definition=${definition.slug}`,
-        attribution: `${index.source.author}, ${index.source.license}`,
+        attribution,
       }],
     };
   } catch {
@@ -100,7 +107,7 @@ async function dictionaryContext(query: string): Promise<LearnTurnContext | null
 
 async function learnContext(query: string, options?: { targetLanguage?: 'fr' | 'en' }): Promise<LearnTurnContext | null> {
   const [definition, course] = await Promise.all([
-    dictionaryContext(query),
+    dictionaryContext(query, options),
     courseContext(query, options).catch(() => null),
   ]);
   return mergeLearnContexts(definition, course);

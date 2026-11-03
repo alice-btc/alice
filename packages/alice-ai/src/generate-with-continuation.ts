@@ -1,10 +1,11 @@
 import type { AIBackend, SendMessageOptions, TokenUsage } from './ai-backend';
 import type { Message } from './llm';
 import type { SupportedLanguage } from './languages';
+import { parseAliceMemoryResponse } from './alice-memory-core.ts';
 
 // Kept apart from `chat-context.tsx` so it can be tested: that module pulls in
-// React, react-native and AsyncStorage, none of which load outside Metro. Every
-// import here is type-only, so this file has no runtime dependency at all.
+// React, react-native and AsyncStorage, none of which load outside Metro. The
+// one runtime import, the memory-block parser, loads anywhere.
 
 // A user should never be left in front of an unfinished sentence. When the
 // provider stops on max_tokens we silently ask Alice to pick up where she left
@@ -88,7 +89,12 @@ export async function generateWithContinuation(
     completionTokens += result.usage?.completionTokens ?? 0;
     durationMs += result.durationMs ?? 0;
     backendTimings = result.backendTimings ?? backendTimings;
-    truncated = Boolean(result.truncated);
+    // A continuation that adds no visible text (nothing, or only the private
+    // memory block the model writes after its answer) leaves the answer where
+    // the cut was, however the provider says that round ended. It stays
+    // marked truncated so the notice shows.
+    const extended = round === 0 || parseAliceMemoryResponse(segment).visibleText.length > 0;
+    truncated = Boolean(result.truncated) || !extended;
 
     if (!truncated || !allowContinuation) break;
     // Nothing visible came back, a reasoning model can burn the whole budget
@@ -96,7 +102,7 @@ export async function generateWithContinuation(
     // anyway makes Alice reply "where did I stop?", so leave it truncated.
     if (!full.trim()) break;
     // A continuation that adds nothing means we are looping; stop.
-    if (round > 0 && !segment.trim()) break;
+    if (!extended) break;
     // Feed the partial answer back so the model sees exactly what to extend.
     working.push({ role: 'assistant', content: full });
     working.push({

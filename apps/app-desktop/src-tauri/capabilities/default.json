@@ -5,6 +5,8 @@
   "platforms": ["linux", "macOS", "windows"],
   "windows": ["main"],
   "permissions": [
-    "shell:default"
+    "shell:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize"
   ]
 }

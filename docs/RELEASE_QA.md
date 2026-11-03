@@ -20,14 +20,29 @@ thousand Mutinynet sats in the Playground.
 - [ ] `npm test`, `npm run check:types`, `npm run check:release-version` and
       `npm run check:npm-audit` pass on the commit being shipped.
 - [ ] The public snapshot rehearses clean (no personal path, no internal doc).
+- [ ] The CSP crawl records no violation on the web builds of the commit being
+      shipped. Build them (`npm run build --workspace @alice-wallet/site`,
+      then `--workspace @alice-wallet/app-web`), serve the two `out` folders
+      on local ports, then in
+      `scripts/csp-crawl` run `node crawl.mjs --site <site> --app <app>
+      --inject-csp --no-send --channel chrome`. Read the servers contacted
+      as well: a new origin needs a reason. See
+      [docs/security/csp-tools.md](security/csp-tools.md).
 
 ---
 
 ## 1. Alice App, web
 
 - [ ] The four sections open: Chat, Explorer, Learn, Playground.
-- [ ] Ask a question and get an answer. Ask a second one in French and the
-      answer comes back in French.
+- [ ] With a fresh install (response language on Auto, the default), ask a
+      question in French in an English app: the answer comes back in French.
+      Ask in English: it comes back in English. A short message such as
+      "Thanks" or "Ark?" keeps the language of the conversation. Write
+      "Réponds en anglais" in a French conversation: this answer and the next
+      ones come back in English. A new conversation follows the language you
+      write in again.
+- [ ] Set Settings › General › Response language to "Same as app": a French
+      question in an English app now gets English.
 - [ ] Ask "what is the Playground?", the answer must describe the practice
       wallet on a test network, not invent something.
 - [ ] Learn opens a course, and the reading-language picker offers English and

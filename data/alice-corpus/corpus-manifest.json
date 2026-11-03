@@ -3,7 +3,7 @@
   "status": "selected_snapshot",
   "scope": "Alice App et Bitcoin.",
   "counts": {
-    "primary": 200,
+    "primary": 202,
     "secondary": 203
   },
   "reviewed_meaning": "Revue éditoriale selon review_method ; ni approbation humaine intégrale ni fact-check externe exhaustif.",
@@ -629,15 +629,15 @@
       "review_method": "adapted_from_corrected_sources",
       "language": "fr",
       "eligible_for_retrieval": true,
-      "reviewed_at": "2026-10-11",
+      "reviewed_at": "2026-11-02",
       "human_reviewed_in_full": false,
       "exhaustive_external_fact_check": false,
-      "sha256": "bfa29bb05a64dcf1b6252c453008e81e2b187730f24ec916c6ad0b32cdc06894",
+      "sha256": "f4736d44150942e2d00128f124e82b7d9e568b5e6a85745031934403d767f04b",
       "translations": {
         "en": {
           "path": "examples/bip39-passphrase.en.md",
-          "sha256": "4d442d50673306036a82b08200b542597190131dfe7e635670c1dc92b8211766",
-          "source_sha256": "bfa29bb05a64dcf1b6252c453008e81e2b187730f24ec916c6ad0b32cdc06894"
+          "sha256": "4c0c871f126b6150f7b597edc93d92f2258c568072f173e901927f2a74852b26",
+          "source_sha256": "f4736d44150942e2d00128f124e82b7d9e568b5e6a85745031934403d767f04b"
         }
       }
     },
@@ -3080,6 +3080,34 @@
       }
     },
     {
+      "id": "dust",
+      "title": "Le dust et les sorties non rentables",
+      "tier": "primary",
+      "status": "reviewed",
+      "parent_ids": [],
+      "related_ids": [
+        "coin-selection-tradeoffs",
+        "transaction-fees",
+        "bitcoin-mempool-policy",
+        "consolidation-transaction"
+      ],
+      "path": "examples/dust.fr.md",
+      "review_method": "adapted_from_corrected_sources",
+      "language": "fr",
+      "eligible_for_retrieval": true,
+      "reviewed_at": "2026-11-02",
+      "human_reviewed_in_full": false,
+      "exhaustive_external_fact_check": false,
+      "sha256": "28e5b6977f291b31df129f968b7127a62fd6d69ceeb29b169fbeac64ce61ca67",
+      "translations": {
+        "en": {
+          "path": "examples/dust.en.md",
+          "sha256": "94d8ff8d95cf744d55c0708874d0b55deb50fe97b793cb7032a47fb8cb5fb171",
+          "source_sha256": "28e5b6977f291b31df129f968b7127a62fd6d69ceeb29b169fbeac64ce61ca67"
+        }
+      }
+    },
+    {
       "id": "earn-bitcoin",
       "title": "Recevoir du bitcoin pour un travail",
       "tier": "primary",
@@ -5203,15 +5231,15 @@
       "review_method": "adapted_from_corrected_sources",
       "language": "fr",
       "eligible_for_retrieval": true,
-      "reviewed_at": "2026-10-11",
+      "reviewed_at": "2026-11-02",
       "human_reviewed_in_full": false,
       "exhaustive_external_fact_check": false,
-      "sha256": "b4924fc8f6f00816cbf438a793a0683bc2566da8cfc77b000eae9e3ad2499963",
+      "sha256": "fce985ecbbef6a97d6cdba08fd3a91dcee753f318062fd685635a938c5982b56",
       "translations": {
         "en": {
           "path": "examples/pruned-node.en.md",
-          "sha256": "bb153cf34ff24680d3fe5e63f343ceec55c1308e994e9bf276bbdaebe2988288",
-          "source_sha256": "b4924fc8f6f00816cbf438a793a0683bc2566da8cfc77b000eae9e3ad2499963"
+          "sha256": "6c376065ad64e2fd934fb291378ece73e909f0833d5d41a9005b293c175dfec5",
+          "source_sha256": "fce985ecbbef6a97d6cdba08fd3a91dcee753f318062fd685635a938c5982b56"
         }
       }
     },
@@ -10662,6 +10690,36 @@
           "path": "examples/secure-backups.en.md",
           "sha256": "f428f358fcc94810c472634cd1bd73e9a84916d4e80c833dc29d0106058d4815",
           "source_sha256": "073b433c2649f8e4fd509b72dad0d44fac379c67e7aa7a909263b5996bb26f6d"
+        }
+      }
+    },
+    {
+      "id": "seed-phrase-backup",
+      "title": "Sauvegarder la phrase de récupération",
+      "tier": "primary",
+      "status": "reviewed",
+      "parent_ids": [],
+      "related_ids": [
+        "wallet-recovery-phrase",
+        "wallet-backup",
+        "wallet-backup-test",
+        "secure-backups",
+        "password-manager",
+        "bip39-passphrase"
+      ],
+      "path": "examples/seed-phrase-backup.fr.md",
+      "review_method": "adapted_from_corrected_sources",
+      "language": "fr",
+      "eligible_for_retrieval": true,
+      "reviewed_at": "2026-11-02",
+      "human_reviewed_in_full": false,
+      "exhaustive_external_fact_check": false,
+      "sha256": "f7e8e7fd783ffd05ca6f12236c34070e4c6823f6c939ba54ec6d9a19e16d8db0",
+      "translations": {
+        "en": {
+          "path": "examples/seed-phrase-backup.en.md",
+          "sha256": "52a0b7b63eef9c28954db4c72a08f04b13777017c06ecf00b0726ef494066075",
+          "source_sha256": "f7e8e7fd783ffd05ca6f12236c34070e4c6823f6c939ba54ec6d9a19e16d8db0"
         }
       }
     },

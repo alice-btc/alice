@@ -262,7 +262,7 @@ const en: HomeCopy = {
       },
       {
         q: 'Is Alice on mainnet?',
-        a: 'Not with real funds. The Playground inside Alice App only ever uses Mutinynet test coins, nothing there is real money. The Explorer reads the real chain. Private Cloud’s own end-to-end verification is still being completed, and the trust page says exactly what is proven today.',
+        a: 'Alice App, no. Its Playground only ever uses Mutinynet test coins, nothing there is real money, and the Explorer only reads the real chain. Alice Wallet, the separate experimental project below, is the one that can hold real bitcoin on mainnet, in beta and not audited. Private Cloud’s own end-to-end verification is still being completed, and the trust page says exactly what is proven today.',
       },
       {
         q: 'What is Mutinynet?',
@@ -466,7 +466,7 @@ const fr: HomeCopy = {
       },
       {
         q: 'Alice fonctionne-t-elle sur le mainnet ?',
-        a: 'Pas avec des fonds réels. Le Playground d’Alice App n’utilise que des bitcoins de test Mutinynet : rien n’y est de l’argent réel. L’Explorer lit la vraie chaîne. La vérification de bout en bout propre à Private Cloud est encore en cours de finalisation, et la page Confiance dit exactement ce qui est prouvé aujourd’hui.',
+        a: 'Alice App, non. Son Playground n’utilise que des bitcoins de test Mutinynet : rien n’y est de l’argent réel, et l’Explorer ne fait que lire la vraie chaîne. Alice Wallet, le projet expérimental à part présenté plus bas, est celui qui peut détenir de vrais bitcoins sur le mainnet, en bêta et sans audit. La vérification de bout en bout propre à Private Cloud est encore en cours de finalisation, et la page Confiance dit exactement ce qui est prouvé aujourd’hui.',
       },
       {
         q: 'Qu’est-ce que Mutinynet ?',

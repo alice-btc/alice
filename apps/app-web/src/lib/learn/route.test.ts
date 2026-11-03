@@ -27,6 +27,12 @@ describe('parseLearnView / learnViewToSearch', () => {
     assert.deepEqual(parseLearnView(''), { kind: 'home' });
   });
 
+  it('opens a saved definition source by its slug, which both packs share', () => {
+    const path = '/learn/?definition=racine-de-merkle';
+    assert.deepEqual(parseLearnView(path.slice(path.indexOf('?'))), { kind: 'definition', slug: 'racine-de-merkle' });
+    assert.deepEqual(parseLearnView('?dictionary=m'), { kind: 'dictionary', letter: 'm' });
+  });
+
   it('keeps a dictionary reader inside the dictionary on a bad letter or slug', () => {
     assert.deepEqual(parseLearnView('?dictionary=UTXO'), { kind: 'dictionary' });
     assert.deepEqual(parseLearnView('?definition=../x'), { kind: 'dictionary' });

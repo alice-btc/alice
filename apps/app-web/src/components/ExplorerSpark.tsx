@@ -233,7 +233,7 @@ export function SparkOperatorsInfo() {
   const tr = useT();
   return (
     <div className="flex flex-col gap-2">
-      <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{tr('explorerSpark.ops.title')}</span>
+      <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{tr('explorerSpark.ops.sectionTitle')}</span>
       <div className="flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderLeft: `3px solid ${SPARK_ACCENT}`, borderRadius: 3, backgroundColor: 'transparent' }}>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
           <Metric label={tr('explorerSpark.ops.title')} value={SPARK_OPERATORS.map(o => o.name).join(', ')} title={tr('explorerSpark.ops.operatorsTitle')} />
