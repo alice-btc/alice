@@ -27,7 +27,7 @@ import {
 } from '@alice-wallet/practice-wallet';
 import { formatWalletAmount, type BalanceFormat } from '@alice-wallet/alice-ui/balance-format';
 import { BITCOIN_ICON_SVG } from '@alice-wallet/alice-ui/components/bitcoin-icon-svg';
-import { NUT_ICON, BACK_ICON, NEXT_ICON, REFRESH_ICON, QR_ICON, UP_ICON, RECEIVE_ICON, COPY_ICON, CHECK_ICON, KEY_ICON, DELETE_ICON, WALLET_ICON } from '@/lib/atelier-icons';
+import { NUT_ICON, BACK_ICON, NEXT_ICON, REFRESH_ICON, QR_ICON, UP_ICON, RECEIVE_ICON, COPY_ICON, CHECK_ICON, KEY_ICON, DELETE_ICON, WALLET_ICON, CLOSE_ICON } from '@/lib/atelier-icons';
 import { WorkspaceHeaderActions } from '@/components/WorkspaceShell';
 import { setAskHandoff, usePhoneLayout } from '@/lib/explorer/ask-handoff';
 import { EmptyState, FieldLabel, SectionTitle } from '@/components/ExplorerUI';
@@ -1859,7 +1859,7 @@ function PlaygroundWorkspace({
                         instead of each claiming all of it (alice-control
                         never shrinks), and a long label wraps. */}
                     <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-                      <PrimaryButton label={t('playground.cancel')} onClick={() => setFaucet(null)} />
+                      <PrimaryButton label={t('playground.cancel')} icon={CLOSE_ICON} onClick={() => setFaucet(null)} />
                       <PrimaryButton label={t('playground.faucet.receive')} onClick={() => void confirmFaucetClaim()} />
                     </div>
                   </>

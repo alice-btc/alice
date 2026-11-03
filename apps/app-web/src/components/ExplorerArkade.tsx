@@ -186,7 +186,7 @@ function AddressCard({ info, onOpenTx, onOpenVtxo }: { info: ArkadeAddressInfo; 
       {spendable.length > 0 && (
         <ExplorerUtxoBubbles
           utxos={spendable.map(v => ({ valueSats: v.amountSats, blockTime: v.createdAt }))}
-          title={t('explorerArk.address.spendableVtxos')}
+          title={t('explorerArk.address.spendableVtxosTitle')}
         />
       )}
 
@@ -757,14 +757,14 @@ export function ExplorerArkadeAddressTab({ apiBaseUrl, address, onOpenTx, onOpen
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
             {[t('explorerArk.address.spendable'), t('explorerArk.address.spendableVtxos'), t('explorerArk.address.totalVtxos'), t('explorerArk.address.avgAge')].map(l => (
               <div key={l} className="flex flex-col gap-1">
-                <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{l}</span>
+                <FieldLabel>{l}</FieldLabel>
                 <Skeleton width="60%" />
               </div>
             ))}
           </div>
         </div>
         <SectionPanel title={t('explorerArk.tab.balance')}><div className="px-3 py-3"><Skeleton height={110} /></div></SectionPanel>
-        <SectionPanel title={t('explorerArk.address.spendableVtxos')}>
+        <SectionPanel title={t('explorerArk.address.spendableVtxosTitle')}>
           <div className="flex items-center justify-center gap-3 px-3 py-4">
             <Skeleton width={64} height={64} style={{ borderRadius: '50%' }} />
             <Skeleton width={40} height={40} style={{ borderRadius: '50%' }} />

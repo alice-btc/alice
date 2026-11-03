@@ -1,6 +1,6 @@
 'use client';
 
-import { ExplorerCopy } from '@/components/ExplorerUI';
+import { ExplorerCopy, FieldLabel } from '@/components/ExplorerUI';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatLocale, type MessageKey, useT } from '@/i18n';
@@ -334,7 +334,7 @@ export function ExplorerXpubTab({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
             {[t('explorer.address.balance'), t('explorer.xpub.usedAddresses'), t('explorer.xpub.receiveChange'), t('explorer.xpub.activity')].map(l => (
               <div key={l} className="flex flex-col gap-1">
-                <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{l}</span>
+                <FieldLabel>{l}</FieldLabel>
                 <Skeleton width="60%" />
               </div>
             ))}
@@ -352,7 +352,7 @@ export function ExplorerXpubTab({
             <Skeleton width={26} height={26} style={{ borderRadius: '50%' }} />
           </div>
         </SectionPanel>
-        <SectionPanel title={t('explorer.xpub.usedAddresses')}><div className="px-3 py-3"><SkeletonLines lines={5} /></div></SectionPanel>
+        <SectionPanel title={t('explorer.xpub.usedAddressesTitle')}><div className="px-3 py-3"><SkeletonLines lines={5} /></div></SectionPanel>
       </div>
     );
   }
@@ -495,7 +495,7 @@ export function ExplorerXpubTab({
       {/* Derived, used addresses. */}
       <div className="flex flex-col" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3 }}>
         <div className="flex items-center justify-between px-3 py-2" style={{ backgroundColor: 'transparent' }}>
-          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorer.xpub.usedAddresses')}</span>
+          <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorer.xpub.usedAddressesTitle')}</span>
           <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>{used.length.toLocaleString(formatLocale())}</span>
         </div>
         {used.length === 0 ? (

@@ -56,6 +56,12 @@ free Private Cloud answers twice the room.
   say "vous". "Lite" named a model absent from the French catalog, now "le
   modèle 0.6B", and the decoded-outputs review line no longer reads
   "1 sorties".
+- French capitals keep their accents outside the pixel font. About a hundred
+  labels and buttons set in the reading font, such as "DÉTAILS TECHNIQUES",
+  "CRÉER UN COMPTE" or "CLÉ PUBLIQUE DU SERVEUR", had lost them along with
+  the pixel labels; only the pixel font, which has no accented capitals, goes
+  without. The Explorer's loading placeholders use the label font of the
+  loaded view.
 
 ### Chat
 
@@ -152,7 +158,8 @@ free Private Cloud answers twice the room.
   beside the amount and the lesson. The texts leave their capitals for
   sentence case, in English and in French, and amounts read in sats.
 - The "Free test sats" dialog keeps both of its buttons inside the card; the
-  Receive button no longer runs past its right edge.
+  Receive button no longer runs past its right edge, and Cancel shows a cross
+  rather than an arrow.
 
 ### Settings
 

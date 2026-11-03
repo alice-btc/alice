@@ -351,7 +351,7 @@ export function AiTab() {
 
       {confirmReset && (
         <ConfirmDialog
-          title={t('settings.ai.resetToDefault')}
+          title={t('settings.ai.resetToDefaultTitle')}
           body={t('settings.ai.resetBody')}
           confirmLabel={t('settings.ai.reset')}
           onCancel={() => setConfirmReset(false)}
