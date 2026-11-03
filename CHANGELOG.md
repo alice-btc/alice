@@ -16,6 +16,17 @@ together: a single number means a tester and a log line refer to the same code.
 - `0.0.1`, first public baseline
 - `1.0.0`, public launch, planned
 
+## Unreleased
+
+### Private Cloud
+
+- A free answer no longer comes back empty after a quick run of questions.
+  The Worker counted the bytes of every answer as it streamed past, a few
+  hundred milliseconds of CPU each, and after a short burst Cloudflare stopped
+  it mid-answer: the chat showed an empty answer marked as too long, and the
+  request still counted against the free allowance. The free path now passes
+  the answer through untouched and records only the size of the question.
+
 ## 0.2.8
 
 Desktop installers for macOS, Windows and Linux ship with this release.

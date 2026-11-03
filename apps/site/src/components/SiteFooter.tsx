@@ -34,6 +34,9 @@ export function SiteFooter({ locale, path }: { locale: Locale; path: SitePath })
           <a href={localizeHref(locale, '/memory/')} className={linkClass}>
             {t.footer.memory}
           </a>
+          <a href={localizeHref(locale, '/account-deletion/')} className={linkClass}>
+            {t.footer.accountDeletion}
+          </a>
           <a href={localizeHref(locale, '/about/')} className={linkClass}>
             {t.footer.about}
           </a>

@@ -232,11 +232,18 @@ talks to Venice with a single API key on behalf of everyone. That is a privacy
 property, not an obstacle to work around.
 
 Free requests are measured too, and charged nothing for it. They are metered in
-requests, so no quota depends on their weight, but their byte figures are
-written to the ledger row they already create. Without that, the ratio could
-only be checked after plans had been sold, which means selling an allowance
-whose real size nobody has verified. With it, the first month of ordinary free
-traffic is enough to calibrate.
+requests, so no quota depends on their weight, but the size of each request is
+written to the ledger row it already creates, which checks the input ratio
+before any plan is sold.
+
+The response side of a free request is not weighed. Counting a response runs
+JavaScript on each of the thousands of encrypted events it streams, a few
+hundred milliseconds of Worker CPU per answer. On 2026-11-03 a burst of free
+questions used up what the Workers plan tolerates, and Cloudflare cut the
+Worker off mid-answer: the answers came back empty and still counted against
+the free allowance. The output ratio is corrected from paid requests, which
+are weighed because they are billed by size, and those face the same CPU
+cost, so the Workers plan has to allow it before plans are sold.
 
 The query is the same on both sides of the plan line:
 

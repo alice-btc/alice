@@ -99,6 +99,7 @@ export const SITE_ROUTES = [
   '/trust/',
   '/privacy/',
   '/memory/',
+  '/account-deletion/',
   '/credits/',
   '/about/',
   '/vs/chatgpt/',
