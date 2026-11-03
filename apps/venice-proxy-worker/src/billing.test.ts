@@ -635,7 +635,7 @@ describe('measuring the free path', () => {
     // start being checked.
     const { userId } = await createUser();
     const reservation = await reserveFreeRequest(env, userId, 'measured-request');
-    await recordMeasuredBytes(env, reservation.ledgerId, 4_096, 1_024);
+    await recordMeasuredBytes(env, reservation.ledgerId, 4_096);
 
     const row = await db.prepare(
       'SELECT input_bytes, output_bytes, units FROM cloud_request_ledger WHERE id = ?',
@@ -645,7 +645,8 @@ describe('measuring the free path', () => {
       units: number;
     }>();
     assert.equal(row?.input_bytes, 4_096);
-    assert.equal(row?.output_bytes, 1_024);
+    // The answer is not weighed on the free path, see recordMeasuredBytes.
+    assert.equal(row?.output_bytes, 0);
 
     // And it stays one request, whatever it weighed.
     const usage = await db.prepare(
@@ -659,7 +660,7 @@ describe('measuring the free path', () => {
     // moves nothing that any quota is computed from.
     const { userId } = await createUser();
     const reservation = await reserveFreeRequest(env, userId, 'measured-only');
-    await recordMeasuredBytes(env, reservation.ledgerId, 9_999, 9_999);
+    await recordMeasuredBytes(env, reservation.ledgerId, 9_999);
 
     const counters = await db.prepare(
       'SELECT input_bytes_used, output_bytes_used FROM usage_counters WHERE user_id = ?',

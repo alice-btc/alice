@@ -582,21 +582,26 @@ export async function refundCloudBytes(
  * way to start measuring would have been to sell plans first and check the
  * arithmetic afterwards.
  *
- * So the free path now records the same two numbers, on the ledger row it
- * already creates, and moves no counter at all. It is measurement, not
- * metering: a free request that weighs a lot still costs exactly one request.
+ * So the free path records the request's size on the ledger row it already
+ * creates, and moves no counter at all. It is measurement, not metering: a
+ * free request that weighs a lot still costs exactly one request.
+ *
+ * Only the request side. Weighing the response meant running JavaScript on
+ * each of the thousands of encrypted events it streams, a few hundred
+ * milliseconds of CPU per answer, and on 2026-11-03 the Workers plan cut the
+ * Worker off mid-answer after a short burst of questions. Response bytes are
+ * measured on paid requests, which need them to bill.
  */
 export async function recordMeasuredBytes(
   env: Env,
   ledgerId: string,
   inputBytes: number,
-  outputBytes: number,
 ): Promise<void> {
   await env.ACCOUNT_DB.prepare(`
     UPDATE cloud_request_ledger
-    SET input_bytes = ?, output_bytes = ?
+    SET input_bytes = ?
     WHERE id = ?
-  `).bind(inputBytes, outputBytes, ledgerId).run();
+  `).bind(inputBytes, ledgerId).run();
 }
 
 /**

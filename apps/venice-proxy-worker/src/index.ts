@@ -721,20 +721,11 @@ async function relayChat(
       .then(outputBytes => settleCloudBytes(env, byteReservation, outputBytes))
       .catch(() => {});
     if (ctx) ctx.waitUntil(settlement);
-  } else if (freeReservation && upstream.ok && body) {
-    // The same counter, moving no counter of its own. A free request is still
-    // charged one request whatever it weighs; this only writes the weight down,
-    // so the calibration ratio can be checked against Venice's token totals
-    // without having to sell a plan first and verify the arithmetic later.
-    const counter = countingStream();
-    body = body.pipeThrough(counter.stream);
-    const measurement = counter.done
-      .then(outputBytes => recordMeasuredBytes(
-        env,
-        freeReservation.ledgerId,
-        inputBytes,
-        outputBytes,
-      ))
+  } else if (freeReservation && upstream.ok) {
+    // A free request is still charged one request whatever it weighs; this
+    // only writes down the size of what was asked. The answer goes through
+    // untouched: counting it costs CPU the Workers plan does not allow.
+    const measurement = recordMeasuredBytes(env, freeReservation.ledgerId, inputBytes)
       .catch(() => {});
     if (ctx) ctx.waitUntil(measurement);
   }

@@ -431,15 +431,21 @@ describe('chat relay', () => {
 
     assert.equal(res.status, 200);
     // Two of them, and both must outlive the response: the usage milestone,
-    // and the byte measurement. Neither may be dropped when the handler
+    // and the request's size. Neither may be dropped when the handler
     // returns, which is the whole point of the execution context.
     assert.equal(backgroundWrites.length, 2);
-
-    // The measurement resolves only once the body has gone past, because that
-    // is when its figure exists. Draining the response is what a client does,
-    // and without it this would wait forever.
-    await res.text();
     await Promise.all(backgroundWrites);
+  });
+
+  it('hands a free answer back as the very stream Venice sent', async () => {
+    // Any JavaScript between the two streams runs once per encrypted event,
+    // thousands per answer, and the Workers plan cuts the Worker off mid-answer
+    // once that adds up. The free path must not put anything there.
+    const upstreamBody = new Response('data: {}\n').body;
+    stubUpstream(() => new Response(upstreamBody, { headers: { 'content-type': 'text/event-stream' } }));
+    const res = await worker.fetch(chatRequest(VALID_BODY), ENV);
+    assert.equal(res.status, 200);
+    assert.strictEqual(res.body, upstreamBody);
   });
 
   it('caps a free request at the configured free ceiling', async () => {
