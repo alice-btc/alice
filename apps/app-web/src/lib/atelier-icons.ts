@@ -34,6 +34,7 @@ export const EYE_OPEN_ICON = settingsGlyph('M6 4h8v2h3v2h2v4h-2v2h-3v2H6v-2H3v-2
 export const EYE_CLOSED_ICON = settingsGlyph('M1 7h2v2h2v2h3v2h4v-2h3V9h2V7h2v4h-2v2h-2v2h-3v3H8v-3H5v-2H3v-2H1zM2 14h2v3H2zm14 0h2v3h-2z');
 
 // Additional glyphs approved in the page atlas; keep currentColor at the call site.
+export const MORE_ICON = settingsGlyph('M2 9h3v3H2zm6.5 0h3v3h-3zM15 9h3v3h-3z');
 export const DICTIONARY_ICON = settingsGlyph('M3 2h14v16H3zm2 2v12h10V4zM6 4h1v12H6zm4 2h3v1h-3zM9 7h1v7H9zm4 0h1v7h-1zm-3 3h3v1h-3z');
 export const SEARCH_ICON = settingsGlyph('M4 2h8v2h2v8h-2v2H4v-2H2V4h2zm0 2v8h8V4zm9 9h2v2h2v2h2v2h-3v-2h-2v-2h-1z');
 export const NEXT_ICON = settingsGlyph('M11 3h2v2h2v2h2v2h2v2h-2v2h-2v2h-2v2h-2v-3h2v-3H1V9h12V6h-2z');

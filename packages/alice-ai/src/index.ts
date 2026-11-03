@@ -123,6 +123,8 @@ export {
   isCustomModelId,
   fetchHuggingFaceGgufListing,
   HUGGING_FACE_ORIGIN,
+  LocalModelError,
+  type LocalModelErrorCode,
   type HuggingFaceGgufListing,
   type HuggingFaceGgufFile,
 } from './local-model-registry';
@@ -187,6 +189,8 @@ export {
 } from './pedagogical-profile';
 export { type SensitiveInputBlock, detectSensitiveInput } from './ai-sensitive-input';
 export { type ChatMsg, type MessageVariant, ChatProvider, useChat } from './chat-context';
+export { AIBackendError, type AIBackendErrorCode } from './backend-error';
+export { type SendError, type SendErrorKind } from './send-error';
 export {
   type LocalCipher,
   type LocalKeyStore,
@@ -261,7 +265,7 @@ export {
   type UpdateStateStore,
 } from './app-update';
 export { isNewerVersion } from './app-update-format';
-export { RELEASE_NOTES_URL, WHATS_NEW, whatsNewFor, type WhatsNewEntry } from './whats-new';
+export { RELEASE_NOTES_URL, WHATS_NEW, whatsNewFor, whatsNewHighlights, type WhatsNewEntry } from './whats-new';
 export { registerLearnContextProvider, type LearnSource, type LearnTurnContext } from './learn-context';
 export {
   registerPack,

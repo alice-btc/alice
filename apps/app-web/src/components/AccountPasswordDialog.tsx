@@ -7,6 +7,7 @@ import { CLOSE_ICON, CHEVRON_DOWN_ICON, CHECK_ICON, MAIL_ICON, KEY_ICON } from '
 import { useDialogFocus } from '@/components/settings/ui';
 import { useOpenSettings } from '@/lib/settings-url';
 import { useT } from '@/i18n';
+import { accountErrorMessage } from '@/lib/account-errors';
 import { sellsPlans } from '@/lib/store-rules';
 
 type Mode = 'create' | 'signin';
@@ -581,7 +582,7 @@ export function AccountPasswordDialog() {
 
         {account.error ? (
           <p id="account-error" role="alert" className="font-numbers m-0 mt-3" style={{ color: 'var(--alice-danger)', fontSize: 14, lineHeight: '19px' }}>
-            {account.error}
+            {accountErrorMessage(account.errorCode, account.error, t.locale)}
           </p>
         ) : null}
       </div>

@@ -25,11 +25,14 @@ import {
   type PracticeHistoryEntry,
   type PracticeStorageBackend,
   type PracticeTxPlan,
+  type PracticeTxProblem,
   type PracticeTxReview,
   type PracticeUtxo,
+  type PracticeWalletErrorCode,
 } from '@alice-wallet/practice-wallet';
 import { playgroundVault as localVault } from './playground-vault.ts';
-import { t } from '../i18n/translate.ts';
+import { currentLocale, formatLocale, t, type MessageKey, type MessageParams } from '../i18n/translate.ts';
+import { accountErrorMessage } from './account-errors.ts';
 
 // Pre-rename prefix, kept so practice wallets created before the Playground
 // rename keep working. Do not change without a data migration.
@@ -344,7 +347,7 @@ export async function claimPlaygroundFaucet(): Promise<PlaygroundFaucetClaim> {
     }
     const message =
       payload && typeof payload.error?.message === 'string'
-        ? payload.error.message
+        ? accountErrorMessage(typeof payload.error.code === 'string' ? payload.error.code : null, payload.error.message)
         : t('playground.error.faucetRelay', { status: response.status });
     return { kind: 'error', message, address, faucetUrl: PRACTICE_FAUCET_URL };
   } catch {
@@ -397,6 +400,60 @@ export async function preparePlaygroundSend(params: {
   return { plan, feeRateSatVb };
 }
 
+const ERROR_TEXT: Record<PracticeWalletErrorCode, MessageKey> = {
+  amount_not_whole: 'playground.error.amountNotWhole',
+  amount_below_dust: 'playground.error.amountBelowDust',
+  fee_rate_too_low: 'playground.error.feeRateTooLow',
+  recipient_address_invalid: 'playground.error.recipientAddressInvalid',
+  change_address_invalid: 'playground.error.changeAddressInvalid',
+  insufficient_funds: 'playground.error.insufficientFunds',
+  explorer_request_failed: 'playground.error.explorerRequest',
+  explorer_bad_tip: 'playground.error.explorerTip',
+  explorer_bad_txid: 'playground.error.explorerTxid',
+};
+
+const PROBLEM_TEXT: Record<PracticeTxProblem['code'], MessageKey> = {
+  input_undecodable: 'playground.issue.inputUndecodable',
+  inputs_mismatch: 'playground.issue.inputsMismatch',
+  output_undecodable: 'playground.issue.outputUndecodable',
+  output_script_unknown: 'playground.issue.outputScriptUnknown',
+  recipient_missing: 'playground.issue.recipientMissing',
+  output_count: 'playground.issue.outputCount',
+  fee_mismatch: 'playground.issue.feeMismatch',
+};
+
+// Amounts keep the bare digits the English sentences always had; another
+// locale groups them its own way (41 000).
+function localizedParams(params: MessageParams): MessageParams {
+  const locale = currentLocale();
+  if (locale === 'en') return params;
+  return Object.fromEntries(Object.entries(params).map(([name, value]) => [
+    name,
+    typeof value === 'number' && name !== 'status' && name !== 'index' ? value.toLocaleString(formatLocale(locale)) : value,
+  ]));
+}
+
+/**
+ * What a failed Playground step says: a practice wallet refusal in the app
+ * language, any other error in its own words.
+ */
+export function playgroundErrorText(cause: unknown): string {
+  if (!(cause instanceof Error)) return String(cause);
+  const { code, params } = cause as Error & { code?: unknown; params?: MessageParams };
+  const key = cause.name === 'PracticeWalletError' && typeof code === 'string'
+    ? ERROR_TEXT[code as PracticeWalletErrorCode]
+    : undefined;
+  if (!key) return cause.message;
+  const values = { ...params };
+  if (code === 'explorer_request_failed') values.detail = values.detail ? ` ${values.detail}` : '';
+  return t(key, localizedParams(values));
+}
+
+/** The mismatches between the signed bytes and the plan, in the app language. */
+export function reviewIssuesText(review: PracticeTxReview): string {
+  return review.problems.map(problem => t(PROBLEM_TEXT[problem.code], localizedParams(problem.params))).join(' ');
+}
+
 export type PlaygroundSignedSend = {
   txHex: string;
   txid: string;
@@ -416,7 +473,7 @@ export async function broadcastPlaygroundSend(
 ): Promise<string> {
   if (!signed.review.matchesPlan) {
     throw new Error(
-      t('playground.error.verification', { issues: signed.review.issues.join(' ') }),
+      t('playground.error.verification', { issues: reviewIssuesText(signed.review) }),
     );
   }
   const txid = await getClient().broadcastTx(signed.txHex);
@@ -437,7 +494,7 @@ export function playgroundPublicExplorerTxUrl(txid: string): string {
 
 /** Mobile wallet convention: thousands grouped with spaces, never commas. */
 export function formatTestSats(sats: number): string {
-  return `${sats.toLocaleString('en-US').replace(/,/g, ' ')} SATS`;
+  return `${sats.toLocaleString('en-US').replace(/,/g, ' ')} sats`;
 }
 
 /** Mobile truncation rules: head + '...' + tail past a threshold. */

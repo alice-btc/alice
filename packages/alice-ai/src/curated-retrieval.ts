@@ -41,6 +41,7 @@ const FAMILIES: Record<string, string> = {
   electricity: 'electricite', energy: 'energie', heat: 'chaleur',
   balance: 'solde', capacity: 'capacite', fermeture: 'fermer', fermeturee: 'fermer',
   augmenter: 'augmentation', ajoute: 'ajout', ajouter: 'ajout', ajoutant: 'ajout',
+  attend: 'attente', attends: 'attente', attendre: 'attente', wait: 'attente', waits: 'attente', waiting: 'attente', queue: 'attente',
 };
 export function normalizeCuratedText(text: string): string {
   return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -183,19 +184,20 @@ function selectSourceKnowledge(
   const miningDrop = /\b(miners?|mineurs?|hashrate|hachage)\b/.test(topic) && /\b(arret\w*|stop\w*|switch off|shut down|chute|baisse|moitie|half)\b/.test(topic);
   const confirmationCost = onchain && /\b(confirm\w*)\b/.test(topic) && /\b(cheaper|pricier|cher|prix|price|cost|cout|fees|frais)\b/.test(topic);
   const replacement = onchain && /\b(replaceable|remplacable|remplacer|replace)\b/.test(topic) && /\b(transaction|wallet|portefeuille)\b/.test(topic);
-  const recoveryWords = /\b(words|mots)\b/.test(topic) && /\b(secret\w*|recover\w*|restore|recuper\w*|12|24)\b/.test(topic);
+  const recoveryWords = /\b(words|mots)\b/.test(topic.replace(/\b(mots de passe|passwords?)\b/g, '')) && /\b(secret\w*|recover\w*|restore|recuper\w*|12|24)\b/.test(topic);
   const etf = /\betf\b/.test(topic);
   const change = onchain && /\b(rest|remainder|remaining|reste|monnaie rendue)\b/.test(topic) && /\b(coin|utxo|bitcoin|btc|transaction)\b/.test(topic);
   const uneconomicSpend = onchain && /\b(uneconomic\w*|non rentable|pas rentable)\b/.test(topic) && /\b(spend|depens\w*)\b/.test(topic);
   const nodeStorage = /\b(gb|go|disk|disque|stockage)\b/.test(topic) && /\b(verif\w*|valid\w*)\b/.test(topic);
+  const mempoolWait = onchain && /\b(attend\w*|attente|wait\w*)\b/.test(topic) && /\b(transactions?)\b/.test(topic) && /\b(blocs?|blocks?)\b/.test(topic);
   const printedAddress = /\b(address|adresse)\b/.test(topic) && /\b(business cards?|carte de visite|cartes de visite|print|imprim\w*)\b/.test(topic);
   const nodeComparison = isComparisonRagQuery(query) && /\b(leger\w*|spv|light client)\b/.test(topic) && /\b(full|complet\w*)\b/.test(topic);
   if (nodeComparison) {
     return ['full-node', 'spv-node'].map(id => index.docs.find(d => concept(d.chunk) === id && d.chunk.tier === 'primary'))
       .filter((d): d is Document => !!d).slice(0, max).map(d => ({ ...d.chunk, retrievalReason: 'primary-topic', retrievalScore: 1 }));
   }
-  const anchorId = change ? 'change-output' : uneconomicSpend ? 'coin-selection-tradeoffs'
-    : nodeStorage ? 'pruned-node' : printedAddress ? 'address-reuse'
+  const anchorId = change ? 'change-output' : uneconomicSpend ? 'dust'
+    : nodeStorage ? 'pruned-node' : mempoolWait ? 'bitcoin-mempool' : printedAddress ? 'address-reuse'
     : cancellation ? 'bitcoin-finality'
     : miningDrop ? 'difficulty-adjustment'
     : confirmationCost ? 'transaction-fees'
@@ -207,7 +209,7 @@ function selectSourceKnowledge(
     : isExplicitRbfQuestion(query) ? 'replace-by-fee'
     : isMultisigRecoveryQuestion(query) ? 'multisig'
     : isUtxoValidationQuestion(query) ? 'double-spending'
-    : isSmallOutputSpendingQuestion(query) ? 'coin-selection-tradeoffs' : null;
+    : isSmallOutputSpendingQuestion(query) ? 'dust' : null;
   const anchor = anchorId ? index.docs.find(d => concept(d.chunk) === anchorId && !!d.chunk.tier) : null;
   if (anchor) {
     const detail = miningDrop ? index.docs.find(d => concept(d.chunk) === 'mining-difficulty-details' && d.chunk.tier === 'secondary') : null;

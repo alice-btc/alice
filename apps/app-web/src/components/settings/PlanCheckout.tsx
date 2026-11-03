@@ -14,6 +14,7 @@ import { isBillingPreview } from './billing-preview';
 import { translate, useT, type Locale, type MessageKey } from '@/i18n';
 import { SectionHint, SectionLabel, sectionStyle } from './ui';
 import { openExternalUrl } from '@/lib/open-external';
+import { accountErrorText } from '@/lib/account-errors';
 
 const MONTH_CHOICES = [1, 3, 6, 12];
 
@@ -148,7 +149,7 @@ export function PlanCheckout() {
       // the user comes back to a screen that already knows what happened.
       void openExternalUrl(checkout.checkout_url);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t('settings.checkout.startFailed'));
+      setError(accountErrorText(cause, t('settings.checkout.startFailed'), t.locale));
     } finally {
       setBusy(false);
     }

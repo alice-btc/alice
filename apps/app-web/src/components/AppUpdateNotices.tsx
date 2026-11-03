@@ -8,7 +8,7 @@ import { OPEN_WHATS_NEW_EVENT } from '@/lib/update-notices';
 import { useT } from '@/i18n';
 import {
   RELEASE_NOTES_URL, checkForAppUpdate, currentAppVersion, isTauriDesktop, isTauriMobile,
-  pendingWhatsNew, acknowledgeWhatsNew, whatsNewFor,
+  pendingWhatsNew, acknowledgeWhatsNew, whatsNewFor, whatsNewHighlights,
 } from '@alice-wallet/alice-ai';
 
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1_000;
@@ -59,7 +59,7 @@ function UpdateDetails({ details, onClose }: { details: Details; onClose: () => 
               : t('updates.summary.manual')}
         </p>
         {notes ? <ul className="my-5 pl-5 flex flex-col gap-3" style={{ fontSize: 15, lineHeight: 1.6 }}>
-          {notes.highlights.map(line => <li key={line}>{line}</li>)}
+          {whatsNewHighlights(notes, t.locale).map(line => <li key={line}>{line}</li>)}
         </ul> : <p className="my-5" style={{ fontSize: 15 }}>{t('updates.noNotes')}</p>}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-4" style={{ borderTop: '1px solid var(--alice-border)' }}>
           <a href={RELEASE_NOTES_URL} target="_blank" rel="noreferrer" className="alice-control alice-control--quiet" style={{ fontSize: 13 }}>

@@ -1,9 +1,10 @@
 'use client';
 
 // The /playground page: a Padawan-style practice environment on Mutinynet,
-// styled after the mobile wallet's home (big pixel balance with the wallet's ₿
-// glyph, corner-bracket buttons, inline history) plus a settings view holding
-// the unit switcher, coin control, the address book and wallet deletion.
+// drawn like Learn and the Explorer (reading font, bordered cards, the pixel
+// font kept for short section labels): a balance card, a row of three
+// actions, the inline history, plus a settings view holding the unit
+// switcher, coin control, the address book and wallet deletion.
 // Real Bitcoin mechanics, valueless coins, Alice teaching at every step.
 // Keys live in localStorage under alice.test-wallet.* (the pre-rename prefix,
 // kept so existing practice wallets survive) and never touch the
@@ -14,8 +15,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import QRCode from 'react-qr-code';
-import { PRACTICE_LESSONS, type PracticeLesson } from '@alice-wallet/alice-content';
 import { useChat } from '@alice-wallet/alice-ai';
+import type { PracticeLessonId } from '@alice-wallet/alice-content';
 import { useT, type MessageKey, type Translator } from '@/i18n';
 import {
   PRACTICE_DUST_SATS,
@@ -25,12 +26,11 @@ import {
   type PracticeTxPlan,
 } from '@alice-wallet/practice-wallet';
 import { formatWalletAmount, type BalanceFormat } from '@alice-wallet/alice-ui/balance-format';
-import { CORNER_SVG } from '@alice-wallet/alice-ui/components/corner-svg';
 import { BITCOIN_ICON_SVG } from '@alice-wallet/alice-ui/components/bitcoin-icon-svg';
 import { NUT_ICON, BACK_ICON, NEXT_ICON, REFRESH_ICON, QR_ICON, UP_ICON, RECEIVE_ICON, COPY_ICON, CHECK_ICON, KEY_ICON, DELETE_ICON, WALLET_ICON } from '@/lib/atelier-icons';
 import { WorkspaceHeaderActions } from '@/components/WorkspaceShell';
 import { setAskHandoff, usePhoneLayout } from '@/lib/explorer/ask-handoff';
-import { EmptyState, FieldLabel } from '@/components/ExplorerUI';
+import { EmptyState, FieldLabel, SectionTitle } from '@/components/ExplorerUI';
 import { PlaygroundIntroModal, wasPlaygroundIntroDismissed } from '@/components/PlaygroundIntroModal';
 import { AskAliceDock } from '@/components/AskAliceDock';
 import { AskAliceFab } from '@/components/AskAliceFab';
@@ -62,7 +62,9 @@ import {
   markPlaygroundBackedUp,
   loadPlaygroundSnapshot,
   planPlaygroundSend,
+  playgroundErrorText,
   readCachedPlaygroundSnapshot,
+  reviewIssuesText,
   playgroundFeeRate,
   rotatePlaygroundReceiveAddress,
   signPlaygroundSend,
@@ -108,25 +110,27 @@ function BitcoinGlyph() {
   );
 }
 
-/** An amount in the selected unit, with the real pixel ₿ glyph. */
+/** An amount in the selected unit, in the reading font, with the real pixel ₿ glyph. */
 function TestAmount({
   sats,
   state,
   signed = false,
   fontSize,
   color,
+  weight = 400,
 }: {
   sats: number;
   state: AmountState;
   signed?: boolean;
   fontSize: number;
   color: string;
+  weight?: number;
 }) {
   const s = coerceTestUnit(state);
   const body = formatWalletAmount(Math.abs(sats), s.format, s.price);
   return (
-    <span className="font-pixel" style={{ display: 'inline-flex', alignItems: 'center', fontSize, color }}>
-      {signed && (sats < 0 ? '-' : '+')}
+    <span className="font-numbers" style={{ display: 'inline-flex', alignItems: 'center', fontSize, color, fontWeight: weight, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+      {signed && (sats < 0 ? '−' : '+')}
       {s.format === 'symbol' && <BitcoinGlyph />}
       {body}
     </span>
@@ -159,7 +163,7 @@ function PlaygroundHeading({ exists, inSubView, title, onToggle }: {
   return (
     <div className="flex items-center gap-3">
       {button}
-      <h1 className="font-pixel tracking-widest" style={{ fontSize: 16, color: 'var(--alice-text)', lineHeight: 1.7 }}>
+      <h1 className="font-numbers" style={{ fontSize: 24, fontWeight: 600, color: 'var(--alice-text)', lineHeight: 1.2 }}>
         {title}
       </h1>
     </div>
@@ -170,21 +174,22 @@ function MutinynetBadge() {
   const t = useT();
   return (
     <span
-      className="font-numbers inline-flex items-center px-2 py-1"
-      style={{ fontSize: 12, color: 'var(--alice-muted)' }}
+      className="font-pixel inline-flex items-center"
+      style={{ fontSize: 9, padding: '8px 10px', whiteSpace: 'nowrap', color: 'var(--alice-muted)', border: '1px solid var(--alice-border)', borderRadius: 'var(--alice-radius-control)' }}
     >
       {t('playground.badge')}
     </span>
   );
 }
 
-/** Training card on the shared Atelier surface. */
-function PixelCard({ children }: { children: React.ReactNode }) {
+/** A bordered card, the Explorer's and Learn's, optionally on the soft background. */
+function Card({ children, soft = false }: { children: React.ReactNode; soft?: boolean }) {
   return (
     <div
       style={{
-        borderTop: '1px solid var(--alice-border)',
-        backgroundColor: 'transparent',
+        border: '1px solid var(--alice-border)',
+        borderRadius: 'var(--alice-radius-control)',
+        backgroundColor: soft ? 'var(--alice-card-bg)' : 'transparent',
       }}
     >
       {children}
@@ -192,43 +197,28 @@ function PixelCard({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Web replica of the mobile wallet's corner-bracket action button. */
-function CornerButton({
+/** One of the home's three actions: a bordered control, the useful one raised. */
+function ActionButton({
   label,
+  icon,
   onClick,
   disabled,
+  primary,
 }: {
   label: string;
+  icon: string;
   onClick: () => void;
   disabled?: boolean;
+  primary?: boolean;
 }) {
-  // The source SVG carries an intrinsic 1000px size; pin it to the corner box.
-  const corner = useMemo(
-    () => CORNER_SVG
-      .replaceAll('{{COLOR}}', 'currentColor')
-      .replace('width="1000"', 'width="20" style="display:block"')
-      .replace('height="1000"', 'height="20"'),
-    [],
-  );
-  const cornerStyle = (rotate: number, pos: React.CSSProperties): React.CSSProperties => ({
-    position: 'absolute',
-    width: 20,
-    height: 20,
-    transform: `rotate(${rotate}deg)`,
-    ...pos,
-  });
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className="alice-control playground-corner relative"
-      style={{ width: 140, height: 70, color: 'var(--alice-primary)' }}
+      className={`alice-control playground-action${primary ? ' alice-control--primary' : ''}`}
     >
-      <span aria-hidden style={cornerStyle(90, { top: 0, left: 0 })} dangerouslySetInnerHTML={{ __html: corner }} />
-      <span aria-hidden style={cornerStyle(180, { top: 0, right: 0 })} dangerouslySetInnerHTML={{ __html: corner }} />
-      <span aria-hidden style={cornerStyle(0, { bottom: 0, left: 0 })} dangerouslySetInnerHTML={{ __html: corner }} />
-      <span aria-hidden style={cornerStyle(270, { bottom: 0, right: 0 })} dangerouslySetInnerHTML={{ __html: corner }} />
-      <span className="font-pixel tracking-widest" style={{ fontSize: 11 }}>{label}</span>
+      <SvgIcon svg={icon} size={16} />
+      {label}
     </button>
   );
 }
@@ -237,22 +227,30 @@ function CornerButton({
 // a lesson card can carry a discreet link to the course that explains the
 // concept in depth. Course-level for now, chapter-level once the mapping in
 // learn/playground-suggest grows per-chapter targets.
-function Lesson({ lesson, learnCourse }: { lesson: PracticeLesson; learnCourse?: string }) {
+const LESSON_TEXT: Record<PracticeLessonId, { title: MessageKey; body: MessageKey }> = {
+  intro: { title: 'playground.lesson.intro.title', body: 'playground.lesson.intro.body' },
+  receive: { title: 'playground.lesson.receive.title', body: 'playground.lesson.receive.body' },
+  backup: { title: 'playground.lesson.backup.title', body: 'playground.lesson.backup.body' },
+  coins: { title: 'playground.lesson.coins.title', body: 'playground.lesson.coins.body' },
+  outputs: { title: 'playground.lesson.outputs.title', body: 'playground.lesson.outputs.body' },
+  signature: { title: 'playground.lesson.signature.title', body: 'playground.lesson.signature.body' },
+  broadcast: { title: 'playground.lesson.broadcast.title', body: 'playground.lesson.broadcast.body' },
+};
+
+function Lesson({ lesson, learnCourse }: { lesson: PracticeLessonId; learnCourse?: string }) {
   const router = useRouter();
   const t = useT();
   return (
-    <div className="px-3 py-3" style={{ borderLeft: '2px solid var(--alice-border)' }}>
-      <div className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-primary-dark)' }}>
-        {lesson.title}
-      </div>
-      <p className="font-numbers mt-2" style={{ fontSize: 14, lineHeight: '20px', color: 'var(--alice-muted)' }}>
-        {lesson.body}
+    <div className="flex flex-col gap-2 px-4 py-4" style={{ border: '1px solid var(--alice-border)', borderRadius: 'var(--alice-radius-control)' }}>
+      <SectionTitle>{t(LESSON_TEXT[lesson].title)}</SectionTitle>
+      <p className="font-numbers" style={{ fontSize: 14, lineHeight: '20px', color: 'var(--alice-muted)' }}>
+        {t(LESSON_TEXT[lesson].body)}
       </p>
       {learnCourse && (
         <button
           type="button"
-          className="alice-control alice-control--link mt-2"
-
+          className="alice-control alice-control--link self-start"
+          style={{ padding: '6px 0' }}
           onClick={() => router.push(`/learn/?course=${learnCourse}`)}
         >
           {t('playground.lesson.learnWhy')} <SvgIcon svg={NEXT_ICON} size={16} />
@@ -439,8 +437,8 @@ function TxPartRow({
         )}
       </span>
       <span
-        className="font-pixel shrink-0"
-        style={{ fontSize: strong ? 11 : 9, color: strong ? 'var(--alice-primary-dark)' : 'var(--alice-text)' }}
+        className="font-numbers shrink-0"
+        style={{ fontSize: 13, fontWeight: strong ? 600 : 400, fontVariantNumeric: 'tabular-nums', color: 'var(--alice-text)' }}
       >
         {value}
       </span>
@@ -538,7 +536,7 @@ function SendFlow({
         planError: null,
       };
     } catch (cause) {
-      return { plan: null, planError: cause instanceof Error ? cause.message : String(cause) };
+      return { plan: null, planError: playgroundErrorText(cause) };
     }
   }, [address, amountText, feeRate, snapshot.utxos, snapshot.changeAddress]);
 
@@ -559,7 +557,7 @@ function SendFlow({
     try {
       await action();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(playgroundErrorText(cause));
     } finally {
       setBusy(false);
     }
@@ -575,19 +573,19 @@ function SendFlow({
 
   if (phase === 'sent' && txid && plan) {
     return (
-      <PixelCard>
+      <Card>
         <div
           className="flex flex-col items-center gap-3 p-6"
           style={{ backgroundColor: 'transparent', borderRadius: 'var(--alice-radius-control)' }}
         >
-          <span className="font-pixel tracking-widest pt-2" style={{ fontSize: 12, color: 'var(--alice-text)' }}>
+          <span className="font-numbers pt-2" style={{ fontSize: 18, fontWeight: 600, color: 'var(--alice-text)' }}>
             {t('playground.send.submitted')}
           </span>
-          <span className="font-numbers" style={{ fontSize: 48, lineHeight: '54px', color: 'var(--alice-text)' }}>
-            -{formatTestSats(plan.amountSats)}
+          <span className="font-numbers" style={{ fontSize: 40, lineHeight: '46px', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: 'var(--alice-text)' }}>
+            −{formatTestSats(plan.amountSats)}
           </span>
           <span aria-hidden className="my-4" style={{ width: 44, height: 3, backgroundColor: 'var(--alice-border)' }} />
-          <span className="font-pixel tracking-widest" style={{ fontSize: 11, color: 'var(--alice-text)' }}>{t('playground.send.to')}</span>
+          <SectionTitle>{t('playground.send.to')}</SectionTitle>
           <button
             className="alice-control alice-control--quiet flex-col"
             onClick={() => {
@@ -604,9 +602,7 @@ function SendFlow({
               {receiptCopied ? t('playground.copied') : t('playground.send.tapToCopy')}
             </span>
           </button>
-          <span className="font-pixel tracking-widest mt-4" style={{ fontSize: 11, color: 'var(--alice-text)' }}>
-            {t('playground.tx.title')}
-          </span>
+          <span className="mt-4"><SectionTitle>{t('playground.tx.title')}</SectionTitle></span>
           <button
             onClick={() => openPlaygroundTxInExplorer(txid, (path) => router.push(path), t('playground.explorerLabel.sent'))}
             className="alice-control alice-control--link flex-col"
@@ -626,12 +622,12 @@ function SendFlow({
             {t('playground.backToWallet')}
           </button>
         </div>
-      </PixelCard>
+      </Card>
     );
   }
 
   return (
-    <PixelCard>
+    <Card>
       <div className="flex flex-col gap-4 p-3">
         {error && <ErrorCard message={error} />}
 
@@ -679,10 +675,10 @@ function SendFlow({
                 inputMode="numeric"
               />
               <span
-                className="font-pixel flex shrink-0 items-center justify-center"
-                style={{ minWidth: 48, fontSize: 10, color: 'var(--alice-muted)', letterSpacing: 2 }}
+                className="font-numbers flex shrink-0 items-center justify-center"
+                style={{ minWidth: 48, fontSize: 14, color: 'var(--alice-muted)' }}
               >
-                SATS
+                sats
               </span>
               <button
                 className="alice-control alice-control--quiet shrink-0"
@@ -723,9 +719,7 @@ function SendFlow({
         {/* The transaction, laid bare. */}
         <div style={{ borderTop: '1px solid var(--alice-border)', paddingTop: 12 }}>
           <div className="flex items-center justify-between">
-            <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-              {t('playground.send.transaction')}
-            </span>
+            <SectionTitle>{t('playground.send.transaction')}</SectionTitle>
             {plan && (
               <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
                 {plan.estimatedVbytes} vbytes · {plan.feeRateSatVb} sat/vB
@@ -790,7 +784,7 @@ function SendFlow({
                       ? t('playground.send.noChangeDust')
                       : t('playground.send.noChangeSweep')
                   }
-                  value="0 SATS"
+                  value={formatTestSats(0)}
                 />
               )}
               <TxPartRow
@@ -840,7 +834,7 @@ function SendFlow({
               </span>
             ))}
             {!signed.review.matchesPlan && (
-              <p className="font-numbers" style={{ fontSize: 12, color: BADGE_BG }}>{signed.review.issues.join(' ')}</p>
+              <p className="font-numbers" style={{ fontSize: 12, color: BADGE_BG }}>{reviewIssuesText(signed.review)}</p>
             )}
             <span className="font-numbers break-all mt-1" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
               txid {signed.txid}
@@ -880,7 +874,7 @@ function SendFlow({
           </button>
         </div>
       </div>
-    </PixelCard>
+    </Card>
   );
 }
 
@@ -910,7 +904,7 @@ function BackupFlow({
       setWords(await getPlaygroundMnemonicWords());
       setStep('seed');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(playgroundErrorText(cause));
     }
   }
 
@@ -972,7 +966,7 @@ function BackupFlow({
       setWords([]);
       setStep('complete');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(playgroundErrorText(cause));
     }
   }
 
@@ -983,9 +977,9 @@ function BackupFlow({
     : t('playground.backup.titleComplete');
 
   return (
-    <PixelCard>
+    <Card>
       <div className="flex flex-col items-center gap-4 p-4 text-center">
-        <div className="font-pixel tracking-widest" style={{ fontSize: 12, lineHeight: '20px', color: 'var(--alice-primary-dark)' }}>
+        <div className="font-numbers" style={{ fontSize: 18, lineHeight: '24px', fontWeight: 600, color: 'var(--alice-text)' }}>
           {title}
         </div>
 
@@ -999,7 +993,7 @@ function BackupFlow({
                 : t('playground.backup.notBackedUp')}
               {' '}{t('playground.backup.scope')}
             </p>
-            <p className="font-pixel tracking-wider" style={{ fontSize: 11, color: BADGE_BG }}>
+            <p className="font-numbers" style={{ fontSize: 13, fontWeight: 600, color: 'var(--alice-danger-ink)' }}>
               {t('playground.backup.neverShare')}
             </p>
             <div className="w-full max-w-xs">
@@ -1043,7 +1037,7 @@ function BackupFlow({
                 );
               })}
             </div>
-            <p className="font-pixel tracking-wider" style={{ fontSize: 11, color: BADGE_BG }}>
+            <p className="font-numbers" style={{ fontSize: 13, fontWeight: 600, color: 'var(--alice-danger-ink)' }}>
               {t('playground.backup.neverAsk')}
             </p>
             <div className="w-full max-w-xs">
@@ -1063,7 +1057,7 @@ function BackupFlow({
             </p>
             {verifyIndices.map((wordIndex, questionIndex) => (
               <div key={wordIndex} className="w-full text-left" style={{ maxWidth: 440 }}>
-                <div className="font-pixel mb-2" style={{ fontSize: 11, color: 'var(--alice-primary-dark)' }}>
+                <div className="font-numbers mb-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--alice-text)' }}>
                   {t('playground.backup.wordNumber', { number: wordIndex + 1 })}
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -1110,24 +1104,24 @@ function BackupFlow({
           </>
         )}
       </div>
-    </PixelCard>
+    </Card>
   );
 }
 
-/** Mobile wallet's error card: PAYMENT ERROR title on a danger-tinted box. */
+/** The send screen's error: a danger-tinted card with a short title and the message as is. */
 function ErrorCard({ message }: { message: string }) {
   const t = useT();
   return (
     <div
       role="alert"
-      className="flex flex-col gap-2 p-3"
-      style={{ border: '2px solid var(--alice-danger)', borderRadius: 'var(--alice-radius-control)', backgroundColor: 'var(--alice-danger-soft)' }}
+      className="flex flex-col gap-1 px-4 py-3"
+      style={{ border: '1px solid var(--alice-danger)', borderRadius: 'var(--alice-radius-control)', backgroundColor: 'var(--alice-danger-soft)' }}
     >
-      <span className="font-pixel tracking-wider" style={{ fontSize: 11, color: 'var(--alice-danger)' }}>
+      <span className="font-numbers" style={{ fontSize: 14, fontWeight: 600, color: 'var(--alice-danger-ink)' }}>
         {t('playground.error.title')}
       </span>
-      <span className="font-numbers" style={{ fontSize: 12, lineHeight: '13px', color: 'var(--alice-danger)' }}>
-        {message.toLocaleUpperCase(t.locale)}
+      <span className="font-numbers" style={{ fontSize: 13, lineHeight: '18px', color: 'var(--alice-danger-ink)' }}>
+        {message}
       </span>
     </div>
   );
@@ -1140,10 +1134,9 @@ type ReceivedPayment = {
 };
 
 /**
- * Receive, mirroring the mobile screen: optional amount folded into a BIP21
- * QR, tap-the-QR-to-copy with the "Tap QR to copy" hint, a WAITING FOR
- * PAYMENT row, the payment-method row with its COPY flash, and the full-bleed
- * PAYMENT RECEIVED receipt once the payment lands (polled every 5 seconds).
+ * Receive: the address and its QR in a card (tap the QR to copy the request,
+ * an optional amount folds into the BIP21 URI), the lesson beside it, and
+ * the receipt once the payment lands (polled every 5 seconds).
  */
 function ReceiveView({
   snapshot,
@@ -1224,16 +1217,14 @@ function ReceiveView({
         style={{ backgroundColor: 'transparent', borderRadius: 'var(--alice-radius-control)', minHeight: 480 }}
       >
         <div className="flex flex-col items-center gap-2 pt-6">
-          <span className="font-pixel tracking-widest" style={{ fontSize: 12, color: 'var(--alice-text)' }}>
+          <span className="font-numbers" style={{ fontSize: 18, fontWeight: 600, color: 'var(--alice-text)' }}>
             {t('playground.receive.received')}
           </span>
-          <span className="font-numbers mt-4" style={{ fontSize: 48, lineHeight: '54px', color: 'var(--alice-text)' }}>
+          <span className="font-numbers mt-4" style={{ fontSize: 40, lineHeight: '46px', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: 'var(--alice-text)' }}>
             +{formatWalletAmount(received.amountSats, coerceTestUnit(amountState).format, amountState.price)}
           </span>
           <span aria-hidden className="my-6" style={{ width: 44, height: 3, backgroundColor: 'var(--alice-border)' }} />
-          <span className="font-pixel tracking-widest" style={{ fontSize: 11, color: 'var(--alice-text)' }}>
-            {t('playground.receive.confirmations')}
-          </span>
+          <SectionTitle>{t('playground.receive.confirmations')}</SectionTitle>
           <span
             className="font-numbers mt-1"
             style={{ fontSize: 18, color: received.confirmed ? 'var(--alice-success)' : 'var(--alice-warning)' }}
@@ -1242,9 +1233,7 @@ function ReceiveView({
           </span>
           {received.txid && (
             <>
-              <span className="font-pixel tracking-widest mt-6" style={{ fontSize: 11, color: 'var(--alice-text)' }}>
-                {t('playground.tx.title')}
-              </span>
+              <span className="mt-6"><SectionTitle>{t('playground.tx.title')}</SectionTitle></span>
               <button
                 onClick={() => openPlaygroundTxInExplorer(received.txid!, (path) => router.push(path), t('playground.explorerLabel.received'))}
                 className="alice-control alice-control--link flex-col"
@@ -1271,78 +1260,73 @@ function ReceiveView({
   }
 
   return (
-    <PixelCard>
-      <div className="flex flex-col items-center gap-4 p-4">
-        <Lesson lesson={PRACTICE_LESSONS.receive} learnCourse="btc101" />
+    <div className="grid gap-5 md:grid-cols-2 items-start">
+      {/* The address and its QR in one card; tap the QR to copy the request. */}
+      <Card soft>
+        <div className="flex flex-col items-center gap-4 p-6">
+          <button
+            onClick={() => copy('qr', payload)}
+            className="cursor-pointer"
+            style={{ border: 0, borderRadius: 'var(--alice-radius-control)', backgroundColor: '#ffffff', padding: 10 }}
+            aria-label={t('playground.receive.copyRequest')}
+          >
+            <QRCode value={payload} size={200} bgColor="#ffffff" fgColor="#1c2533" />
+          </button>
+          <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
+            {copied === 'qr' ? t('playground.receive.copiedQr') : t('playground.receive.tapQr')}
+          </span>
+          <div className="flex flex-col items-center gap-1 w-full">
+            <SectionTitle>BITCOIN · MUTINYNET</SectionTitle>
+            <code className="font-numbers break-all text-center select-all" style={{ fontSize: 13, lineHeight: '18px', color: 'var(--alice-text)' }}>
+              {snapshot.receiveAddress}
+            </code>
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            <button onClick={() => copy('row', snapshot.receiveAddress)} className="alice-control alice-control--primary">
+              <SvgIcon svg={copied === 'row' ? CHECK_ICON : COPY_ICON} size={16} />
+              {copied === 'row' ? t('playground.copied') : t('playground.receive.copy')}
+            </button>
+            <button onClick={onRotate} className="alice-control playground-action" style={{ width: 'auto' }}>
+              <SvgIcon svg={REFRESH_ICON} size={16} />
+              {t('playground.receive.newAddress')}
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              aria-hidden
+              className="inline-block animate-spin"
+              style={{ width: 10, height: 10, border: '2px solid var(--alice-primary)', borderTopColor: 'transparent', borderRadius: '50%' }}
+            />
+            <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>
+              {t('playground.receive.waiting')}
+            </span>
+          </div>
+        </div>
+      </Card>
 
+      <div className="flex flex-col gap-5">
         {/* Amount request, optional: folds into the BIP21 URI. */}
-        <div className="w-full" style={{ maxWidth: 320 }}>
+        <div className="flex flex-col gap-1">
           <label htmlFor="playground-receive-amount" className="alice-field-label">{t('playground.receive.amount')}</label>
           <div
-            className="flex items-center mt-1 px-3"
-            style={{ minHeight: 56, border: '1px solid var(--alice-border)', borderRadius: 'var(--alice-radius-control)', backgroundColor: 'transparent' }}
+            className="flex items-center px-3"
+            style={{ minHeight: 52, border: '1px solid var(--alice-border)', borderRadius: 'var(--alice-radius-field)', backgroundColor: 'var(--alice-bg-soft)' }}
           >
             <input
               id="playground-receive-amount" className="font-numbers flex-1 min-w-0 bg-transparent outline-none"
-              style={{ fontSize: 26, color: 'var(--alice-primary-dark)' }}
+              style={{ fontSize: 18, color: 'var(--alice-text)' }}
               value={amountText}
               onChange={(e) => setAmountText(e.target.value.replace(/\D/g, '').slice(0, 12))}
               placeholder="0"
               inputMode="numeric"
             />
-            <span className="font-pixel" style={{ fontSize: 10, color: 'var(--alice-muted)', letterSpacing: 2 }}>SATS</span>
+            <span className="font-numbers" style={{ fontSize: 14, color: 'var(--alice-muted)' }}>sats</span>
           </div>
+          <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>{t('playground.receive.amountHint')}</span>
         </div>
-
-        {/* Waiting row, mobile-style. */}
-        <div className="flex items-center gap-2">
-          <span
-            aria-hidden
-            className="inline-block animate-spin"
-            style={{ width: 10, height: 10, border: '2px solid var(--alice-primary)', borderTopColor: 'transparent', borderRadius: '50%' }}
-          />
-          <span className="font-pixel tracking-wider" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-            {t('playground.receive.waiting')}
-          </span>
-        </div>
-
-        {/* The QR: tap to copy the payload. */}
-        <button
-          onClick={() => copy('qr', payload)}
-          className="cursor-pointer"
-          style={{ border: '1px solid var(--alice-border)', borderRadius: 'var(--alice-radius-control)', backgroundColor: '#ffffff', padding: 8 }}
-          aria-label={t('playground.receive.copyRequest')}
-        >
-          <QRCode value={payload} size={220} bgColor="#ffffff" fgColor="#1c2533" />
-        </button>
-        <span className="font-pixel tracking-wider" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-          {copied === 'qr' ? t('playground.receive.copiedQr') : t('playground.receive.tapQr')}
-        </span>
-
-        {/* Payment method row, mobile anatomy. */}
-        <button
-          onClick={() => copy('row', snapshot.receiveAddress)}
-          className="alice-control alice-control--row"
-          style={{ maxWidth: 420, minHeight: 54 }}
-        >
-          <span className="flex flex-col flex-1 min-w-0 gap-1">
-            <span className="font-pixel tracking-wider" style={{ fontSize: 10, color: 'var(--alice-primary-dark)' }}>
-              BITCOIN MUTINYNET
-            </span>
-            <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>
-              {truncateMiddle(snapshot.receiveAddress, 14, 10, 24)}
-            </span>
-          </span>
-          <span className="font-pixel tracking-wider" style={{ fontSize: 10, color: 'var(--alice-primary)' }}>
-            {copied === 'row' ? t('playground.copied') : t('playground.receive.copy')}
-          </span>
-        </button>
-
-        <div className="w-full" style={{ maxWidth: 420 }}>
-          <PrimaryButton label={t('playground.receive.newAddress')} onClick={onRotate} />
-        </div>
+        <Lesson lesson="receive" learnCourse="btc101" />
       </div>
-    </PixelCard>
+    </div>
   );
 }
 
@@ -1419,7 +1403,7 @@ function PlaygroundWorkspace({
       setFaucetClaimed(await hasClaimedPlaygroundFaucet());
       if (present) setSnapshot(await loadPlaygroundSnapshot());
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(playgroundErrorText(cause));
     } finally {
       setLoading(false);
     }
@@ -1442,7 +1426,7 @@ function PlaygroundWorkspace({
     setError(null);
     void createPlaygroundIfNeeded()
       .then(() => refresh())
-      .catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))
+      .catch((cause) => setError(playgroundErrorText(cause)))
       .finally(() => setCreating(false));
   }, [refresh]);
 
@@ -1487,7 +1471,7 @@ function PlaygroundWorkspace({
       }
     } catch (cause) {
       setFaucet(null);
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(playgroundErrorText(cause));
     }
   }
 
@@ -1499,6 +1483,11 @@ function PlaygroundWorkspace({
     }
     void openExternalUrl(faucetUrl);
   }
+
+  const canSend = snapshot !== null && snapshot.utxos.length > 0;
+  // On a phone the title lives in the shell's header, so the network badge
+  // moves into the balance card rather than sit alone on a line.
+  const phone = usePhoneLayout();
 
   // Settings children go back to settings; receive and settings go home.
   const inSubView = view !== 'home' && view !== 'send';
@@ -1528,7 +1517,7 @@ function PlaygroundWorkspace({
             setView(inSubView ? backTarget : 'settings');
           }}
         />
-        <MutinynetBadge />
+        {!phone && <MutinynetBadge />}
       </div>
       <p
         className="font-numbers"
@@ -1540,9 +1529,9 @@ function PlaygroundWorkspace({
       {error && <p className="font-numbers" style={{ fontSize: 12, lineHeight: '14px', color: BADGE_BG }}>{error}</p>}
 
       {exists === false && (
-        <PixelCard>
+        <Card>
           <div className="flex flex-col gap-3 p-3">
-            <Lesson lesson={PRACTICE_LESSONS.intro} />
+            <Lesson lesson="intro" />
             <PrimaryButton
               label={creating ? t('playground.creating') : t('playground.create')}
               icon={WALLET_ICON}
@@ -1550,11 +1539,11 @@ function PlaygroundWorkspace({
               onClick={startCreate}
             />
           </div>
-        </PixelCard>
+        </Card>
       )}
 
       {exists && view === 'settings' && (
-        <PixelCard>
+        <Card>
           <SettingsRow label={t('playground.settings.balance')} right={<UnitSwitcher state={amountState} />} />
           <SettingsRow
             label={t('playground.view.coins')}
@@ -1593,14 +1582,14 @@ function PlaygroundWorkspace({
                   setFaucet(null);
                     setView('home');
                 })
-                .catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
+                .catch((cause) => setError(playgroundErrorText(cause)));
             }}
           />
-        </PixelCard>
+        </Card>
       )}
 
       {exists && view === 'faucet' && (
-        <PixelCard>
+        <Card>
           <div className="flex flex-col gap-3 p-3">
             <p className="font-numbers" style={{ fontSize: 14, lineHeight: '20px', color: 'var(--alice-muted)' }}>
               {faucetClaimed
@@ -1625,12 +1614,12 @@ function PlaygroundWorkspace({
               />
             )}
           </div>
-        </PixelCard>
+        </Card>
       )}
 
       {exists && view === 'backup' && (
         <>
-          <Lesson lesson={PRACTICE_LESSONS.backup} learnCourse="btc101" />
+          <Lesson lesson="backup" learnCourse="btc101" />
           <BackupFlow
             backedUp={backedUp}
             onBackedUp={() => setBackedUp(true)}
@@ -1646,7 +1635,7 @@ function PlaygroundWorkspace({
           onRotate={() =>
             void rotatePlaygroundReceiveAddress()
               .then((address) => setSnapshot((prev) => (prev ? { ...prev, receiveAddress: address } : prev)))
-              .catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))
+              .catch((cause) => setError(playgroundErrorText(cause)))
           }
           onExit={() => {
             setView('home');
@@ -1657,15 +1646,13 @@ function PlaygroundWorkspace({
       )}
 
       {exists && view === 'coins' && (
-        <PixelCard>
+        <Card>
           <div className="flex flex-col gap-3 p-3">
-            <Lesson lesson={PRACTICE_LESSONS.coins} learnCourse="btc101" />
+            <Lesson lesson="coins" learnCourse="btc101" />
             {snapshot !== null && (
               <div className="flex flex-col items-center gap-1 py-2 text-center">
-                <span className="font-pixel tracking-wider" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
-                  {t('playground.coins.total')}
-                </span>
-                <span className="font-numbers" style={{ fontSize: 24, color: 'var(--alice-primary-dark)' }}>
+                <SectionTitle>{t('playground.coins.total')}</SectionTitle>
+                <span className="font-numbers" style={{ fontSize: 24, fontWeight: 600, color: 'var(--alice-text)' }}>
                   {formatTestSats(snapshot.balanceSats + snapshot.pendingSats)}
                 </span>
                 <span className="font-numbers tracking-wider" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
@@ -1694,8 +1681,8 @@ function PlaygroundWorkspace({
                     </span>
                   </span>
                   <span
-                    className="font-pixel text-right"
-                    style={{ fontSize: 10, color: utxo.confirmed ? 'var(--alice-success)' : 'var(--alice-warning)' }}
+                    className="font-numbers text-right"
+                    style={{ fontSize: 12, color: utxo.confirmed ? 'var(--alice-success)' : 'var(--alice-warning-ink)' }}
                   >
                     {utxo.confirmed ? t('playground.status.confirmed') : t('playground.status.pending')}
                   </span>
@@ -1703,13 +1690,13 @@ function PlaygroundWorkspace({
               ))
             )}
           </div>
-        </PixelCard>
+        </Card>
       )}
 
       {exists && view === 'addresses' && (
-        <PixelCard>
+        <Card>
           <div className="flex flex-col gap-3 p-3">
-            <Lesson lesson={PRACTICE_LESSONS.receive} learnCourse="btc101" />
+            <Lesson lesson="receive" learnCourse="btc101" />
             <p className="font-numbers" style={{ fontSize: 12, lineHeight: '17px', color: 'var(--alice-muted)' }}>
               {t('playground.addresses.explainer')}
             </p>
@@ -1723,8 +1710,8 @@ function PlaygroundWorkspace({
                   style={{ border: '1px solid var(--alice-border)', borderRadius: 'var(--alice-radius-control)', backgroundColor: 'transparent' }}
                 >
                   <span className="flex items-center justify-between">
-                    <span className="font-pixel tracking-wider" style={{ fontSize: 11, color: 'var(--alice-primary-dark)' }}>BITCOIN</span>
-                    <span className="font-pixel tracking-wider" style={{ fontSize: 11, color: 'var(--alice-success)' }}>{t('playground.addresses.current')}</span>
+                    <SectionTitle>BITCOIN</SectionTitle>
+                    <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-success)' }}>{t('playground.addresses.current')}</span>
                   </span>
                   <span className="font-numbers select-all" style={{ fontSize: 14, color: 'var(--alice-primary-dark)' }}>
                     {truncateMiddle(snapshot.receiveAddress, 18, 12, 34)}
@@ -1734,7 +1721,7 @@ function PlaygroundWorkspace({
                     onClick={() =>
                       void rotatePlaygroundReceiveAddress()
                         .then(() => refresh())
-                        .catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))
+                        .catch((cause) => setError(playgroundErrorText(cause)))
                     }
                   />
                 </div>
@@ -1763,7 +1750,7 @@ function PlaygroundWorkspace({
               </>
             )}
           </div>
-        </PixelCard>
+        </Card>
       )}
 
       {exists && view === 'send' && snapshot && (
@@ -1781,71 +1768,61 @@ function PlaygroundWorkspace({
 
       {exists && view === 'home' && (
         <>
-          {/* Balance, mobile-wallet style: big pixel amount, click to change unit. */}
-          <div className="flex flex-col items-center gap-1 py-2">
-            <button
-              className="alice-control alice-control--quiet"
-              title={t('playground.home.changeUnit')}
-              onClick={() => cycleTestUnit(amountState)}
-            >
-              <TestAmount
-                sats={snapshot?.balanceSats ?? 0}
-                state={amountState}
-                fontSize={30}
-                color="var(--alice-primary-dark)"
-              />
-            </button>
-            {snapshot !== null && snapshot.pendingSats > 0 && (
-              <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-                {t('playground.home.incoming', { amount: formatTestSats(snapshot.pendingSats) })}
-              </span>
-            )}
-            <button
-              className="alice-control alice-control--quiet mt-1"
+          {/* The balance, a card: label, the amount (click to change the unit), what is on its way. */}
+          <Card soft>
+            <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-5">
+              <div className="flex flex-col gap-2 min-w-0 flex-1">
+                <span className="flex flex-wrap items-center justify-between gap-2">
+                  <SectionTitle>{t('playground.home.balance')}</SectionTitle>
+                  {phone && <MutinynetBadge />}
+                </span>
+                <button
+                  className="alice-control alice-control--quiet self-start"
+                  style={{ padding: 0, minHeight: 0, color: 'var(--alice-text)' }}
+                  title={t('playground.home.changeUnit')}
+                  onClick={() => cycleTestUnit(amountState)}
+                >
+                  <TestAmount sats={snapshot?.balanceSats ?? 0} state={amountState} fontSize={36} weight={600} color="var(--alice-text)" />
+                </button>
+                <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>
+                  {snapshot !== null && snapshot.pendingSats > 0
+                    ? t('playground.home.incoming', { amount: formatTestSats(snapshot.pendingSats) })
+                    : t('playground.home.noValue')}
+                </span>
+              </div>
+              <button className="alice-control alice-control--quiet" onClick={() => void refresh()} disabled={loading}>
+                <SvgIcon svg={REFRESH_ICON} size={16} /> {loading ? t('playground.home.checking') : t('playground.home.refresh')}
+              </button>
+            </div>
+          </Card>
 
-              onClick={() => void refresh()}
-              disabled={loading}
-            >
-              <SvgIcon svg={REFRESH_ICON} size={20} /> {loading ? t('playground.home.checking') : t('playground.home.refresh')}
-            </button>
-          </div>
-
-          {/* The three actions, corner-bracket style like the mobile wallet. */}
-          <div className="flex items-center justify-center gap-3 flex-wrap">
-            <CornerButton
-              label={t('playground.home.send')}
-              disabled={!snapshot || snapshot.utxos.length === 0}
-              onClick={() => setView('send')}
-            />
-            <CornerButton
-              label={t('playground.home.receive')}
-              onClick={() => setView('receive')}
-            />
+          {/* The three actions in one row; the one to press next is raised. */}
+          <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${faucetClaimed ? 2 : 3}, minmax(0, 1fr))` }}>
             {!faucetClaimed && (
-              <CornerButton label={t('playground.home.freeSats')} onClick={() => setFaucet({ stage: 'confirm' })} />
+              <ActionButton label={t('playground.home.freeSats')} icon={RECEIVE_ICON} primary={!canSend} onClick={() => setFaucet({ stage: 'confirm' })} />
             )}
+            <ActionButton label={t('playground.home.receive')} icon={QR_ICON} primary={faucetClaimed && !canSend} onClick={() => setView('receive')} />
+            <ActionButton label={t('playground.home.send')} icon={UP_ICON} primary={canSend} disabled={!canSend} onClick={() => setView('send')} />
           </div>
 
-          {/* The mobile wallet's backup banner, verbatim: red, insistent,
-              gone once the ritual is done. */}
+          {/* The backup reminder, a quiet card until the ritual is done. */}
           {!backedUp && (
-            <button
-              onClick={() => setView('backup')}
-              className="alice-control alice-control--row alice-control--danger"
-              style={{ borderLeft: '2px solid var(--alice-danger)' }}
-            >
-              <span className="font-numbers" style={{ fontSize: 13, lineHeight: '17px', color: 'var(--alice-danger)' }}>
-                {t('playground.home.backupBanner')}
-              </span>
-              <span className="font-numbers shrink-0 inline-flex items-center gap-2" style={{ fontSize: 12, color: 'var(--alice-danger)' }}>
-                {t('playground.home.backUp')} <SvgIcon svg={KEY_ICON} size={20} />
-              </span>
-            </button>
+            <Card>
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <span className="flex items-center gap-3 font-numbers" style={{ fontSize: 14, color: 'var(--alice-muted)' }}>
+                  <SvgIcon svg={KEY_ICON} size={18} color="var(--alice-warning-ink)" />
+                  {t('playground.home.backupBanner')}
+                </span>
+                <button onClick={() => setView('backup')} className="alice-control alice-control--link" style={{ fontWeight: 600 }}>
+                  {t('playground.home.backUp')} <SvgIcon svg={NEXT_ICON} size={14} />
+                </button>
+              </div>
+            </Card>
           )}
 
           {faucet && (
-            /* The mobile wallet's confirm modal: centred card over a
-               translucent navy backdrop, dismissed by the backdrop or CANCEL. */
+            /* The faucet's confirm dialog: a centred card over a translucent
+               backdrop, dismissed by the backdrop or Cancel. */
             <div
               className="fixed inset-0 z-50 flex items-center justify-center p-4"
               style={{ backgroundColor: 'rgba(0, 0, 0, 0.48)' }}
@@ -1866,19 +1843,11 @@ function PlaygroundWorkspace({
               >
                 {faucet.stage === 'confirm' && (
                   <>
-                    <div
-                      className="font-pixel tracking-widest text-center"
-                      style={{ fontSize: 12, color: 'var(--alice-primary-dark)' }}
-                    >
+                    <div className="font-numbers text-center" style={{ fontSize: 18, fontWeight: 600, color: 'var(--alice-text)' }}>
                       {t('playground.home.faucetTitle')}
                     </div>
                     <div className="flex items-center justify-center">
-                      <TestAmount
-                        sats={2100}
-                        state={amountState}
-                        fontSize={30}
-                        color="var(--alice-primary-dark)"
-                      />
+                      <TestAmount sats={2100} state={amountState} fontSize={32} weight={600} color="var(--alice-text)" />
                     </div>
                     <p
                       className="font-numbers text-center"
@@ -1886,7 +1855,10 @@ function PlaygroundWorkspace({
                     >
                       {t('playground.faucet.confirmText')}
                     </p>
-                    <div className="flex gap-3">
+                    {/* Two equal columns: the buttons keep the card's width
+                        instead of each claiming all of it (alice-control
+                        never shrinks), and a long label wraps. */}
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
                       <PrimaryButton label={t('playground.cancel')} onClick={() => setFaucet(null)} />
                       <PrimaryButton label={t('playground.faucet.receive')} onClick={() => void confirmFaucetClaim()} />
                     </div>
@@ -1894,30 +1866,18 @@ function PlaygroundWorkspace({
                 )}
 
                 {faucet.stage === 'busy' && (
-                  <p
-                    className="font-pixel tracking-widest text-center py-6"
-                    style={{ fontSize: 10, color: 'var(--alice-muted)' }}
-                  >
+                  <p className="font-numbers text-center py-6" style={{ fontSize: 14, color: 'var(--alice-muted)' }}>
                     {t('playground.faucet.asking')}
                   </p>
                 )}
 
                 {faucet.stage === 'sent' && (
                   <>
-                    <div
-                      className="font-pixel tracking-widest text-center"
-                      style={{ fontSize: 12, color: 'var(--alice-primary-dark)' }}
-                    >
+                    <div className="font-numbers text-center" style={{ fontSize: 18, fontWeight: 600, color: 'var(--alice-text)' }}>
                       {t('playground.faucet.onTheWay')}
                     </div>
                     <div className="flex items-center justify-center">
-                      <TestAmount
-                        sats={faucet.sats}
-                        state={amountState}
-                        signed
-                        fontSize={30}
-                        color="var(--alice-primary-dark)"
-                      />
+                      <TestAmount sats={faucet.sats} state={amountState} signed fontSize={32} weight={600} color="var(--alice-text)" />
                     </div>
                     <p
                       className="font-numbers text-center"
@@ -1927,7 +1887,6 @@ function PlaygroundWorkspace({
                     </p>
                     <button
                       className="alice-control alice-control--link"
-
                       onClick={() => openPlaygroundTxInExplorer(faucet.txid, (path) => router.push(path), t('playground.explorerLabel.faucet'))}
                     >
                       {t('playground.openInExplorerLink')} <SvgIcon svg={NEXT_ICON} size={16} />
@@ -1938,10 +1897,7 @@ function PlaygroundWorkspace({
 
                 {faucet.stage === 'fallback' && (
                   <>
-                    <div
-                      className="font-pixel tracking-widest text-center"
-                      style={{ fontSize: 12, color: 'var(--alice-primary-dark)' }}
-                    >
+                    <div className="font-numbers text-center" style={{ fontSize: 18, fontWeight: 600, color: 'var(--alice-text)' }}>
                       {t('playground.home.faucetTitle')}
                     </div>
                     <p
@@ -1950,7 +1906,7 @@ function PlaygroundWorkspace({
                     >
                       {faucet.message ?? t('playground.faucet.unavailable')}{' '}{t('playground.faucet.manual')}
                     </p>
-                    <div className="flex gap-3">
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
                       <PrimaryButton label={t('playground.close')} onClick={() => setFaucet(null)} />
                       <PrimaryButton
                         label={t('playground.faucet.open')}
@@ -1965,59 +1921,57 @@ function PlaygroundWorkspace({
 
           {/* Balance over time, in the selected unit. */}
           {balancePoints.length >= 2 && (
-            <PixelCard>
+            <Card>
               <div className="p-3">
                 <ExplorerBalanceChart points={balancePoints} partial={false} noFiat />
               </div>
-            </PixelCard>
+            </Card>
           )}
 
-          {/* Full history, inline on the same page. */}
-          <div className="flex flex-col">
-            {snapshot === null || snapshot.history.length === 0 ? (
-              <EmptyState
-                title={t('playground.history.emptyTitle')}
-                hint={t('playground.history.emptyHint')}
-              />
-            ) : (
-              snapshot.history.map((entry) => (
-                <button
-                  key={entry.txid}
-                  onClick={() => openPlaygroundTxInExplorer(
-                    entry.txid,
-                    (path) => router.push(path),
-                    entry.direction === 'incoming' ? t('playground.explorerLabel.received') : t('playground.explorerLabel.sent'),
-                  )}
-                  className="alice-control alice-control--row"
-                  style={{ borderTop: '1px solid var(--alice-border)', padding: '12px 8px' }}
-                >
-                  <span
-                    className="font-pixel"
-                    style={{ width: 20, fontSize: 12, textAlign: 'center', color: 'var(--alice-primary)' }}
+          {/* The history, a list in a card, one row per transaction. */}
+          <div className="flex flex-col gap-3">
+            <SectionTitle>{t('playground.history.title')}</SectionTitle>
+            <Card>
+              {snapshot === null || snapshot.history.length === 0 ? (
+                <EmptyState
+                  title={t('playground.history.emptyTitle')}
+                  hint={t('playground.history.emptyHint')}
+                />
+              ) : (
+                snapshot.history.map((entry, index) => (
+                  <button
+                    key={entry.txid}
+                    onClick={() => openPlaygroundTxInExplorer(
+                      entry.txid,
+                      (path) => router.push(path),
+                      entry.direction === 'incoming' ? t('playground.explorerLabel.received') : t('playground.explorerLabel.sent'),
+                    )}
+                    className="alice-control alice-control--row playground-history-row"
+                    style={{ borderTop: index === 0 ? 'none' : '1px solid var(--alice-border)' }}
                   >
-                    <SvgIcon svg={entry.direction === 'incoming' ? RECEIVE_ICON : UP_ICON} size={20} />
-                  </span>
-                  <span className="flex flex-col flex-1 min-w-0">
-                    <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-primary-dark)' }}>
-                      {entry.direction === 'incoming' ? t('playground.history.received') : t('playground.history.sent')}
-                      {entry.confirmed ? '' : ` · ${t('playground.status.pending')}`}
+                    <SvgIcon svg={entry.direction === 'incoming' ? RECEIVE_ICON : UP_ICON} size={18} color="var(--alice-muted)" />
+                    <span className="flex flex-col flex-1 min-w-0">
+                      <span className="font-numbers" style={{ fontSize: 14, color: 'var(--alice-text)' }}>
+                        {entry.direction === 'incoming' ? t('playground.history.received') : t('playground.history.sent')}
+                      </span>
+                      <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-muted)' }}>
+                        {entry.blockTime
+                          ? new Date(entry.blockTime * 1000).toLocaleString()
+                          : t('playground.history.waiting')}
+                        {entry.confirmed ? '' : ` · ${t('playground.status.pending')}`}
+                      </span>
                     </span>
-                    <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-                      {entry.blockTime
-                        ? new Date(entry.blockTime * 1000).toLocaleString()
-                        : t('playground.history.waiting')}
-                    </span>
-                  </span>
-                  <TestAmount
-                    sats={entry.direction === 'incoming' ? entry.amountSats : -entry.amountSats}
-                    state={amountState}
-                    signed
-                    fontSize={9}
-                    color={entry.direction === 'incoming' ? 'var(--alice-primary-dark)' : 'var(--alice-muted)'}
-                  />
-                </button>
-              ))
-            )}
+                    <TestAmount
+                      sats={entry.direction === 'incoming' ? entry.amountSats : -entry.amountSats}
+                      state={amountState}
+                      signed
+                      fontSize={14}
+                      color={entry.direction === 'incoming' ? 'var(--alice-text)' : 'var(--alice-muted)'}
+                    />
+                  </button>
+                ))
+              )}
+            </Card>
           </div>
         </>
       )}

@@ -246,7 +246,7 @@ phone on an older iOS refuses the binary.
 - The keychain item uses iOS's default accessibility (when unlocked, not
   "this device only"): it is not synced through iCloud Keychain but can move
   to a new device in an encrypted backup, and it can outlive the app.
-- `CFBundleVersion` equals the marketing version (0.2.7). Each TestFlight
+- `CFBundleVersion` equals the marketing version (0.2.8). Each TestFlight
   upload needs a higher build number (`tauri ios build --build-number`).
 - The semantic search model (about 164 MB) is embedded as on the desktop, so
   the app is large.

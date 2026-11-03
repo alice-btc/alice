@@ -118,7 +118,7 @@ export function AiTab() {
       setPreset('local', 'balanced'),
       setPreset('cloud', 'balanced'),
       setAliceInstructions(''),
-      setResponseLanguagePreference('app'),
+      setResponseLanguagePreference('auto'),
       setActiveCloudModelId('alice-cloud'),
       setActiveModelId(DEFAULT_LOCAL_MODEL_ID),
       setCustomServer(null),

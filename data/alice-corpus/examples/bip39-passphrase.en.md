@@ -9,7 +9,7 @@ topics: ["wallets"]
 aliases: ["BIP39 Passphrase", "La passphrase optionnelle"]
 parent_ids: []
 related_ids: ["bitcoin-seed", "wallet-backup", "bitcoin-inheritance-plan", "secondary-bitcoin-pbkdf2"]
-reviewed_at: "2026-10-11"
+reviewed_at: "2026-11-02"
 review_due: null
 sources: ["PlanB cyp201 — Bitcoin Wallet Architecture", "PlanB Extraction — 2026-05-23"]
 human_reviewed_in_full: false
@@ -23,6 +23,7 @@ translation_status: "machine"
 ## Questions covered
 
 - Is a passphrase simply a password?
+- Is my recovery phrase enough if I also set a passphrase?
 
 ## Short answer
 

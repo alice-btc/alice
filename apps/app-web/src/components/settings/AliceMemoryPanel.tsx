@@ -8,7 +8,6 @@ import {
   ALICE_MEMORY_CATEGORY_LABELS,
   ALICE_MEMORY_RECENT_LIMIT,
   ALICE_MEMORY_WARNING,
-  KNOWLEDGE_CONCEPT_LABELS,
   MAX_TEXT_LENGTH,
   aliceMemoryRefusalMessage,
   clearAliceMemory,
@@ -31,6 +30,14 @@ import {
   type PedagogicalProfile,
 } from '@alice-wallet/alice-ai';
 import { useT, type Translator } from '@/i18n';
+import { CONCEPT_LABEL_KEYS } from '@/lib/concept-labels';
+
+// The pixel font has no accented capitals: an accented letter comes out in
+// lower case inside a capital heading (« PRéFéRENCES »). Headings in that
+// font drop their accents, as the app's other pixel labels do.
+function pixelCaps(text: string): string {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+}
 
 // The body of "What Alice knows", with no page chrome of its own. It renders
 // the same in two frames: inside the settings dialog as a sub-screen of the AI
@@ -209,7 +216,7 @@ function MemoryCategoryField({
     <section style={sectionStyle} aria-labelledby={`memory-field-${category}`}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <h4 id={`memory-field-${category}`} className="font-pixel" style={{ fontSize: 10, margin: 0 }}>
-          {label.toUpperCase()}{items.length > 0 ? ` (${items.length})` : ''}
+          {pixelCaps(label)}{items.length > 0 ? ` (${items.length})` : ''}
         </h4>
         <div style={actionsStyle}>
           <button
@@ -368,7 +375,7 @@ export function AliceMemoryPanel({ onBack }: { onBack?: () => void }) {
           return (
             <div key={concept} style={{ ...rowStyle, borderTop: index > 0 ? '1px solid var(--alice-border)' : undefined }}>
               <div>
-                <div style={{ fontSize: 17 }}>{KNOWLEDGE_CONCEPT_LABELS[concept]}</div>
+                <div style={{ fontSize: 17 }}>{t(CONCEPT_LABEL_KEYS[concept])}</div>
                 <div className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-muted)', marginTop: 8 }}>
                   {familiarityLabel(t, familiarityFor(progress), Boolean(progress?.declaredFamiliarity))}
                 </div>

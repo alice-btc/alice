@@ -262,12 +262,12 @@ test('check is deterministic and detects an edited generated module', async () =
   await assert.rejects(build({ corpusDir: f.dir, output, check: true }), /stale/);
 });
 
-test('committed snapshot contains 200 primary and 203 secondary reviewed fiches and reproduces generated module', async () => {
+test('committed snapshot contains 202 primary and 203 secondary reviewed fiches and reproduces generated module', async () => {
   const corpus = await loadCorpus(DEFAULT_CORPUS_DIR);
-  assert.deepEqual(corpus.counts, { primary: 200, secondary: 203 });
-  assert.equal(corpus.records.length, 403);
+  assert.deepEqual(corpus.counts, { primary: 202, secondary: 203 });
+  assert.equal(corpus.records.length, 405);
   const locales = localeCounts(corpus);
   assert.deepEqual(await build({ check: true, output: DEFAULT_OUTPUT }), {
-    version: generateModule(corpus).version, counts: corpus.counts, total: 403 + locales.en, locales, without_en: 403 - locales.en,
+    version: generateModule(corpus).version, counts: corpus.counts, total: 405 + locales.en, locales, without_en: 405 - locales.en,
   });
 });

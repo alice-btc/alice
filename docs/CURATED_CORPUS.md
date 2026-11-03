@@ -1,12 +1,12 @@
 # Corpus documentaire sélectionné d’Alice
 
-Le corpus versionné dans `data/alice-corpus/` contient 403 fiches françaises, réparties en 200 primaires et 203 secondaires. Il est autonome. La construction de l’application et la régénération des passages n’ont besoin d’aucun accès au vault personnel.
+Le corpus versionné dans `data/alice-corpus/` contient 405 fiches françaises, réparties en 202 primaires et 203 secondaires. Il est autonome. La construction de l’application et la régénération des passages n’ont besoin d’aucun accès au vault personnel.
 
 Les fiches sont adaptées des notes corrigées. Le statut `reviewed` désigne une revue éditoriale selon `review_method` ; il ne signifie ni validation humaine intégrale de chaque fiche ni fact-check externe exhaustif. Les références héritées ne constituent pas une nouvelle consultation des documents cités.
 
 ## Fichiers et reconstruction
 
-- `data/alice-corpus/examples/*.fr.md` conserve exactement les 403 fiches éligibles, avec leur frontmatter, leurs nuances et leurs références.
+- `data/alice-corpus/examples/*.fr.md` conserve exactement les 405 fiches éligibles, avec leur frontmatter, leurs nuances et leurs références.
 - `data/alice-corpus/corpus-manifest.json` décrit uniquement ces fiches et leurs empreintes SHA-256. Les 3 fiches archivées du lot source sont exclues du dépôt autonome.
 - `data/alice-corpus/retrieval-policy.json` conserve la politique éditoriale de sélection et d’approfondissement.
 - `scripts/build-curated-rag.mjs` contrôle les sources puis génère `packages/alice-ai/src/generated/curated-rag.ts`.
@@ -77,7 +77,7 @@ Ils ne revendiquent aucun audit externe de l’ensemble des faits, aucune valida
 
 ## Intégration du paquet sélectionné
 
-`loadRagCorpus()` enregistre seulement le paquet embarqué `alice-curated`. Les anciens fichiers générés Obsidian et Alice Docs restent dans le dépôt pour la traçabilité, mais ne sont plus enregistrés comme candidats. Le paquet contient les 200 primaires et les 203 secondaires ; les 1 456 entrées écartées du premier périmètre ne sont pas copiées dans l’application.
+`loadRagCorpus()` enregistre seulement le paquet embarqué `alice-curated`. Les anciens fichiers générés Obsidian et Alice Docs restent dans le dépôt pour la traçabilité, mais ne sont plus enregistrés comme candidats. Le paquet contient les 202 primaires et les 203 secondaires ; les 1 456 entrées écartées du premier périmètre ne sont pas copiées dans l’application.
 
 `curated-retrieval.ts` classe les fiches à partir des titres, alias, questions et corps. Une introduction suffisamment précise reste dans le socle. Un approfondissement doit présenter des indices propres au sujet demandé, avec les liens de parenté utilisés pour orienter la sélection. Les liens seuls n’autorisent pas une secondaire. Le moteur peut sélectionner une secondaire dès le premier message spécialisé. Il ne consulte pas une mémoire implicite des tours précédents ; la préparation de requête existante apporte le contexte des relances.
 
@@ -87,7 +87,7 @@ Les plafonds de production restent de 6 000 caractères en local et 12 000 en cl
 
 ## Reconstruction de l’index sémantique
 
-Ce dépôt construit un seul index, celui d’Alice App web et desktop : 403 vecteurs de dimension 384, écrits dans `apps/app-web/public/core-embeddings` (`index.json` et `embeddings.f32`). Il est reconstruit depuis le module sélectionné. La vérification compare les identifiants et l’empreinte des contenus ; remplacer seulement le manifeste sans les vecteurs ne suffit pas.
+Ce dépôt construit un seul index, celui d’Alice App web et desktop : 810 vecteurs de dimension 384, un par fiche et par langue, écrits dans `apps/app-web/public/core-embeddings` (`index.json` et `embeddings.f32`). Il est reconstruit depuis le module sélectionné. La vérification compare les identifiants et l’empreinte des contenus ; remplacer seulement le manifeste sans les vecteurs ne suffit pas.
 
 ```sh
 node scripts/build-curated-rag.mjs --check

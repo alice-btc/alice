@@ -45,7 +45,7 @@ export function GeneralTab() {
   const chat = useChat();
   const amount = useAmountState();
   const [appLanguage, setAppLanguageState] = useState<SupportedLanguage | null>(null);
-  const [responseLanguage, setResponseLanguageState] = useState<ResponseLanguagePreference>('app');
+  const [responseLanguage, setResponseLanguageState] = useState<ResponseLanguagePreference>('auto');
 
   useEffect(() => {
     getAppLanguage()

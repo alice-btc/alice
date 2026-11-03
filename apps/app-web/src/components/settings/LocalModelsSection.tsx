@@ -14,7 +14,6 @@ import {
   addCustomModel,
   buildCustomModelEntry,
   fetchHuggingFaceGgufListing,
-  formatSize,
   getActiveModelId,
   setActiveModelId,
   hasLocalEngine,
@@ -24,14 +23,25 @@ import {
   deleteDesktopModel,
   deleteAllDesktopModels,
   deviceMemoryShortfall,
+  localModelMemoryNeed,
   mobileFileSizeRefusal,
   mobileModelRefusal,
+  MOBILE_MAX_MODEL_BYTES,
+  MOBILE_MAX_MODEL_PARAMETERS,
   type DeviceMemory,
   useChat,
 } from '@alice-wallet/alice-ai';
 import { DANGER, SectionHint, SectionLabel, inputStyle, sectionStyle, useDialogFocus } from './ui';
 import { MODEL_DOWNLOAD_EVENT, getModelDownloads, startModelDownload } from '@/lib/model-downloads';
 import { useT } from '@/i18n';
+import { formatGigabytes, formatModelSize } from '@/lib/format-size';
+import {
+  localModelErrorText,
+  modelDescription,
+  modelRam,
+  modelRecommendation,
+  modelSpeed,
+} from '@/lib/model-text';
 
 type LocalModelState = {
   status: ModelStatus;
@@ -163,7 +173,7 @@ export function LocalModelsSection() {
     try {
       setHfListing(await fetchHuggingFaceGgufListing(hfRepo));
     } catch (error) {
-      setHfError(error instanceof Error ? error.message : t('settings.localModels.hfReadError'));
+      setHfError(localModelErrorText(error, t('settings.localModels.hfReadError'), t.locale));
     } finally {
       setHfBusy(false);
     }
@@ -179,7 +189,7 @@ export function LocalModelsSection() {
       await refreshDesktopModelStates();
       startModelDownload(entry.id);
     } catch (error) {
-      setHfError(error instanceof Error ? error.message : t('settings.localModels.hfAddError'));
+      setHfError(localModelErrorText(error, t('settings.localModels.hfAddError'), t.locale));
     }
   };
 
@@ -218,7 +228,11 @@ export function LocalModelsSection() {
   // moment gets a notice before the download, which goes ahead; the engine
   // checks again, on the memory of that moment, before loading it.
   const selectedMemoryShortfall = phone && selectedLocalModelEntry && selectedLocalModelState?.status !== 'installed'
-    ? deviceMemoryShortfall(selectedLocalModelEntry.sizeBytes, deviceMemory)
+    && deviceMemory && deviceMemoryShortfall(selectedLocalModelEntry.sizeBytes, deviceMemory)
+    ? t('models.memoryShortfall', {
+      need: formatGigabytes(localModelMemoryNeed(selectedLocalModelEntry.sizeBytes), t.locale),
+      available: formatGigabytes(deviceMemory.availableBytes, t.locale),
+    })
     : null;
 
   return (
@@ -251,11 +265,11 @@ export function LocalModelsSection() {
                             {model.name}
                           </span>
                           <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>
-                            {formatSize(model.sizeBytes)}
+                            {formatModelSize(model.sizeBytes, t.locale)}
                           </span>
                         </div>
                         <p className="font-numbers m-0 mt-1" style={{ fontSize: 14, opacity: 1, lineHeight: '18px' }}>
-                          {model.description}
+                          {modelDescription(model, t.locale)}
                         </p>
                         <div className="flex gap-2 mt-2 flex-wrap">
                           {active && <span className="font-numbers" style={{ fontSize: 13, color: 'var(--alice-primary)' }}>{t('settings.localModels.active')}</span>}
@@ -263,7 +277,7 @@ export function LocalModelsSection() {
                           {!installed && !downloading && <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>{t('settings.localModels.notInstalled')}</span>}
                           {model.source === 'legacy' && <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>{t('settings.localModels.previousCatalog')}</span>}
                           {model.source === 'custom' && <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>{t('settings.localModels.customUntested')}</span>}
-                          <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>{t('settings.localModels.ram', { ram: model.ramNeeded })}</span>
+                          <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>{t('settings.localModels.ram', { ram: modelRam(model, t.locale) })}</span>
                         </div>
                         <p className="font-numbers m-0 mt-2" style={{ fontSize: 13, opacity: 1 }}>
                           {downloading ? (state.verifying ? t('settings.localModels.verifyingFile') : t('settings.localModels.downloading')) : t('settings.localModels.openDetails')}
@@ -324,10 +338,10 @@ export function LocalModelsSection() {
                       {model.name}
                     </span>
                     <span style={{ opacity: 1, marginLeft: 8, fontSize: 14 }}>
-                      {formatSize(model.sizeBytes)}
+                      {formatModelSize(model.sizeBytes, t.locale)}
                     </span>
                     <div style={{ opacity: 1, marginTop: 4, lineHeight: '18px' }}>
-                      {model.description}
+                      {modelDescription(model, t.locale)}
                     </div>
                   </button>
                 ))}
@@ -336,7 +350,9 @@ export function LocalModelsSection() {
             <div className="mt-4">
               <SectionLabel>{t('settings.localModels.hfTitle')}</SectionLabel>
               <SectionHint>{t('settings.localModels.hfHint')}</SectionHint>
-              <div className="flex gap-2 mt-2">
+              {/* The button never shrinks, so on a phone it wraps under the field
+                  rather than push past the screen's edge. */}
+              <div className="flex flex-wrap gap-2 mt-2">
                 <input
                   id="hf-repo"
                   aria-label={t('settings.localModels.hfRepoAria')}
@@ -345,8 +361,8 @@ export function LocalModelsSection() {
                   value={hfRepo}
                   onChange={(event) => { setHfRepo(event.target.value); setHfError(null); setHfListing(null); }}
                   placeholder={t('settings.localModels.hfRepoPlaceholder')}
-                  className="font-numbers flex-1"
-                  style={inputStyle}
+                  className="font-numbers flex-1 min-w-0"
+                  style={{ ...inputStyle, minWidth: 160 }}
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
@@ -370,7 +386,7 @@ export function LocalModelsSection() {
               </div>
               {hfListing && hiddenHfFiles > 0 && (
                 <p className="font-numbers m-0 mt-2" style={{ fontSize: 14, opacity: 1 }}>
-                  {mobileFileSizeRefusal(Number.POSITIVE_INFINITY)}
+                  {t('models.phoneFileLimit', { size: formatGigabytes(MOBILE_MAX_MODEL_BYTES, t.locale), parameters: MOBILE_MAX_MODEL_PARAMETERS })}
                 </p>
               )}
               {hfListing && (
@@ -380,12 +396,12 @@ export function LocalModelsSection() {
                       key={file.filename}
                       type="button"
                       onClick={() => { void handleAddCustomModel(file.filename); }}
-                      aria-label={t('settings.localModels.hfAddFileAria', { file: file.filename, size: formatSize(file.sizeBytes) })}
+                      aria-label={t('settings.localModels.hfAddFileAria', { file: file.filename, size: formatModelSize(file.sizeBytes, t.locale) })}
                       className="font-numbers w-full text-left"
                       style={{ fontSize: 15, padding: '10px 12px', backgroundColor: 'transparent', color: 'var(--alice-primary)', border: 'none', borderTop: index === 0 ? 'none' : '1px solid var(--alice-border)', cursor: 'pointer', outline: 'none' }}
                     >
                       <span className="font-numbers" style={{ fontSize: 10 }}>{file.filename}</span>
-                      <span style={{ opacity: 0.5, marginLeft: 8, fontSize: 14 }}>{formatSize(file.sizeBytes)}</span>
+                      <span style={{ opacity: 0.5, marginLeft: 8, fontSize: 14 }}>{formatModelSize(file.sizeBytes, t.locale)}</span>
                       <div style={{ opacity: 0.6, marginTop: 4, lineHeight: '18px' }}>
                         {hfListing.license ? t('settings.localModels.hfLicense', { license: hfListing.license }) : ''}{t('settings.localModels.hfClickToAdd')}
                       </div>
@@ -453,7 +469,7 @@ export function LocalModelsSection() {
                   {selectedLocalModelEntry.name}
                 </h3>
                 <p className="font-numbers  m-0 mt-2" style={{ fontSize: 13, opacity: 1 }}>
-                  {formatSize(selectedLocalModelEntry.sizeBytes)}
+                  {formatModelSize(selectedLocalModelEntry.sizeBytes, t.locale)}
                 </p>
               </div>
               <button
@@ -465,23 +481,23 @@ export function LocalModelsSection() {
             </div>
 
             <p className="font-numbers m-0 mt-4" style={{ fontSize: 15, lineHeight: '20px', opacity: 1 }}>
-              {selectedLocalModelEntry.description}
+              {modelDescription(selectedLocalModelEntry, t.locale)}
             </p>
 
             <div className="grid grid-cols-2 gap-2 mt-4">
               <div style={{ borderBottom: '1px solid var(--alice-border)', padding: '10px 0' }}>
                 <p className="font-numbers  m-0" style={{ fontSize: 13, opacity: 1 }}>{t('settings.localModels.speed')}</p>
-                <p className="font-numbers m-0 mt-2" style={{ fontSize: 14 }}>{selectedLocalModelEntry.speed}</p>
+                <p className="font-numbers m-0 mt-2" style={{ fontSize: 14 }}>{modelSpeed(selectedLocalModelEntry, t.locale)}</p>
               </div>
               <div style={{ borderBottom: '1px solid var(--alice-border)', padding: '10px 0' }}>
                 <p className="font-numbers  m-0" style={{ fontSize: 13, opacity: 1 }}>{t('settings.localModels.ramNeeded')}</p>
-                <p className="font-numbers m-0 mt-2" style={{ fontSize: 14 }}>{selectedLocalModelEntry.ramNeeded}</p>
+                <p className="font-numbers m-0 mt-2" style={{ fontSize: 14 }}>{modelRam(selectedLocalModelEntry, t.locale)}</p>
               </div>
             </div>
 
             <div className="mt-4" style={{ borderTop: '1px solid var(--alice-border)', paddingTop: 12 }}>
               <p className="font-numbers m-0" style={{ fontSize: 14, lineHeight: '18px', opacity: 1 }}>
-                {selectedLocalModelEntry.recommendation}
+                {modelRecommendation(selectedLocalModelEntry, t.locale)}
               </p>
             </div>
             {selectedMemoryShortfall && (
@@ -499,7 +515,7 @@ export function LocalModelsSection() {
                   className="alice-control alice-control--primary font-numbers"
                 >
                   <SvgIcon svg={DOWNLOAD_ICON} size={20} color="currentColor" />
-                  {t('settings.localModels.download', { size: formatSize(selectedLocalModelEntry.sizeBytes) })}
+                  {t('settings.localModels.download', { size: formatModelSize(selectedLocalModelEntry.sizeBytes, t.locale) })}
                 </button>
               )}
               {selectedLocalModelState.status === 'installed' && selectedLocalModelEntry.id !== activeModelId && (

@@ -327,7 +327,7 @@ body, .font-numbers { font-family: var(--alice-font-reading); }
 .alice-sidebar .alice-nav-item[aria-current=page] { font-weight: 600; }
 .alice-sidebar .alice-session p { font-size: 13px !important; line-height: 1.6 !important; }
 .alice-sidebar-model { padding: 16px 16px 4px; position: relative; flex-shrink: 0; }
-.atelier-model-status { font-size: 10px; color: var(--alice-muted); padding: 0 6px 5px; }
+.atelier-messages .atelier-model-status { font-size: 12px; padding: 0; }
 .atelier-shell { background: var(--alice-bg); }
 .atelier-main { position: relative; }
 .atelier-conversation { max-width: 908px; width: 100%; margin: 0 auto; padding: 44px 36px 24px; display: flex; flex-direction: column; flex: 1; min-height: 0; }
@@ -375,10 +375,6 @@ body, .font-numbers { font-family: var(--alice-font-reading); }
   .alice-session-delete { opacity: .65; }
 }
 @media(pointer:coarse) { .alice-session-delete { opacity: .65; } }
-.atelier-messages .alice-message-actions { opacity: 0; }
-.atelier-messages .alice-chat-message:hover .alice-message-actions,
-.atelier-messages .alice-chat-message:focus-within .alice-message-actions { opacity: 1; }
-@media(hover:none) { .atelier-messages .alice-message-actions { opacity: 1; } }
 
 /* Keep the approved pixel display face separate from the reading face. */
 .font-pixel { font-family: 'PressStart2P', monospace; font-weight: 400; }
@@ -388,8 +384,6 @@ body, .font-numbers { font-family: var(--alice-font-reading); }
    lines at most, composer-field.ts), not a share of the column. */
 .atelier-conversation .chat-composer-input { min-height: 42px !important; flex: none; }
 .atelier-conversation .chat-composer button:focus-visible { outline: 2px solid var(--alice-primary) !important; outline-offset: 2px; }
-.atelier-conversation > .atelier-model-status { margin: 8px 0 0 50px; }
-@media(max-width:767px) { .atelier-conversation > .atelier-model-status { margin-left: 0; } }
 
 /* Contrast belongs to the final rendered color, never a second opacity layer. */
 .chat-composer-input::placeholder { color: var(--alice-muted); opacity: 1; }
@@ -445,6 +439,64 @@ body, .font-numbers { font-family: var(--alice-font-reading); }
 .alice-control--option[aria-pressed=true] { color: var(--alice-selected); font-weight: 600; }
 .alice-model-trigger { min-width: 0; max-width: 100%; padding: 8px; }
 .alice-message-actions { row-gap: 4px; }
+
+/* Under a message, the actions read as quiet icons: muted, close together, a
+   soft square behind the one the pointer is on. With a mouse they show only
+   while the message is hovered or holds the focus; Alice's mark and the
+   recommended courses button stay. */
+.alice-message-actions .alice-control--tool { width: 30px; min-height: 30px; padding: 0; border-radius: 6px; }
+.alice-message-actions .alice-control--tool:hover:not(:disabled) { background: var(--alice-bg-soft); color: var(--alice-text); }
+@media (pointer: coarse), (max-width: 767px) { .alice-message-actions .alice-control--tool { width: 36px; min-height: 36px; } }
+@media (hover: hover) {
+  .alice-message-actions > :not(.alice-reco):not(.atelier-inline-rabbit) { opacity: 0; transition: opacity 0.15s; }
+  .alice-chat-message:hover .alice-message-actions > *, .alice-chat-message:focus-within .alice-message-actions > * { opacity: 1; }
+}
+
+/* The "…" menu under a message: compact rows, like a desktop context menu. */
+.alice-menu { position: absolute; left: 0; bottom: calc(100% + 4px); z-index: 50; min-width: 200px; padding: 4px; background: var(--alice-bg); border: 1px solid var(--alice-border); border-radius: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); }
+.alice-menu--leftwards { left: auto; right: 0; }
+.alice-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 8px; border: 0; border-radius: 5px; background: none; color: var(--alice-text); font-size: 13px; text-align: left; cursor: pointer; }
+.alice-menu-item:hover, .alice-menu-item:focus-visible { background: var(--alice-bg-soft); outline: none; }
+.alice-menu-item--danger { color: var(--alice-danger-ink); }
+.alice-menu-item--danger:hover, .alice-menu-item--danger:focus-visible { background: var(--alice-danger-soft); color: var(--alice-danger); }
+@media (pointer: coarse) { .alice-menu-item { height: 40px; } }
+.alice-menu-metrics { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px 8px; margin-bottom: 4px; border-bottom: 1px solid var(--alice-border); }
+/* The action row's focus ring stays for the keyboard, drawn close and thin. */
+.alice-message-actions .alice-control--tool:focus-visible { outline-width: 1.5px; outline-offset: 1px; background: var(--alice-bg-soft); }
+.alice-message-actions .alice-control--tool[aria-expanded=true] { background: var(--alice-bg-soft); color: var(--alice-text); }
+
+/* The courses and resources Alice advises, behind one button at the start of
+   the reply's action row, drawn like a file attached to a message: an icon
+   tile, the label, the count. Its list opens upwards. */
+.alice-reco { position: relative; display: inline-flex; margin-right: 6px; }
+.alice-reco-trigger { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 8px 0 3px; border: 1px solid var(--alice-border); border-radius: 6px; background: var(--alice-bg-soft); color: var(--alice-text); font-size: 12px; line-height: 16px; white-space: nowrap; cursor: pointer; }
+/* A small chip to the eye, a 44 px target to the finger. */
+.alice-reco-trigger::after { content: ''; position: absolute; inset: -7px -2px; }
+.alice-reco-trigger:hover, .alice-reco-trigger:focus-visible, .alice-reco-trigger[aria-expanded=true] { border-color: var(--alice-primary); }
+.alice-reco-tile { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 4px; background: var(--alice-card-bg); color: var(--alice-primary); }
+.alice-reco-count { color: var(--alice-muted); }
+.alice-reco-chevron { display: inline-flex; color: var(--alice-muted); transform: rotate(180deg); }
+.alice-reco-trigger[aria-expanded=true] .alice-reco-chevron { transform: none; }
+.alice-reco-menu { position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 50; display: flex; flex-direction: column; width: min(320px, calc(100vw - 24px)); padding: 4px; background: var(--alice-bg); border: 1px solid var(--alice-border); border-radius: 6px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4); }
+.alice-reco-menu--leftwards { left: auto; right: 0; }
+.alice-reco-item { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 4px 8px; border: 0; border-radius: 4px; background: none; color: var(--alice-text); text-align: left; cursor: pointer; }
+.alice-reco-item:hover, .alice-reco-item:focus-visible { background: var(--alice-bg-soft); }
+.alice-reco-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 26px; height: 26px; border-radius: 4px; background: var(--alice-card-bg); color: var(--alice-primary); }
+.alice-reco-text { display: flex; flex-direction: column; min-width: 0; }
+.alice-reco-title { font-size: 14px; line-height: 18px; }
+.alice-reco-detail { font-size: 12px; line-height: 16px; color: var(--alice-muted); }
+/* On a phone the row keeps one line: the button takes the place of the time. */
+@media (max-width: 767px) { .alice-message-actions--reco .alice-message-time { display: none; } }
+
+/* A dictionary term inside a reply, and the definition it opens. */
+.alice-term-link { color: inherit; text-decoration: underline dotted var(--alice-muted); text-decoration-thickness: 1px; text-underline-offset: 4px; cursor: pointer; }
+.alice-term-link:hover, .alice-term-link:focus-visible { color: var(--alice-primary); text-decoration-color: var(--alice-primary); }
+.alice-definition-backdrop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; background: rgba(0, 0, 0, 0.55); }
+.alice-definition-peek { width: 100%; max-width: 560px; max-height: 70vh; overflow-y: auto; padding: 16px 20px calc(16px + env(safe-area-inset-bottom)); background: var(--alice-bg-soft); color: var(--alice-text); border-top: 1px solid var(--alice-border); border-radius: 16px 16px 0 0; }
+@media (min-width: 768px) {
+  .alice-definition-backdrop { align-items: center; padding: 24px; }
+  .alice-definition-peek { border: 1px solid var(--alice-border); border-radius: 12px; }
+}
 @media (pointer: coarse), (max-width: 767px) {
   .alice-control { min-height: 44px; }
   .alice-control--tool, .alice-control--send { width: 44px; }
@@ -499,7 +551,10 @@ body, .font-numbers { font-family: var(--alice-font-reading); }
 .playground-settings-row[role=button]:focus-visible, .alice-amount:focus-visible { outline: 2px solid var(--alice-primary); outline-offset: 3px; }
 .alice-amount { border-radius: 2px; min-height: 24px; }
 .alice-amount:hover { background: var(--alice-hover); }
-.playground-corner { border: 0; border-radius: 0; }
+.playground-action { width: 100%; min-height: 44px; border-color: var(--alice-border); }
+.playground-action:not(.alice-control--primary):hover:not(:disabled) { border-color: var(--alice-text); }
+.playground-history-row { padding: 12px 16px; border-radius: 0; gap: 12px; }
+@media (max-width: 767px) { .playground-action { flex-direction: column; gap: 6px; min-height: 64px; padding: 8px; font-size: 13px; } }
 @media (prefers-reduced-motion: reduce) { .rh-skeleton, .rh-dot { animation: none !important; } }
 
 /* Attachments are resources, distinct from the composer controls. */
@@ -514,7 +569,6 @@ body, .font-numbers { font-family: var(--alice-font-reading); }
 .alice-side-stage { grid-template-columns: 32px minmax(0,1fr); gap: 8px; padding: 0 12px; overflow: hidden; }
 .alice-side-stage .atelier-messages { gap: 20px; padding-right: 0; overflow-wrap: anywhere; }
 .alice-side-suggestions { display: flex; flex-direction: column; gap: 4px; padding: 0 12px 12px 52px; }
-.alice-side-model-status { margin: 0; padding: 0 12px 8px 52px; color: var(--alice-muted); font: 12px/1.5 var(--alice-font-reading); }
 
 /* Explicit specificity keeps the mobile trigger out of the desktop toolbar. */
 @media (min-width: 768px) { .alice-control.atelier-mobile-menu { display: none; } }
@@ -603,7 +657,6 @@ body, .font-numbers { font-family: var(--alice-font-reading); }
   }
   html[data-shell] .atelier-conversation .chat-composer:focus-within { outline: none; border-color: color-mix(in srgb, var(--alice-primary) 55%, transparent); }
   html[data-shell] .atelier-conversation .chat-composer-input { min-height: 26px !important; }
-  html[data-shell] .atelier-conversation > .atelier-model-status { margin: 0 0 8px; text-align: center; }
   html[data-shell] .alice-control--send {
     width: 40px; height: 40px; min-height: 40px; padding: 0;
     border: 0; border-radius: 999px; box-shadow: none;
@@ -647,12 +700,11 @@ body, .font-numbers { font-family: var(--alice-font-reading); }
 /* On a phone, once the conversation has started, the chat's rabbit leaves
    its column so the text takes the whole width, and sits on the action row
    of Alice's last reply (or by the waiting line), as if it had just spoken.
-   The row stays visible there even where hovering would otherwise reveal it. */
+   It stays visible there; the icons beside it follow the hover rule. */
 .atelier-waiting-row { display: flex; align-items: flex-end; gap: 2px; }
 @media (max-width: 767px) {
   .atelier-stage--inline { grid-template-columns: minmax(0, 1fr); }
   .atelier-inline-rabbit { display: inline-flex; align-items: flex-end; margin-right: 6px; }
-  .atelier-messages .alice-message-actions:has(.atelier-inline-rabbit) { opacity: 1; }
 }
 
 /* The Ask-Alice composer as the main chat's composer (a page handed over by

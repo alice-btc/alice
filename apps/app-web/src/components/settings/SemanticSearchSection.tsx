@@ -7,13 +7,11 @@ import {
   type SemanticSearchState,
   disableSemanticSearch,
   downloadSemanticSearchNow,
-  formatSize,
   getSemanticSearchState,
 } from '@alice-wallet/alice-ai';
 import { useT, type MessageKey } from '@/i18n';
+import { formatModelSize } from '@/lib/format-size';
 import { SectionHint, SectionLabel, sectionStyle } from './ui';
-
-const SIZE_LABEL = formatSize(SEMANTIC_MODEL_DOWNLOAD_BYTES);
 
 // Inside an installed desktop build the model ships in the app bundle: no
 // download happens, so no download may be promised. Same detection as the
@@ -57,17 +55,18 @@ export function SemanticSearchSection() {
   // buttons would be noise.
   if (state.status === 'unsupported') return null;
 
+  const sizeLabel = formatModelSize(SEMANTIC_MODEL_DOWNLOAD_BYTES, t.locale);
   const embedded = isEmbeddedDesktopBuild();
   const progress = state.progress === null ? null : Math.round(state.progress * 100);
   const statusKey = STATUS_COPY[state.status];
   const statusLine = embedded && state.status === 'idle'
     ? t('settings.semantic.embedded')
-    : statusKey ? t(statusKey, { size: SIZE_LABEL }) : '';
+    : statusKey ? t(statusKey, { size: sizeLabel }) : '';
 
   return (
     <div style={sectionStyle}>
       <SectionLabel>{t('settings.semantic.title')}</SectionLabel>
-      <SectionHint>{t('settings.semantic.hint', { size: SIZE_LABEL })}</SectionHint>
+      <SectionHint>{t('settings.semantic.hint', { size: sizeLabel })}</SectionHint>
       <p className="font-numbers m-0" style={{ fontSize: 14, opacity: 1, lineHeight: '18px' }}>
         {statusLine}
       </p>
@@ -87,7 +86,7 @@ export function SemanticSearchSection() {
           >
             {state.status === 'failed'
               ? embedded ? t('settings.semantic.retry') : t('settings.semantic.retryDownload')
-              : embedded ? t('settings.semantic.loadNow') : t('settings.semantic.download', { size: SIZE_LABEL })}
+              : embedded ? t('settings.semantic.loadNow') : t('settings.semantic.download', { size: sizeLabel })}
           </button>
         )}
         {(state.status === 'ready' || state.status === 'loading') && (
@@ -97,7 +96,7 @@ export function SemanticSearchSection() {
           >
             {state.status === 'loading'
               ? t('settings.semantic.cancelAndTurnOff')
-              : embedded ? t('settings.semantic.turnOff') : t('settings.semantic.remove', { size: SIZE_LABEL })}
+              : embedded ? t('settings.semantic.turnOff') : t('settings.semantic.remove', { size: sizeLabel })}
           </button>
         )}
       </div>

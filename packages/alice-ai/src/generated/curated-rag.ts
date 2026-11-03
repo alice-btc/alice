@@ -2,7 +2,7 @@
 // Selected corpus; review methods do not imply exhaustive fact-checking.
 import type { KnowledgeChunk } from '../knowledge-packs';
 
-export const CURATED_CORPUS_VERSION = "curated-3b610a92b81e2b79f0c7";
+export const CURATED_CORPUS_VERSION = "curated-75f8e642d2d48ee80607";
 
 export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
   {
@@ -1727,6 +1727,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "La passphrase optionnelle",
       "BIP39 Passphrase",
       "Une passphrase est-elle simplement un mot de passe ?",
+      "Ma phrase de récupération suffit-elle si j’ai aussi défini une passphrase ?",
       "wallets",
       "bip39 passphrase"
     ],
@@ -1749,10 +1750,11 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "PlanB Extraction — 2026-05-23"
     ],
     "questions": [
-      "Une passphrase est-elle simplement un mot de passe ?"
+      "Une passphrase est-elle simplement un mot de passe ?",
+      "Ma phrase de récupération suffit-elle si j’ai aussi défini une passphrase ?"
     ],
     "status": "reviewed",
-    "sourceHash": "bfa29bb05a64dcf1b6252c453008e81e2b187730f24ec916c6ad0b32cdc06894",
+    "sourceHash": "f4736d44150942e2d00128f124e82b7d9e568b5e6a85745031934403d767f04b",
     "sourcePath": "data/alice-corpus/examples/bip39-passphrase.fr.md",
     "theme": "wallets"
   },
@@ -1765,6 +1767,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "BIP39 Passphrase",
       "La passphrase optionnelle",
       "Is a passphrase simply a password?",
+      "Is my recovery phrase enough if I also set a passphrase?",
       "wallets",
       "bip39 passphrase"
     ],
@@ -1787,10 +1790,11 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "PlanB Extraction — 2026-05-23"
     ],
     "questions": [
-      "Is a passphrase simply a password?"
+      "Is a passphrase simply a password?",
+      "Is my recovery phrase enough if I also set a passphrase?"
     ],
     "status": "reviewed",
-    "sourceHash": "bfa29bb05a64dcf1b6252c453008e81e2b187730f24ec916c6ad0b32cdc06894",
+    "sourceHash": "f4736d44150942e2d00128f124e82b7d9e568b5e6a85745031934403d767f04b",
     "sourcePath": "data/alice-corpus/examples/bip39-passphrase.en.md",
     "theme": "wallets"
   },
@@ -8367,6 +8371,91 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "theme": "fundamentals"
   },
   {
+    "id": "curated-dust",
+    "conceptId": "dust",
+    "title": "Le dust et les sorties non rentables",
+    "keywords": [
+      "Le dust et les sorties non rentables",
+      "Dust",
+      "poussière",
+      "dust limit",
+      "sortie non rentable",
+      "Pourquoi mon portefeuille dit-il qu’un petit montant n’est pas rentable à dépenser ?",
+      "Qu’est-ce que le dust et la limite de dust ?",
+      "transactions",
+      "dust"
+    ],
+    "level": "beginner",
+    "tier": "primary",
+    "locale": "fr",
+    "sourceLocale": "fr",
+    "translationStatus": "source",
+    "content": "Réponse courte\nLe mot dust recouvre deux notions. La limite de dust est une règle de relais : un nœud Bitcoin Core refuse par défaut de relayer une transaction qui crée une sortie trop petite pour valoir le coût de sa dépense. Une sortie « non rentable à dépenser » est un jugement du portefeuille : au taux de frais du moment, dépenser cette sortie coûterait autant ou plus qu’elle ne vaut.\n\nExplication\nLa règle de relais fixe un seuil par type de script. Bitcoin Core additionne la taille de la sortie et celle de l’entrée qui servira à la dépenser, puis multiplie ce total par un taux de référence, le réglage `dustrelayfee`, 3 000 sats par kvB par défaut, soit 3 sats/vB. Une sortie dont la valeur est inférieure à ce coût est du dust et la transaction qui la crée n’est pas relayée. Avec les réglages par défaut, le seuil est de 546 sats pour une sortie P2PKH, 294 sats pour une sortie P2WPKH et 330 sats pour une sortie P2WSH ou P2TR. Ce seuil ne suit pas les frais du moment : il reste fixe tant que le réglage ne change pas.\n\nLe jugement du portefeuille dépend, lui, du taux de frais du moment. Dépenser une sortie ajoute une entrée à la transaction, environ 68 vB pour une entrée P2WPKH ou 58 vB pour une entrée P2TR. Exemple fictif : à 10 sats/vB, cette entrée coûte à elle seule plusieurs centaines de sats, une sortie de 300 sats est donc dépensée à perte, et beaucoup de portefeuilles l’écartent de la sélection ou la signalent comme non rentable. Quand les frais baissent, la même sortie peut redevenir rentable à dépenser, par exemple dans une transaction de consolidation.\n\nLimites et confusions\nRecevoir une sortie sous le seuil de relais reste possible : un mineur peut inclure une transaction que les nœuds aux réglages par défaut ne relaient pas, et d’autres réglages existent. Le seuil de relais n’est pas une règle de consensus ; un bloc contenant une sortie de 1 sat reste valide. À l’inverse, une sortie au-dessus du seuil, par exemple 300 sats en P2WPKH, peut rester non rentable à dépenser tant que les frais sont élevés. Les chiffres cités sont ceux des réglages par défaut de Bitcoin Core ; un portefeuille ou un nœud peut appliquer d’autres valeurs, et le calcul exact dépend de la version. Une sortie non rentable n’est pas perdue : elle attend des frais plus bas ou un regroupement avec d’autres sorties.",
+    "parentIds": [],
+    "relatedIds": [
+      "coin-selection-tradeoffs",
+      "transaction-fees",
+      "bitcoin-mempool-policy",
+      "consolidation-transaction"
+    ],
+    "reviewMethod": "adapted_from_corrected_sources",
+    "sources": [
+      "https://github.com/bitcoin/bitcoin/blob/v30.0/src/policy/policy.cpp",
+      "https://github.com/bitcoin/bitcoin/blob/v30.0/src/policy/policy.h"
+    ],
+    "questions": [
+      "Pourquoi mon portefeuille dit-il qu’un petit montant n’est pas rentable à dépenser ?",
+      "Qu’est-ce que le dust et la limite de dust ?"
+    ],
+    "status": "reviewed",
+    "sourceHash": "28e5b6977f291b31df129f968b7127a62fd6d69ceeb29b169fbeac64ce61ca67",
+    "sourcePath": "data/alice-corpus/examples/dust.fr.md",
+    "theme": "transactions"
+  },
+  {
+    "id": "curated-dust.en",
+    "conceptId": "dust",
+    "title": "Dust and uneconomic outputs",
+    "keywords": [
+      "Dust and uneconomic outputs",
+      "Dust",
+      "poussière",
+      "dust limit",
+      "sortie non rentable",
+      "Le dust et les sorties non rentables",
+      "Why does my wallet say a small amount is uneconomic to spend?",
+      "What are dust and the dust limit?",
+      "transactions",
+      "dust"
+    ],
+    "level": "beginner",
+    "tier": "primary",
+    "locale": "en",
+    "sourceLocale": "fr",
+    "translationStatus": "reviewed",
+    "content": "Short answer\nThe word dust covers two notions. The dust limit is a relay rule: by default, a Bitcoin Core node refuses to relay a transaction that creates an output too small to be worth the cost of spending it. An output that is \"uneconomic to spend\" is a judgment of the wallet: at the current fee rate, spending that output would cost as much as or more than it is worth.\n\nExplanation\nThe relay rule sets a threshold per script type. Bitcoin Core adds the size of the output to the size of the input that will spend it, then multiplies that total by a reference rate, the `dustrelayfee` setting, 3,000 sats per kvB by default, that is 3 sats/vB. An output worth less than that cost is dust, and the transaction creating it is not relayed. With the default settings, the threshold is 546 sats for a P2PKH output, 294 sats for a P2WPKH output and 330 sats for a P2WSH or P2TR output. This threshold does not follow current fees: it stays fixed as long as the setting does not change.\n\nThe wallet's judgment, on the other hand, depends on the current fee rate. Spending an output adds an input to the transaction, about 68 vB for a P2WPKH input or 58 vB for a P2TR input. Fictional example: at 10 sats/vB, that input alone costs several hundred sats, so a 300 sat output is spent at a loss, and many wallets leave it out of the selection or flag it as uneconomic. When fees drop, the same output can become economic to spend again, for instance in a consolidation transaction.\n\nLimits and confusions\nReceiving an output below the relay threshold remains possible: a miner can include a transaction that nodes with default settings do not relay, and other settings exist. The relay threshold is not a consensus rule; a block containing a 1 sat output remains valid. Conversely, an output above the threshold, for instance 300 sats in P2WPKH, can remain uneconomic to spend as long as fees are high. The figures quoted are those of Bitcoin Core's default settings; a wallet or a node may apply other values, and the exact calculation depends on the version. An uneconomic output is not lost: it waits for lower fees or for a grouping with other outputs.",
+    "parentIds": [],
+    "relatedIds": [
+      "coin-selection-tradeoffs",
+      "transaction-fees",
+      "bitcoin-mempool-policy",
+      "consolidation-transaction"
+    ],
+    "reviewMethod": "adapted_from_corrected_sources",
+    "sources": [
+      "https://github.com/bitcoin/bitcoin/blob/v30.0/src/policy/policy.cpp",
+      "https://github.com/bitcoin/bitcoin/blob/v30.0/src/policy/policy.h"
+    ],
+    "questions": [
+      "Why does my wallet say a small amount is uneconomic to spend?",
+      "What are dust and the dust limit?"
+    ],
+    "status": "reviewed",
+    "sourceHash": "28e5b6977f291b31df129f968b7127a62fd6d69ceeb29b169fbeac64ce61ca67",
+    "sourcePath": "data/alice-corpus/examples/dust.en.md",
+    "theme": "transactions"
+  },
+  {
     "id": "curated-earn-bitcoin",
     "conceptId": "earn-bitcoin",
     "title": "Recevoir du bitcoin pour un travail",
@@ -14157,7 +14246,10 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "keywords": [
       "Le nœud élagué",
       "Pruned Node",
-      "Peut-on vérifier Bitcoin sans stocker tous les anciens blocs ?",
+      "prune",
+      "espace disque d’un nœud",
+      "Peut-on vérifier Bitcoin sans stocker tous les anciens blocs ?",
+      "Combien d’espace disque faut-il pour un nœud élagué ?",
       "nodes",
       "pruned node"
     ],
@@ -14166,7 +14258,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "locale": "fr",
     "sourceLocale": "fr",
     "translationStatus": "source",
-    "content": "Réponse courte\nUn nœud élagué vérifie Bitcoin puis supprime une partie des anciens fichiers de blocs pour réduire l’espace disque. Il conserve l’état nécessaire à la validation des nouveaux blocs.\n\nExplication\nL’élagage sépare validation et conservation de l’historique. Le nœud ne transforme pas les anciens blocs en éléments invalides ; il cesse simplement de garder certaines de leurs données sur son disque. Cela permet de réduire les besoins de stockage sans remplacer la validation par une simple confiance dans un serveur.\n\nCette économie limite en revanche certaines recherches historiques et certains services d’indexation. Le logiciel doit retrouver ailleurs les données supprimées lorsqu’un nouvel usage en a besoin.\n\nLimites et confusions\nÉlagué ne signifie pas SPV. La récupération d’un ancien bloc dépend des pairs, du logiciel et de leur disponibilité. Selon l’opération, un bloc précis peut suffire ou davantage d’historique peut être nécessaire. Il est donc imprécis d’affirmer qu’il faut toujours tout télécharger à nouveau ou qu’un ancien bloc sera toujours immédiatement accessible.",
+    "content": "Réponse courte\nUn nœud élagué télécharge et vérifie toute la chaîne comme un nœud complet, puis supprime les anciens fichiers de blocs pour tenir dans quelques dizaines de Go au plus. Il conserve l’état nécessaire à la validation des nouveaux blocs et ne fait confiance à aucun serveur.\n\nExplication\nL’élagage n’est pas activé par défaut dans Bitcoin Core : il se demande par le réglage `prune`, exprimé en Mio, avec un minimum de 550 pour conserver au moins les derniers blocs. Une fois activé, le nœud efface les fichiers de blocs les plus anciens à mesure que la cible est dépassée.\n\nLa première synchronisation reste entière : le nœud télécharge chaque bloc depuis la genèse, le valide, met à jour l’ensemble des sorties non dépensées, puis seulement jette le fichier. Le temps de synchronisation et le trafic réseau sont ceux d’un nœud complet ; seul l’espace disque final change. La chaîne complète pesait environ 760 Go à l’été 2026 et grossit de plusieurs dizaines de Go par an. Un nœud élagué n’en garde que la cible choisie, plus l’ensemble des sorties non dépensées et ses index, soit une quinzaine de Go environ avec la cible minimale. Un portable avec 100 Go libres suffit largement.\n\nLimites et confusions\nÉlagué ne signifie pas SPV : la validation est la même. La récupération d’un ancien bloc dépend des pairs, du logiciel et de leur disponibilité. Selon l’opération, un bloc précis peut suffire ou davantage d’historique peut être nécessaire. Un nœud élagué ne peut pas servir l’historique complet à d’autres nœuds ni à un explorateur, et l’import d’un portefeuille ancien peut demander de retélécharger des blocs. La taille de la chaîne citée est un ordre de grandeur daté, pas une valeur courante.",
     "parentIds": [],
     "relatedIds": [
       "full-node",
@@ -14175,14 +14267,17 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     ],
     "reviewMethod": "adapted_from_corrected_sources",
     "sources": [
+      "https://bitcoincore.org/en/releases/0.11.0/#block-file-pruning",
+      "https://ycharts.com/indicators/bitcoin_blockchain_size",
       "PlanB btc202 — Setting up your first Bitcoin node",
       "PlanB Extraction — 2026-05-23 — lnp404"
     ],
     "questions": [
-      "Peut-on vérifier Bitcoin sans stocker tous les anciens blocs ?"
+      "Peut-on vérifier Bitcoin sans stocker tous les anciens blocs ?",
+      "Combien d’espace disque faut-il pour un nœud élagué ?"
     ],
     "status": "reviewed",
-    "sourceHash": "b4924fc8f6f00816cbf438a793a0683bc2566da8cfc77b000eae9e3ad2499963",
+    "sourceHash": "fce985ecbbef6a97d6cdba08fd3a91dcee753f318062fd685635a938c5982b56",
     "sourcePath": "data/alice-corpus/examples/pruned-node.fr.md",
     "theme": "nodes"
   },
@@ -14193,8 +14288,11 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "keywords": [
       "Pruned nodes",
       "Pruned Node",
+      "prune",
+      "espace disque d’un nœud",
       "Le nœud élagué",
       "Can Bitcoin be verified without storing all the old blocks?",
+      "How much disk space does a pruned node need?",
       "nodes",
       "pruned node"
     ],
@@ -14202,8 +14300,8 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "tier": "primary",
     "locale": "en",
     "sourceLocale": "fr",
-    "translationStatus": "machine",
-    "content": "Short answer\nA pruned node verifies Bitcoin and then deletes part of the old block files to reduce disk space. It keeps the state needed to validate new blocks.\n\nExplanation\nPruning separates validation from keeping the history. The node does not turn old blocks into invalid elements; it simply stops keeping some of their data on its disk. This makes it possible to reduce storage needs without replacing validation with mere trust in a server.\n\nThis saving does, however, limit some historical lookups and some indexing services. The software has to find the deleted data elsewhere when a new use needs it.\n\nLimits and confusions\nPruned does not mean SPV. Recovering an old block depends on peers, on the software and on their availability. Depending on the operation, a specific block may be enough or more history may be needed. It is therefore imprecise to claim that everything always has to be downloaded again, or that an old block will always be immediately accessible.",
+    "translationStatus": "reviewed",
+    "content": "Short answer\nA pruned node downloads and verifies the whole chain like a full node, then deletes the old block files to fit in a few tens of GB at most. It keeps the state needed to validate new blocks and trusts no server.\n\nExplanation\nPruning is not enabled by default in Bitcoin Core: it is requested with the `prune` setting, in MiB, with a minimum of 550 so that at least the latest blocks are kept. Once enabled, the node deletes the oldest block files as the target is exceeded.\n\nThe initial synchronization stays complete: the node downloads every block from the genesis block, validates it, updates the set of unspent outputs, and only then discards the file. Synchronization time and network traffic are those of a full node; only the final disk space changes. The full chain weighed about 760 GB in the summer of 2026 and grows by several tens of GB a year. A pruned node keeps only the chosen target, plus the set of unspent outputs and its indexes, about fifteen GB with the minimum target. A laptop with 100 GB free is more than enough.\n\nLimits and confusions\nPruned does not mean SPV: validation is the same. Recovering an old block depends on peers, on the software and on their availability. Depending on the operation, a specific block may be enough or more history may be needed. A pruned node cannot serve the full history to other nodes or to an explorer, and importing an old wallet may require downloading blocks again. The chain size quoted is a dated order of magnitude, not a current value.",
     "parentIds": [],
     "relatedIds": [
       "full-node",
@@ -14212,14 +14310,17 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     ],
     "reviewMethod": "adapted_from_corrected_sources",
     "sources": [
+      "https://bitcoincore.org/en/releases/0.11.0/#block-file-pruning",
+      "https://ycharts.com/indicators/bitcoin_blockchain_size",
       "PlanB btc202 — Setting up your first Bitcoin node",
       "PlanB Extraction — 2026-05-23 — lnp404"
     ],
     "questions": [
-      "Can Bitcoin be verified without storing all the old blocks?"
+      "Can Bitcoin be verified without storing all the old blocks?",
+      "How much disk space does a pruned node need?"
     ],
     "status": "reviewed",
-    "sourceHash": "b4924fc8f6f00816cbf438a793a0683bc2566da8cfc77b000eae9e3ad2499963",
+    "sourceHash": "fce985ecbbef6a97d6cdba08fd3a91dcee753f318062fd685635a938c5982b56",
     "sourcePath": "data/alice-corpus/examples/pruned-node.en.md",
     "theme": "nodes"
   },
@@ -28464,6 +28565,101 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "sourceHash": "073b433c2649f8e4fd509b72dad0d44fac379c67e7aa7a909263b5996bb26f6d",
     "sourcePath": "data/alice-corpus/examples/secure-backups.en.md",
     "theme": "security"
+  },
+  {
+    "id": "curated-seed-phrase-backup",
+    "conceptId": "seed-phrase-backup",
+    "title": "Sauvegarder la phrase de récupération",
+    "keywords": [
+      "Sauvegarder la phrase de récupération",
+      "Seed Phrase Backup",
+      "sauvegarde de la seed",
+      "phrase sur papier",
+      "plaque métal",
+      "Puis-je garder une photo de ma phrase de récupération dans mon gestionnaire de mots de passe ?",
+      "Sur quel support écrire ma phrase de récupération ?",
+      "Combien de copies de ma phrase faut-il, et où les ranger ?",
+      "wallets",
+      "seed phrase backup"
+    ],
+    "level": "beginner",
+    "tier": "primary",
+    "locale": "fr",
+    "sourceLocale": "fr",
+    "translationStatus": "source",
+    "content": "Réponse courte\nLa phrase de récupération s’écrit à la main sur papier ou se grave sur métal, hors de tout appareil connecté. Jamais en photo, dans une note, dans un e-mail, dans un fichier dans le cloud ni dans un gestionnaire de mots de passe, même chiffré.\n\nExplication\nQui lit la phrase peut dépenser tous les fonds, maintenant et plus tard. Un appareil connecté peut être compromis par un logiciel malveillant, une sauvegarde automatique, une synchronisation ou un accès au compte ; une copie numérique y reste exposée tant qu’elle existe. Le chiffrement déplace le problème : il ajoute un mot de passe à ne pas perdre et ne protège pas contre une saisie sur un appareil déjà compromis. Un gestionnaire de mots de passe convient pour des mots de passe, pas pour un secret qui ne doit jamais passer par un écran ou un clavier connecté.\n\nLe papier et le métal n’ont ni logiciel ni réseau. Le papier craint le feu, l’eau et le temps ; une plaque métallique y résiste. Deux copies au moins, dans des lieux séparés, protègent de la perte d’un lieu. Une copie rangée avec l’appareil de signature partage son sort en cas de vol ou de sinistre. Un test de restauration, sur un appareil de confiance et avec peu de fonds, prouve que la phrase est complète et lisible avant qu’il soit trop tard.\n\nLimites et confusions\nLa phrase seule ne suffit pas toujours : une passphrase, les chemins de dérivation ou la configuration d’un multisig peuvent être nécessaires, et doivent être sauvegardés aussi. Multiplier les copies multiplie les lieux où un intrus peut lire le secret ; chaque copie doit être aussi protégée que la première. Aucun support, aucun site et aucun assistant, Alice comprise, n’a besoin de la phrase pour aider. Cette fiche ne décrit ni le partage de secret entre plusieurs personnes ni les dispositifs de succession.",
+    "parentIds": [],
+    "relatedIds": [
+      "wallet-recovery-phrase",
+      "wallet-backup",
+      "wallet-backup-test",
+      "secure-backups",
+      "password-manager",
+      "bip39-passphrase"
+    ],
+    "reviewMethod": "adapted_from_corrected_sources",
+    "sources": [
+      "https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki",
+      "PlanB btc102 — Getting your first bitcoins",
+      "PlanB scu202 — Improve Your Personal Digital Security"
+    ],
+    "questions": [
+      "Puis-je garder une photo de ma phrase de récupération dans mon gestionnaire de mots de passe ?",
+      "Sur quel support écrire ma phrase de récupération ?",
+      "Combien de copies de ma phrase faut-il, et où les ranger ?"
+    ],
+    "status": "reviewed",
+    "sourceHash": "f7e8e7fd783ffd05ca6f12236c34070e4c6823f6c939ba54ec6d9a19e16d8db0",
+    "sourcePath": "data/alice-corpus/examples/seed-phrase-backup.fr.md",
+    "theme": "wallets"
+  },
+  {
+    "id": "curated-seed-phrase-backup.en",
+    "conceptId": "seed-phrase-backup",
+    "title": "Backing up the recovery phrase",
+    "keywords": [
+      "Backing up the recovery phrase",
+      "Seed Phrase Backup",
+      "sauvegarde de la seed",
+      "phrase sur papier",
+      "plaque métal",
+      "Sauvegarder la phrase de récupération",
+      "Can I keep a photo of my recovery phrase in my password manager?",
+      "What should I write my recovery phrase on?",
+      "How many copies of my phrase do I need, and where should I keep them?",
+      "wallets",
+      "seed phrase backup"
+    ],
+    "level": "beginner",
+    "tier": "primary",
+    "locale": "en",
+    "sourceLocale": "fr",
+    "translationStatus": "reviewed",
+    "content": "Short answer\nThe recovery phrase is written by hand on paper or stamped on metal, away from any connected device. Never as a photo, in a note, in an email, in a cloud file or in a password manager, even encrypted.\n\nExplanation\nWhoever reads the phrase can spend all the funds, now and later. A connected device can be compromised by malware, an automatic backup, a sync or an account access; a digital copy stays exposed there for as long as it exists. Encryption moves the problem: it adds a password that must not be lost and does not protect against typing the phrase on a device that is already compromised. A password manager is right for passwords, not for a secret that must never go through a connected screen or keyboard.\n\nPaper and metal have neither software nor network. Paper fears fire, water and time; a metal plate withstands them. At least two copies, in separate places, protect against the loss of one place. A copy kept with the signing device shares its fate in a theft or a disaster. A restore test, on a trusted device and with little money at stake, proves that the phrase is complete and readable before it is too late.\n\nLimits and confusions\nThe phrase alone is not always enough: a passphrase, the derivation paths or the configuration of a multisig may be needed, and must be backed up too. More copies mean more places where an intruder can read the secret; every copy has to be as protected as the first. No support team, no website and no assistant, Alice included, needs the phrase in order to help. This note describes neither secret sharing between several people nor inheritance arrangements.",
+    "parentIds": [],
+    "relatedIds": [
+      "wallet-recovery-phrase",
+      "wallet-backup",
+      "wallet-backup-test",
+      "secure-backups",
+      "password-manager",
+      "bip39-passphrase"
+    ],
+    "reviewMethod": "adapted_from_corrected_sources",
+    "sources": [
+      "https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki",
+      "PlanB btc102 — Getting your first bitcoins",
+      "PlanB scu202 — Improve Your Personal Digital Security"
+    ],
+    "questions": [
+      "Can I keep a photo of my recovery phrase in my password manager?",
+      "What should I write my recovery phrase on?",
+      "How many copies of my phrase do I need, and where should I keep them?"
+    ],
+    "status": "reviewed",
+    "sourceHash": "f7e8e7fd783ffd05ca6f12236c34070e4c6823f6c939ba54ec6d9a19e16d8db0",
+    "sourcePath": "data/alice-corpus/examples/seed-phrase-backup.en.md",
+    "theme": "wallets"
   },
   {
     "id": "curated-segwit-address",

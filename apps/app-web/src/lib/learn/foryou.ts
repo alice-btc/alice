@@ -1,5 +1,5 @@
 import type { KnowledgeConcept, PedagogicalProfile } from '@alice-wallet/alice-ai';
-import { familiarityFor, KNOWLEDGE_CONCEPT_LABELS } from '@alice-wallet/alice-ai';
+import { familiarityFor } from '@alice-wallet/alice-ai';
 import type { LearnCatalogCourse } from '@alice-wallet/alice-content/src/learn-types';
 import type { LearnProgress } from './progress';
 import { courseState } from './progress';
@@ -28,9 +28,8 @@ const CONCEPT_TO_COURSE: Partial<Record<KnowledgeConcept, string>> = {
 
 export interface ForYouEntry {
   course: LearnCatalogCourse;
-  concept: KnowledgeConcept;
   /** The concept named in the reason line (learn.home.forYou.reason). */
-  conceptLabel: string;
+  concept: KnowledgeConcept;
 }
 
 export function buildForYou(
@@ -62,12 +61,7 @@ export function buildForYou(
     const total = Object.values(course.chapterCount)[0] ?? 0;
     if (courseState(progress, code, total) !== 'new') continue;
     usedCourses.add(code);
-    const label = KNOWLEDGE_CONCEPT_LABELS[concept];
-    entries.push({
-      course,
-      concept,
-      conceptLabel: label,
-    });
+    entries.push({ course, concept });
   }
   return entries;
 }

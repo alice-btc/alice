@@ -32,6 +32,36 @@ export type LocalModelEntry = {
   sha256?: string;
 };
 
+export type LocalModelErrorCode =
+  | 'repo_format'
+  | 'repo_missing'
+  | 'repo_gated'
+  | 'hf_status'
+  | 'no_gguf'
+  | 'listing_unexpected'
+  | 'listing_revision'
+  | 'invalid_repo'
+  | 'invalid_filename'
+  | 'file_not_listed'
+  | 'not_huggingface'
+  | 'already_in_catalog';
+
+/**
+ * A refusal about a custom model, with a code and its figures so the
+ * interface can say it in its own language; the message is the English.
+ */
+export class LocalModelError extends Error {
+  readonly code: LocalModelErrorCode;
+  readonly params: Record<string, string | number>;
+
+  constructor(code: LocalModelErrorCode, message: string, params: Record<string, string | number> = {}) {
+    super(message);
+    this.name = 'LocalModelError';
+    this.code = code;
+    this.params = params;
+  }
+}
+
 export const HUGGING_FACE_ORIGIN = 'https://huggingface.co';
 export const CUSTOM_MODEL_ID_PREFIX = 'custom:';
 
@@ -73,9 +103,9 @@ export type HuggingFaceGgufListing = {
  * and shards are dropped because the local runtimes cannot use them alone.
  */
 export function parseHuggingFaceModelListing(repo: string, payload: unknown): HuggingFaceGgufListing {
-  if (!payload || typeof payload !== 'object') throw new Error('Unexpected Hugging Face response.');
+  if (!payload || typeof payload !== 'object') throw new LocalModelError('listing_unexpected', 'Unexpected Hugging Face response.');
   const data = payload as { sha?: unknown; gated?: unknown; cardData?: { license?: unknown }; siblings?: unknown };
-  if (typeof data.sha !== 'string' || !/^[0-9a-f]{40}$/.test(data.sha)) throw new Error('The repository revision is missing.');
+  if (typeof data.sha !== 'string' || !/^[0-9a-f]{40}$/.test(data.sha)) throw new LocalModelError('listing_revision', 'The repository revision is missing.');
   const siblings = Array.isArray(data.siblings) ? data.siblings : [];
   const files: HuggingFaceGgufFile[] = [];
   for (const sibling of siblings) {
@@ -125,16 +155,16 @@ function humanSize(bytes: number): string {
  */
 export function buildCustomModelEntry(listing: HuggingFaceGgufListing, filename: string): LocalModelEntry {
   const repo = normalizeHuggingFaceRepo(listing.repo);
-  if (!repo) throw new Error('Invalid Hugging Face repository.');
+  if (!repo) throw new LocalModelError('invalid_repo', 'Invalid Hugging Face repository.');
   const segments = filename.split('/');
   const base = segments[segments.length - 1] ?? '';
   if (segments.some(segment => !PATH_SEGMENT_PATTERN.test(segment) || segment.includes('..'))
-    || !GGUF_FILENAME_PATTERN.test(base)) throw new Error('Invalid model filename.');
+    || !GGUF_FILENAME_PATTERN.test(base)) throw new LocalModelError('invalid_filename', 'Invalid model filename.');
   const file = listing.files.find(candidate => candidate.filename === filename);
-  if (!file) throw new Error('This file is not in the repository listing.');
-  if (listing.gated) throw new Error('This repository is gated and needs a Hugging Face login; Alice downloads only public files.');
+  if (!file) throw new LocalModelError('file_not_listed', 'This file is not in the repository listing.');
+  if (listing.gated) throw new LocalModelError('repo_gated', 'This repository is gated and needs a Hugging Face login; Alice downloads only public files.');
   const storedFilename = customModelFilename(repo, filename);
-  if (!GGUF_FILENAME_PATTERN.test(storedFilename)) throw new Error('Invalid model filename.');
+  if (!GGUF_FILENAME_PATTERN.test(storedFilename)) throw new LocalModelError('invalid_filename', 'Invalid model filename.');
   return {
     id: customModelId(repo, filename),
     name: base.replace(/\.gguf$/i, ''),
@@ -237,12 +267,12 @@ export type FetchLike = (input: string, init?: { headers?: Record<string, string
  */
 export async function fetchHuggingFaceGgufListing(repoInput: string, fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike): Promise<HuggingFaceGgufListing> {
   const repo = normalizeHuggingFaceRepo(repoInput);
-  if (!repo) throw new Error('Enter a repository as owner/name, for example unsloth/Qwen3.5-2B-GGUF.');
+  if (!repo) throw new LocalModelError('repo_format', 'Enter a repository as owner/name, for example unsloth/Qwen3.5-2B-GGUF.');
   const response = await fetchImpl(`${HUGGING_FACE_ORIGIN}/api/models/${repo}?blobs=true`, { headers: { Accept: 'application/json' } });
-  if (response.status === 404) throw new Error('This repository does not exist or is private.');
-  if (response.status === 401 || response.status === 403) throw new Error('This repository is gated and needs a Hugging Face login; Alice downloads only public files.');
-  if (!response.ok) throw new Error(`Hugging Face answered ${response.status}.`);
+  if (response.status === 404) throw new LocalModelError('repo_missing', 'This repository does not exist or is private.');
+  if (response.status === 401 || response.status === 403) throw new LocalModelError('repo_gated', 'This repository is gated and needs a Hugging Face login; Alice downloads only public files.');
+  if (!response.ok) throw new LocalModelError('hf_status', `Hugging Face answered ${response.status}.`, { status: response.status });
   const listing = parseHuggingFaceModelListing(repo, await response.json());
-  if (listing.files.length === 0) throw new Error('No single gguf file in this repository.');
+  if (listing.files.length === 0) throw new LocalModelError('no_gguf', 'No single gguf file in this repository.');
   return listing;
 }

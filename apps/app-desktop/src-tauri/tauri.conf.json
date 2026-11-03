@@ -1,6 +1,6 @@
 {
   "productName": "Alice",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "identifier": "com.alicebitcoin.desktop",
   "build": {
     "beforeDevCommand": "",

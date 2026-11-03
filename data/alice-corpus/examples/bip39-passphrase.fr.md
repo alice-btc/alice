@@ -9,7 +9,7 @@ topics: ["wallets"]
 aliases: ["BIP39 Passphrase"]
 parent_ids: []
 related_ids: ["bitcoin-seed", "wallet-backup", "bitcoin-inheritance-plan", "secondary-bitcoin-pbkdf2"]
-reviewed_at: "2026-10-11"
+reviewed_at: "2026-11-02"
 review_due: null
 sources: ["PlanB cyp201 — Bitcoin Wallet Architecture", "PlanB Extraction — 2026-05-23"]
 human_reviewed_in_full: false
@@ -21,6 +21,7 @@ exhaustive_external_fact_check: false
 ## Questions couvertes
 
 - Une passphrase est-elle simplement un mot de passe ?
+- Ma phrase de récupération suffit-elle si j’ai aussi défini une passphrase ?
 
 ## Réponse courte
 

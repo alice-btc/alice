@@ -1,5 +1,6 @@
 import { fetch } from 'expo/fetch';
 import type { AIBackend, AIBackendStatus, AIResponse, SendMessageOptions, TokenUsage } from './ai-backend';
+import { AIBackendError } from './backend-error';
 import type { Message } from './llm';
 import { getPreset, PRESETS, getCustomServer, getAliceInstructions, type CustomServerConfig } from './ai-preferences';
 import {
@@ -84,7 +85,7 @@ export class CustomAIBackend implements AIBackend {
   }
 
   async sendMessage(messages: Message[], onChunk?: (chunk: string) => void, options?: SendMessageOptions): Promise<AIResponse> {
-    if (!this.config?.url) throw new Error('No custom server configured.');
+    if (!this.config?.url) throw new AIBackendError('custom_not_configured', 'No custom server configured.');
 
     const [preset, instructions] = await Promise.all([getPreset('cloud'), getAliceInstructions()]);
     const params = PRESETS[preset];
@@ -131,7 +132,7 @@ export class CustomAIBackend implements AIBackend {
       }),
     });
 
-    if (!response.ok) throw new Error(`Server error ${response.status}`);
+    if (!response.ok) throw new AIBackendError('custom_server_error', `Server error ${response.status}`, response.status);
 
     if (onChunk && response.body) {
       const reader = response.body.getReader();
@@ -214,7 +215,7 @@ export class CustomAIBackend implements AIBackend {
       body: JSON.stringify(payload),
     });
 
-    if (!response.ok) throw new Error(`Server error ${response.status}`);
+    if (!response.ok) throw new AIBackendError('custom_server_error', `Server error ${response.status}`, response.status);
 
     if (onChunk && response.body) {
       const reader = response.body.getReader();

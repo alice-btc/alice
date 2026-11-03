@@ -27,14 +27,38 @@ export function entriesForLetter<T extends DictionaryIndexEntry>(entries: readon
   return sortEntries(entries.filter(entry => entry.letter === letter));
 }
 
-/** The letter a definition is filed under, from its ASCII slug. */
+/**
+ * The letters the A–Z navigation offers: those the index files a term under.
+ * In the English pack an index letter follows the English title, so it can
+ * differ from the letter file the definition is fetched from.
+ */
+export function indexLetters(entries: readonly DictionaryIndexEntry[]): string[] {
+  return [...new Set(entries.map(entry => entry.letter))].sort();
+}
+
+/** The letter file a definition is fetched from, from its ASCII slug. */
 export function letterOfSlug(slug: string): string {
   const first = slug.charAt(0);
   return /^[a-z]$/.test(first) ? first : 'a';
 }
 
 function names(entry: DictionaryIndexEntry): string[] {
-  return [entry.title, entry.english, entry.french].filter((name): name is string => Boolean(name));
+  return [entry.title, entry.english, entry.french, ...(entry.frenchAliases ?? [])].filter((name): name is string => Boolean(name));
+}
+
+/**
+ * The term's name in the dictionary's other language, when it is not the
+ * title itself: the French original for the English pack, the English
+ * equivalent (else the French one of an English title) for the French pack.
+ */
+export function otherLanguageName(entry: DictionaryIndexEntry, lang: 'en' | 'fr'): { lang: 'en' | 'fr'; name: string } | null {
+  const candidates = lang === 'en'
+    ? [entry.french, ...(entry.frenchAliases ?? [])].map(name => ({ lang: 'fr' as const, name }))
+    : [{ lang: 'en' as const, name: entry.english }, { lang: 'fr' as const, name: entry.french }];
+  for (const candidate of candidates) {
+    if (candidate.name && normalizeTerm(candidate.name) !== normalizeTerm(entry.title)) return { lang: candidate.lang, name: candidate.name };
+  }
+  return null;
 }
 
 /**
@@ -67,13 +91,33 @@ export function searchDictionary<T extends DictionaryIndexEntry>(entries: readon
 // appear in almost every Bitcoin question.
 const GENERIC_NAMES = new Set(['bitcoin', 'btc', 'bitcoins']);
 
+// French names the English pack keeps that are also everyday English words
+// with another meaning: an English question saying "part" or "chance" is not
+// about SHARES or LUCK. Keys as termKey() writes them. The French pack still
+// matches them, in French questions.
+const FRENCH_NAMES_READ_AS_ENGLISH = new Set([
+  'champion', 'chance', 'depot', 'diffusion', 'engagement', 'entree', 'etiquette',
+  'fraction', 'mapper', 'part', 'pile', 'service cache', 'sortie', 'transaction standard',
+]);
+
 /** Drop a plural marker so "utxos" meets "utxo" and "clés" meets "clé". */
 function singular(token: string): string {
   return token.length > 3 ? token.replace(/(s|x)$/, '') : token;
 }
 
-function phrase(text: string): string {
+/** A name or a stretch of text as the matchers compare it: normalized, plurals dropped. */
+export function termKey(text: string): string {
   return normalizeTerm(text).split(' ').filter(Boolean).map(singular).join(' ');
+}
+
+/** True for a French name the English pack keeps that reads as an everyday English word. */
+export function isFrenchNameReadAsEnglish(key: string): boolean {
+  return FRENCH_NAMES_READ_AS_ENGLISH.has(key);
+}
+
+/** True for the names every Bitcoin text carries ("bitcoin", "btc"). */
+export function isGenericTerm(key: string): boolean {
+  return GENERIC_NAMES.has(key);
 }
 
 export interface DictionaryMatch<T extends DictionaryIndexEntry> {
@@ -86,17 +130,20 @@ export interface DictionaryMatch<T extends DictionaryIndexEntry> {
  * The dictionary term a question names, when it names one unambiguously: the
  * longest title or equivalent found as whole words in the question. Three
  * characters at least, and never a word every question carries ("bitcoin").
- * Null when nothing specific is named, so the chat falls back to the courses.
+ * In the English pack, a French name that is also an everyday English word
+ * does not count. Null when nothing specific is named, so the chat falls back
+ * to the courses.
  */
-export function matchDictionaryTerm<T extends DictionaryIndexEntry>(entries: readonly T[], question: string): DictionaryMatch<T> | null {
-  const padded = ` ${phrase(question)} `;
+export function matchDictionaryTerm<T extends DictionaryIndexEntry>(entries: readonly T[], question: string, lang: 'en' | 'fr' = 'fr'): DictionaryMatch<T> | null {
+  const padded = ` ${termKey(question)} `;
   if (padded.trim().length === 0) return null;
   let best: DictionaryMatch<T> | null = null;
   let bestLength = 0;
   for (const entry of entries) {
     for (const name of names(entry)) {
-      const normalized = phrase(name);
+      const normalized = termKey(name);
       if (normalized.length < 3 || GENERIC_NAMES.has(normalized)) continue;
+      if (lang === 'en' && name !== entry.title && FRENCH_NAMES_READ_AS_ENGLISH.has(normalized)) continue;
       if (!padded.includes(` ${normalized} `)) continue;
       // Longest wins; on a tie the title beats an equivalent, then the
       // dictionary's own order keeps the result deterministic.

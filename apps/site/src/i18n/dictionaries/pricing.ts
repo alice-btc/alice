@@ -34,7 +34,7 @@ const en: PricingCopy = {
   lead: 'Alice answers on your device for free, without limits, forever. A plan buys exactly one thing: capacity on the larger Private Cloud model, end-to-end encrypted, for the questions your device cannot carry alone.',
   status: 'Alice is in beta, on mainnet. Plans are on sale in the app, paid in bitcoin.',
   plans: {
-    loading: 'Loading satoshi quote…',
+    loading: 'Priced in sats at today’s rate',
     unavailable: 'Satoshi quote unavailable',
     perMonth: '/ month',
     free: {
@@ -45,6 +45,7 @@ const en: PricingCopy = {
         'Alice Local on your device, unlimited',
         '21 Private Cloud requests to try the larger model',
         'Your conversations stay on your device, encrypted',
+        'No account needed',
       ],
       note: 'Local answers never expire and are never counted. The plan beside this one buys cloud capacity, nothing else.',
     },
@@ -55,6 +56,7 @@ const en: PricingCopy = {
         'End-to-end encrypted to confidential hardware',
         'Never used for training',
         'Everything in Free, always',
+        'Needs an Alice account, so the plan follows you to another device',
       ],
       note: 'Paid in bitcoin. No card on file, no automatic renewal: a plan runs out, and you decide whether to buy another.',
     },
@@ -100,7 +102,7 @@ const fr: PricingCopy = {
   lead: 'Alice répond sur votre appareil gratuitement, sans limite, pour toujours. Un forfait achète une seule chose : de la capacité sur le modèle Private Cloud plus grand, chiffré de bout en bout, pour les questions que votre appareil ne peut pas porter seul.',
   status: 'Alice est en bêta sur le mainnet. Les forfaits sont en vente dans l’app, payés en bitcoin.',
   plans: {
-    loading: 'Chargement du prix en satoshis…',
+    loading: 'Prix en sats au taux du jour',
     unavailable: 'Prix en satoshis indisponible',
     perMonth: '/ mois',
     free: {
@@ -111,6 +113,7 @@ const fr: PricingCopy = {
         'Alice Local sur votre appareil, sans limite',
         '21 requêtes Private Cloud pour essayer le modèle plus grand',
         'Vos conversations restent sur votre appareil, chiffrées',
+        'Sans compte',
       ],
       note: 'Les réponses locales n’expirent jamais et ne sont jamais comptées. Le forfait d’à côté achète de la capacité dans le cloud, rien d’autre.',
     },
@@ -121,6 +124,7 @@ const fr: PricingCopy = {
         'Chiffré de bout en bout jusqu’à un matériel confidentiel',
         'Jamais utilisé pour l’entraînement',
         'Tout ce que comprend Gratuit, toujours',
+        'Demande un compte Alice, pour que le forfait vous suive sur un autre appareil',
       ],
       note: 'Payé en bitcoin. Pas de carte enregistrée, pas de renouvellement automatique : un forfait arrive à son terme, et vous décidez d’en acheter un autre ou non.',
     },

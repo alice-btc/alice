@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AIBackend, AIBackendStatus, AIResponse, SendMessageOptions, TokenUsage } from './ai-backend';
+import { AIBackendError } from './backend-error';
 import type { Message } from './llm';
 import { tauriInvoke } from './tauri-runtime';
 import {
@@ -213,7 +214,7 @@ export class LocalDesktopAIBackend implements AIBackend {
   }
 
   async sendMessage(messages: Message[], onChunk?: (chunk: string) => void, options?: SendMessageOptions): Promise<AIResponse> {
-    if (this._status.state !== 'ready') throw new Error('Local AI is not ready.');
+    if (this._status.state !== 'ready') throw new AIBackendError('local_not_ready', 'Local AI is not ready.');
 
     const prepared = await prepareLocalRequest(messages, options, DESKTOP_CONTEXT_TOKENS);
     const streamFn = prepared.buffered ? undefined : onChunk;
@@ -238,7 +239,7 @@ export class LocalDesktopAIBackend implements AIBackend {
       body: JSON.stringify(payload),
     });
 
-    if (!response.ok) throw new Error(`llama-server error ${response.status}`);
+    if (!response.ok) throw new AIBackendError('local_server_error', `llama-server error ${response.status}`, response.status);
 
     let result: string;
     let usage: TokenUsage | undefined;

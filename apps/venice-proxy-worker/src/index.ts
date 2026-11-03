@@ -410,6 +410,11 @@ export function sanitizeChatBody(raw: string): { body: string; model: string } {
   // and not only at Venice: searching the web means telling someone what you
   // are looking for. See docs/billing-and-quotas.md.
   delete parsed.venice_parameters;
+  // Reasoning depth is a cost switch too: gpt-oss thinks before it writes and
+  // every reasoning token is billed as output. Venice runs this model at its
+  // lowest level by default; a client does not get to raise it.
+  delete parsed.reasoning_effort;
+  delete parsed.reasoning;
 
   return {
     body: JSON.stringify(parsed),

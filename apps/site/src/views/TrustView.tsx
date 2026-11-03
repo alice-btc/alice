@@ -42,6 +42,20 @@ export function TrustView({ locale }: { locale: Locale }) {
           <RichText value={t.notice} locale={locale} linkClassName={link} />
         </div>
 
+        <H>{t.glossaryTitle}</H>
+        <div className="mt-4 overflow-x-auto rounded-[4px] border border-[var(--alice-border)]">
+          <table className="w-full text-left text-[15px]">
+            <tbody>
+              {t.glossary.map(([term, meaning]) => (
+                <tr key={term} className="border-b border-[var(--alice-border)] align-top last:border-0">
+                  <th scope="row" className="w-1/3 p-4 font-semibold text-[var(--alice-heading)]">{term}</th>
+                  <td className="p-4 text-[var(--alice-text)]">{meaning}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
         <H>{t.privateTitle}</H>
         <p className="mt-3 leading-relaxed text-[var(--alice-text)]">
           <RichText value={t.privateBody} locale={locale} linkClassName={link} />

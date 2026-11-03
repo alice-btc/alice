@@ -25,7 +25,13 @@ export {
   type PracticeTxOutput,
   type PracticeTxPlan,
   type PracticeTxReview,
+  type PracticeTxProblem,
 } from './practice-tx.ts';
+export {
+  PracticeWalletError,
+  type PracticeWalletErrorCode,
+  type PracticeWalletErrorParams,
+} from './errors.ts';
 export {
   requestPracticeFaucet,
   PRACTICE_FAUCET_URL,

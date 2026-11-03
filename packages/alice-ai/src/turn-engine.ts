@@ -1,5 +1,5 @@
 import type { AIBackendType } from './ai-backend.ts';
-import { answerRuleNoteIdsIn, answerRulesBlock } from './answer-rules.ts';
+import { answerRuleNoteIdsIn, answerRuleNoteIdsOnSubject, answerRulesBlock } from './answer-rules.ts';
 import { aliceMemoryRefusalMessage, type AliceMemory, type AliceMemoryCandidate, type AliceMemoryWrite } from './alice-memory-core.ts';
 import { composeGenerationHistory } from './generation-context.ts';
 import type { LanguageDecisionSource, SupportedLanguage } from './language-policy.ts';
@@ -207,17 +207,17 @@ export async function prepareAliceTurn(input: {
   // fall back to the concepts of the recent user turns; the definition-question
   // heuristic still reads the real message, never the stitched history.
   const composeStarted = now();
+  const recentUserTurns = input.history
+    .filter(message => message.role === 'user')
+    .slice(-3)
+    .map(message => message.content)
+    .concat(input.userMessage)
+    .join('\n');
   // The notes that carry answer rules are read from the retrieved text the
-  // model will see, so a note dropped by the context fit brings no rule.
-  const answerRuleNoteIds = answerRuleNoteIdsIn(retrieval.value.ragContext ?? '');
-  const conceptSource = inferPedagogicalConcepts(input.userMessage).length > 0
-    ? input.userMessage
-    : input.history
-      .filter(message => message.role === 'user')
-      .slice(-3)
-      .map(message => message.content)
-      .concat(input.userMessage)
-      .join('\n');
+  // model will see, so a note dropped by the context fit brings no rule, and
+  // a rule about a subject the user has not raised stays out.
+  const answerRuleNoteIds = answerRuleNoteIdsOnSubject(answerRuleNoteIdsIn(retrieval.value.ragContext ?? ''), recentUserTurns);
+  const conceptSource = inferPedagogicalConcepts(input.userMessage).length > 0 ? input.userMessage : recentUserTurns;
 
   const history = composeGenerationHistory(
     input.history,

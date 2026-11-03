@@ -63,7 +63,7 @@ export function learnExcerptNotice(sources: LearnSource[] | undefined): string {
   const origin = attributions.length > 0
     ? `Learn excerpt${(sources?.length ?? 0) > 1 ? 's' : ''}, quoted from ${attributions.join(' and ')}`
     : 'Course excerpt, Plan B Academy, CC BY-SA 4.0';
-  return `${origin}. Ground your answer in it when relevant, and end with one short sentence saying which source helped, named exactly as labelled here, never a course code or a term you were not given; the user can open each source in the Learn section.`;
+  return `${origin}. Ground your answer in it when relevant. Do not name or cite it in the answer: the app lists each source under the reply, with a link to it in the Learn section.`;
 }
 
 export function composeGenerationHistory(

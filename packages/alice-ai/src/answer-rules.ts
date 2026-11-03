@@ -16,6 +16,11 @@
 //    live-value caveat (live-value-caveat.ts). The answer is never rewritten
 //    or blocked, and the match is reported in the generation diagnostics.
 //
+// The 2026-11-02 replay on Private Cloud added a fourth subject, the seed
+// backup: a photo, a phone note or an encrypted cloud file accepted as a copy
+// of the phrase. It also showed the Ark rules riding with a retrieved Ark note
+// on a mempool question, hence the subject gate on a rule.
+//
 // The rules are keyed by note id and kept out of the knowledge packs: they
 // are instructions for the model and for the output guard, not retrievable
 // text, so they change neither the pack schema nor the corpus hash.
@@ -36,6 +41,13 @@ export type AnswerRule = {
   title: string;
   mustState: Record<SupportedLanguage, readonly string[]>;
   neverClaim: Record<SupportedLanguage, readonly string[]>;
+  /**
+   * Set when the rules concern one subject: they apply only when the user's
+   * recent turns name it (answerRuleNoteIdsOnSubject). The retrieval ranks
+   * an Ark note next to a mempool question, and its exit rules then rode
+   * with the answer (2026-11-02).
+   */
+  subject?: RegExp;
 };
 
 export type ClaimPattern = {
@@ -140,6 +152,22 @@ const NO_REVERSAL: Localized = {
   fr: "qu'un paiement confirmé peut être annulé, ou qu'Alice a annulé ou remplacé une transaction réelle",
 };
 
+// Tested on the normalized text of the user's recent turns.
+const ARK_SUBJECT = /\b(?:ark|arkade|bark|vtxos?|rounds?|asp|operat(?:or|eur)s?)\b/;
+
+const SEED_MEDIUM: Localized = {
+  en: 'Write the recovery phrase by hand on paper or stamp it on metal. Never photograph it or type it into a note, an email, a cloud file or a password manager, even encrypted: a connected device can be compromised, and an exposed phrase gives away every key it derives.',
+  fr: "Écris la phrase de récupération à la main sur papier ou grave-la sur métal. Ne la prends jamais en photo et ne la saisis jamais dans une note, un e-mail, un fichier dans le cloud ou un gestionnaire de mots de passe, même chiffré : un appareil connecté peut être compromis, et une phrase exposée livre toutes les clés qu'elle dérive.",
+};
+const SEED_COPIES: Localized = {
+  en: 'Keep more than one copy, in separate places, away from fire, water and curious eyes.',
+  fr: "Conserve plusieurs copies, dans des lieux séparés, à l'abri du feu, de l'eau et des regards.",
+};
+const SEED_RESTORE_TEST: Localized = {
+  en: 'Test the backup with a restore in a safe setting, without typing the phrase into a website, a chat or a support form.',
+  fr: 'Teste la sauvegarde par une restauration dans un cadre sûr, sans saisir la phrase sur un site, un chat ou un formulaire de support.',
+};
+
 export const ANSWER_RULES: readonly AnswerRule[] = [
   {
     noteId: 'ark-rounds-exits',
@@ -155,6 +183,7 @@ export const ANSWER_RULES: readonly AnswerRule[] = [
       en: [NO_OPERATOR_BLOCK.en, NO_FUNDS_LOST.en, NO_EXPIRY_INVERSION.en, NO_INSTANT_EXIT.en, NO_LAYER_ONE.en],
       fr: [NO_OPERATOR_BLOCK.fr, NO_FUNDS_LOST.fr, NO_EXPIRY_INVERSION.fr, NO_INSTANT_EXIT.fr, NO_LAYER_ONE.fr],
     },
+    subject: ARK_SUBJECT,
   },
   {
     noteId: 'asp-operator',
@@ -170,6 +199,7 @@ export const ANSWER_RULES: readonly AnswerRule[] = [
       en: [NO_OPERATOR_BLOCK.en, NO_FUNDS_LOST.en, NO_EXPIRY_INVERSION.en, NO_LAYER_ONE.en],
       fr: [NO_OPERATOR_BLOCK.fr, NO_FUNDS_LOST.fr, NO_EXPIRY_INVERSION.fr, NO_LAYER_ONE.fr],
     },
+    subject: ARK_SUBJECT,
   },
   {
     noteId: 'multisig',
@@ -233,6 +263,30 @@ export const ANSWER_RULES: readonly AnswerRule[] = [
       fr: [NO_REVERSAL.fr, NO_OPT_IN_PRECONDITION.fr, NO_SECOND_PAYMENT_REMEDY.fr],
     },
   },
+  {
+    // The Private Cloud model accepted a photo in a password manager, a phone
+    // note and an encrypted cloud file as seed backups (2026-11-02).
+    noteId: 'seed-backup',
+    sourceConceptId: 'seed-phrase-backup',
+    title: 'Sauvegarder la phrase de récupération',
+    additionalSourceTitles: ['La phrase de récupération'],
+    mustState: {
+      en: [SEED_MEDIUM.en, SEED_COPIES.en, SEED_RESTORE_TEST.en],
+      fr: [SEED_MEDIUM.fr, SEED_COPIES.fr, SEED_RESTORE_TEST.fr],
+    },
+    neverClaim: {
+      en: [
+        'that a photo, a screenshot, a cloud file, a note or a password manager is an acceptable place for the phrase, even encrypted',
+        'that a single copy, or a copy kept with the device, is enough',
+        'that a support agent, a website or Alice needs the phrase to help',
+      ],
+      fr: [
+        "qu'une photo, une capture d'écran, un fichier dans le cloud, une note ou un gestionnaire de mots de passe convient pour la phrase, même chiffré",
+        "qu'une seule copie, ou une copie rangée avec l'appareil, suffit",
+        "qu'un support, un site ou Alice a besoin de la phrase pour aider",
+      ],
+    },
+  },
 ];
 
 const ARK_NOTES = ['ark-rounds-exits', 'asp-operator'] as const;
@@ -240,9 +294,10 @@ const ARK_NOTES = ['ark-rounds-exits', 'asp-operator'] as const;
 // headed by its label (knowledge-context-budget.ts), not as a "Topic:" note.
 // The Private Cloud model called Ark "a layer-1 scaling protocol" with the
 // definition, which says the opposite, in front of it (2026-10-30).
-const DICTIONARY_NOTE_LINES: readonly { noteId: string; line: RegExp }[] = [
-  { noteId: 'dictionary-ark', line: /^Dictionnaire de Bitcoin · ARK\b/m },
+const DICTIONARY_NOTE_LINES: readonly { noteId: string; line: RegExp; subject?: RegExp }[] = [
+  { noteId: 'dictionary-ark', line: /^Dictionnaire de Bitcoin · ARK\b/m, subject: ARK_SUBJECT },
 ];
+const SEED_NOTES = ['seed-backup'] as const;
 const ARK_LAYER_NOTES = [...ARK_NOTES, 'dictionary-ark'] as const;
 const RBF_NOTES = ['replace-by-fee', 'transaction-finality'] as const;
 
@@ -274,6 +329,10 @@ const RBF_SECOND_PAYMENT_CORRECTION: Localized = {
   en: 'Correction: a second independent payment is not a way to fix or speed up the first one. If the original confirms, both payments go through and the recipient is paid twice. Only a replacement that spends the same inputs, built and verified in your wallet, can take the place of an unconfirmed transaction.',
   fr: "Correction : un second paiement indépendant ne corrige pas et n'accélère pas le premier. Si la transaction d'origine se confirme, les deux paiements passent et le destinataire est payé deux fois. Seul un remplacement qui dépense les mêmes entrées, construit et vérifié dans ton portefeuille, peut prendre la place d'une transaction non confirmée.",
 };
+const SEED_DIGITAL_COPY_CORRECTION: Localized = {
+  en: 'Correction: a recovery phrase is never kept as a photo, in the cloud, in a note, in an email or in a password manager, even encrypted: a connected device can be compromised, and one exposed phrase gives access to all the funds. Write it by hand on paper or stamp it on metal, keep several copies in separate places, and check with a restore test that the backup works.',
+  fr: "Correction : une phrase de récupération ne se garde ni en photo, ni dans le cloud, ni dans une note, ni dans un e-mail, ni dans un gestionnaire de mots de passe, même chiffré : un appareil connecté peut être compromis, et une phrase exposée donne accès à tous les fonds. Écris-la à la main sur papier ou grave-la sur métal, conserve plusieurs copies dans des lieux séparés, et vérifie par un test de restauration que la sauvegarde fonctionne.",
+};
 
 // All patterns run on normalized sentences: lowercase, accents stripped,
 // typographic quotes and hyphens folded, so "opérateur", "2‑of‑3" and
@@ -295,6 +354,14 @@ const ARK_LIMITED_SENTENCE = new RegExp(`${REFUTATION.source}|${ARK_EXIT_LIMITAT
 const COOPERATIVE_EXPIRY_RECOVERY = /\b(?:with (?:the )?operator(?:'s)? cooperation|depends? on (?:the )?operator|requires? (?:the )?operator|avec (?:la cooperation|l'aide|l'accord) de l'operateur|depend de (?:la cooperation|l'operateur)|necessite (?:la cooperation|l'accord) de l'operateur)\b/;
 
 const LAYER_ONE = String.raw`(?:layer[- ]?(?:1|one)|base[- ]layer|first[- ]layer|couche (?:1|une|de base)|premiere couche)`;
+
+// A digital copy of the phrase: the media the reviewed answers accepted, plus
+// their neighbours. "note" only in a composed form, since it is also a verb.
+const DIGITAL_COPY = String.raw`(?:photos?|photograph|screenshots?|captures? d'ecran|picture|image|scan|cloud|icloud|google drive|drive|dropbox|onedrive|password managers?|gestionnaires? de mots de passe|gestionnaire|notes? app|apple notes|google keep|note (?:on|in) (?:your|the|my) phone|note (?:sur|dans) (?:ton|votre|le|mon) telephone|phone notes?|notes? chiffrees?|encrypted notes?|notes? numeriques?|digital notes?|e-?mail|courriel|encrypted files?|fichiers? chiffres?|text files?|fichiers? textes?|pdf|digital (?:copy|copies|backups?)|copies? numeriques?|sauvegardes? numeriques?|usb (?:stick|key|drive)|cle usb)`;
+const STORE_VERB = String.raw`(?:keep|keeping|store|storing|save|saving|back(?:ing)? up|put|putting|upload|uploading|write|writing|type|typing|photograph|take a (?:photo|picture|screenshot)|garder|stocker|conserver|enregistrer|sauvegarder|mettre|noter|copier|photographier|prendre (?:une photo|en photo)|deposer|ranger)`;
+const ACCEPTABLE = String.raw`(?:fine|ok|okay|safe|secure|acceptable|reasonable|sufficient|enough|a (?:good|reasonable|valid|safe|secure|solid|sensible|convenient) (?:option|backup|choice|solution|idea|way|place)|better than nothing|raisonnable|suffisant|suffisante|suffit|suffisent|convient|conviennent|securisee?|une (?:bonne|excellente) (?:option|sauvegarde|solution|idee|alternative|pratique)|un bon (?:choix|moyen|compromis)|mieux que rien)`;
+// A password manager praised for passwords, not for the phrase.
+const FOR_PASSWORDS = String.raw`\b(?:for (?:your |the |other )?(?:\w+ )?(?:passwords|accounts|logins)|pour (?:tes |vos |les |d'autres )?(?:\w+ )?(?:mots de passe|comptes|identifiants))\b`;
 
 export const NEVER_CLAIM_CHECKS: readonly NeverClaimCheck[] = [
   {
@@ -406,6 +473,21 @@ export const NEVER_CLAIM_CHECKS: readonly NeverClaimCheck[] = [
     unless: /\b(?:do not|don't|never|not a|is not|isn't|should not|shouldn't|avoid|must not|mustn't|rather than|instead of|ne|n'|pas|jamais|evit\w*|sans|keeping|keeps?|same inputs?|original inputs?|replacement|remplacement|memes? entrees?|entrees? d'origine|conserv\w*)\b/,
     correction: RBF_SECOND_PAYMENT_CORRECTION,
   },
+  {
+    id: 'seed-digital-copy',
+    notes: SEED_NOTES,
+    patterns: [
+      // "Yes, you can keep a photo of your phrase in your password manager"
+      { test: new RegExp(String.raw`^(?:yes|oui)\b[^.!?]{0,100}\b${DIGITAL_COPY}\b`) },
+      // "you can also save the words in an encrypted file"
+      { test: new RegExp(String.raw`\b(?:you (?:can|could|may|might)|it(?:'s| is) (?:fine|ok|okay|safe|acceptable|reasonable|possible) to|feel free to|tu peux|vous pouvez|il est possible de|on peut|rien n'empeche de|libre a toi de)\b[^.!?]{0,30}\b${STORE_VERB}\b[^.!?]{0,80}\b${DIGITAL_COPY}\b`) },
+      // "an encrypted file in the cloud is a reasonable backup", "une note sur ton telephone suffit"
+      { test: new RegExp(String.raw`\b${DIGITAL_COPY}\b[^.!?]{0,80}\b${ACCEPTABLE}\b`) },
+    ],
+    unless: new RegExp(String.raw`\b(?:not|never|no|n't|cannot|can't|avoid|unsafe|risky|risks?|danger|dangerous|expos(?:e|es|ed|ing)|compromise[ds]?|bad idea|mistake|instead|rather than|except|jamais|ne|n'|pas|aucun|aucune|evit(?:e|ez|er)|deconseill(?:e|ee)|risqu(?:e|es|ee)|dangereu(?:x|se)|expos(?:e|ee|er)|compromis|mauvaise idee|erreur|interdit|proscrit|plutot|au lieu|sauf)\b|${FOR_PASSWORDS}`),
+    unlessSentence: REFUTATION,
+    correction: SEED_DIGITAL_COPY_CORRECTION,
+  },
 ];
 
 const RULES_BY_NOTE = new Map(ANSWER_RULES.map(rule => [rule.noteId, rule]));
@@ -475,6 +557,20 @@ export function answerRuleNoteIdsIn(text: string): string[] {
 /** The rule notes a prepared history carries in its system turns. */
 export function answerRuleNoteIdsInMessages(messages: readonly { role: string; content: string }[]): string[] {
   return answerRuleNoteIdsIn(messages.filter(message => message.role === 'system').map(message => message.content).join('\n'));
+}
+
+/**
+ * Of the rule notes found in context, those whose rules have no subject or
+ * whose subject the user's recent turns name. The text is the question with
+ * the last user turns, so a follow-up on Ark keeps the Ark rules while a
+ * mempool question next to a retrieved Ark note gets none of them.
+ */
+export function answerRuleNoteIdsOnSubject(noteIds: readonly string[], recentUserText: string): string[] {
+  const text = normalizeAnswerText(recentUserText);
+  return noteIds.filter(noteId => {
+    const subject = RULES_BY_NOTE.get(noteId)?.subject ?? DICTIONARY_NOTE_LINES.find(entry => entry.noteId === noteId)?.subject;
+    return !subject || subject.test(text);
+  });
 }
 
 const BLOCK_HEADER = '[Answer rules]';

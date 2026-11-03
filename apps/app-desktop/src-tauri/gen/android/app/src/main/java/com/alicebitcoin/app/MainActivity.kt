@@ -1,5 +1,6 @@
 package com.alicebitcoin.app
 
+import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.os.Bundle
 import android.webkit.WebView
@@ -13,6 +14,11 @@ class MainActivity : TauriActivity() {
     // Alice opens on its dark theme whatever the system theme, so the status
     // bar starts with light icons until the page says otherwise.
     setSystemBars(dark = true)
+    // The phone layout is built for portrait. Tablets (600 dp and wider)
+    // keep rotating, as iPads do.
+    if (resources.configuration.smallestScreenWidthDp < 600) {
+      requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    }
     super.onCreate(savedInstanceState)
   }
 

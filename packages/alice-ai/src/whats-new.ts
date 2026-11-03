@@ -1,16 +1,43 @@
 // What each release wants the user to actually try, said inside the app the
 // first time the new version opens. Feature highlights only: bug fixes and
 // the full detail live in the release notes, one link away. Add an entry per
-// release, newest first, the release checklist in BUILDING.md points here.
+// release, newest first, with its highlights in English and the same lines
+// in every other app language; the release checklist in BUILDING.md points
+// here. A language without its lines reads the English ones.
+
+import type { SupportedLanguage } from './languages';
 
 export type WhatsNewEntry = {
   version: string;
   highlights: string[];
+  /** The same highlights in another app language, line for line. */
+  translations?: Partial<Record<SupportedLanguage, string[]>>;
 };
 
 export const RELEASE_NOTES_URL = 'https://github.com/alice-btc/alice/releases';
 
 export const WHATS_NEW: WhatsNewEntry[] = [
+  {
+    version: '0.2.8',
+    highlights: [
+      'Alice answers in the language you write in: the response language is now Auto by default, and Settings › General still offers a fixed language if you prefer one.',
+      'Dictionary terms in a reply are links: open one to read its definition without leaving the conversation, in French or in English.',
+      'The Dictionnaire de Bitcoin reads in English too, in an unofficial translation made with its author’s agreement.',
+      'The courses Alice recommends wait behind one button next to her, under her reply.',
+      'The Playground is drawn like the rest of Alice: a balance card, three actions, the history as a list, and amounts in sats.',
+      'When a message cannot be sent, the chat says why in your language and what to do; a Private Cloud answer cut short says so, and the free plan has twice the room to answer.',
+    ],
+    translations: {
+      fr: [
+        'Alice répond dans la langue où vous écrivez : la langue des réponses est désormais sur Auto par défaut, et Paramètres › Général propose toujours une langue fixe si vous en préférez une.',
+        'Les termes du dictionnaire sont des liens dans les réponses : ouvrez-en un pour lire sa définition sans quitter la conversation, en français comme en anglais.',
+        'Le Dictionnaire de Bitcoin se lit aussi en anglais, dans une traduction non officielle faite avec l’accord de son auteur.',
+        'Les cours conseillés par Alice vous attendent derrière un seul bouton, à côté d’elle, sous sa réponse.',
+        'Le Playground est dessiné comme le reste d’Alice : une carte de solde, 3 actions, l’historique en liste et des montants en sats.',
+        'Quand un message ne part pas, le chat dit pourquoi dans votre langue et quoi faire ; une réponse de Private Cloud coupée le signale, et le forfait gratuit a 2 fois plus de place pour répondre.',
+      ],
+    },
+  },
   {
     version: '0.2.7',
     highlights: [
@@ -20,6 +47,15 @@ export const WHATS_NEW: WhatsNewEntry[] = [
       'A custom AI server or Explorer node can be on another machine, an Umbrel or a VPS, and Settings says connected only once the server answered.',
       'Explorer keeps up with Arkade: the newest commitment is found even when the operator funds it from new coins.',
     ],
+    translations: {
+      fr: [
+        'Private Cloud garde le fil : chaque tour de la conversation arrive chiffré dans l’enclave, et Alice lit votre question à la lumière de ce qui a été dit avant.',
+        'Alice parle français : choisissez la langue de l’app dans Paramètres › Général, et demandez une langue dans un message pour la garder pendant toute la conversation.',
+        'Learn propose le Dictionnaire de Bitcoin, 1 408 définitions, et Alice cite sa source quand elle s’appuie sur un cours ou une définition.',
+        'Un serveur d’IA personnalisé ou un nœud pour l’Explorer peut se trouver sur une autre machine, un Umbrel ou un VPS, et les Paramètres n’indiquent « connecté » qu’une fois que le serveur a répondu.',
+        'L’Explorer suit Arkade : la transaction d’engagement la plus récente est trouvée même quand l’opérateur la finance avec de nouvelles pièces.',
+      ],
+    },
   },
   {
     version: '0.2.6',
@@ -91,4 +127,9 @@ export const WHATS_NEW: WhatsNewEntry[] = [
 
 export function whatsNewFor(version: string): WhatsNewEntry | null {
   return WHATS_NEW.find(entry => entry.version === version) ?? null;
+}
+
+/** An entry's highlights in `language`, the English ones when it has none. */
+export function whatsNewHighlights(entry: WhatsNewEntry, language: SupportedLanguage): string[] {
+  return entry.translations?.[language] ?? entry.highlights;
 }

@@ -4,9 +4,11 @@ import type { DictionaryIndexEntry } from '@alice-wallet/alice-content/src/dicti
 import {
   definitionExcerpt,
   entriesForLetter,
+  indexLetters,
   letterOfSlug,
   matchDictionaryTerm,
   normalizeTerm,
+  otherLanguageName,
   searchDictionary,
   sortEntries,
 } from './dictionary.ts';
@@ -21,6 +23,16 @@ const ENTRIES: DictionaryIndexEntry[] = [
   { slug: 'noeud', title: 'NŒUD', letter: 'n', category: 'RÉSEAU', english: 'NODE' },
   { slug: 'cle-privee', title: 'CLÉ PRIVÉE', letter: 'c', category: 'CRYPTOGRAPHIE', english: 'PRIVATE KEY' },
   { slug: 'bip-0032', title: 'BIP-0032', letter: 'b', category: 'BIP' },
+];
+
+// The same terms as the English pack files them: English title, letter of the
+// English title, the French title kept as an equivalent, the slug unchanged.
+const ENGLISH: DictionaryIndexEntry[] = [
+  { slug: 'utxo', title: 'UTXO', letter: 'u', category: 'PROTOCOL', french: 'UTXO' },
+  { slug: 'racine-de-merkle', title: 'MERKLE ROOT', letter: 'm', category: 'CRYPTOGRAPHY', english: 'MERKLE ROOT', french: 'RACINE DE MERKLE' },
+  { slug: 'etiquetage', title: 'LABELING', letter: 'l', category: 'PRIVACY', french: 'ÉTIQUETAGE' },
+  { slug: 'noeud', title: 'NODE', letter: 'n', category: 'NETWORK', english: 'NODE', french: 'NŒUD' },
+  { slug: 'cle-privee', title: 'PRIVATE KEY', letter: 'p', category: 'CRYPTOGRAPHY', french: 'CLÉ PRIVÉE' },
 ];
 
 describe('normalizeTerm', () => {
@@ -47,6 +59,26 @@ describe('ordering', () => {
   it('files a definition under the first letter of its slug', () => {
     assert.equal(letterOfSlug('etiquetage'), 'e');
     assert.equal(letterOfSlug('51-attack'), 'a');
+  });
+
+  it('navigates the English pack by the letters of its index, not of its slugs', () => {
+    assert.deepEqual(indexLetters(ENGLISH), ['l', 'm', 'n', 'p', 'u']);
+    assert.deepEqual(entriesForLetter(ENGLISH, 'm').map(entry => entry.slug), ['racine-de-merkle']);
+    assert.deepEqual(entriesForLetter(ENGLISH, 'r'), []);
+    assert.equal(letterOfSlug('racine-de-merkle'), 'r');
+  });
+});
+
+describe('otherLanguageName', () => {
+  it('gives the French pack the English equivalent, else the French one', () => {
+    assert.deepEqual(otherLanguageName(ENTRIES[2], 'fr'), { lang: 'en', name: 'MERKLE ROOT' });
+    assert.equal(otherLanguageName(ENTRIES[0], 'fr'), null);
+  });
+
+  it('gives the English pack the French title, never one that repeats the title', () => {
+    assert.deepEqual(otherLanguageName(ENGLISH[1], 'en'), { lang: 'fr', name: 'RACINE DE MERKLE' });
+    assert.deepEqual(otherLanguageName(ENGLISH[3], 'en'), { lang: 'fr', name: 'NŒUD' });
+    assert.equal(otherLanguageName(ENGLISH[0], 'en'), null);
   });
 });
 
@@ -88,6 +120,29 @@ describe('matchDictionaryTerm', () => {
     assert.equal(matchDictionaryTerm(ENTRIES, 'Do I need to run a node?')?.entry.slug, 'noeud');
   });
 
+  it('finds an English or a French term of the English pack in an English question', () => {
+    assert.equal(matchDictionaryTerm(ENGLISH, 'What is a Merkle root?')?.entry.slug, 'racine-de-merkle');
+    const french = matchDictionaryTerm(ENGLISH, 'What does "racine de Merkle" mean?');
+    assert.equal(french?.entry.slug, 'racine-de-merkle');
+    assert.equal(french?.name, 'RACINE DE MERKLE');
+    assert.equal(matchDictionaryTerm(ENGLISH, 'Is étiquetage the same as labeling?')?.entry.slug, 'etiquetage');
+    assert.equal(matchDictionaryTerm(ENGLISH, 'Where is my private key stored?')?.name, 'PRIVATE KEY');
+  });
+
+  it('reads a French name of the English pack that is an everyday English word as that word', () => {
+    const entries: DictionaryIndexEntry[] = [
+      ...ENGLISH,
+      { slug: 'shares', title: 'SHARES', letter: 's', category: 'MINING', french: 'PARTS' },
+      { slug: 'luck', title: 'LUCK', letter: 'l', category: 'MINING', french: 'CHANCE' },
+    ];
+    assert.equal(matchDictionaryTerm(entries, 'What part do I play, and what are my chances?', 'en'), null);
+    assert.equal(matchDictionaryTerm(entries, 'How do shares work?', 'en')?.entry.slug, 'shares');
+    assert.equal(matchDictionaryTerm(entries, 'What is luck?', 'en')?.entry.slug, 'luck');
+    assert.equal(matchDictionaryTerm(entries, 'What does "racine de Merkle" mean?', 'en')?.entry.slug, 'racine-de-merkle');
+    // Read as French, the same names still count.
+    assert.equal(matchDictionaryTerm(entries, 'Comment fonctionnent les parts ?', 'fr')?.entry.slug, 'shares');
+  });
+
   it('never fires on "bitcoin" alone, on a fragment of a word, or on nothing', () => {
     assert.equal(matchDictionaryTerm(ENTRIES, 'Is bitcoin a good idea?'), null);
     assert.equal(matchDictionaryTerm(ENTRIES, 'What about the utxoid field?'), null);
@@ -103,4 +158,10 @@ describe('definitionExcerpt', () => {
     const cut = definitionExcerpt(long, 300);
     assert.ok(cut.length <= 300 && cut.endsWith('.'), cut);
   });
+});
+
+it('keeps French equivalents when the original dictionary title is already English', () => {
+  const entry = { slug: 'address-spoofing', title: 'ADDRESS SPOOFING', letter: 'a', category: 'PRIVACY', french: 'ADDRESS SPOOFING', frenchAliases: ["USURPATION D'ADRESSE"] };
+  assert.equal(matchDictionaryTerm([entry], "What is usurpation d'adresse?")?.entry.slug, entry.slug);
+  assert.deepEqual(otherLanguageName(entry, 'en'), { lang: 'fr', name: "USURPATION D'ADRESSE" });
 });

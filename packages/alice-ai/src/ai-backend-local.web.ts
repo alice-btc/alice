@@ -1,4 +1,5 @@
 import type { AIBackend, AIBackendStatus, AIResponse } from './ai-backend';
+import { AIBackendError } from './backend-error';
 import type { Message } from './llm';
 
 export class LocalAIBackend implements AIBackend {
@@ -11,7 +12,7 @@ export class LocalAIBackend implements AIBackend {
   }
 
   sendMessage(_messages: Message[], _onChunk?: (chunk: string) => void): Promise<AIResponse> {
-    return Promise.reject(new Error('Local AI is not available on the web.'));
+    return Promise.reject(new AIBackendError('local_unavailable', 'Local AI is not available on the web.'));
   }
 
   async dispose(): Promise<void> {}

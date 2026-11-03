@@ -255,7 +255,7 @@ async function crawlSite(browser, base, options, policy) {
   const target = 'site';
   const context = await openContext(browser, target, options, policy);
   const page = await context.newPage();
-  for (const path of ['/', '/memory', '/pricing', '/privacy', '/trust', '/credits', '/vs/chatgpt']) {
+  for (const path of ['/', '/memory', '/pricing', '/privacy', '/trust', '/about', '/credits', '/vs/chatgpt']) {
     await step(target, `open ${path}`, async () => {
       const response = await page.goto(new URL(path, base).href, { waitUntil: 'domcontentloaded' });
       await settle(page, options);

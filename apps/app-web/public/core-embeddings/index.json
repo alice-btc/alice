@@ -220,6 +220,8 @@
     "curated-document-timestamping.en",
     "curated-double-spending",
     "curated-double-spending.en",
+    "curated-dust",
+    "curated-dust.en",
     "curated-earn-bitcoin",
     "curated-earn-bitcoin.en",
     "curated-encryption",
@@ -748,6 +750,8 @@
     "curated-secondary-tx-model-transaction-malleability.en",
     "curated-secure-backups",
     "curated-secure-backups.en",
+    "curated-seed-phrase-backup",
+    "curated-seed-phrase-backup.en",
     "curated-segwit-address",
     "curated-segwit-address.en",
     "curated-self-custody",
@@ -809,5 +813,5 @@
     "curated-watchtower",
     "curated-watchtower.en"
   ],
-  "corpusHash": "596b623fe1a5a89e600477b4ff8717cc5c8904f3385d13846f6d4b451d48f532"
+  "corpusHash": "6dbfc282fb6d50d76fb5559fd1662ad63c6ab603f3f14e2401b9dc68a1ccfa45"
 }

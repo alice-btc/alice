@@ -6,17 +6,17 @@ Alice App, on the web and on desktop, is a public beta.
 
 Alice's source lives at <https://github.com/alice-btc/alice>.
 
-- Version: `0.2.7`.
-- Source: public tag `v0.2.7` in <https://github.com/alice-btc/alice>.
+- Version: `0.2.8`.
+- Source: public tag `v0.2.8` in <https://github.com/alice-btc/alice>.
 
 ## Available Surfaces
 
 - Alice Web: <https://app.alicebtc.com>
 
-Desktop installers for macOS, Windows and Linux are attached to the `0.2.7`
+Desktop installers for macOS, Windows and Linux are attached to the `0.2.8`
 GitHub Release and linked from <https://alicebtc.com>.
 
-## Installing Alice Desktop 0.2.7
+## Installing Alice Desktop 0.2.8
 
 The GitHub Release contains a universal macOS DMG, a Windows MSI, a Linux
 AppImage and a Debian package. It also contains one build information file per
@@ -24,7 +24,7 @@ platform; its `signing` line says how that installer is signed. The macOS
 application is signed and notarised by Apple; the Windows and Linux installers
 are not signed yet, which explains the Windows warning described below.
 
-Compare the downloaded installer with `SHA256SUMS-desktop-v0.2.7.txt` from the
+Compare the downloaded installer with `SHA256SUMS-desktop-v0.2.8.txt` from the
 same release before opening it.
 
 ### macOS
@@ -84,14 +84,14 @@ Linux shows no comparable platform signature warning for these files. For the
 AppImage, make it executable and run it:
 
 ```bash
-chmod +x Alice_0.2.7_*.AppImage
-./Alice_0.2.7_*.AppImage
+chmod +x Alice_0.2.8_*.AppImage
+./Alice_0.2.8_*.AppImage
 ```
 
 On Debian or Ubuntu, install the local package with:
 
 ```bash
-sudo apt install ./Alice_0.2.7_*.deb
+sudo apt install ./Alice_0.2.8_*.deb
 ```
 
 Alice keeps the key that encrypts your conversations in the desktop's keyring
