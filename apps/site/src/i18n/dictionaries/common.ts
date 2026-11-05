@@ -36,6 +36,7 @@ export type CommonCopy = {
     privacy: string;
     memory: string;
     accountDeletion: string;
+    terms: string;
     credits: string;
     about: string;
     disclaimer: string;
@@ -140,6 +141,7 @@ const en: CommonCopy = {
     privacy: 'Privacy',
     memory: 'Memory',
     accountDeletion: 'Delete your account',
+    terms: 'Terms',
     credits: 'Credits',
     about: 'About',
     disclaimer:
@@ -259,6 +261,7 @@ const fr: CommonCopy = {
     privacy: 'Confidentialité',
     memory: 'Mémoire',
     accountDeletion: 'Supprimer votre compte',
+    terms: 'Conditions d’utilisation',
     credits: 'Crédits',
     about: 'À propos',
     disclaimer:
