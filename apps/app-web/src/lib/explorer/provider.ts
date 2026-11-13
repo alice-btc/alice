@@ -34,6 +34,11 @@ export type RequestOptions = {
   priority?: RequestPriority;
   /** Overrides the provider's fetch timeout, e.g. shorter for bulk lookups. */
   timeoutMs?: number;
+  /** Skip any cached answer and ask the network again (a fetch already in
+   *  flight is still shared). Used by the live refresh of an open tab, so a
+   *  transaction that confirms or an address that receives coins shows up
+   *  without restarting the app. */
+  fresh?: boolean;
 };
 
 // A typed error so the UI can phrase each failure precisely, mirroring the

@@ -84,7 +84,7 @@ test('streams an accepted answer while keeping private memory metadata hidden', 
   });
   assert.match(displayed.at(-1) ?? '', /open monetary network/);
   assert.doesNotMatch(displayed.join(''), /alice_memory/);
-  assert.equal(result.memoryCandidates.length, 1);
+  assert.deepEqual(result.memoryCandidates, []);
 });
 
 test('a never-claim correction follows a retrieved note only when the user raised its subject', async () => {

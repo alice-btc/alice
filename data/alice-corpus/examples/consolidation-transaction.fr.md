@@ -21,6 +21,9 @@ exhaustive_external_fact_check: false
 ## Questions couvertes
 
 - Pourquoi regrouper des UTXO et quels compromis cela implique-t-il ?
+- Faut-il regrouper ses petites sorties quand les frais sont bas ?
+- Consolider ses UTXO a-t-il un coût pour la vie privée ?
+- Est-ce le bon moment pour consolider quand le mempool est presque vide ?
 
 ## Réponse courte
 

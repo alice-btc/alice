@@ -187,3 +187,15 @@ test('saying which languages one speaks, or asking for a translation, changes no
     assert.equal(conversationLanguageAfter(message, null), null, message);
   }
 });
+
+test('short explanation imperatives keep their language beside shared technical terms', () => {
+  for (const message of ['Explique comment fonctionne un paiement Lightning.', 'Explique Lightning.', 'Expliquez Bitcoin.', 'Explique-moi les UTXO.']) {
+    const decision = resolveResponseLanguage({ message, appLanguage: 'en' });
+    assert.equal(decision.targetLanguage, 'fr', message);
+    assert.equal(decision.source, 'message', message);
+  }
+  assert.equal(resolveResponseLanguage({ message: 'Explain Lightning.', appLanguage: 'fr' }).targetLanguage, 'en');
+  assert.equal(resolveResponseLanguage({ message: 'Explique Lightning.', preference: 'en', appLanguage: 'fr' }).targetLanguage, 'en');
+  for (const message of ['Lightning', 'UTXO', 'Bitcoin']) assert.equal(detectTextLanguage(message), null);
+  assert.equal(detectTextLanguage('What does "explique Lightning" mean in this example?')?.language, 'en');
+});

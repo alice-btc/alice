@@ -9,11 +9,11 @@ topics: ["Lightning"]
 aliases: ["Lightning Invoice", "Les factures Lightning"]
 parent_ids: []
 related_ids: ["bolt12-offers", "lightning-address"]
-reviewed_at: "2026-10-11"
+reviewed_at: "2026-11-06"
 review_due: null
-sources: ["PlanB lnp201 — Lightning Network Theory"]
+sources: ["PlanB lnp201 — Lightning Network Theory", "https://github.com/lightning/bolts/blob/master/11-payment-encoding.md"]
 human_reviewed_in_full: false
-review_method: "adapted_from_corrected_sources"
+review_method: "targeted_source_review_and_corrections"
 exhaustive_external_fact_check: false
 source_language: "fr"
 translation_status: "machine"
@@ -32,7 +32,9 @@ A Lightning invoice is a payment request readable by a compatible wallet. It pro
 
 In the classic flow, the recipient generates a BOLT11 invoice and shares it as text or as a QR code. The payer's wallet decodes it to present the information before confirmation. The invoice can request a precise amount or let the payer choose one.
 
-The expiry prevents an old request from being used indefinitely. Routing hints help reach the recipient. The invoice also contains cryptographic elements used by the settlement mechanism. It describes a request; by itself it does not prove that the payment took place.
+BOLT11 is encoded, not encrypted: anyone holding the invoice can decode its fields. An amount-bearing invoice exposes that encoded amount. The payee node public key is given explicitly in the n field or recovered from the invoice signature; it is not the payment hash in the p field. That hash identifies the payment condition, not an on-chain address or the recipient’s public key. Timestamp, expiry, description or description hash and optional routing hints may also be visible. A node public key is not proof of a person’s legal identity. Publishing an invoice can enable correlation but does not itself reveal private keys, a seed or the full purchase history.
+
+The expiry prevents an old request from being used indefinitely. Routing hints are optional: they help reach the recipient, often through channels that are not announced, and can expose those channels. They describe the last hops toward the recipient, not the path the payment will take, which the payer's wallet computes. Changing any character invalidates the invoice checksum and signature: a partly hidden or edited invoice can no longer be paid. The invoice also contains cryptographic elements used by the settlement mechanism. It describes a request; by itself it does not prove that the payment took place.
 
 ## Limits and confusions
 
@@ -48,3 +50,5 @@ For a new request, it is preferable to obtain a fresh invoice rather than assume
 ## References
 
 - PlanB lnp201 — Lightning Network Theory (reference from the source note, not re-consulted directly for this adaptation).
+
+- https://github.com/lightning/bolts/blob/master/11-payment-encoding.md

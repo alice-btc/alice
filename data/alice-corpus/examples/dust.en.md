@@ -9,7 +9,7 @@ topics: ["transactions"]
 aliases: ["Dust", "poussière", "dust limit", "sortie non rentable", "Le dust et les sorties non rentables"]
 parent_ids: []
 related_ids: ["coin-selection-tradeoffs", "transaction-fees", "bitcoin-mempool-policy", "consolidation-transaction"]
-reviewed_at: "2026-11-02"
+reviewed_at: "2026-11-05"
 review_due: null
 sources: ["https://github.com/bitcoin/bitcoin/blob/v30.0/src/policy/policy.cpp", "https://github.com/bitcoin/bitcoin/blob/v30.0/src/policy/policy.h"]
 human_reviewed_in_full: false
@@ -37,7 +37,9 @@ The wallet's judgment, on the other hand, depends on the current fee rate. Spend
 
 ## Limits and confusions
 
-Receiving an output below the relay threshold remains possible: a miner can include a transaction that nodes with default settings do not relay, and other settings exist. The relay threshold is not a consensus rule; a block containing a 1 sat output remains valid. Conversely, an output above the threshold, for instance 300 sats in P2WPKH, can remain uneconomic to spend as long as fees are high. The figures quoted are those of Bitcoin Core's default settings; a wallet or a node may apply other values, and the exact calculation depends on the version. An uneconomic output is not lost: it waits for lower fees or for a grouping with other outputs.
+Receiving an output below the relay threshold remains possible: a miner can include a transaction that nodes with default settings do not relay, and other settings exist. The relay threshold is not a consensus rule; a block containing a 1 sat output remains valid. Conversely, an output above the threshold, for instance 300 sats in P2WPKH, can remain uneconomic to spend as long as fees are high. The figures quoted are those of Bitcoin Core's default settings; a wallet or a node may apply other values, and the exact calculation depends on the version. An uneconomic output is not lost: it may become economic to spend if the fee rate falls sufficiently, without a guarantee.
+
+Consolidating small outputs also costs fees, with 1 input per output spent. Consolidation does not remove that cost or guarantee spending without a loss; it can reduce the cost when done at a lower fee rate.
 
 ## Further reading
 

@@ -85,6 +85,9 @@ const BASE58_RE = /\b[13mn2][a-km-zA-HJ-NP-Z1-9]{24,33}\b/g;
 // name Spark transfers and leaves. Any UUID counts: over-detection is safe.
 const LAYER_ADDR_RE = /\b(?:ark|tark|spark|sparkt|sparkrt|sparks|sparkl|sp|spt|sprt|sps|spl)1[0-9ac-hj-np-z]{20,}\b/gi;
 const UUID_RE = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
+// Monero addresses (primary, subaddress, integrated; every network), by shape:
+// 95 base58 characters, or 106 for an integrated one.
+const MONERO_ADDR_RE = /\b[4-9AB][1-9A-HJ-NP-Za-km-z]{94}(?:[1-9A-HJ-NP-Za-km-z]{11})?\b/g;
 
 /**
  * Find raw on-chain identifiers pasted into free text. A 64-hex value with a long
@@ -118,6 +121,7 @@ export function findRawIdentifiersInText(text: string): RawSubject[] {
   for (const m of text.matchAll(BECH32_RE)) add('address', m[0]);
   for (const m of text.matchAll(BASE58_RE)) add('address', m[0]);
   for (const m of text.matchAll(LAYER_ADDR_RE)) add('address', m[0]);
+  for (const m of text.matchAll(MONERO_ADDR_RE)) add('address', m[0]);
   for (const m of text.matchAll(UUID_RE)) add('spark-id', m[0].toLowerCase());
 
   return found;

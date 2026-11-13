@@ -24,7 +24,7 @@ export function useQuestionParam({
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const raw = params.get('q');
-    const question = raw?.trim().slice(0, 500) ?? '';
+    const question = raw?.trim() ?? '';
     if (!question) return;
 
     const shouldAutoSend = params.get('autosend') === '1';

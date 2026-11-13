@@ -18,7 +18,7 @@ export type ModelDownload =
   // `progress` is the share of the file hashed so far.
   | { status: 'verifying'; progress: number }
   | { status: 'installed'; progress: 1 }
-  | { status: 'error'; progress: 0; error: string };
+  | { status: 'error'; progress: 0; error: unknown };
 
 export const MODEL_DOWNLOAD_EVENT = 'alice-model-download';
 
@@ -60,7 +60,7 @@ export function startModelDownload(id: LocalModelId): void {
       downloads.set(id, {
         status: 'error',
         progress: 0,
-        error: error instanceof Error ? error.message : String(error),
+        error,
       });
       emit();
     });

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { liveNetworkValueReason, liveNetworkValueResponse } from './live-network-request.ts';
 import { planAliceTurn, turnResponseDirective } from './turn-planner.ts';
+import { prepareAliceTurn, type TurnPreparationServices } from './turn-engine.ts';
 
 test('requests for present fee, mempool or Lightning route values are recognized in FR/EN', () => {
   const cases: [string, ReturnType<typeof liveNetworkValueReason>][] = [
@@ -126,5 +127,61 @@ test('imperative present-value requests are guarded and conceptual questions nex
     const plan = planAliceTurn(message);
     assert.equal(plan.liveNetworkReason, null, message);
     assert.ok(plan.retrievalQuery, message);
+  }
+});
+
+test('current bitcoin market quotes use the unavailable-feed response in FR/EN', () => {
+  for (const message of [
+    'What is the BTC/EUR market price right now? I need a live quote, not an old example.',
+    'What is bitcoin worth at the moment?',
+    'Live BTC/USD quote?',
+    'Please check the current bitcoin price.',
+    'Quel est le cours BTC/EUR en ce moment ?',
+    'Combien vaut le bitcoin actuellement ?',
+    'Donne-moi le prix actuel du BTC en dollars.',
+    'Affiche la cotation du bitcoin en direct.',
+  ]) {
+    assert.equal(liveNetworkValueReason(message), 'bitcoin-market-price', message);
+    const plan = planAliceTurn(message);
+    assert.equal(plan.liveNetworkReason, 'bitcoin-market-price', message);
+    assert.equal(plan.retrievalQuery, null, message);
+    assert.deepEqual(plan.explicitMemoryCandidates, [], message);
+  }
+});
+
+test('historical, conceptual and supplied-price arithmetic stay outside live market routing', () => {
+  for (const message of [
+    'What was the bitcoin price in 2017? I am learning about it today.',
+    'Tell me today what the bitcoin price was yesterday.',
+    'Why is the bitcoin price volatile today?',
+    'What determines the current bitcoin price?',
+    'How is the current bitcoin exchange rate calculated?',
+    'Quel était le cours du bitcoin hier ?',
+    'Comment se forme le prix actuel du bitcoin ?',
+    'Using a bitcoin price of 50000 euros today, how much is 0.2 BTC worth?',
+    'Au cours de 50000 euros par bitcoin aujourd’hui, combien valent 0,2 BTC ?',
+    'If bitcoin is worth 50000 euros now, how much is 0.2 BTC?',
+    'Explain "What is the current bitcoin price?" as a language example.',
+    'What is the current price of a hardware wallet?',
+    'What is the current ETH/EUR market price?',
+    "Forget the price. Can an ordinary on-chain wallet pay a Lightning invoice beginning with lnbc?",
+  ]) assert.equal(liveNetworkValueReason(message), null, message);
+});
+
+test('live price reply cannot invent an Alice quote feature or call preparation services', async () => {
+  const forbidden = new Proxy({} as TurnPreparationServices, {
+    get() { throw new Error('No retrieval, memory or other preparation service may run for a live quote'); },
+  });
+  for (const backendType of ['local', 'cloud'] as const) for (const language of ['en', 'fr'] as const) {
+    const question = language === 'en' ? 'What is the current bitcoin price?' : 'Quel est le prix actuel du bitcoin ?';
+    const result = await prepareAliceTurn({ history: [], userMessage: question, backendType, targetLanguage: language }, forbidden);
+    assert.equal(result.diagnostics.retrieval, 'none');
+    const reply = result.directResponse!;
+    assert.doesNotMatch(reply, /\d/);
+    assert.match(reply, language === 'en' ? /no live market-data feed/ : /pas de flux de données de marché en direct/);
+    assert.match(reply, language === 'en' ? /Learn and Explorer do not provide live market quotes/ : /Learn et l’Explorer.*ne fournissent pas de cotations/);
+    assert.match(reply, language === 'en' ? /external market-data source or exchange/ : /source externe de données de marché ou une plateforme d’échange/);
+    assert.match(reply, language === 'en' ? /timestamp and currency pair/ : /horodatage.*paire de devises/);
+    assert.equal(planAliceTurn('Forget the price. Can an on-chain wallet pay a Lightning invoice?').liveNetworkReason, null);
   }
 });

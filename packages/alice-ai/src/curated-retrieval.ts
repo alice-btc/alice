@@ -1,4 +1,7 @@
+import { isImplicitCpfpQuestion, isMonetaryIssuanceQuestion, isLightningPrivacyQuestion, isInputOutputAllocationQuestion, isRevokedLightningStateQuestion, isUnconfirmedReceiptReplacementQuestion } from './retrieval-topic-cues.ts';
+import { isMajorityHashpowerQuestion } from './majority-hashpower.ts';
 import { preferKnowledgeLocale, type KnowledgeChunk, type KnowledgeLocale } from './knowledge-packs';
+import { isGeneralLightningPaymentExplanation, isLightningPaymentWalkthrough, isLightningRoutingStateQuestion } from './rag-query-policy';
 import { isBroadBitcoinDefinition, isGeneralBitcoinFeeQuestion, isExplicitRbfQuestion, isSmallOutputSpendingQuestion, isMultisigRecoveryQuestion, isUtxoValidationQuestion, isComparisonRagQuery } from './rag-query-policy';
 
 export type CuratedMatch = KnowledgeChunk & {
@@ -174,15 +177,59 @@ function selectSourceKnowledge(
   const semanticMatches = options.semanticMatches;
   const index = getIndex(chunks);
   const normalizedQuery = normalizeCuratedText(query);
+  const routingState = isLightningRoutingStateQuestion(query);
   // Educational notes contain no account telemetry. Do not retrieve balances
   // as though prose could answer a request for the user's current funds.
   if (/\b(mon|mes|my)\b/.test(normalizedQuery) && (/\b(solde|balance)\b/.test(normalizedQuery) || /\b(wallet|portefeuille)\b/.test(normalizedQuery) && /\b(sats?|satoshis?|funds|fonds|amount|montant)\b/.test(normalizedQuery))
-    && /\b(actuel|current|maintenant|now|combien|how much)\b/.test(normalizedQuery)) return [];
+    && /\b(actuel|current|maintenant|now|combien|how much)\b/.test(normalizedQuery)
+    && (!routingState || /\b(?:combien|how much|how many)\b/.test(normalizedQuery))) return [];
   const topic = normalizeCuratedText(query);
+  const revokedState = isRevokedLightningStateQuestion(query);
+  const lightningOverview = isGeneralLightningPaymentExplanation(query) || isLightningPaymentWalkthrough(query);
+  const otherPaymentSystem = /\b(ethereum|solana|monero|paypal|bank|banque|bancaire|rbf)\b/.test(topic);
+  const bip39Passphrase = !otherPaymentSystem && /\bpassphrase\b/.test(topic)
+    && /\b(bip39|mnemonic|seed|phrase|wallet|portefeuille)\b/.test(topic);
+  const lightningInvoice = !lightningOverview && !otherPaymentSystem && !/\bbolt12\b/.test(topic)
+    && /\b(lightning|bolt11)\b/.test(topic) && /\b(invoices?|factures?|bolt11)\b/.test(topic);
+  const lightningRecovery = !otherPaymentSystem && /\b(lightning|lnd|aezeed)\b/.test(topic)
+    && /\b(recover\w*|restor\w*|recuper\w*|restaur\w*|backup|sauvegarde|scb)\b/.test(topic)
+    && /\b(channels?|canal|canaux|seed|aezeed|scb|node|noeud)\b/.test(topic);
+  const lightningPrivacy = !otherPaymentSystem && isLightningPrivacyQuestion(query);
+  const lightningLiquidity = !lightningOverview && !otherPaymentSystem && !/\b(splic\w*|remplir)\b/.test(topic) && /\blightning\b/.test(topic)
+    && /\b(channels?|canal|canaux|liquidit\w*|liquidity)\b/.test(topic)
+    && /\b(receiv\w*|recev\w*|reception|inbound|outbound|entrant\w*|sortant\w*|capacity|capacite|liquidity|liquidite)\b/.test(topic)
+    && (!/\b(fees?|frais)\b/.test(topic) || /\b(liquidity|liquidit\w*|fund\w*|financ\w*|capacity|capacite|balance|solde)\b/.test(topic));
+  const receivingLiquidity = lightningLiquidity
+    && /\b(receiv\w*|recev\w*|reception|inbound|incoming|entrant\w*)\b/.test(topic)
+    && !/\b(cln|core lightning|reserves?|htlcs?|fees?|frais)\b/.test(topic);
   const onchain = !/\b(lightning|ark|spark|liquid|cashu|fedimint)\b/.test(topic);
+  const majorityAttack = isMajorityHashpowerQuestion(query);
+  const issuanceValidity = isMonetaryIssuanceQuestion(query) || onchain && !otherPaymentSystem && !/\b(?:coinbase exchange|exchange coinbase|plateforme coinbase)\b/.test(topic)
+    && /\b(?:bitcoin|btc|coinbase)\b/.test(topic) && /\b(?:blocks?|blocs?|coinbase)\b/.test(topic)
+    && /\b(?:issuance|emission|subsid\w*|subvention\w*|coins?|creation|creates?|creer|cree\w*)\b/.test(topic)
+    && /\b(?:reject\w*|rejet\w*|invalid\w*|unauthori[sz]ed|interdit\w*|too many|too much|excess\w*|trop|depasse\w*)\b/.test(topic);
   const cancellation = onchain && /\b(annul\w*|cancel\w*)\b/.test(topic) && /\b(bitcoin|paiement|payment|transaction)\b/.test(topic);
   const miningDrop = /\b(miners?|mineurs?|hashrate|hachage)\b/.test(topic) && /\b(arret\w*|stop\w*|switch off|shut down|chute|baisse|moitie|half)\b/.test(topic);
   const confirmationCost = onchain && /\b(confirm\w*)\b/.test(topic) && /\b(cheaper|pricier|cher|prix|price|cost|cout|fees|frais)\b/.test(topic);
+  // A reorganisation changes the active chain, not the node's pruning policy.
+  // Keep count/finality questions on their reviewed transaction evidence; age,
+  // height and storage alone must not acquire this interpretation.
+  const chainStorage = /\b(prun\w*|elagu\w*|elagage|stockage|storage)\b/.test(topic);
+  const orphanBlock = onchain && /\b(?:orphan\w*|orphelin\w*|stale blocks?|blocs? stale|blocs? abandonn\w*)\b/.test(topic);
+  const reorganisation = onchain && !chainStorage
+    && (orphanBlock || /\b(reorg\w*|reorganis\w*|reorganiz\w*)\b/.test(topic)
+      && /\b(bitcoin|btc|blocs?|blocks?|confirm\w*|transactions?|paiement|payment)\b/.test(topic)
+      || /^(?:what|qu)\b[^.?!]{0,30}\b(?:a |an |un |une )?(?:reorg\w*|reorganis\w*|reorganiz\w*)\b/.test(topic));
+  // A definition of a reorganisation has its own note; a question about the
+  // confirmations or the payment it can undo keeps the confirmation and
+  // finality notes.
+  const reorganisationDefinition = reorganisation && !/\bconfirm\w*\b/.test(topic)
+    && !/\b(?:pay\w*|paie\w*|money|argent|funds?|fonds|took|back|repris\w*|rembours\w*|annul\w*|cancel\w*|revers\w*|lose|lost|perd\w*)\b/.test(topic);
+  const confirmationMeaning = onchain && !chainStorage && !confirmationCost
+    && /\b(confirmations?)\b/.test(topic)
+    && (/\b(bitcoin|btc|blocs?|blocks?|transactions?|paiement|payment|reorg\w*)\b/.test(topic)
+      || /\b(?:[0-9]+|six|one|une|un) confirmations?\b/.test(topic)
+      || /\b(risk|risque|finality|finalite|irreversib\w*|nul|zero|guarantee\w*|garanti\w*)\b/.test(topic));
   const replacement = onchain && /\b(replaceable|remplacable|remplacer|replace)\b/.test(topic) && /\b(transaction|wallet|portefeuille)\b/.test(topic);
   const recoveryWords = /\b(words|mots)\b/.test(topic.replace(/\b(mots de passe|passwords?)\b/g, '')) && /\b(secret\w*|recover\w*|restore|recuper\w*|12|24)\b/.test(topic);
   const etf = /\betf\b/.test(topic);
@@ -196,15 +243,31 @@ function selectSourceKnowledge(
     return ['full-node', 'spv-node'].map(id => index.docs.find(d => concept(d.chunk) === id && d.chunk.tier === 'primary'))
       .filter((d): d is Document => !!d).slice(0, max).map(d => ({ ...d.chunk, retrievalReason: 'primary-topic', retrievalScore: 1 }));
   }
-  const anchorId = change ? 'change-output' : uneconomicSpend ? 'dust'
+  // Consolidating small outputs needs both the per-input economics (dust) and
+  // the privacy cost of merging them (consolidation).
+  const smallOutputConsolidation = onchain && /\b(?:consolid\w*|regroup\w*|merg\w*|fusion\w*|grouper)\b/.test(topic)
+    && /\b(?:dust|poussiere|petites? sorties|petits? utxos?|small (?:outputs?|utxos?|coins?)|tiny (?:outputs?|utxos?)|centaines de sats|hundred sats)\b/.test(topic);
+  // Why miners favour some transactions is block-template policy, not the
+  // general fee formula.
+  const minerSelection = onchain && /\b(?:miners?|mineurs?)\b/.test(topic)
+    && /\b(?:choos\w*|chose|choisi\w*|select\w*|priorit\w*|prefer\w*|prefer|privilegi\w*|sort\w*|tri\w*|pick\w*|prenn\w*)\b/.test(topic)
+    && /\b(?:transactions?|blocs?|blocks?)\b/.test(topic);
+  const cpfp = isImplicitCpfpQuestion(query) || onchain && (/\b(?:cpfp|child pays for parent)\b/.test(topic)
+    || /\b(?:child|enfant)\b/.test(topic) && /\bparent\b/.test(topic) && /\btransaction\b/.test(topic));
+  const inputOutputAllocation = isInputOutputAllocationQuestion(query);
+  const anchorId = revokedState ? 'secondary-lightning-revocation-key' : routingState ? 'lightning-network' : majorityAttack ? '51-attack' : issuanceValidity ? 'bitcoin-monetary-policy' : cpfp ? 'child-pays-for-parent' : isUnconfirmedReceiptReplacementQuestion(query) ? 'replace-by-fee' : bip39Passphrase ? 'bip39-passphrase' : lightningInvoice ? 'lightning-invoice'
+    : lightningRecovery ? 'lightning-node-backup' : lightningPrivacy ? 'lightning-privacy-tradeoff'
+    : receivingLiquidity ? 'inbound-liquidity' : lightningLiquidity ? 'lightning-liquidity-path' : reorganisationDefinition ? 'chain-reorganization' : reorganisation ? 'bitcoin-transaction-confirmation' : lightningOverview ? 'lightning-network' : inputOutputAllocation ? 'bitcoin-transaction-output' : change ? 'change-output' : smallOutputConsolidation ? 'dust' : uneconomicSpend ? 'dust'
     : nodeStorage ? 'pruned-node' : mempoolWait ? 'bitcoin-mempool' : printedAddress ? 'address-reuse'
     : cancellation ? 'bitcoin-finality'
     : miningDrop ? 'difficulty-adjustment'
     : confirmationCost ? 'transaction-fees'
+    : confirmationMeaning ? 'bitcoin-transaction-confirmation'
     : replacement ? 'replace-by-fee'
     : recoveryWords ? 'wallet-recovery-phrase'
     : etf && !isComparisonRagQuery(query) ? 'paper-bitcoin'
     : isBroadBitcoinDefinition(query) ? 'bitcoin-network-vs-asset'
+    : minerSelection ? 'miner-transaction-selection'
     : isGeneralBitcoinFeeQuestion(query) ? 'transaction-fees'
     : isExplicitRbfQuestion(query) ? 'replace-by-fee'
     : isMultisigRecoveryQuestion(query) ? 'multisig'
@@ -212,7 +275,24 @@ function selectSourceKnowledge(
     : isSmallOutputSpendingQuestion(query) ? 'dust' : null;
   const anchor = anchorId ? index.docs.find(d => concept(d.chunk) === anchorId && !!d.chunk.tier) : null;
   if (anchor) {
-    const detail = miningDrop ? index.docs.find(d => concept(d.chunk) === 'mining-difficulty-details' && d.chunk.tier === 'secondary') : null;
+    const detail = revokedState
+      ? index.docs.find(d => concept(d.chunk) === (/\b(?:route|routes|routing|routage|chemins?|paths?)\b/.test(topic) ? 'lightning-network' : 'watchtower') && d.chunk.tier === 'primary')
+      : routingState
+      ? index.docs.find(d => concept(d.chunk) === 'lightning-routing' && d.chunk.tier === 'primary')
+      : inputOutputAllocation
+      ? index.docs.find(d => concept(d.chunk) === 'bitcoin-transaction-input' && d.chunk.tier === 'primary')
+      : majorityAttack || issuanceValidity
+      ? index.docs.find(d => concept(d.chunk) === 'bitcoin-consensus' && d.chunk.tier === 'primary')
+      : cpfp && /\brbf\b/.test(topic)
+      ? index.docs.find(d => concept(d.chunk) === 'replace-by-fee' && d.chunk.tier === 'primary')
+      : lightningRecovery && /\b(lnd|aezeed|scb)\b/.test(topic)
+      ? index.docs.find(d => concept(d.chunk) === 'secondary-lightning-static-channel-backup' && d.chunk.tier === 'secondary')
+      : anchorId === 'bitcoin-transaction-confirmation' && (reorganisation || confirmationMeaning)
+      ? index.docs.find(d => concept(d.chunk) === 'bitcoin-finality' && d.chunk.tier === 'primary')
+      : lightningOverview && /\b(?:invoices?|factures?)\b/.test(topic)
+      ? index.docs.find(d => concept(d.chunk) === 'lightning-invoice' && d.chunk.tier === 'primary')
+      : smallOutputConsolidation ? index.docs.find(d => concept(d.chunk) === 'consolidation-transaction' && d.chunk.tier === 'primary')
+      : miningDrop ? index.docs.find(d => concept(d.chunk) === 'mining-difficulty-details' && d.chunk.tier === 'secondary') : null;
     return [anchor, ...(detail ? [detail] : [])].slice(0, max).map(d => ({ ...d.chunk,
       retrievalReason: d.chunk.tier === 'secondary' ? 'secondary-parent-detail' : 'primary-topic', retrievalScore: 1 }));
   }
@@ -228,7 +308,9 @@ function selectSourceKnowledge(
   if (!/\bbitcoin\b/.test(normalizedQuery) && !index.docs.some(d => queryTerms.some(t => d.identity.has(t)))) return [];
   const semantic = new Map((semanticMatches ?? []).filter(s => s.score >= .82).map(s => [s.id, s.score]));
   const totalQueryWeight = queryTerms.reduce((n, t) => n + idf(index, t), 0);
-  const scored = index.docs.map(doc => {
+  // The phrase 'child pays for parent' must not make ordinary family or
+  // school-payment questions look like Bitcoin package-policy questions.
+  const scored = index.docs.filter(doc => concept(doc.chunk) !== 'child-pays-for-parent' || cpfp).map(doc => {
     const exact = doc.aliases.filter(a => covered(a, querySet));
     const aliasScore = Math.max(0, ...exact.map(a => a.reduce((n, t) => n + idf(index, t), 0)));
     const titleTerms = [...doc.fields[0].keys()];

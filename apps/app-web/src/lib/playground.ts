@@ -407,6 +407,7 @@ const ERROR_TEXT: Record<PracticeWalletErrorCode, MessageKey> = {
   recipient_address_invalid: 'playground.error.recipientAddressInvalid',
   change_address_invalid: 'playground.error.changeAddressInvalid',
   insufficient_funds: 'playground.error.insufficientFunds',
+  explorer_unreachable: 'playground.error.explorerUnreachable',
   explorer_request_failed: 'playground.error.explorerRequest',
   explorer_bad_tip: 'playground.error.explorerTip',
   explorer_bad_txid: 'playground.error.explorerTxid',

@@ -1,0 +1,61 @@
+{
+ "purpose": "Check of the unconfirmed-receipt correction of 2026-11-12.",
+ "provenance": "Written on 2026-11-12 after the correction and before any generation with it.",
+ "frozenAt": "2026-11-12T23:00:00Z",
+ "reviewPolicy": "The answer must say the sender can still replace an unconfirmed payment and advise waiting for a confirmation.",
+ "sourcesReviewed": [],
+ "conversations": [
+  {
+   "id": "en-unconfirmed-receipt",
+   "language": "en",
+   "purpose": "Recipient of an unconfirmed payment: can the sender still change it, and when to deliver.",
+   "turns": [
+    {
+     "question": "Someone paid me with an unconfirmed transaction. Can the sender still change what I receive?",
+     "mustCover": [
+      "Yes, until confirmation the sender can replace the transaction",
+      "Wait for a confirmation before treating it as paid"
+     ],
+     "mustNotClaim": [
+      "The outputs are fixed while unconfirmed"
+     ]
+    },
+    {
+     "question": "So when is it safe to hand over the goods?",
+     "mustCover": [
+      "After at least one confirmation, more for larger amounts"
+     ],
+     "mustNotClaim": [
+      "It is safe as soon as the payment appears"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fr-unconfirmed-receipt",
+   "language": "fr",
+   "purpose": "Recipient of an unconfirmed payment: can the sender still change it, and when to deliver.",
+   "turns": [
+    {
+     "question": "Un client m'a payé mais la transaction n'est pas encore confirmée. Peut-il encore annuler le paiement ?",
+     "mustCover": [
+      "Oui, tant qu'elle n'est pas confirmée l'expéditeur peut la remplacer",
+      "Attendre une confirmation"
+     ],
+     "mustNotClaim": [
+      "Le paiement est définitif dès qu'il apparaît"
+     ]
+    },
+    {
+     "question": "Donc à partir de quand je peux livrer ?",
+     "mustCover": [
+      "Après au moins 1 confirmation, davantage pour un gros montant"
+     ],
+     "mustNotClaim": [
+      "Dès que le paiement apparaît"
+     ]
+    }
+   ]
+  }
+ ]
+}

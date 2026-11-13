@@ -2,10 +2,23 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   ragQueryChunkBudget,
+  isGeneralLightningPaymentExplanation,
+  isLightningPaymentWalkthrough,
+  isLightningRoutingStateQuestion,
   isGeneralBitcoinFeeQuestion,
   isSmallOutputSpendingQuestion,
   isMultisigRecoveryQuestion,
 } from './rag-query-policy.ts';
+
+test('Lightning overview classifier excludes specialist qualifiers', () => {
+  assert.equal(isGeneralLightningPaymentExplanation('Explain how a Lightning payment works at a level suited to my experience.'), true);
+  assert.equal(isGeneralLightningPaymentExplanation('Explique comment fonctionne un paiement Lightning selon mon expérience.'), true);
+  for (const query of [
+    'Explain how Lightning payment privacy works at a level suited to my experience.',
+    'Explain how a Lightning payment works with expired invoices at a level suited to my experience.',
+    'Explain how a Lightning payment fee works.',
+  ]) assert.equal(isGeneralLightningPaymentExplanation(query), false, query);
+});
 
 test('general L1 fee education recognizes English yes/no questions, not only Why/What/How starts', () => {
   for (const query of [
@@ -38,6 +51,9 @@ test('general L1 fee education excludes product/subscription and service pricing
     'Does my Alice subscription fee change if I send more messages?',
     "Est-ce que l'abonnement Alice coûte plus cher si j'envoie plus de messages ?",
     'Will withdrawing a larger amount from my exchange cost more in fees?',
+    'Why does a small PayPal payment cost almost the same fee as a large one?',
+    'What are card payment fees?',
+    'Pourquoi les frais de paiement bancaire sont-ils élevés ?',
     'Est-ce que retirer un montant plus important sur ma plateforme coûte plus de frais ?',
   ]) assert.equal(isGeneralBitcoinFeeQuestion(query), false, query);
 });
@@ -158,4 +174,35 @@ test('a general fee question with a plural "bitcoins" or a "combien" opener is s
   for (const message of ['Combien coûte un abonnement Alice ?', 'How much does Lightning routing cost?']) {
     assert.equal(isGeneralBitcoinFeeQuestion(message), false, message);
   }
+});
+
+test('ordinary level qualifiers preserve Lightning payment mechanics without swallowing specialist requests', () => {
+  for (const q of ['Explain how a Lightning payment works for my level.', 'Please explain how a Lightning payment works at my level.', 'How does a Lightning payment work in terms suited to my experience?', 'Explique-moi comment fonctionne un paiement Lightning à mon niveau.', 'Comment fonctionne un paiement Lightning pour mon niveau ?']) assert.ok(isGeneralLightningPaymentExplanation(q),q);
+  for (const q of ['Explain how a Lightning payment works for my level and compare Ark.', 'Explain how Lightning routing privacy works for my level.', 'Explain how a Lightning payment works for my level with an expired invoice.']) assert.equal(isGeneralLightningPaymentExplanation(q),false,q);
+});
+
+
+test('payment walkthrough retrieval preserves specialist invoice, privacy and recovery questions', () => {
+  for (const q of [
+    'Walk me through an ordinary Lightning payment from a wallet to a shop, including the invoice and the route.',
+    'Explique les étapes d’un paiement Lightning ordinaire vers un commerce, de la facture au routage.',
+    'Explain the normal invoice-based Lightning payment process.',
+  ]) {
+    assert.equal(isLightningPaymentWalkthrough(q), true, q);
+    assert.equal(isGeneralLightningPaymentExplanation(q), false, 'Do not extend controlled memory answers');
+  }
+  for (const q of [
+    'Explain the steps for a Lightning payment with an expired invoice.',
+    'Describe the fields in the Lightning payment invoice.',
+    'Walk me through Lightning payment privacy.',
+    'Explain the process of recovering a revoked Lightning payment channel.',
+    'Compare the Lightning payment process with Ark.',
+    'Walk me through a Bitcoin on-chain payment.',
+  ]) assert.equal(isLightningPaymentWalkthrough(q), false, q);
+});
+
+test('normal flow and HTLC follow-ups retain Lightning mechanisms without hijacking account readings',()=>{
+ assert.ok(isLightningPaymentWalkthrough('A cafe gives me a Lightning invoice. Must it close its channel for my ordinary payment? Explain the normal flow.'));
+ for(const q of ['My wallet cannot find any route before sending. Is my whole channel balance now locked until I close it? How is that different from an HTLC already in flight?', 'Mon paiement Lightning ne trouve aucun chemin. Mon solde est-il bloqué maintenant ?'])assert.ok(isLightningRoutingStateQuestion(q));
+ for(const q of ['What is my Lightning balance now?', 'Mon compte bancaire est bloqué.', 'Does an Ethereum HTLC stay locked if routing fails?'])assert.equal(isLightningRoutingStateQuestion(q),false);
 });

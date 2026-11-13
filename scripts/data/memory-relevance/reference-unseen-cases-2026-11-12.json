@@ -1,0 +1,224 @@
+{
+ "purpose": "Unseen questions on the subjects that carried a fixed text until 2026-11-12, to check what the local model answers once the text is a reference in its context. Each conversation pairs the question a text was written for with a neighbouring question it does not answer.",
+ "provenance": "Written on 2026-11-12 before any generation with the reference mechanism. The author knew the subjects and the trigger words, not the answers.",
+ "frozenAt": "2026-11-12T21:00:00Z",
+ "reviewPolicy": "Judge what each answer explains. A neighbouring question must receive its own answer, not a recitation of the reference.",
+ "sourcesReviewed": [],
+ "conversations": [
+  {
+   "id": "en-coinjoin",
+   "language": "en",
+   "purpose": "CoinJoin: privacy limits, then its history.",
+   "turns": [
+    {
+     "question": "Does a CoinJoin make my coins anonymous?",
+     "mustCover": [
+      "Says it makes links harder to establish but does not make the user invisible or anonymous",
+      "Mentions that later behaviour (merging outputs, amounts) can undo the benefit"
+     ],
+     "mustNotClaim": [
+      "CoinJoin guarantees anonymity"
+     ]
+    },
+    {
+     "question": "What is the history of CoinJoin?",
+     "mustCover": [
+      "Addresses origin or history, or says plainly the sources do not cover it",
+      "Does not merely repeat the privacy limits"
+     ],
+     "mustNotClaim": [
+      "Invented dates or authors presented as certain"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "en-dust",
+   "language": "en",
+   "purpose": "Dust: definition, then whether consolidating is worth it.",
+   "turns": [
+    {
+     "question": "What is dust in Bitcoin?",
+     "mustCover": [
+      "An output so small that spending it costs about as much as or more than it is worth",
+      "Distinguishes the relay policy threshold from economic worth"
+     ],
+     "mustNotClaim": [
+      "Dust is forbidden by consensus"
+     ]
+    },
+    {
+     "question": "Is dust worth consolidating when fees are low?",
+     "mustCover": [
+      "Answers the consolidation question: possibly, when the fee rate is low enough that each input costs less than it holds",
+      "Mentions the privacy cost of merging outputs"
+     ],
+     "mustNotClaim": [
+      "Starts with an unrelated yes"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "en-rbf",
+   "language": "en",
+   "purpose": "RBF from the payer side, a neighbour of the recipient text.",
+   "turns": [
+    {
+     "question": "Can I use RBF to send my unconfirmed payment to a different address than the first one?",
+     "mustCover": [
+      "Says a replacement can change outputs, including the recipient, while unconfirmed",
+      "Says it needs a higher fee and stops once confirmed"
+     ],
+     "mustNotClaim": [
+      "Alice can do it for the user"
+     ]
+    },
+    {
+     "question": "Someone paid me with an unconfirmed transaction. Can the sender still change what I receive?",
+     "mustCover": [
+      "Yes until confirmation: a replacement may change or remove the output",
+      "Advises waiting for confirmation before treating it as paid"
+     ],
+     "mustNotClaim": [
+      "An unconfirmed payment is final"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "en-confirmations",
+   "language": "en",
+   "purpose": "Confirmations: why 6, then what a reorg is.",
+   "turns": [
+    {
+     "question": "Why do exchanges usually wait for 6 confirmations before crediting a deposit?",
+     "mustCover": [
+      "Explains the reason: each block makes a reversal by reorganisation less likely",
+      "Says 6 is a convention, not a protocol rule"
+     ],
+     "mustNotClaim": [
+      "6 confirmations make a transaction mathematically irreversible"
+     ]
+    },
+    {
+     "question": "What is a reorg?",
+     "mustCover": [
+      "Defines a chain reorganisation: nodes switch to a branch with more work, blocks of the old branch are dropped",
+      "Does not answer with a theft warning only"
+     ],
+     "mustNotClaim": []
+    }
+   ]
+  },
+  {
+   "id": "fr-frais",
+   "language": "fr",
+   "purpose": "Frais : taille et non montant, puis priorité des mineurs.",
+   "turns": [
+    {
+     "question": "J'ai envoyé 0,5 BTC et un ami 0,001 BTC, et on a payé presque les mêmes frais. Pourquoi ?",
+     "mustCover": [
+      "Les frais dépendent de la taille de la transaction en octets virtuels et du taux, pas du montant envoyé"
+     ],
+     "mustNotClaim": [
+      "Les frais sont un pourcentage du montant"
+     ]
+    },
+    {
+     "question": "Pourquoi les mineurs choisissent-ils en priorité les transactions avec des frais élevés ?",
+     "mustCover": [
+      "Répond à la question : la place dans un bloc est limitée, les mineurs maximisent leurs revenus en prenant les meilleurs taux de frais",
+      "Parle de taux (sat/vB), pas seulement du total"
+     ],
+     "mustNotClaim": [
+      "Se contente de répéter que les frais ne dépendent pas du montant"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fr-ark",
+   "language": "fr",
+   "purpose": "Ark : confiance, puis frais de l'opérateur.",
+   "turns": [
+    {
+     "question": "À qui dois-je faire confiance quand j'utilise Ark ?",
+     "mustCover": [
+      "L'opérateur ne peut pas dépenser seul, mais il faut tenir compte de l'expiration et de la sortie unilatérale",
+      "Pas une garantie absolue"
+     ],
+     "mustNotClaim": [
+      "Ark est sans aucune confiance"
+     ]
+    },
+    {
+     "question": "Et quels frais prend l'opérateur Ark ?",
+     "mustCover": [
+      "Répond sur les frais ou dit clairement que les sources ne donnent pas de montant",
+      "Ne répète pas seulement le modèle de sécurité"
+     ],
+     "mustNotClaim": [
+      "Un tarif précis inventé"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fr-recuperation",
+   "language": "fr",
+   "purpose": "Récupération avec passphrase, puis photo de la phrase.",
+   "turns": [
+    {
+     "question": "J'ai restauré mon portefeuille avec mes mots de récupération et il est vide, alors que j'utilisais une passphrase. Que se passe-t-il ?",
+     "mustCover": [
+      "Sans la passphrase exacte, les mêmes mots ouvrent un autre portefeuille, vide",
+      "Il faut restaurer avec la passphrase d'origine, elle n'est pas récupérable autrement"
+     ],
+     "mustNotClaim": [
+      "Les fonds sont perdus",
+      "Demande les mots ou la passphrase"
+     ]
+    },
+    {
+     "question": "Est-ce que Ledger Recover envoie ma phrase de récupération sur le cloud ?",
+     "mustCover": [
+      "Répond à la question posée ou dit que les sources ne couvrent pas ce produit",
+      "Ne donne pas un texte tout fait sur les photos"
+     ],
+     "mustNotClaim": [
+      "Invente le fonctionnement du produit avec certitude"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fr-lightning",
+   "language": "fr",
+   "purpose": "Lightning : liquidité entrante, puis paiement en attente.",
+   "turns": [
+    {
+     "question": "Mon canal Lightning contient des fonds, mais je n'arrive pas à recevoir un paiement. Pourquoi ?",
+     "mustCover": [
+      "Recevoir demande de la liquidité entrante, c'est-à-dire des fonds du côté du pair",
+      "Les fonds de son propre côté servent à envoyer"
+     ],
+     "mustNotClaim": [
+      "Il faut fermer le canal"
+     ]
+    },
+    {
+     "question": "J'ai payé une facture Lightning, le paiement est en attente depuis une heure et la facture expire bientôt. Où est mon argent ?",
+     "mustCover": [
+      "Les fonds restent engagés dans un HTLC jusqu'au règlement ou à l'échec, puis reviennent si le paiement échoue",
+      "Alice ne peut pas consulter l'état réel du paiement"
+     ],
+     "mustNotClaim": [
+      "L'argent est perdu",
+      "Le paiement passe automatiquement sur la chaîne"
+     ]
+    }
+   ]
+  }
+ ]
+}

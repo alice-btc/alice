@@ -44,6 +44,13 @@ export const VAULT_KEYS: readonly string[] = [
   'alice_explorer_wallets',
   'alice_arkade_settlements_v1',
   'alice_arkade_frontier_v1',
+  'alice_arkade_negatives_v1',
+  // The current Bark keys (bark-onchain.ts). The v2/v1 ones stay listed so
+  // their removal by bark-onchain reaches the disk; a key missing here is
+  // written but never read back at the next start.
+  'alice_bark_rounds_v3',
+  'alice_bark_frontier_v2',
+  'alice_bark_negatives_v1',
   'alice_bark_rounds_v2',
   'alice_bark_frontier_v1',
   'alice_spark_onchain_v2',

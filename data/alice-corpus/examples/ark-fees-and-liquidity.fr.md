@@ -21,6 +21,9 @@ exhaustive_external_fact_check: false
 ## Questions couvertes
 
 - Quels coûts et contraintes faut-il comprendre avec Ark ?
+- Quels frais prend l'opérateur Ark ?
+- Un serveur Ark fait-il payer les transferts ou les renouvellements ?
+- Pourquoi l'opérateur Ark facture-t-il des frais ?
 
 ## Réponse courte
 

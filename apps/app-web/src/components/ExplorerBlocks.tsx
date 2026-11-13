@@ -6,14 +6,41 @@ import { SWAP_ICON, BACK_ICON, RECEIVE_ICON } from '@/lib/atelier-icons';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ChainDataProvider } from '@/lib/explorer/provider';
 import type { NormalizedBlock, ProjectedBlock, RibbonFocus } from '@/lib/explorer/types';
-import { feeColor, formatBlockAgeOrDate, formatCount, formatDateTime, formatFeeRange } from '@/lib/explorer/blocks';
+import { formatBlockAgeOrDate, formatCount, formatDateTime, BITCOIN_SCALE, type ChainScale } from '@/lib/explorer/blocks';
+import { pageVisible } from '@/lib/explorer/use-live-refresh';
 import { useT } from '@/i18n';
+/** What the ribbon reads: Bitcoin's provider, or a chain's own source with
+ *  the same three calls (Monero). */
+export type RibbonSource = Pick<ChainDataProvider, 'getRecentBlocks' | 'getMempoolBlocks' | 'getBlock'>;
 
 const POLL_MS = 20_000;
 const BLOCK_W = 122;
+const ARRIVAL_MS = 700;
 
-function ConfirmedBlock({ block, now, focused, marked, markColor, markSubject, onClick }: {
+/** The FLIP key of a ribbon card: `c<height>` confirmed, `p<index>` pending. */
+function cardKey(el: HTMLElement): string | null {
+  if (el.dataset.blockHeight !== undefined) return `c${el.dataset.blockHeight}`;
+  if (el.dataset.pendingIndex !== undefined) return `p${el.dataset.pendingIndex}`;
+  return null;
+}
+
+/** The on-screen left edge of every card in the ribbon, by FLIP key. */
+function cardPositions(row: HTMLElement): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const el of row.querySelectorAll<HTMLElement>('[data-block-height], [data-pending-index]')) {
+    const key = cardKey(el);
+    if (key) out.set(key, el.getBoundingClientRect().left);
+  }
+  return out;
+}
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
+function ConfirmedBlock({ block, scale, now, focused, marked, markColor, markSubject, onClick }: {
   block: NormalizedBlock;
+  scale: ChainScale;
   now: number;
   focused: boolean;
   /** True when this block carries a highlighted transaction (an Arkade
@@ -25,8 +52,8 @@ function ConfirmedBlock({ block, now, focused, marked, markColor, markSubject, o
   onClick: () => void;
 }) {
   const t = useT();
-  const color = feeColor(block.medianFee);
-  const range = formatFeeRange(block.feeRange, t.locale);
+  const color = scale.color(block.medianFee);
+  const range = scale.range(block.feeRange);
   // The focused block (the one the open transaction or block tab is about) is
   // inverted: the accent as its background, the page background as its ink,
   // so it stands out along the row at a glance.
@@ -52,7 +79,7 @@ function ConfirmedBlock({ block, now, focused, marked, markColor, markSubject, o
         {formatCount(block.height, t.locale)}
       </div>
       <div className="font-numbers" style={{ fontSize: 12, color: ink ?? color, marginTop: 3 }}>
-        {block.medianFee !== undefined ? `~${Math.round(block.medianFee)} sat/vB` : t('explorerBlocks.notAvailable')}
+        {block.medianFee !== undefined ? `~${scale.rate(block.medianFee)}` : t('explorerBlocks.notAvailable')}
       </div>
       {range && <div className="font-numbers" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)' }}>{range}</div>}
       <div className="font-numbers" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)', marginTop: 3 }}>
@@ -67,11 +94,13 @@ function ConfirmedBlock({ block, now, focused, marked, markColor, markSubject, o
   );
 }
 
-function PendingBlock({ block, index, focused }: { block: ProjectedBlock; index: number; focused: boolean }) {
+function PendingBlock({ block, scale, index, focused }: { block: ProjectedBlock; scale: ChainScale; index: number; focused: boolean }) {
   const t = useT();
-  const color = feeColor(block.medianFee);
-  const range = formatFeeRange(block.feeRange, t.locale);
-  const eta = index === 0 ? t('explorerBlocks.ribbon.nextBlock') : t('explorerBlocks.ribbon.inMinutes', { minutes: (index + 1) * 10 });
+  const color = scale.color(block.medianFee);
+  const range = scale.range(block.feeRange);
+  const eta = (scale.estimatedProjection ? 'EST. ' : '') + (index === 0
+    ? t('explorerBlocks.ribbon.nextBlock')
+    : t('explorerBlocks.ribbon.inMinutes', { minutes: (index + 1) * scale.blockMinutes }));
   // Inverted when focused, like a confirmed block.
   const ink = focused ? 'var(--alice-bg)' : undefined;
   return (
@@ -89,7 +118,7 @@ function PendingBlock({ block, index, focused }: { block: ProjectedBlock; index:
       title={focused ? t('explorerBlocks.ribbon.pendingFocused') : t('explorerBlocks.ribbon.pending')}
     >
       <div className="font-pixel" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)' }}>{eta}</div>
-      <div className="font-numbers" style={{ fontSize: 12, color: ink ?? color, marginTop: 3 }}>~{Math.round(block.medianFee)} sat/vB</div>
+      <div className="font-numbers" style={{ fontSize: 12, color: ink ?? color, marginTop: 3 }}>~{scale.rate(block.medianFee)}</div>
       {range && <div className="font-numbers" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)' }}>{range}</div>}
       <div className="font-numbers" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)', marginTop: 3 }}>
         {t('explorerBlocks.txCount', { count: formatCount(block.txCount, t.locale) })}
@@ -135,8 +164,9 @@ export function ExplorerBlocks({
   onOpenBlock,
   focus,
   highlight,
+  scale = BITCOIN_SCALE,
 }: {
-  provider: ChainDataProvider;
+  provider: RibbonSource;
   onOpenBlock: (height: string) => void;
   /** What to spotlight: a confirmed block by height, or the projected block an
    *  unconfirmed transaction is expected in. Absent means centre on the divider. */
@@ -150,6 +180,8 @@ export function ExplorerBlocks({
    *  `busy` is set while the newest mark may not be the newest there is (the
    *  walk is still catching up): the arrow gives way to a ring until then. */
   highlight?: { heights: ReadonlySet<number>; color: string; onColor: string; name: string; subject: string; busy?: boolean };
+  /** How fees and block times read on this chain; Bitcoin's by default. */
+  scale?: ChainScale;
 }) {
   const t = useT();
   const [blocks, setBlocks] = useState<NormalizedBlock[]>([]);
@@ -182,6 +214,11 @@ export function ExplorerBlocks({
   const [loadingAround, setLoadingAround] = useState<number | null>(null);
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
+
+  // A new block arriving: where every card sat just before, so the next layout
+  // can slide them from there (FLIP). The new block itself starts from the
+  // "next block" card, crossing the divider the way it just left the mempool.
+  const arrival = useRef<{ from: Map<string, number>; prevTip: number; dividerX?: number } | null>(null);
 
   // The pointer under the row: a small triangle at the focused block (or the
   // projected block an unconfirmed transaction is expected in), kept in place
@@ -236,9 +273,13 @@ export function ExplorerBlocks({
     // One poll at a time: when the endpoint stalls past the interval, ticks
     // must not pile a second (and third...) poll on top of the stuck one.
     let inFlight = false;
+    let lastPoll = 0;
     async function poll() {
-      if (inFlight) return;
+      // Hidden (app in the background): no point asking; the ribbon catches up
+      // the moment it is visible again (below).
+      if (inFlight || !pageVisible()) return;
       inFlight = true;
+      lastPoll = Date.now();
       try {
         const [b, p] = await Promise.all([
           provider.getRecentBlocks!(undefined, { signal: controller.signal }),
@@ -247,6 +288,15 @@ export function ExplorerBlocks({
             : Promise.resolve([]),
         ]);
         if (cancelled) return;
+        const prevTip = blocksRef.current[0]?.height;
+        const newTip = b.reduce((max, x) => Math.max(max, x.height), -1);
+        if (prevTip !== undefined && newTip > prevTip && scrollRef.current) {
+          arrival.current = {
+            from: cardPositions(scrollRef.current),
+            prevTip,
+            dividerX: dividerRef.current?.getBoundingClientRect().left,
+          };
+        }
         setBlocks(prev => mergeBlocks(prev, b));
         setPending(p);
         setNow(Math.floor(Date.now() / 1000));
@@ -260,8 +310,47 @@ export function ExplorerBlocks({
     }
     void poll();
     const id = setInterval(poll, POLL_MS);
-    return () => { cancelled = true; controller.abort(); clearInterval(id); };
+    // Back to the foreground after a while: refresh now rather than show the
+    // blocks of an hour ago until the next tick.
+    const onVisible = () => { if (pageVisible() && Date.now() - lastPoll >= POLL_MS) void poll(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
   }, [provider, supported]);
+
+  // Play the arrival recorded by the poll, once the new row is laid out.
+  useLayoutEffect(() => {
+    const a = arrival.current;
+    arrival.current = null;
+    const sc = scrollRef.current;
+    if (!a || !sc) return;
+    // Keep the divider where it was: with the confirmed side on the left, the
+    // new card would otherwise push the whole row (and the view) to the right.
+    const dividerX = dividerRef.current?.getBoundingClientRect().left;
+    if (a.dividerX !== undefined && dividerX !== undefined) sc.scrollLeft += dividerX - a.dividerX;
+    if (prefersReducedMotion()) return;
+    const nextBlockX = a.from.get('p0');
+    for (const el of sc.querySelectorAll<HTMLElement>('[data-block-height], [data-pending-index]')) {
+      const key = cardKey(el);
+      if (!key) continue;
+      const isNew = el.dataset.blockHeight !== undefined && Number(el.dataset.blockHeight) > a.prevTip;
+      const fromX = isNew ? nextBlockX : a.from.get(key);
+      if (fromX === undefined) continue;
+      const dx = fromX - el.getBoundingClientRect().left;
+      if (key === 'p0') {
+        // The new "next block" is a fresh projection: it fades in where it is.
+        el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ARRIVAL_MS, easing: 'ease-out' });
+      } else if (Math.abs(dx) >= 1) {
+        el.animate([{ transform: `translateX(${dx}px)` }, { transform: 'translateX(0)' }], { duration: ARRIVAL_MS, easing: 'cubic-bezier(.2,.7,.2,1)' });
+      }
+    }
+  }, [blocks]);
 
   // Centre the viewport on first data and when the sides flip: on a block page,
   // on the focused block; otherwise on the pending/confirmed divider. Not on
@@ -419,7 +508,7 @@ export function ExplorerBlocks({
   ) : null;
 
   const pendingCards = pending.map((p, i) => (
-    <PendingBlock key={`p${p.medianFee}-${i}`} block={p} index={i} focused={i === pendingFocusIndex} />
+    <PendingBlock key={`p${p.medianFee}-${i}`} block={p} scale={scale} index={i} focused={i === pendingFocusIndex} />
   ));
 
   // Placeholder cards beside a block whose neighbours are still loading.
@@ -437,6 +526,7 @@ export function ExplorerBlocks({
       <ConfirmedBlock
         key={b.id}
         block={b}
+        scale={scale}
         now={now}
         focused={focus?.kind === 'height' && b.height === focus.height}
         marked={highlight?.heights.has(b.height)}

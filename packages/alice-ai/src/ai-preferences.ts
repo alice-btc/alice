@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isExpectedModelFileSize } from './model-file-validation';
 import type { ResponseLanguagePreference } from './language-policy';
 import { isSupportedLanguage, languageFromLocale, type SupportedLanguage } from './languages';
-import { LocalModelError, isAllowedModelDownloadUrl, modelDownloadRefusal, parseStoredCustomModels, type LocalModelEntry, type LocalModelSource } from './local-model-registry';
+import { LocalModelError, isAllowedModelDownloadUrl, modelDownloadRefusalError, parseStoredCustomModels, type LocalModelEntry, type LocalModelSource } from './local-model-registry';
 
 export type AIPreset = 'fast' | 'balanced' | 'deep';
 /** Ids of the default catalog; a legacy or custom entry carries any other string. */
@@ -115,7 +115,7 @@ export const MODEL_CATALOG: ModelEntry[] = [
 // Previous catalog entries. They are not offered for download any more, but a
 // file already on disk keeps working and can be deleted from the settings.
 // Their URLs follow the `main` branch, so both installers refuse them (see
-// modelDownloadRefusal): nothing is fetched from a ref that can move.
+// modelDownloadRefusalError): nothing is fetched from a ref that can move.
 export const LEGACY_MODELS: ModelEntry[] = [
   {
     id: 'qwen3-0.6b',
@@ -423,8 +423,8 @@ export async function installModel(
 ): Promise<void> {
   if (Platform.OS === 'web') throw new Error('Install not available on web.');
   const entry = getModelEntry(id);
-  const refusal = modelDownloadRefusal(entry);
-  if (refusal) throw new Error(refusal);
+  const refusal = modelDownloadRefusalError(entry);
+  if (refusal) throw refusal;
   const FileSystem = await import('expo-file-system/legacy');
   const dir = `${FileSystem.documentDirectory}models/`;
   await FileSystem.makeDirectoryAsync(dir, { intermediates: true });

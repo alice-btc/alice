@@ -13,7 +13,7 @@ import {
 } from './ai-preferences';
 import { applyAliceResponseConstraints } from './ai-system-prompt';
 import { prepareLocalRequest } from './local-request';
-import { modelDownloadRefusal } from './local-model-registry';
+import { modelDownloadRefusalError } from './local-model-registry';
 import { DESKTOP_DOWNLOAD_POLL_MS, DESKTOP_DOWNLOAD_POLL_TIMEOUT_MS, interpretDesktopDownloadStatus, type DesktopModelDownloadPhase } from './local-model-download-progress';
 import { modelFilenameFromPath } from './model-file-validation';
 
@@ -80,8 +80,8 @@ export async function installDesktopModel(
   onProgress?: (fraction: number, phase: DesktopModelDownloadPhase) => void,
 ): Promise<void> {
   const entry = entryFor(id);
-  const refusal = modelDownloadRefusal(entry);
-  if (refusal) throw new Error(refusal);
+  const refusal = modelDownloadRefusalError(entry);
+  if (refusal) throw refusal;
   // The shell downloads the file itself, straight into its models directory,
   // and checks the exact size and the SHA-256 before the file takes its final
   // name; a failed attempt leaves nothing behind. The webview only polls where

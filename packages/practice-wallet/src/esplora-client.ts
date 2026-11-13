@@ -62,7 +62,12 @@ export class PracticeEsploraClient {
 
   private async request(path: string, init?: RequestInit): Promise<Response> {
     const { fetchImpl } = this;
-    const response = await fetchImpl(`${this.baseUrl}${path}`, init);
+    let response: Response;
+    try {
+      response = await fetchImpl(`${this.baseUrl}${path}`, init);
+    } catch (cause) {
+      throw new PracticeWalletError('explorer_unreachable', 'Could not reach the Mutinynet explorer.', {}, { cause });
+    }
     if (!response.ok) {
       const detail = (await response.text().catch(() => '')).slice(0, 200);
       throw new PracticeWalletError(

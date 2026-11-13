@@ -21,6 +21,8 @@ import { ExplorerArkadeVtxoTab } from '@/components/ExplorerArkadeVtxo';
 import { ExplorerSparkAddressTab, SPARK_ACCENT, SparkTxBadge } from '@/components/ExplorerSpark';
 import { ExplorerSparkTxTab } from '@/components/ExplorerSparkTx';
 import { ExplorerSparkLeafTab } from '@/components/ExplorerSparkLeaf';
+import { ExplorerMoneroAddressTab, ExplorerMoneroBlockTab } from '@/components/ExplorerMonero';
+import { ExplorerMoneroTxTab } from '@/components/ExplorerMoneroTx';
 import type { BlockMark } from '@/components/ExplorerBlockTab';
 import { ExplorerBlocks } from '@/components/ExplorerBlocks';
 import { ExplorerIntroModal, wasIntroDismissed } from '@/components/ExplorerIntroModal';
@@ -45,6 +47,8 @@ import { askContextLabel, explorerPageNote } from '@/lib/explorer/ask-context';
 import { setAskHandoff, usePhoneLayout } from '@/lib/explorer/ask-handoff';
 import { looksLikeArkadeAddress } from '@/lib/explorer/arkade';
 import { looksLikeSparkAddress } from '@/lib/explorer/spark';
+import { looksLikeMoneroAddress } from '@/lib/explorer/monero-address';
+import { createMoneroRibbonSource, MONERO_SCALE } from '@/lib/explorer/monero-ribbon';
 import { arkAddressFlavor } from '@/lib/explorer/bark';
 import { settlementRegistry } from '@/lib/explorer/arkade-onchain';
 import { useArkadeSettlements } from '@/lib/explorer/use-arkade-settlements';
@@ -244,10 +248,13 @@ function ExplorerWorkspace() {
   // (ribbon, blocks, transactions, addresses) comes from the very same
   // provider and caches as the Bitcoin network, so the two views can never
   // drift apart; switching networks only adds or removes the Arkade layer.
-  // Bark and Spark settle on Bitcoin mainnet the same way.
+  // Bark and Spark settle on Bitcoin mainnet the same way. Monero has no
+  // Bitcoin provider at all: its pages and its ribbon read their own source
+  // (below), and the Bitcoin one it maps to is never asked anything while
+  // Monero is shown.
   function dataNetworkId(id: string): string {
     const kind = getNetwork(id).kind;
-    return kind === 'arkade' || kind === 'bark' || kind === 'spark' ? DEFAULT_NETWORK_ID : id;
+    return kind === 'arkade' || kind === 'bark' || kind === 'spark' || kind === 'monero' ? DEFAULT_NETWORK_ID : id;
   }
 
   // One provider per data network, cached, so switching back and forth is free.
@@ -283,6 +290,9 @@ function ExplorerWorkspace() {
     return p;
   }
   const provider = providerFor(activeNetworkId);
+  // Monero's blocks and mempool, in the ribbon's and the block map's shapes;
+  // one for the workspace, so the ribbon and a block tab share what they read.
+  const moneroSource = useMemo(() => createMoneroRibbonSource(), []);
 
   // A new tab inherits the active tab's network, so exploring from a mainnet tab
   // opens mainnet tabs, and from a testnet tab opens testnet tabs. One nuance:
@@ -349,7 +359,7 @@ function ExplorerWorkspace() {
   // address searched from Bark is a Bitcoin subject.
   function openAddress(address: string, onNetworkId?: string) {
     freshAskConversation('address', address);
-    const flavor = arkAddressFlavor(address) ?? (looksLikeSparkAddress(address) ? 'spark' : null);
+    const flavor = arkAddressFlavor(address) ?? (looksLikeSparkAddress(address) ? 'spark' : looksLikeMoneroAddress(address) ? 'monero' : null);
     const networkId = onNetworkId
       ?? (flavor ?? (getNetwork(activeNetworkId).kind === 'bark' ? DEFAULT_NETWORK_ID : activeNetworkId));
     const tab = makeTab('address', address, networkId);
@@ -435,7 +445,10 @@ function ExplorerWorkspace() {
   // A block tab spotlights its own block; a transaction tab spotlights whatever
   // it resolved; addresses and Home spotlight nothing (centre on the divider).
   const focus = useMemo<RibbonFocus | undefined>(() => {
-    if (active.kind === 'block' && active.query) return { kind: 'height', height: Number(active.query) };
+    // A block opened by hash (a Monero one, say) learns its height once loaded.
+    if (active.kind === 'block' && active.query) {
+      return /^\d+$/.test(active.query) ? { kind: 'height', height: Number(active.query) } : focusByTab[active.id] ?? undefined;
+    }
     if (active.kind === 'tx') return focusByTab[active.id] ?? undefined;
     return undefined;
   }, [active.kind, active.query, active.id, focusByTab]);
@@ -447,6 +460,7 @@ function ExplorerWorkspace() {
   const isArkade = activeNetwork.kind === 'arkade';
   const isBark = activeNetwork.kind === 'bark';
   const isSpark = activeNetwork.kind === 'spark';
+  const isMonero = activeNetwork.kind === 'monero';
   const barkServerUrl = getNetwork('bark').barkServerUrl;
 
   // Arkade settles on Bitcoin mainnet, so its settlements are mainnet facts:
@@ -458,9 +472,13 @@ function ExplorerWorkspace() {
   }
 
   // The settlements identified on-chain (walked from a known commitment along
-  // the ASP's funding chain, and fed by the live stream). The walk runs while
-  // the active network sees that chain; the registry persists across sessions.
-  const arkSettlements = useArkadeSettlements(onArkChain(activeNetworkId) ? provider : null, arkApiUrl);
+  // the ASP's funding chain, and fed by the live stream). The walk runs only
+  // while the Arkade network is explored: on a first visit it costs about 130
+  // requests (the ASP's indexer and the operator's wallet on Esplora), which a
+  // Bitcoin-only reader has no use for, and each indexer call tells the ASP
+  // this reader's IP. The Bitcoin view marks what the registry already knows;
+  // the registry persists across sessions.
+  const arkSettlements = useArkadeSettlements(isArkade ? provider : null, arkApiUrl);
 
   // Bark rounds settle on mainnet the same way. The on-chain walk runs while
   // the Bark network is explored; the Bitcoin view marks what the registry
@@ -565,16 +583,14 @@ function ExplorerWorkspace() {
           it is the SAME Bitcoin mainnet ribbon (same provider, same data,
           keyed by data network so switching does not even remount it) with the
           settlement blocks marked on top. */}
-      {/* On a phone the network button sits in the shell's header, at the
-          right of the "Explorer" title: the tab bar keeps Home pinned at the
-          left instead (see ExplorerTabBar). */}
       <WorkspaceHeaderActions>
         <NetworkButton activeNetworkId={activeNetworkId} onSelectNetwork={selectNetwork} align="right" />
       </WorkspaceHeaderActions>
       <div className="shrink-0 pt-3">
         <ExplorerBlocks
-          key={dataNetworkId(activeNetworkId)}
-          provider={provider}
+          key={isMonero ? 'monero' : dataNetworkId(activeNetworkId)}
+          provider={isMonero ? moneroSource : provider}
+          scale={isMonero ? MONERO_SCALE : undefined}
           onOpenBlock={openBlock}
           focus={focus}
           highlight={isArkade ? {
@@ -666,6 +682,7 @@ function ExplorerWorkspace() {
               arkade={isArkade && activeNetwork.arkApiUrl ? { apiBaseUrl: activeNetwork.arkApiUrl, sync: arkSettlements.sync } : undefined}
               bark={isBark && barkServerUrl ? { serverUrl: barkServerUrl, rounds: barkRounds.byTxid, sync: barkRounds.sync } : undefined}
               spark={isSpark}
+              monero={isMonero}
             />
           </div>
         )}
@@ -674,7 +691,16 @@ function ExplorerWorkspace() {
             {/* On Spark, a transaction id is a transfer or a leaf (a UUID) read
                 from the operators, or a token transaction read from Sparkscan;
                 a Bitcoin txid is offered to the Bitcoin network. */}
-            {getNetwork(active.networkId).kind === 'spark' ? (
+            {getNetwork(active.networkId).kind === 'monero' ? (
+              <ExplorerMoneroTxTab
+                txid={active.query}
+                source={moneroSource}
+                onOpenTx={id => openTx(id, active.networkId)}
+                onOpenBlock={id => openBlock(id, active.networkId)}
+                onFocus={(f) => setFocusByTab(m => ({ ...m, [active.id]: f }))}
+                onSignals={publishTabContext}
+              />
+            ) : getNetwork(active.networkId).kind === 'spark' ? (
               <ExplorerSparkTxTab
                 id={active.query}
                 provider={provider}
@@ -703,6 +729,15 @@ function ExplorerWorkspace() {
         )}
         {active.kind === 'block' && active.query && (
           <div className="max-w-5xl mx-auto flex flex-col gap-6 px-5 pt-6 pb-8">
+            {getNetwork(active.networkId).kind === 'monero' ? (
+              <ExplorerMoneroBlockTab
+                heightOrHash={active.query}
+                source={moneroSource}
+                onOpenTx={id => openTx(id, active.networkId)}
+                onFocus={(f) => setFocusByTab(m => ({ ...m, [active.id]: f }))}
+                onSignals={publishTabContext}
+              />
+            ) : (
             <ExplorerBlockTab
               height={active.query}
               provider={provider}
@@ -710,6 +745,7 @@ function ExplorerWorkspace() {
               onSignals={publishTabContext}
               marks={blockMarks}
             />
+            )}
           </div>
         )}
         {active.kind === 'address' && active.query && (
@@ -718,7 +754,9 @@ function ExplorerWorkspace() {
                 the Bark address view, an Arkade one the Arkade view; a spark1…
                 address the Spark view; any on-chain address gets the regular
                 tab. */}
-            {looksLikeSparkAddress(active.query) ? (
+            {getNetwork(active.networkId).kind === 'monero' ? (
+              <ExplorerMoneroAddressTab address={active.query} onSignals={publishTabContext} />
+            ) : looksLikeSparkAddress(active.query) ? (
               <ExplorerSparkAddressTab
                 address={active.query}
                 onOpenTx={id => openTx(id, 'spark')}

@@ -23,6 +23,9 @@ translation_status: "machine"
 ## Questions covered
 
 - Why group UTXOs together, and which trade-offs does that involve?
+- Should I consolidate small outputs when fees are low?
+- Does consolidating UTXOs cost privacy?
+- Is it a good time to consolidate when the mempool is nearly empty?
 
 ## Short answer
 

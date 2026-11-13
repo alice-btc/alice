@@ -1,0 +1,35 @@
+{
+  "cases": [
+    {
+      "id": "ark_first",
+      "question": "Who must I trust when using Ark?",
+      "answer": "Normal spending of an Ark VTXO requires the holder’s signature: the operator cannot spend it alone through that path. This is not a blanket guarantee against theft or loss; expiry and collusion risks must be considered separately.\n\nThe operator coordinates payments, sees the activity it handles and can stop cooperating. Cooperative rounds and refreshes depend on it. With valid exit data and enough time, a unilateral exit does not require its permission; it requires Bitcoin transaction fees, timelocks and completion of confirmations before expiry.\n\nAt expiry, a recovery path may allow the server to reclaim funds, depending on the construction. Broadcasting into the mempool before the deadline is not enough: the required exit steps must confirm in time. After expiry, recovery depends on the operator’s cooperation and funds may be lost if it refuses. Arkoor transfers add a non-collusion assumption involving previous senders and the server: collusion can allow a double-spend that undermines the recipient’s claim. Rules and guarantees differ by VTXO type and implementation: check the relevant wallet and server documentation.\n\nJust now",
+      "noteIds": [
+        "asp-operator"
+      ],
+      "expected": []
+    },
+    {
+      "id": "issuance-fr",
+      "question": "Comment un nœud contrôle-t-il ce que le mineur s’attribue dans une coinbase, frais compris ?",
+      "answer": "Un nœud complet contrôle ce qu'un mineur peut s'attribuer dans une transaction coinbase en vérifiant indépendamment que le total des récompenses (la subvention du bloc plus les frais des transactions incluses) ne dépasse pas la limite autorisée par le protocole pour cette hauteur de bloc spécifique.\n\nCe contrôle repose sur deux règles fondamentales :\n\n1.\nLa subvention fixe : La quantité de nouveaux bitcoins créés par la subvention est déterminée uniquement par la hauteur du bloc (le nombre de blocs déjà validés), jamais par une décision humaine ou par la conjoncture du marché.\n2.\nLa validation des frais : Les frais de transaction, qui transfèrent des bitcoins déjà existants, sont calculés comme la différence entre le poids de la transaction et sa valeur. Le nœud s'assure que la somme de la subvention et de ces frais ne dépasse pas le plafond défini par la règle de la hauteur de bloc.\n\nSi un bloc proposé contenait une coinbase dépassant ce plafond, les nœuds le rejeteraient immédiatement, car cela violerait les règles de consensus de la preuve de travail. Ce mécanisme garantit que l'émission monétaire reste prévisible et limitée, sans que personne ne puisse émettre de l'argent au-delà de ce que le protocole autorise.\n\nSouhaitez-vous savoir comment les frais de transaction sont calculés en fonction du poids d'une transaction, ou comment le mécanisme d'ajustement de la difficulté maintient une moyenne de 10 minutes entre les blocs ?\n\nTo explore\n1\n7m ago",
+      "noteIds": [
+        "bitcoin-issuance-validation"
+      ],
+      "expected": [
+        "transaction-fee-weight-value"
+      ]
+    },
+    {
+      "id": "lightning-fr",
+      "question": "Explique comment fonctionne un paiement Lightning.",
+      "answer": "Un paiement sur le Lightning Network fonctionne en deux grandes étapes : l'ouverture d'un canal et l'exécution d'un paiement instantané.\n\nPour commencer, deux participants (par exemple, vous et un autre utilisateur) créent un canal de paiement. Cela se fait en transférant des bitcoins sur la blockchain principale (on-chain) pour qu'ils soient verrouillés dans un contrat spécial. Une fois ce contrat signé par les deux parties, ils peuvent échanger des fonds à l'infini sans toucher à la blockchain, car ils mettent simplement à jour leur répartition des fonds dans le canal.\n\nQuand vous voulez payer quelqu'un, le processus est le suivant :\n\n1.\nRecherche de chemin : Votre logiciel cherche un chemin de paiement à travers le réseau. Ce chemin peut passer par plusieurs intermédiaires (d'autres utilisateurs) pour atteindre le destinataire, même si vous n'avez pas de canal direct avec lui.\n2.\nExécution du paiement : Votre logiciel envoie des instructions cryptographiques au premier nœud du chemin. Ce nœud met à jour son état du canal avec le montant qu'il reçoit, puis le transmet au suivant, jusqu'au destinataire final qui met à jour son état.\n3.\nRésolution : Le paiement est considéré comme terminé lorsque le destinataire a mis à jour son état. À ce moment précis, les deux parties du canal (vous et le destinataire) doivent publier une transaction sur la blockchain principale pour \"clôturer\" le canal et rendre les fonds disponibles.\n\nIl est important de comprendre que ce n'est pas un compte bancaire. Vous devez toujours garder des fonds sur la blockchain pour payer les frais de routage (qui varient selon la distance et la liquidité du chemin) et pour avoir assez de liquidité dans le canal pour recevoir ou envoyer des paiements. Si le réseau est saturé ou si le chemin n'a pas assez de liquidité, le paiement peut échouer sans être automatiquement converti en paiement on-chain.\n\nSouhaitez-vous savoir comment vérifier si un paiement a été reçu sur votre canal, ou comment fonctionne la clôture d'un canal ?\n\nTo explore\n3\n5m ago",
+      "noteIds": [
+        "lightning-payment-mechanics"
+      ],
+      "expected": [
+        "lightning-payment-waits-for-close"
+      ]
+    }
+  ]
+}

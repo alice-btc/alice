@@ -143,3 +143,84 @@ test('idle prefetch reads the current app language when it runs', async t => {
   start();
   assert.deepEqual(urls, ['/dictionary/en/index.json']);
 });
+
+test('the complete provider tries a later candidate after the highest-ranked pack has no relevant excerpt', async t => {
+  const bundled = await build({
+    stdin: {
+      contents: `
+        export { registerLearnTurnContext } from './apps/app-web/src/lib/learn/turn-context.ts';
+        export { learnContextFor } from './packages/alice-ai/src/learn-context.ts';
+        export { rankLearnCandidates } from './apps/app-web/src/lib/learn/learn-candidates.ts';
+        export { LEARN_COURSES, LEARN_TUTORIALS } from './packages/alice-content/src/generated/planb-learn-catalog.ts';
+      `,
+      resolveDir: process.cwd(), loader: 'ts',
+    },
+    bundle: true, write: false, platform: 'node', format: 'esm',
+    alias: {
+      '@alice-wallet/alice-ai': resolve('packages/alice-ai/src/learn-context.ts'),
+      '@alice-wallet/alice-content': resolve('packages/alice-content'),
+    },
+  });
+  const runtime = await import(`data:text/javascript;base64,${Buffer.from(bundled.outputFiles[0].contents).toString('base64')}`);
+  const question = 'Explain how a Lightning payment works for my level.';
+  const candidates = runtime.rankLearnCandidates(question, ['en', 'fr'], runtime.LEARN_COURSES, runtime.LEARN_TUTORIALS);
+  assert.ok(candidates.length >= 2);
+  const firstPath = `/learn/en/courses/${candidates[0].code}.json`;
+  const urls: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (url: string) => {
+    urls.push(url);
+    if (url.startsWith('/dictionary/')) return new Response('', { status: 404 });
+    const rejected = url === firstPath;
+    const title = rejected ? 'Cooking vegetables' : 'Lightning payment channels';
+    const markdown = rejected ? 'Wash vegetables before cooking.' : 'Lightning payments update balances inside payment channels. A payment uses a route with sufficient liquidity. The recipient supplies an invoice.';
+    return new Response(JSON.stringify({ name: title, markdown, parts: [{ title, chapters: [{ title, markdown, chapterId: 'fixture' }] }] }), { status: 200 });
+  });
+  runtime.registerLearnTurnContext();
+  const context = await runtime.learnContextFor(question, { targetLanguage: 'en' });
+  assert.ok(context?.excerpt.includes('recipient supplies an invoice'));
+  assert.ok(urls.includes(firstPath), 'highest-ranked pack must actually have been attempted');
+  assert.ok(!context.sources.some((source: { path: string }) => source.path.includes(`course=${candidates[0].code}&`)), 'rejected pack cannot be cited');
+  assert.ok(urls.filter(url => url.startsWith('/learn/')).length <= 3);
+});
+
+test('a stalled dictionary does not discard an available course at the outer Learn timeout', async t => {
+  const bundled = await build({
+    stdin: {
+      contents: `
+        export { registerLearnTurnContext } from './apps/app-web/src/lib/learn/turn-context.ts';
+        export { learnContextFor } from './packages/alice-ai/src/learn-context.ts';
+      `,
+      resolveDir: process.cwd(), loader: 'ts',
+    },
+    bundle: true, write: false, platform: 'node', format: 'esm',
+    alias: {
+      '@alice-wallet/alice-ai': resolve('packages/alice-ai/src/learn-context.ts'),
+      '@alice-wallet/alice-content': resolve('packages/alice-content'),
+    },
+  });
+  // Separate module instance: the pending dictionary cache belongs solely to
+  // this fixture and must not leak into the other provider integration tests.
+  const runtime = await import(`data:text/javascript;base64,${Buffer.from(bundled.outputFiles[0].contents).toString('base64')}#stalled-dictionary`);
+  let dictionaryRequests = 0;
+  let releaseDictionary!: (response: Response) => void;
+  t.mock.method(globalThis, 'fetch', async (url: string) => {
+    if (url.startsWith('/dictionary/')) {
+      dictionaryRequests += 1;
+      return new Promise<Response>(resolve => { releaseDictionary = resolve; });
+    }
+    const title = 'Lightning payment channels';
+    const markdown = 'Lightning payments update balances inside payment channels. The recipient supplies an invoice and the payer finds a route with enough liquidity.';
+    return new Response(JSON.stringify({ name: title, markdown, parts: [{ title, chapters: [{ title, markdown, chapterId: 'fixture' }] }] }), { status: 200 });
+  });
+  runtime.registerLearnTurnContext();
+  const context = await runtime.learnContextFor('Explain how a Lightning payment works for my level.', { targetLanguage: 'en' });
+  assert.ok(context?.excerpt.includes('recipient supplies an invoice'), 'the complete outer bridge must return the available course');
+  assert.ok(context.sources.some((source: { kind: string }) => source.kind === 'course'));
+  assert.equal(dictionaryRequests, 1);
+  // A late successful dictionary fetch can still populate its shared cache.
+  releaseDictionary(new Response(JSON.stringify({ lang: 'en', entries: [] }), { status: 200 }));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const second = await runtime.learnContextFor('Explain how a Lightning payment works for my level.', { targetLanguage: 'en' });
+  assert.ok(second?.excerpt);
+  assert.equal(dictionaryRequests, 1, 'bounding one caller must not evict a valid shared cache request');
+});

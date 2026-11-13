@@ -208,16 +208,17 @@ const projectBlockContext: RuleProjector = (signal) => ({
   redactionProfile: REDACTION_PROFILE,
 });
 
-// LAYER_CONTEXT: the shape of an off-chain page. The layer and the page kind
+// LAYER_CONTEXT: the shape of an off-chain page (and of a Monero page, whose
+// chain the Bitcoin rules do not describe). The layer and the page kind
 // are category labels validated against closed lists (an unknown label is
 // dropped, never copied), the rest is counts, a magnitude bucket of the
 // amount in view, an age bucket, and structural booleans from a fixed list.
 // Nothing else in the evidence crosses: no id, no address, no key, no height.
-const LAYER_NAMES = ['spark', 'arkade', 'bark'] as const;
-const LAYER_PAGES = ['address', 'transfer', 'leaf', 'vtxo', 'token'] as const;
+const LAYER_NAMES = ['spark', 'arkade', 'bark', 'monero'] as const;
+const LAYER_PAGES = ['address', 'transfer', 'leaf', 'vtxo', 'token', 'transaction', 'block'] as const;
 const LAYER_FLAG_KEYS = [
   'private', 'pending', 'completed', 'settled', 'preconfirmed', 'spent', 'swept', 'exited', 'expired',
-  'lightning', 'exit', 'tokens', 'partial', 'multi', 'served',
+  'lightning', 'exit', 'tokens', 'partial', 'multi', 'served', 'coinbase',
 ] as const;
 const projectLayerContext: RuleProjector = (signal) => {
   const flags: Record<string, boolean> = {};

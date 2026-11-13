@@ -4,18 +4,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChainDataProvider } from '@/lib/explorer/provider';
 import type { BlockAudit, BlockTxSummary } from '@/lib/explorer/types';
 import { packBlockGrid } from '@/lib/explorer/treemap';
-import { feeColorHex, formatFixed } from '@/lib/explorer/blocks';
+import { BITCOIN_SCALE, formatFixed, type ChainScale } from '@/lib/explorer/blocks';
 import { useT } from '@/i18n';
 import { formatAmount, useAmountState, WithBitcoinGlyph } from '@/components/AmountDisplay';
 import { Skeleton } from '@/components/ExplorerUI';
 
 const MAX_PX = 440; // the map never grows past this, so it stays compact
 const RESOLUTION = 80;
-// The block's capacity in vbytes (~4M weight units / 4), so squares are sized
-// against how full the block is, not just against each other. Every network the
-// Explorer shows (Bitcoin and Elements/Liquid) uses the same ~4M-weight limit,
-// so a lightly-used block reads as mostly empty.
-const BLOCK_CAPACITY_VSIZE = 1_000_000;
 
 type Placed = { px: number; py: number; pside: number; tx: BlockTxSummary };
 type View = 'actual' | 'expected';
@@ -39,9 +34,10 @@ export function ExplorerBlockTreemap({
   selectedTxid,
   onSelectTx,
   highlights,
+  scale = BITCOIN_SCALE,
 }: {
   hash: string;
-  provider: ChainDataProvider;
+  provider: Pick<ChainDataProvider, 'getBlockSummary' | 'getBlockAudit'>;
   onOpenTx: (txid: string) => void;
   selectedTxid: string | null;
   onSelectTx: (txid: string) => void;
@@ -50,6 +46,9 @@ export function ExplorerBlockTreemap({
    *  the fee colour, and the hover card names them with `label` (in
    *  `textColor`, legible on the tooltip). Memoised by the caller. */
   highlights?: ReadonlyArray<{ txids: ReadonlySet<string>; color: string; label?: string; textColor?: string }>;
+  /** How fees, sizes and a full block read on this chain; Bitcoin's by
+   *  default. */
+  scale?: ChainScale;
 }) {
   const [actual, setActual] = useState<BlockTxSummary[] | null>(null);
   const [audit, setAudit] = useState<BlockAudit | null>(null);
@@ -94,7 +93,7 @@ export function ExplorerBlockTreemap({
 
   const txs = view === 'expected' && audit ? audit.template : actual;
 
-  const grid = useMemo(() => (txs ? packBlockGrid(txs.map(t => t.vsize), RESOLUTION, BLOCK_CAPACITY_VSIZE) : null), [txs]);
+  const grid = useMemo(() => (txs ? packBlockGrid(txs.map(t => t.vsize), RESOLUTION, scale.capacity) : null), [txs, scale]);
 
   useEffect(() => {
     if (!txs || !grid || boxSize === 0) return;
@@ -126,14 +125,14 @@ export function ExplorerBlockTreemap({
       // A highlighted transaction (a settlement, a round) keeps its exact
       // square, just filled with the accent instead of the fee colour.
       const mark = highlights?.find(h => h.txids.has(tx.txid));
-      ctx.fillStyle = mark ? resolveCssColor(mark.color) : feeColorHex(tx.rate);
+      ctx.fillStyle = mark ? resolveCssColor(mark.color) : scale.colorHex(tx.rate);
       ctx.fillRect(px, py, side, side);
       placed.push({ px, py, pside: side, tx });
     }
     placedRef.current = placed;
     baseRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
     setHover(null);
-  }, [txs, grid, boxSize, highlights]);
+  }, [txs, grid, boxSize, highlights, scale]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -258,11 +257,13 @@ export function ExplorerBlockTreemap({
                 ) : null;
               })()}
               <div className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>
-                {Math.round(hover.tx.rate)} sat/vB - {Math.round(hover.tx.vsize)} vB
+                {hover.tx.rate > 0 ? `${scale.rate(hover.tx.rate)} - ` : ''}{Math.round(hover.tx.vsize).toLocaleString(t.locale)} {scale.sizeUnit}
               </div>
-              <div className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>
-                <WithBitcoinGlyph text={formatAmount(hover.tx.valueSats, unit)} />
-              </div>
+              {scale.showsValue && (
+                <div className="font-numbers" style={{ fontSize: 11, color: 'var(--alice-muted)' }}>
+                  <WithBitcoinGlyph text={formatAmount(hover.tx.valueSats, unit)} />
+                </div>
+              )}
             </div>
           )}
         </div>

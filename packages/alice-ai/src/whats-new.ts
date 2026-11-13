@@ -18,6 +18,27 @@ export const RELEASE_NOTES_URL = 'https://github.com/alice-btc/alice/releases';
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.2.9',
+    highlights: [
+      'Improved reasoning and answers from Alice.',
+      'Monero joins Explorer, with blocks, transactions and network activity, in English and French.',
+      'Explorer refreshes open transactions as they confirm and follows new blocks.',
+      'Long questions are no longer cut off at 500 characters, and the writing field grows to 5 lines before scrolling.',
+      'Learn displays embedded YouTube videos and opens article links that previously appeared as broken images.',
+      'Your account has its own page in Settings: sign in, change your name, sign out or delete it there, and your plan refreshes when you come back to the app.',
+    ],
+    translations: {
+      fr: [
+        'Amélioration de la réflexion et des réponses d’Alice.',
+        'Monero rejoint l’Explorer, avec les blocs, les transactions et l’activité du réseau, en français et en anglais.',
+        'L’Explorer actualise les transactions ouvertes lorsqu’elles sont confirmées et suit les nouveaux blocs.',
+        'Les questions longues ne sont plus coupées à 500 caractères, et le champ de saisie grandit jusqu’à 5 lignes avant de défiler.',
+        'Learn affiche les vidéos YouTube intégrées et ouvre les liens vers les articles qui apparaissaient comme des images cassées.',
+        'Votre compte a sa page dans les Paramètres : connexion, changement de nom, déconnexion et suppression s’y trouvent, et votre forfait s’actualise à votre retour dans l’app.',
+      ],
+    },
+  },
+  {
     version: '0.2.8',
     highlights: [
       'Alice answers in the language you write in: the response language is now Auto by default, and Settings › General still offers a fixed language if you prefer one.',

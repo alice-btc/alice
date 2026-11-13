@@ -37,6 +37,7 @@ export type LocalModelErrorCode =
   | 'repo_missing'
   | 'repo_gated'
   | 'hf_status'
+  | 'hf_network'
   | 'no_gguf'
   | 'listing_unexpected'
   | 'listing_revision'
@@ -44,10 +45,13 @@ export type LocalModelErrorCode =
   | 'invalid_filename'
   | 'file_not_listed'
   | 'not_huggingface'
-  | 'already_in_catalog';
+  | 'already_in_catalog'
+  | 'download_legacy'
+  | 'download_unpinned'
+  | 'download_missing_checksum';
 
 /**
- * A refusal about a custom model, with a code and its figures so the
+ * A local model refusal, with a code and its parameters so the
  * interface can say it in its own language; the message is the English.
  */
 export class LocalModelError extends Error {
@@ -201,13 +205,22 @@ export function isPinnedModelDownloadUrl(url: string): boolean {
  * entries point at a branch, not a commit, and are kept only for files already
  * on disk; a catalog entry without its published hash is a packaging mistake.
  */
-export function modelDownloadRefusal(entry: LocalModelEntry): string | null {
-  if (entry.source === 'legacy') return `${entry.name} is from the previous catalog and can no longer be downloaded.`;
-  if (!isAllowedModelDownloadUrl(entry.url) || !isPinnedModelDownloadUrl(entry.url)) {
-    return `${entry.name} is not pinned to a Hugging Face commit; Alice downloads only pinned files.`;
+export function modelDownloadRefusalError(entry: LocalModelEntry): LocalModelError | null {
+  const { name } = entry;
+  if (entry.source === 'legacy') {
+    return new LocalModelError('download_legacy', `${name} is from the previous catalog and can no longer be downloaded.`, { name });
   }
-  if (entry.source === 'catalog' && !isSha256Hex(entry.sha256)) return `${entry.name} has no published checksum.`;
+  if (!isAllowedModelDownloadUrl(entry.url) || !isPinnedModelDownloadUrl(entry.url)) {
+    return new LocalModelError('download_unpinned', `${name} is not pinned to a Hugging Face commit; Alice downloads only pinned files.`, { name });
+  }
+  if (entry.source === 'catalog' && !isSha256Hex(entry.sha256)) {
+    return new LocalModelError('download_missing_checksum', `${name} has no published checksum.`, { name });
+  }
   return null;
+}
+
+export function modelDownloadRefusal(entry: LocalModelEntry): string | null {
+  return modelDownloadRefusalError(entry)?.message ?? null;
 }
 
 /** The download URL must stay on Hugging Face, where the catalog already points. */
@@ -268,7 +281,14 @@ export type FetchLike = (input: string, init?: { headers?: Record<string, string
 export async function fetchHuggingFaceGgufListing(repoInput: string, fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike): Promise<HuggingFaceGgufListing> {
   const repo = normalizeHuggingFaceRepo(repoInput);
   if (!repo) throw new LocalModelError('repo_format', 'Enter a repository as owner/name, for example unsloth/Qwen3.5-2B-GGUF.');
-  const response = await fetchImpl(`${HUGGING_FACE_ORIGIN}/api/models/${repo}?blobs=true`, { headers: { Accept: 'application/json' } });
+  let response: Awaited<ReturnType<FetchLike>>;
+  try {
+    response = await fetchImpl(`${HUGGING_FACE_ORIGIN}/api/models/${repo}?blobs=true`, { headers: { Accept: 'application/json' } });
+  } catch (cause) {
+    const error = new LocalModelError('hf_network', 'Could not reach Hugging Face. Check your connection and try again.');
+    error.cause = cause;
+    throw error;
+  }
   if (response.status === 404) throw new LocalModelError('repo_missing', 'This repository does not exist or is private.');
   if (response.status === 401 || response.status === 403) throw new LocalModelError('repo_gated', 'This repository is gated and needs a Hugging Face login; Alice downloads only public files.');
   if (!response.ok) throw new LocalModelError('hf_status', `Hugging Face answered ${response.status}.`, { status: response.status });

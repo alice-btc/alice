@@ -60,6 +60,8 @@ export type NormalizedOutspend = {
   /** Present only when spent: the child transaction and its input index. */
   txid?: string;
   vin?: number;
+  /** Whether the spending transaction is confirmed, when the endpoint says. */
+  confirmed?: boolean;
 };
 
 export type NormalizedTransaction = {

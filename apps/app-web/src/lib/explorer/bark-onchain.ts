@@ -37,7 +37,7 @@ import { SettlementRegistry, defaultStorage, type ChainReader, type HistoryResul
 import { fetchExplorerAnchors, type ExplorerAnchor } from './anchors.ts';
 import { BarkError, fetchBarkVtxo, getBarkLastRoundEvent } from './bark.ts';
 import { decodeBarkVtxo, vtxoIdBytes, type BarkVtxo } from './bark-vtxo.ts';
-import { largestOutputs, loadFrontier as loadStoredFrontier, saveFrontier as saveStoredFrontier, walkWalletBackward, walkWalletForward, type Outpoint, type StoredFrontier, type WalletBackwardResult, type WalletWalkResult } from './wallet-walk.ts';
+import { StoredNegatives, largestOutputs, loadFrontier as loadStoredFrontier, saveFrontier as saveStoredFrontier, walkWalletBackward, walkWalletForward, type Outpoint, type ProbeNegatives, type StoredFrontier, type WalletBackwardResult, type WalletWalkResult } from './wallet-walk.ts';
 import type { NormalizedTransaction } from './types.ts';
 import type { RequestOptions } from './provider.ts';
 
@@ -114,9 +114,12 @@ export async function getBarkRoundRoot(serverUrl: string, txid: string, opts: { 
 /** Answers whether a txid is a round. */
 export type RoundProbe = (txid: string, signal?: AbortSignal) => Promise<boolean>;
 
+/** The txids Second's server said are not rounds, kept across visits. */
+const barkNegatives = new StoredNegatives('alice_bark_negatives_v1', () => defaultStorage());
+
 /** The default probe: ask the server for the tree root. Non-rounds are
- *  remembered so a txid is never re-asked within a pass. */
-export function makeBarkRoundProbe(serverUrl: string, negatives: Set<string> = new Set()): RoundProbe {
+ *  remembered, in this browser across visits, so a txid is never re-asked. */
+export function makeBarkRoundProbe(serverUrl: string, negatives: ProbeNegatives = barkNegatives): RoundProbe {
   return async (txid, signal) => {
     if (barkRoundRegistry.has(txid)) return true;
     if (negatives.has(txid)) return false;

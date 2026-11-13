@@ -3,7 +3,8 @@
 Alice ships as three surfaces from one repository, and they are versioned
 together: a single number means a tester and a log line refer to the same code.
 
-- `0.2.8`, current release
+- `0.2.9`, current release
+- `0.2.8`, previous release
 - `0.2.7`, previous release
 - `0.2.6`, previous release
 - `0.2.5`, previous release
@@ -16,16 +17,137 @@ together: a single number means a tester and a log line refer to the same code.
 - `0.0.1`, first public baseline
 - `1.0.0`, public launch, planned
 
-## Unreleased
+## 0.2.9
 
-### Private Cloud
+### AI answers
 
-- A free answer no longer comes back empty after a quick run of questions.
-  The Worker counted the bytes of every answer as it streamed past, a few
-  hundred milliseconds of CPU each, and after a short burst Cloudflare stopped
-  it mid-answer: the chat showed an empty answer marked as too long, and the
-  request still counted against the free allowance. The free path now passes
-  the answer through untouched and records only the size of the question.
+- Checked facts on a subject are given to the model as a reference to write
+  from, instead of a fixed text shown in its place. A fixed text remains for
+  safety limits and, on a local or custom model, for two subjects where the
+  small model contradicted its reference: a pending Lightning payment and an
+  incoming payment that is not yet confirmed.
+- On a local or custom model, an answer is checked before it is shown. It
+  appears whole instead of streaming, is rewritten once when a check rejects
+  it, and is withheld with an invitation to rephrase when it fails again.
+  Private Cloud keeps streaming.
+- The recipient of an unconfirmed payment is told that its sender can still
+  replace it, including when the question does not name RBF.
+- Two checks no longer reject correct sentences: contracted English negations
+  ("doesn't", "can't") and "neither… nor" count as negations, and an
+  Alice-and-Bob example is not read as a claim about the app.
+
+### AI retrieval and memory
+
+- A follow-up or a comparison keeps the topic of the question it continues,
+  including for Lightning, transaction inputs and outputs, and monetary
+  issuance.
+- The French and English reference notes and their semantic index are
+  updated, including CPFP, fees, dust, CoinJoin and Ark.
+- Four reference notes are added: chain reorganisations, how miners select
+  transactions, the history of CoinJoin, and entrusting a recovery phrase to a
+  third-party service.
+- Alice's memory keeps where each remembered fact came from and uses only the
+  facts that bear on the question. Relevant Learn context is carried into the
+  conversation.
+- Explicit UTXO and coinbase arithmetic in an answer is checked, and errors
+  seen in testing are corrected, such as fees described as a separate output.
+  These checks do not guarantee that every generated explanation is correct.
+- Alice's memory also refuses notes that mention a passphrase, a PIN, a
+  mnemonic, "my seed" or "my 24 words", in English and in French.
+
+### Account and plans
+
+- The account has its own page, Settings › Account: creating an account and
+  signing in stay inside the app, and changing the name, signing out and
+  deleting the account (with a confirmation) are grouped there.
+- The plan and its usage refresh after signing in, after a password reset,
+  when the app comes back to the foreground and from a Refresh button. A paid
+  plan no longer reads "Free" until the app is reloaded.
+- Paid plans are bought on the web app, in bitcoin, without automatic
+  renewal; the apps add no in-app purchase. The desktop app and the Android
+  APK installed outside Google Play show an "Open the Alice site" link that
+  opens Account in the browser, asks you to sign in there if needed, and
+  passes no session to it. The Google Play build shows no link and a text that names
+  neither a purchase path nor a payment method, and the iOS build shows the
+  link on the United States storefront only.
+
+### Dependencies
+
+- Update the transitive bitcoinjs-lib dependency to a patched release.
+
+### Chat and mobile
+
+- Long questions are no longer silently limited to 500 characters, including
+  questions opened from a link. Model context limits still apply.
+- The composer grows to five lines before scrolling, in Chat and Ask Alice.
+- The rabbit keeps moving during a long wait: shorter rests, then more
+  gestures after 12 seconds.
+- Account dialogs stay within the visible viewport when the Android keyboard
+  opens. Android Back closes the topmost settings dialog first.
+- Settings wording distinguishes the companion app from the wallet and the
+  browser. Account and local model download errors follow the app language.
+
+### Learn
+
+- YouTube links written as Markdown images open as videos instead of broken
+  images. Three article links (BitcoinVN and Arman the Parman) now render as
+  links rather than unavailable images.
+
+### Explorer
+
+- Transaction views refresh their confirmation state while open. The ribbon
+  follows new blocks and the view updates after returning to the app.
+- Monero joins the network picker, read from xmrchain.net (a public instance
+  of the Onion Monero Blockchain Explorer), in the same frame as every other
+  network: the live ribbon of confirmed blocks and projected mempool blocks
+  at the top (fees in piconero per byte, a block every 2 minutes), and a
+  block page with its block map, its details and its transactions.
+- Monero screens, explanations, errors and node settings are available in
+  French and English, and follow a language change without reloading.
+- Its home shows the network's state (height, hashrate, minimum fee,
+  mempool, median block size, supply), which pools mined the latest 100
+  blocks, and milestone blocks and checkable transactions to start from.
+  A Monero block names no miner: a block carries a pool's name when that
+  pool lists it among the blocks it found (SupportXMR, MoneroOcean, C3Pool,
+  HashVault, Nanopool, HeroMiners, xmrpool.eu), or P2Pool's when its
+  coinbase has P2Pool's shape. The other blocks are grouped by the layout of
+  their coinbase, without a name ("Unidentified A"), and the panel says how
+  many of the pool lists answered, so a list that stops answering is seen
+  rather than read as a pool without blocks.
+- Monero's projected blocks are Alice's own estimate (no service publishes a
+  miner's template), labelled as such; each block that lands while the
+  Explorer is open is compared with the estimate made just before it, and
+  the match shows on the home and on the block's page.
+- Explorer reads Monero from your own node when one is set in the settings
+  (Settings › Explorer › Monero node): monerod's restricted RPC, the one a
+  public or remote node exposes, with a Test button that asks the node its
+  height from the browser. Nobody but that node then sees which block or
+  transaction you look up; the supply is not shown, as a node does not
+  serve it. A browser reaches a node started with
+  `--rpc-access-control-origins` naming the app's origin; the desktop app
+  has no such limit.
+- The pool lists are read by Alice's Worker for every browser
+  (`GET /explorer/monero-pools`, cached five minutes) when a proxy is
+  configured: the pools see Alice's server and not each user's IP address,
+  and a privacy extension or a DNS filter that blocks a pool's domain does not
+  empty the names. Without a proxy, or when the Worker does not answer, the browser
+  reads the lists itself, and the pools panel says why a list named nothing
+  (blocked, timed out, an error, a changed format).
+- `npm run check:monero-pools` reads every pool list the Explorer relies on
+  and fails when one stops answering or changes format; it is on the release
+  checklist.
+- A Monero transaction shows its rings, each drawn by age, its key images,
+  its outputs and the fingerprints it carries (a custom unlock time, an
+  unusual extra field, a payment id in clear, rings drawing on the same
+  transaction), without claiming to know who paid whom.
+- Anyone given a transaction id can check what it paid to an address with
+  the recipient's view key or the sender's transaction key, without
+  importing a wallet. The check runs on the device, on the transaction
+  already loaded: the key is never stored or sent, and the result is not
+  passed to Ask Alice.
+- A Monero address is decoded on the device (network, kind, public keys,
+  payment id); typed into a chat, it counts as an on-chain identifier and
+  keeps the message on the device.
 
 ## 0.2.8
 
@@ -200,6 +322,15 @@ free Private Cloud answers twice the room.
 - On a phone, the Android and iOS builds stay in portrait; tablets and the
   iPad keep rotating, checked on a Galaxy A15 and on the iPhone and iPad
   simulators. These builds are still not distributed.
+
+### Post-release service fix
+
+- A free answer no longer comes back empty after a quick run of questions.
+  The Worker counted the bytes of every answer as it streamed past, a few
+  hundred milliseconds of CPU each, and after a short burst Cloudflare stopped
+  it mid-answer: the chat showed an empty answer marked as too long, and the
+  request still counted against the free allowance. The free path now passes
+  the answer through untouched and records only the size of the question.
 
 ## 0.2.7
 

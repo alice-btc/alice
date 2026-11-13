@@ -8,10 +8,11 @@ import { OPEN_WHATS_NEW_EVENT } from '@/lib/update-notices';
 import { useT } from '@/i18n';
 import {
   RELEASE_NOTES_URL, checkForAppUpdate, currentAppVersion, isTauriDesktop, isTauriMobile,
-  pendingWhatsNew, acknowledgeWhatsNew, whatsNewFor, whatsNewHighlights,
+  pendingWhatsNew, acknowledgeWhatsNew, whatsNewFor, whatsNewHighlights, tauriShell,
 } from '@alice-wallet/alice-ai';
 
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1_000;
+const ANDROID_WHATS_NEW_ENTRY = 'aliceWhatsNew';
 const storage = {
   getItem: (key: string) => window.localStorage.getItem(key),
   setItem: (key: string, value: string) => window.localStorage.setItem(key, value),
@@ -83,8 +84,33 @@ export function AppUpdateNotices() {
   useEffect(() => {
     let cancelled = false;
     const current = currentAppVersion();
-    const open = () => { if (current) setDetails({ version: current, mode: 'manual' }); };
+    const android = tauriShell() === 'android';
+    const syncAndroidHistory = () => {
+      if (!current) return;
+      if (window.history.state?.[ANDROID_WHATS_NEW_ENTRY]) {
+        setDetails({ version: current, mode: 'manual' });
+      } else {
+        setDetails(previous => previous?.mode === 'manual' ? null : previous);
+      }
+    };
+    const open = () => {
+      if (!current) return;
+      // Settings already occupy a history entry. Android Back needs one more
+      // entry for the dialog above them, even though the URL stays the same.
+      if (android && !window.history.state?.[ANDROID_WHATS_NEW_ENTRY]) {
+        window.history.pushState({ ...window.history.state, [ANDROID_WHATS_NEW_ENTRY]: true }, '');
+      }
+      setDetails({ version: current, mode: 'manual' });
+    };
     window.addEventListener(OPEN_WHATS_NEW_EVENT, open);
+    if (android) {
+      window.addEventListener('popstate', syncAndroidHistory);
+      syncAndroidHistory();
+    }
+    const stopListening = () => {
+      window.removeEventListener(OPEN_WHATS_NEW_EVENT, open);
+      if (android) window.removeEventListener('popstate', syncAndroidHistory);
+    };
     const showcase = process.env.NODE_ENV !== 'production' ? new URLSearchParams(window.location.search).get('update-demo') : null;
     demo.current = showcase !== null;
     if (demo.current) {
@@ -92,10 +118,10 @@ export function AppUpdateNotices() {
         if (showcase === 'available') setLatest(current);
         else setDetails({ version: current, mode: 'installed' });
       }
-      return () => window.removeEventListener(OPEN_WHATS_NEW_EVENT, open);
+      return stopListening;
     }
     void pendingWhatsNew(storage, current).then(version => {
-      if (!cancelled && version) setDetails({ version, mode: 'installed' });
+      if (!cancelled && version) setDetails(previous => previous ?? { version, mode: 'installed' });
     });
     // Google Play and the App Store update the mobile apps themselves; the
     // what's new above still shows once a new version is installed.
@@ -108,13 +134,16 @@ export function AppUpdateNotices() {
     return () => {
       cancelled = true;
       clearInterval(timer);
-      window.removeEventListener(OPEN_WHATS_NEW_EVENT, open);
+      stopListening();
     };
   }, []);
 
   const close = () => {
     if (details && details.mode !== 'available' && !demo.current) void acknowledgeWhatsNew(storage, details.version);
     setDetails(null);
+    if (details?.mode === 'manual' && tauriShell() === 'android' && window.history.state?.[ANDROID_WHATS_NEW_ENTRY]) {
+      window.history.back();
+    }
   };
   return <>
     {latest && !dismissed && <div role="status" className="alice-update-banner font-numbers">

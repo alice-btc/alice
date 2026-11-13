@@ -83,6 +83,9 @@ export type ScanOptions = {
   deadlineMs?: number;
   /** Cancels the scan (view closed); rejects with ChainDataError 'aborted'. */
   signal?: AbortSignal;
+  /** Ask the network rather than any cache: a rescan of a wallet already
+   *  shown, which must see coins received since. */
+  fresh?: boolean;
 };
 
 const DEFAULT_GAP_LIMIT = 20;
@@ -191,7 +194,7 @@ export async function scanWallet(
   // grinding through retries and failovers for minutes on a hostile endpoint.
   const deadlineSignal = AbortSignal.timeout(deadlineMs);
   const signal = opts.signal ? AbortSignal.any([opts.signal, deadlineSignal]) : deadlineSignal;
-  const request: RequestOptions = { signal, priority: 'bulk', timeoutMs: BULK_TIMEOUT_MS };
+  const request: RequestOptions = { signal, priority: 'bulk', timeoutMs: BULK_TIMEOUT_MS, fresh: opts.fresh };
   // Lazy: pulls in the heavy derivation library only when a scan actually runs.
   const { deriveChain } = await import('./wallet-derive.ts');
 

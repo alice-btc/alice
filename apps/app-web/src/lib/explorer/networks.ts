@@ -2,10 +2,11 @@
 // so they only differ by base URL. Liquid (confidential amounts, multi-asset)
 // has its own Esplora; Arkade and Bark (off-chain VTXOs held with an Ark
 // server) settle on Bitcoin mainnet and add their own layer on top of it.
+// Monero is a chain of its own, read from its own explorer.
 
 import { t } from '../../i18n/translate.ts';
 
-export type NetworkKind = 'bitcoin' | 'liquid' | 'arkade' | 'bark' | 'spark';
+export type NetworkKind = 'bitcoin' | 'liquid' | 'arkade' | 'bark' | 'spark' | 'monero';
 
 export type Network = {
   id: string;
@@ -76,6 +77,13 @@ export const NETWORKS: Network[] = [
   // from Sparkscan. The accent is Spark's own yellow.
   {
     id: 'spark', label: 'Spark', kind: 'spark', available: true, color: '#ffb300',
+  },
+  // Monero, a chain of its own: amounts encrypted, no address on the chain,
+  // every input hidden in a ring. Read from xmrchain.net (see
+  // lib/explorer/monero.ts); a key the user holds is only ever used on the
+  // device. The accent is Monero's own orange.
+  {
+    id: 'monero', label: 'Monero', kind: 'monero', available: true, color: '#f26822',
   },
   // Test networks, grouped apart from the production chains in the picker.
   { id: 'testnet4', label: 'Testnet4', kind: 'bitcoin', baseUrl: 'https://mempool.space/testnet4/api', available: true, color: '#3fa46a', isTest: true },

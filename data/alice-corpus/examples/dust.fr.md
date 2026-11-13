@@ -9,7 +9,7 @@ topics: ["transactions"]
 aliases: ["Dust", "poussière", "dust limit", "sortie non rentable"]
 parent_ids: []
 related_ids: ["coin-selection-tradeoffs", "transaction-fees", "bitcoin-mempool-policy", "consolidation-transaction"]
-reviewed_at: "2026-11-02"
+reviewed_at: "2026-11-05"
 review_due: null
 sources: ["https://github.com/bitcoin/bitcoin/blob/v30.0/src/policy/policy.cpp", "https://github.com/bitcoin/bitcoin/blob/v30.0/src/policy/policy.h"]
 human_reviewed_in_full: false
@@ -35,7 +35,9 @@ Le jugement du portefeuille dépend, lui, du taux de frais du moment. Dépenser 
 
 ## Limites et confusions
 
-Recevoir une sortie sous le seuil de relais reste possible : un mineur peut inclure une transaction que les nœuds aux réglages par défaut ne relaient pas, et d’autres réglages existent. Le seuil de relais n’est pas une règle de consensus ; un bloc contenant une sortie de 1 sat reste valide. À l’inverse, une sortie au-dessus du seuil, par exemple 300 sats en P2WPKH, peut rester non rentable à dépenser tant que les frais sont élevés. Les chiffres cités sont ceux des réglages par défaut de Bitcoin Core ; un portefeuille ou un nœud peut appliquer d’autres valeurs, et le calcul exact dépend de la version. Une sortie non rentable n’est pas perdue : elle attend des frais plus bas ou un regroupement avec d’autres sorties.
+Recevoir une sortie sous le seuil de relais reste possible : un mineur peut inclure une transaction que les nœuds aux réglages par défaut ne relaient pas, et d’autres réglages existent. Le seuil de relais n’est pas une règle de consensus ; un bloc contenant une sortie de 1 sat reste valide. À l’inverse, une sortie au-dessus du seuil, par exemple 300 sats en P2WPKH, peut rester non rentable à dépenser tant que les frais sont élevés. Les chiffres cités sont ceux des réglages par défaut de Bitcoin Core ; un portefeuille ou un nœud peut appliquer d’autres valeurs, et le calcul exact dépend de la version. Une sortie non rentable n’est pas perdue : elle peut redevenir économique à dépenser si le taux de frais baisse suffisamment, sans garantie.
+
+Regrouper de petites sorties coûte aussi des frais, avec 1 entrée par sortie dépensée. La consolidation ne supprime pas ce coût et ne garantit pas une dépense sans perte ; elle peut le réduire si elle est faite à un taux de frais plus bas.
 
 ## Approfondissements
 

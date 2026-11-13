@@ -32,9 +32,13 @@ test('the selected corpus keeps the primary base bounded and exposes only review
   const chunks = all.filter((chunk: { translationStatus?: string }) => chunk.translationStatus === 'source');
   const primary = chunks.filter((chunk: { tier?: string }) => chunk.tier === 'primary');
   const secondary = chunks.filter((chunk: { tier?: string }) => chunk.tier === 'secondary');
-  assert.equal(primary.length, 202);
+  assert.equal(primary.length, 207);
   assert.equal(secondary.length, 203);
-  assert.equal(chunks.length, 405);
+  assert.equal(chunks.length, 410);
+  assert.ok(primary.some((chunk: { conceptId: string }) => chunk.conceptId === 'child-pays-for-parent'));
+  for (const id of ['chain-reorganization', 'miner-transaction-selection', 'coinjoin-history', 'third-party-seed-backup']) {
+    assert.ok(primary.some((chunk: { conceptId: string }) => chunk.conceptId === id), id);
+  }
   assert.equal(new Set(chunks.map((chunk: { conceptId: string }) => chunk.conceptId)).size, chunks.length);
   const primaryIds = new Set(primary.map((chunk: { conceptId: string }) => chunk.conceptId));
   for (const chunk of chunks) {

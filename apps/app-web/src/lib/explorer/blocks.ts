@@ -97,3 +97,42 @@ export function formatFeeRange(feeRange?: number[], locale: Locale = currentLoca
   const r = (n: number) => formatPlain(n >= 10 ? Math.round(n) : Math.round(n * 10) / 10, locale);
   return lo === hi ? `${r(hi)} sat/vB` : `${r(lo)} - ${r(hi)} sat/vB`;
 }
+
+/** How a chain's ribbon and block map read fees and size: Bitcoin in sat/vB
+ *  against a 1,000,000 vB block, Monero in piconero per byte against its
+ *  penalty-free block size. The heat colours are shared. */
+export type ChainScale = {
+  /** "12 sat/vB", "20k pico/B". */
+  rate: (n: number) => string;
+  range: (feeRange?: number[]) => string | null;
+  color: (n?: number) => string;
+  colorHex: (n: number) => string;
+  /** Average minutes between blocks, for a projected block's ETA. */
+  blockMinutes: number;
+  /** A full block, in the map's size unit. */
+  capacity: number;
+  /** The map's size unit: "vB" or "B". */
+  sizeUnit: string;
+  /** Whether a transaction's value can be shown (Monero hides it). */
+  showsValue: boolean;
+  /** Set when the projected blocks are Alice's own estimate rather than a
+   *  service's projection: their cards say so. */
+  estimatedProjection?: boolean;
+};
+
+export const BITCOIN_SCALE: ChainScale = {
+  rate: n => `${Math.round(n)} sat/vB`,
+  range: formatFeeRange,
+  color: feeColor,
+  colorHex: feeColorHex,
+  blockMinutes: 10,
+  capacity: 1_000_000,
+  sizeUnit: 'vB',
+  showsValue: true,
+};
+
+/** A heat colour by tier index (0 cheapest), for a chain with its own
+ *  thresholds. */
+export function heatColor(tier: number): string {
+  return FEE_TIERS[Math.max(0, Math.min(tier, FEE_TIERS.length - 1))].color;
+}

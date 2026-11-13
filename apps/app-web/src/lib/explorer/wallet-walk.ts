@@ -61,6 +61,65 @@ export type WalletWalkResult = {
 
 const BULK: RequestOptions['priority'] = 'bulk';
 
+/** What a probe needs to remember its "no" answers. A plain Set will do. */
+export type ProbeNegatives = { has(txid: string): boolean; add(txid: string): unknown };
+
+/**
+ * The txids a probe answered "not a settlement" for, kept across visits so a
+ * walk that crosses the same wallet transactions again does not ask the
+ * operator about each of them again. A txid's answer never changes. Bounded, oldest
+ * forgotten first; saved shortly after a change. Until the storage is ready
+ * it works from memory only and writes nothing, so a not-yet-unlocked vault
+ * is never overwritten with an empty list.
+ */
+export class StoredNegatives implements ProbeNegatives {
+  private set: Set<string> | null = null;
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly memoryOnly = new Set<string>();
+  private readonly key: string;
+  private readonly storage: () => KVStorage | null;
+  private readonly max: number;
+
+  constructor(key: string, storage: () => KVStorage | null, max = 3000) {
+    this.key = key;
+    this.storage = storage;
+    this.max = max;
+  }
+
+  private loaded(): Set<string> | null {
+    if (this.set) return this.set;
+    const storage = this.storage();
+    if (!storage || storage.isReady === false) return null;
+    const set = new Set<string>();
+    try {
+      const raw = storage.getItem(this.key);
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) for (const t of parsed) if (typeof t === 'string') set.add(t);
+    } catch { /* unreadable: start empty */ }
+    for (const t of this.memoryOnly) set.add(t);
+    this.memoryOnly.clear();
+    this.set = set;
+    return set;
+  }
+
+  has(txid: string): boolean {
+    return (this.loaded() ?? this.memoryOnly).has(txid);
+  }
+
+  add(txid: string): void {
+    const set = this.loaded();
+    if (!set) { this.memoryOnly.add(txid); return; }
+    set.add(txid);
+    for (const old of set) { if (set.size <= this.max) break; set.delete(old); }
+    if (!this.saveTimer) {
+      this.saveTimer = setTimeout(() => {
+        this.saveTimer = null;
+        try { this.storage()?.setItem(this.key, JSON.stringify([...set])); } catch { /* full or read-only */ }
+      }, 1000);
+    }
+  }
+}
+
 /** The largest outputs of a transaction above a value floor. */
 export function largestOutputs(tx: NormalizedTransaction, minSats: number, max: number, skip: (index: number) => boolean = () => false): Outpoint[] {
   return tx.outputs

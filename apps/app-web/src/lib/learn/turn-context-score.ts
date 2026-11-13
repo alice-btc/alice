@@ -1,5 +1,6 @@
 import type { LearnChapter, LearnCoursePack } from '@alice-wallet/alice-content/src/learn-types';
 import { tokens as suggestionTokens, stem } from './suggest.ts';
+import { conceptsIn, relatedConcepts } from './concept-map.ts';
 
 // Pure half of the Learn turn-context provider (turn-context.ts): mapping a
 // question onto the right chapter of a course pack, and trimming that chapter
@@ -22,6 +23,7 @@ const CONTEXT_STOPWORDS = new Set([
   'alors', 'leurs', 'leur', 'etre', 'avoir', 'fait', 'faut', 'peuvent',
   'completement', 'semble', 'seem', 'seems', 'today', 'tonight', 'soir',
   'expliquez', 'fonctionne', 'fonctionnent', 'follow', 'topic',
+  'work', 'works', 'level', 'niveau', 'fonctionnement',
 ].flatMap(token => [token, stem(token)]));
 
 function tokens(text: string): string[] {
@@ -72,6 +74,35 @@ export function queryTokens(query: string): string[] {
   return tokens(query);
 }
 
+/**
+ * A course chapter may teach a requested concept through a named neighbour
+ * (e.g. payment channels inside Lightning). Keep the original body coverage
+ * gates: graph proximity alone is never evidence, nor is it enough to answer
+ * a comparison. Tutorials retain the stricter title+body matcher above.
+ */
+function conceptChapterScore(query: string, chapter: LearnChapter): number {
+  if (comparisonNeedsBothSides(query)) return 0;
+  const requested = conceptsIn(query);
+  if (!requested.length) return 0;
+  const excerpt = excerptOf(chapter.markdown);
+  if (!excerpt) return 0;
+  const prose = excerpt.replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, ' ').replace(/:::video[^\n]*/g, ' ');
+  const bodyConcepts = conceptsIn(prose);
+  if (!requested.every(id => bodyConcepts.includes(id))) return 0;
+  const titleConcepts = conceptsIn(chapter.title);
+  const nearby = relatedConcepts(requested);
+  if (!titleConcepts.some(id => requested.includes(id) || nearby.includes(id))) return 0;
+  const focus = [...new Set(tokens(query))];
+  const body = new Set(tokens(prose));
+  const title = new Set(tokens(chapter.title));
+  const matched = focus.filter(token => body.has(token) || title.has(token));
+  if (matched.length < Math.min(2, focus.length) || matched.length / focus.length < MIN_CONTEXT_QUERY_COVERAGE) return 0;
+  if (!matched.some(token => body.has(token))) return 0;
+  return matched.reduce((score, token) => score + (title.has(token) ? 2 : 0) + (body.has(token) ? 1 : 0), 0);
+}
+
 export function pickChapter(query: string, pack: LearnCoursePack): LearnChapter | null {
   const parsed = tokens(query);
   let best: LearnChapter | null = null;
@@ -79,7 +110,7 @@ export function pickChapter(query: string, pack: LearnCoursePack): LearnChapter 
   for (const part of pack.parts) {
     for (const chapter of part.chapters) {
       if (!chapter.markdown.trim()) continue;
-      const score = scoreChapter(parsed, chapter, comparisonNeedsBothSides(query));
+      const score = scoreChapter(parsed, chapter, comparisonNeedsBothSides(query)) || conceptChapterScore(query, chapter);
       if (score > bestScore) {
         best = chapter;
         bestScore = score;

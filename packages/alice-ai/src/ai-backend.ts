@@ -38,8 +38,21 @@ export type SendMessageOptions = {
   responseLanguage?: SupportedLanguage;
   strictLanguageRetry?: boolean;
   temperatureOverride?: number;
+  /**
+   * Upper bound on the preset temperature, ignored when an override is set.
+   * On-device and custom backends honour it; Private Cloud keeps its preset.
+   */
+  temperatureCap?: number;
+  /** Internal invariant for a corrective attempt; never serialized as a provider option. */
+  requiredAnswerRepairContext?: string;
   requestId?: string;
 };
+
+/** The sampling temperature a backend sends for these options. */
+export function effectiveTemperature(presetTemperature: number, options?: SendMessageOptions): number {
+  if (options?.temperatureOverride !== undefined) return options.temperatureOverride;
+  return options?.temperatureCap === undefined ? presetTemperature : Math.min(presetTemperature, options.temperatureCap);
+}
 
 export interface AIBackend {
   readonly type: AIBackendType;

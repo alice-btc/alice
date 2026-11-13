@@ -218,9 +218,11 @@ export function ExplorerWalletCards({
       .catch(() => {});
   }, []);
 
-  const scan = useCallback(async (wallet: SavedWallet) => {
+  // `fresh` on the periodic rescan: the cache would otherwise hand back the
+  // numbers of the previous scan and the card would never move.
+  const scan = useCallback(async (wallet: SavedWallet, fresh = false) => {
     const signal = abortRef.current?.signal;
-    const request: RequestOptions = { signal, priority: 'bulk', timeoutMs: 8_000 };
+    const request: RequestOptions = { signal, priority: 'bulk', timeoutMs: 8_000, fresh };
     const provider = getProvider(wallet.networkId);
 
     // Balance-over-time sparkline (and last-movement date) for the card, from
@@ -284,7 +286,7 @@ export function ExplorerWalletCards({
         // The derivation library loads lazily, only when a wallet card scans.
         const derive = await import('@/lib/explorer/wallet-derive');
         const descriptor = derive.parseWalletInput(wallet.input, derive.deriveNetworkFor(wallet.networkId));
-        const result = await scanWallet(descriptor, provider, { signal });
+        const result = await scanWallet(descriptor, provider, { signal, fresh });
         const used = [...result.receive, ...result.change].map(a => a.address);
         const chart = used.length > 0 ? await chartOf(used, result.balanceSats) : { sparkline: [] };
         updateSnapshot(wallet.id, {
@@ -335,7 +337,7 @@ export function ExplorerWalletCards({
         w.snapshot && Date.now() - w.snapshot.scannedAt > STALE_MS);
       for (const w of stale) {
         if (cancelled) return;
-        await scan(w);
+        await scan(w, true);
       }
     };
     void refreshStale();

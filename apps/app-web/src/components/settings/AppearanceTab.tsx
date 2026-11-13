@@ -27,7 +27,7 @@ export function AppearanceTab() {
   return (
     <div className="flex flex-col gap-7 font-numbers">
       <fieldset className="border-0 border-b m-0 p-0 pb-6" style={{ borderBottom: '1px solid var(--alice-border)' }}>
-        <legend className="font-pixel text-[10px] mb-4">{t('settings.appearance.theme')}</legend>
+        <legend className="font-pixel uppercase text-[10px] mb-4">{t('settings.appearance.theme')}</legend>
         <div className="flex flex-wrap gap-2">
           {(['light', 'dark'] as const).map(mode => (
             <button className="alice-control alice-control--choice font-numbers" key={mode} aria-pressed={appearance.mode === mode} onClick={() => setAppearance(a => ({ ...a, mode }))}>
@@ -37,7 +37,7 @@ export function AppearanceTab() {
         </div>
       </fieldset>
       <fieldset className="border-0 border-b m-0 p-0 pb-6" style={{ borderBottom: '1px solid var(--alice-border)' }}>
-        <legend className="font-pixel text-[10px] mb-4">{t('settings.appearance.palette')}</legend>
+        <legend className="font-pixel uppercase text-[10px] mb-4">{t('settings.appearance.palette')}</legend>
         <div className="grid grid-cols-2 gap-2">
           {ALL_PALETTE_IDS.map(palette => (
             <button className="alice-control alice-control--choice font-numbers" key={palette} aria-pressed={appearance.palette === palette} onClick={() => setAppearance(a => ({ ...a, palette }))}>

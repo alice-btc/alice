@@ -10,6 +10,7 @@ import { sparkOnchainRegistry } from '@/lib/explorer/spark-onchain';
 import type { ChainDataProvider } from '@/lib/explorer/provider';
 import { ChainDataError } from '@/lib/explorer/provider';
 import { analyzeTransaction } from '@/lib/explorer/analyze';
+import { useLiveRefresh } from '@/lib/explorer/use-live-refresh';
 import { getArkadeCommitmentIfAny, getArkadeVirtualTx, type ArkadeCommitment, type ArkadeVirtualTx } from '@/lib/explorer/arkade';
 import { settlementRegistry } from '@/lib/explorer/arkade-onchain';
 import { barkRoundRegistry, getBarkRoundRoot } from '@/lib/explorer/bark-onchain';
@@ -184,6 +185,31 @@ export function ExplorerTxTab({
 
     return () => { cancelled = true; controller.abort(); };
   }, [txid, provider, arkadeApiUrl, arkadeProbeKnownOnly, barkServerUrl, barkKnownOnly]);
+
+  // Live refresh while the tab is open: an unconfirmed transaction is checked
+  // every 30 s and switches to its block as soon as it confirms; a confirmed
+  // one only has its outputs' spend status re-read, every minute. In place:
+  // no skeleton, no new analysis, the view just catches up.
+  const loadedTx = state.kind === 'loaded' ? state.tx : null;
+  const liveKey = useRef('');
+  liveKey.current = `${txid}|${loadedTx?.txid ?? ''}`;
+  useLiveRefresh(async (signal) => {
+    if (!loadedTx) return;
+    const key = liveKey.current;
+    const still = () => !signal.aborted && liveKey.current === key;
+    if (!loadedTx.status.confirmed) {
+      const fresh = await provider.getTransaction(txid, { signal, fresh: true });
+      if (!still()) return;
+      if (fresh.status.confirmed) {
+        setState({ kind: 'loaded', tx: fresh });
+        onFocusRef.current?.(fresh.status.blockHeight != null
+          ? { kind: 'height', height: fresh.status.blockHeight }
+          : { kind: 'pending', feeRate: fresh.feeRateSatVb });
+      }
+    }
+    const o = await provider.getOutspends?.(txid, { signal, fresh: true });
+    if (o && still()) setOutspends(o);
+  }, loadedTx?.status.confirmed ? 60_000 : 30_000, loadedTx !== null);
 
   // A confirmed settlement feeds the registry, so the ribbon and the block
   // view highlight it from now on.

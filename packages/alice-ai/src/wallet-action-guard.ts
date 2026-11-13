@@ -37,9 +37,31 @@ function commandText(value: string): string {
     .replace(/^(?:me|nous|lui|leur|le|la|les)\s+|^m'/, '');
 }
 
+// An offer addressed to this chat is different from a lesson about backups
+// or entering a secret locally in a trusted wallet. Do not echo the secret.
+function offersWalletSecret(text: string): boolean {
+  // The offered object itself must be a secret. A secret mentioned later in
+  // "here is my transaction ID, not my private key" is not what is offered.
+  const secretObject = /^(?:my|ma|mon|mes)\s+(?:recovery phrase|seed phrase|mnemonic|private keys?|wallet password|phrase de recuperation|phrase secrete|cles? privees?|mot de passe (?:du|de mon) portefeuille)\b/;
+  for (const sentence of text.split(/(?<=[.!?;])\s+/)) {
+    const clause = sentence.trim().replace(/^(?:and|then|et|puis)[, ]+/, '');
+    const presented = clause.replace(/^(?:here (?:is|are)|here's|voici)\s+/, '');
+    if (presented !== clause && secretObject.test(presented)) return true;
+    const requested = clause.replace(/^(?:do you (?:need|want)|would you like|as[- ]tu besoin de|veux[- ]tu)\s+/, '');
+    if (requested !== clause && secretObject.test(requested)) return true;
+    const offered = clause.replace(/^(?:(?:i (?:can|could|will)|i'll|can i|could i|should i|shall i)\s+(?:paste|share|send|give|show)(?:\s+you)?|je (?:peux|pourrais|vais)\s+(?:te |vous )?(?:coller|partager|envoyer|donner|montrer)|(?:puis[- ]je|dois[- ]je)\s+(?:te |vous )?(?:coller|partager|envoyer|donner|montrer))\s+/, '');
+    if (offered !== clause && secretObject.test(offered)
+      && /\b(?:here|you|chat|ici|te|vous)\b/.test(clause)) return true;
+  }
+  return false;
+}
+
 export function walletActionGuardReason(message: string): AliceWalletActionReason | null {
   const text = unquote(message).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[’‘]/g, "'").toLowerCase();
+  // Takes precedence over a simultaneous transfer request so its direct
+  // refusal also explicitly warns against sharing control of the funds.
+  if (offersWalletSecret(text)) return 'share-secret';
   for (const sentence of text.split(/(?<=[.!?;])\s+/)) {
     const clause = sentence.trim().replace(/^(?:hi|hello|hey|bonjour|salut|merci|thanks)[,! ]+/, '').replace(/^(?:(?:hey |ok |okay )?alice)[,! ]+/, '');
     // Educational/hypothetical framing applies to coordinated verbs too.

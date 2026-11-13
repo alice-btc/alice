@@ -39,6 +39,7 @@ export const ACCOUNT_ERROR_KEYS: Record<string, MessageKey> = {
   identity_not_found: 'accountError.identityNotFound',
   last_identity: 'accountError.lastIdentity',
   email_not_configured: 'accountError.emailNotConfigured',
+  account_email_unavailable: 'accountError.emailUnavailable',
   email_delivery_failed: 'accountError.emailDeliveryFailed',
   email_resend_too_soon: 'accountError.emailResendTooSoon',
   invalid_preference: 'accountError.invalidPreference',

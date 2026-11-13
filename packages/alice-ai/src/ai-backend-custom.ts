@@ -1,11 +1,13 @@
+import { assertAnswerRepairContext } from './answer-repair-context.ts';
 import { fetch } from 'expo/fetch';
-import type { AIBackend, AIBackendStatus, AIResponse, SendMessageOptions, TokenUsage } from './ai-backend';
+import { effectiveTemperature, type AIBackend, type AIBackendStatus, type AIResponse, type SendMessageOptions, type TokenUsage } from './ai-backend.ts';
 import { AIBackendError } from './backend-error';
 import type { Message } from './llm';
 import { getPreset, PRESETS, getCustomServer, getAliceInstructions, type CustomServerConfig } from './ai-preferences';
 import {
   applyAliceResponseConstraints,
   buildAliceSystemPrompt,
+  groundedAnswerPolicy,
   requiresBufferedAliceResponse,
   withAliceInstructionReminder,
 } from './ai-system-prompt';
@@ -94,12 +96,14 @@ export class CustomAIBackend implements AIBackend {
     const responseLanguage = options?.responseLanguage ?? 'en';
     const thinking = customThinkingSwitch(this.modelHint, this.protocol);
 
+    const groundedPolicy = groundedAnswerPolicy(messages, instructions, responseLanguage);
     const fullMessages = fitCustomServerMessages([
-      { role: 'system' as const, content: buildAliceSystemPrompt(instructions, responseLanguage) + thinking.promptSuffix },
-      ...withAliceInstructionReminder(messages, instructions, responseLanguage, options?.strictLanguageRetry),
+      { role: 'system' as const, content: buildAliceSystemPrompt(instructions, responseLanguage, Boolean(groundedPolicy)) + groundedPolicy + thinking.promptSuffix },
+      ...withAliceInstructionReminder(messages, instructions, responseLanguage, options?.strictLanguageRetry, true),
     ], this.modelHint);
 
-    const generation = { ...params, temperature: options?.temperatureOverride ?? params.temperature };
+    assertAnswerRepairContext(fullMessages, options?.requiredAnswerRepairContext);
+    const generation = { ...params, temperature: effectiveTemperature(params.temperature, options) };
     const streamTo = shouldBuffer ? undefined : onChunk;
     const result = this.protocol === 'ollama'
       ? await this.sendOllama(base, fullMessages, generation, thinking.payload, streamTo)

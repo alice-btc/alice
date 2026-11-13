@@ -12,18 +12,18 @@ import { learnPackUrl } from './packs-base';
 // languages come from the remote base, see packs-base.ts.
 const cache = new Map<string, unknown>();
 
-async function fetchJson<T>(url: string): Promise<T> {
+async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const cached = cache.get(url);
   if (cached) return cached as T;
-  const response = await fetch(url);
+  const response = await (signal ? fetch(url, { signal }) : fetch(url));
   if (!response.ok) throw new Error(`Pack indisponible (${response.status}): ${url}`);
   const data = (await response.json()) as T;
   cache.set(url, data);
   return data;
 }
 
-export function fetchCoursePack(lang: string, code: string): Promise<LearnCoursePack> {
-  return fetchJson<LearnCoursePack>(learnPackUrl(lang, `courses/${code}.json`));
+export function fetchCoursePack(lang: string, code: string, signal?: AbortSignal): Promise<LearnCoursePack> {
+  return fetchJson<LearnCoursePack>(learnPackUrl(lang, `courses/${code}.json`), signal);
 }
 
 export async function fetchQuizPack(lang: string, code: string): Promise<LearnQuizQuestion[]> {
@@ -39,6 +39,7 @@ export function fetchTutorialPack(
   lang: string,
   category: string,
   slug: string,
+  signal?: AbortSignal,
 ): Promise<LearnTutorialPack> {
-  return fetchJson<LearnTutorialPack>(learnPackUrl(lang, `tutorials/${category}/${slug}.json`));
+  return fetchJson<LearnTutorialPack>(learnPackUrl(lang, `tutorials/${category}/${slug}.json`), signal);
 }

@@ -3,7 +3,7 @@
   "status": "selected_snapshot",
   "scope": "Alice App et Bitcoin.",
   "counts": {
-    "primary": 202,
+    "primary": 207,
     "secondary": 203
   },
   "reviewed_meaning": "Revue éditoriale selon review_method ; ni approbation humaine intégrale ni fact-check externe exhaustif.",
@@ -406,12 +406,12 @@
       "reviewed_at": "2026-10-11",
       "human_reviewed_in_full": false,
       "exhaustive_external_fact_check": false,
-      "sha256": "031a0b6b3082477494d90da872eaf8c6cf42128359a97178d2debacb201cf7ed",
+      "sha256": "2ef3705b7fcf3b5d3af216e2b5639249a26d266878245160a909b975e5bd0485",
       "translations": {
         "en": {
           "path": "examples/ark-fees-and-liquidity.en.md",
-          "sha256": "d0a7c8e001e63b79601b5f7b497a3c3fac33ac55cf5520e842ed3fe984d2a76f",
-          "source_sha256": "031a0b6b3082477494d90da872eaf8c6cf42128359a97178d2debacb201cf7ed"
+          "sha256": "53f07780f3422d06ca91461c408a08a596c7f2aaedf0301e99e3dc1a39424b29",
+          "source_sha256": "2ef3705b7fcf3b5d3af216e2b5639249a26d266878245160a909b975e5bd0485"
         }
       }
     },
@@ -490,12 +490,12 @@
       "reviewed_at": "2026-10-11",
       "human_reviewed_in_full": false,
       "exhaustive_external_fact_check": false,
-      "sha256": "390ffd7f8385c9e001073934b19e4895b1eb3e097f32779ee41c1bf0f954dab3",
+      "sha256": "cb4ede17cfb18960fffb6d5ebe15d4c76df6401d65c28d681489620757b3f909",
       "translations": {
         "en": {
           "path": "examples/ark-security-model.en.md",
-          "sha256": "6ab1146f1e265c2717f3a3242e844bc0a349e4e6ccf044a6ce7d100a6f74ddfa",
-          "source_sha256": "390ffd7f8385c9e001073934b19e4895b1eb3e097f32779ee41c1bf0f954dab3"
+          "sha256": "91fcf516e65ca483532ad8c438e33633d7aea8f099636eeb4cf3f4ad21c2418b",
+          "source_sha256": "cb4ede17cfb18960fffb6d5ebe15d4c76df6401d65c28d681489620757b3f909"
         }
       }
     },
@@ -626,18 +626,18 @@
         "secondary-bitcoin-pbkdf2"
       ],
       "path": "examples/bip39-passphrase.fr.md",
-      "review_method": "adapted_from_corrected_sources",
+      "review_method": "targeted_source_review_and_corrections",
       "language": "fr",
       "eligible_for_retrieval": true,
-      "reviewed_at": "2026-11-02",
+      "reviewed_at": "2026-11-06",
       "human_reviewed_in_full": false,
       "exhaustive_external_fact_check": false,
-      "sha256": "f4736d44150942e2d00128f124e82b7d9e568b5e6a85745031934403d767f04b",
+      "sha256": "91c3445f7473b94d21b1917e1cc4ba7deef9982355d1c5f914c1273a43f286ab",
       "translations": {
         "en": {
           "path": "examples/bip39-passphrase.en.md",
-          "sha256": "4c0c871f126b6150f7b597edc93d92f2258c568072f173e901927f2a74852b26",
-          "source_sha256": "f4736d44150942e2d00128f124e82b7d9e568b5e6a85745031934403d767f04b"
+          "sha256": "980ec9fad933edc04392b97d8732d632b04335694e55e69f4a1dfd4dded3c1c0",
+          "source_sha256": "91c3445f7473b94d21b1917e1cc4ba7deef9982355d1c5f914c1273a43f286ab"
         }
       }
     },
@@ -2563,6 +2563,33 @@
       }
     },
     {
+      "id": "child-pays-for-parent",
+      "title": "Accélérer avec CPFP",
+      "tier": "primary",
+      "status": "reviewed",
+      "parent_ids": [],
+      "related_ids": [
+        "replace-by-fee",
+        "transaction-fees",
+        "bitcoin-mempool-policy"
+      ],
+      "review_method": "targeted_source_review_and_corrections",
+      "language": "fr",
+      "reviewed_at": "2026-11-06",
+      "human_reviewed_in_full": false,
+      "exhaustive_external_fact_check": false,
+      "path": "examples/child-pays-for-parent.fr.md",
+      "eligible_for_retrieval": true,
+      "sha256": "76811f292400359c9acd0d8a0ac44a69dd39ee930fa5425e64742169b26c47ac",
+      "translations": {
+        "en": {
+          "path": "examples/child-pays-for-parent.en.md",
+          "sha256": "52495693f2a3a83bb183cb2b977fa5e8bd2feead7c8d30b95128e3f65a26fae0",
+          "source_sha256": "76811f292400359c9acd0d8a0ac44a69dd39ee930fa5425e64742169b26c47ac"
+        }
+      }
+    },
+    {
       "id": "coin-control",
       "title": "Choisir les fonds à dépenser",
       "tier": "primary",
@@ -2637,12 +2664,12 @@
       "reviewed_at": "2026-10-11",
       "human_reviewed_in_full": false,
       "exhaustive_external_fact_check": false,
-      "sha256": "ff7d2ac90eaa5adbde0c790f54ed7b699c2a7d3160575cfde1e4ecd9db1f01f9",
+      "sha256": "05d342842e60ffe58735a13c11090b0502278d3d15a9bc347f979d5587bd796b",
       "translations": {
         "en": {
           "path": "examples/coinjoin.en.md",
-          "sha256": "af0a8cc5c2c9694eea462015727ea4c6480530a157818b5f73a471e9409bfd6e",
-          "source_sha256": "ff7d2ac90eaa5adbde0c790f54ed7b699c2a7d3160575cfde1e4ecd9db1f01f9"
+          "sha256": "a25d9caf1c97af0796d6585dbbe9a26e7c5ba0560309b10583c4e632227d7fd6",
+          "source_sha256": "05d342842e60ffe58735a13c11090b0502278d3d15a9bc347f979d5587bd796b"
         }
       }
     },
@@ -2752,12 +2779,12 @@
       "reviewed_at": "2026-10-11",
       "human_reviewed_in_full": false,
       "exhaustive_external_fact_check": false,
-      "sha256": "2613cb6bde1ac7a591b0b7f21d40a134588c0208c5a31b8a944da550c0a2500a",
+      "sha256": "2a7aaba139616be63bf0859b9a3832926aad9fa435d9ef71779e5dbff23a5c39",
       "translations": {
         "en": {
           "path": "examples/consolidation-transaction.en.md",
-          "sha256": "d9a5b4fdd1ef89ad872f0f18a06a6ab7aba04092df66e451f6d50a222fc2d56c",
-          "source_sha256": "2613cb6bde1ac7a591b0b7f21d40a134588c0208c5a31b8a944da550c0a2500a"
+          "sha256": "7c1a0b8dcfb8f83f41105c14bf6bb7dd1f4606c2166eb9b242a2be082f3e82cc",
+          "source_sha256": "2a7aaba139616be63bf0859b9a3832926aad9fa435d9ef71779e5dbff23a5c39"
         }
       }
     },
@@ -3098,12 +3125,12 @@
       "reviewed_at": "2026-11-02",
       "human_reviewed_in_full": false,
       "exhaustive_external_fact_check": false,
-      "sha256": "28e5b6977f291b31df129f968b7127a62fd6d69ceeb29b169fbeac64ce61ca67",
+      "sha256": "6b1c56d85424e200325b729ffbbae4d914b5a1087239395a884cf6b3879178c3",
       "translations": {
         "en": {
           "path": "examples/dust.en.md",
-          "sha256": "94d8ff8d95cf744d55c0708874d0b55deb50fe97b793cb7032a47fb8cb5fb171",
-          "source_sha256": "28e5b6977f291b31df129f968b7127a62fd6d69ceeb29b169fbeac64ce61ca67"
+          "sha256": "eef65ec422e1e03af704cb0adad613c60563ffc8d5cc310c0f977d386469988e",
+          "source_sha256": "6b1c56d85424e200325b729ffbbae4d914b5a1087239395a884cf6b3879178c3"
         }
       }
     },
@@ -3911,18 +3938,18 @@
         "lightning-address"
       ],
       "path": "examples/lightning-invoice.fr.md",
-      "review_method": "adapted_from_corrected_sources",
+      "review_method": "targeted_source_review_and_corrections",
       "language": "fr",
       "eligible_for_retrieval": true,
-      "reviewed_at": "2026-10-11",
+      "reviewed_at": "2026-11-06",
       "human_reviewed_in_full": false,
       "exhaustive_external_fact_check": false,
-      "sha256": "3d68be6b16dbab7ebb1a638617e435e28d41b099adab1e9ded7669017e917f68",
+      "sha256": "4e50f8c21abff2289d38a874d06e32bb2b4f6b55505d5f1527f36b89d7f81180",
       "translations": {
         "en": {
           "path": "examples/lightning-invoice.en.md",
-          "sha256": "bfed6bd7c5662931a000302e3b702f5de0c8bf33a3cfa8d453a66b82b82c5a79",
-          "source_sha256": "3d68be6b16dbab7ebb1a638617e435e28d41b099adab1e9ded7669017e917f68"
+          "sha256": "7a230f6af02fee5676ded3cb79693d6e0126c4054278f69a294a80291288e693",
+          "source_sha256": "4e50f8c21abff2289d38a874d06e32bb2b4f6b55505d5f1527f36b89d7f81180"
         }
       }
     },
@@ -4028,18 +4055,18 @@
         "secondary-lightning-static-channel-backup"
       ],
       "path": "examples/lightning-node-backup.fr.md",
-      "review_method": "adapted_from_corrected_sources",
+      "review_method": "targeted_source_review_and_corrections",
       "language": "fr",
       "eligible_for_retrieval": true,
-      "reviewed_at": "2026-10-11",
+      "reviewed_at": "2026-11-06",
       "human_reviewed_in_full": false,
       "exhaustive_external_fact_check": false,
-      "sha256": "37878c41707f815dd86e3b5b25d4701aeec956c9d7c4325d7102fa3c315df114",
+      "sha256": "d2a341aa288efe9e020a9a422a59d7c37f041e5e2845c467ab6d3ae32bfee683",
       "translations": {
         "en": {
           "path": "examples/lightning-node-backup.en.md",
-          "sha256": "50ae383871b2daf56f1c4cd09605e579087af1a635a6afd67f5557a884831660",
-          "source_sha256": "37878c41707f815dd86e3b5b25d4701aeec956c9d7c4325d7102fa3c315df114"
+          "sha256": "066c88de354e10b179c8ec88adb9e7c5efdd317650a354c9acd16568ca4d8d27",
+          "source_sha256": "d2a341aa288efe9e020a9a422a59d7c37f041e5e2845c467ab6d3ae32bfee683"
         }
       }
     },
@@ -4089,18 +4116,18 @@
         "secondary-lightning-onion-routing"
       ],
       "path": "examples/lightning-privacy-tradeoff.fr.md",
-      "review_method": "adapted_from_corrected_sources",
+      "review_method": "targeted_source_review_and_corrections",
       "language": "fr",
       "eligible_for_retrieval": true,
-      "reviewed_at": "2026-10-11",
+      "reviewed_at": "2026-11-06",
       "human_reviewed_in_full": false,
       "exhaustive_external_fact_check": false,
-      "sha256": "b16fee13a8927844c7a1da24a55ea3a14dfb3a547dd2eb80b97e4382b148b107",
+      "sha256": "cad57bba5ee36d849274b1f2b16bb42e2a9ef157b7ca442240680b402bd679ce",
       "translations": {
         "en": {
           "path": "examples/lightning-privacy-tradeoff.en.md",
-          "sha256": "83d980dc29545eb3ca5bf6eee5d0e0b37020f16eb56c0c2ca0a711a89261f10d",
-          "source_sha256": "b16fee13a8927844c7a1da24a55ea3a14dfb3a547dd2eb80b97e4382b148b107"
+          "sha256": "3c950315df6807a83cca8553441918cf45752dfe3a821a3dd8b8f42fd670a80e",
+          "source_sha256": "cad57bba5ee36d849274b1f2b16bb42e2a9ef157b7ca442240680b402bd679ce"
         }
       }
     },
@@ -5282,18 +5309,18 @@
         "bitcoin-transaction-confirmation"
       ],
       "path": "examples/replace-by-fee.fr.md",
-      "review_method": "adapted_from_corrected_sources",
+      "review_method": "targeted_source_review_and_corrections",
       "language": "fr",
       "eligible_for_retrieval": true,
-      "reviewed_at": "2026-10-11",
+      "reviewed_at": "2026-11-06",
       "human_reviewed_in_full": false,
       "exhaustive_external_fact_check": false,
-      "sha256": "ed10585d53d92dba1df7dcceb176f794d7c720c2745fdc7398693600cb86f567",
+      "sha256": "c57a2aa7f4e910b8de3b60fc3b4dbcf883c631455d88cd988307b4c29c64216a",
       "translations": {
         "en": {
           "path": "examples/replace-by-fee.en.md",
-          "sha256": "1a6b22d197bc82b72d74156b5a5e99cc1830f597405aaae50be7b1ca9c83080a",
-          "source_sha256": "ed10585d53d92dba1df7dcceb176f794d7c720c2745fdc7398693600cb86f567"
+          "sha256": "2a46b0edc12477927137c4a65ab970b73a096f227ec19fc0d834850f08fa9932",
+          "source_sha256": "c57a2aa7f4e910b8de3b60fc3b4dbcf883c631455d88cd988307b4c29c64216a"
         }
       }
     },
@@ -11298,12 +11325,12 @@
       "reviewed_at": "2026-10-11",
       "human_reviewed_in_full": false,
       "exhaustive_external_fact_check": false,
-      "sha256": "8d8a3024cfdd9f6a61fddd5931e1700b6aa89e77df5cb8fd095fccb06ddf354a",
+      "sha256": "2e092dbd21367a1c52bf226bf0a42cd802429f276ffec47a87640220abd2f8e3",
       "translations": {
         "en": {
           "path": "examples/transaction-fees.en.md",
-          "sha256": "3b2fb40035893b9146235dc3066118c85fab3599fba499a3d8989ec1b67f0c1c",
-          "source_sha256": "8d8a3024cfdd9f6a61fddd5931e1700b6aa89e77df5cb8fd095fccb06ddf354a"
+          "sha256": "fc03d5e37de8f4880ec676a828961b8d1b585603bd60970a1b2df9f7af2682dd",
+          "source_sha256": "2e092dbd21367a1c52bf226bf0a42cd802429f276ffec47a87640220abd2f8e3"
         }
       }
     },
@@ -11589,6 +11616,116 @@
           "path": "examples/watchtower.en.md",
           "sha256": "bd481535385a63d1f8fa3ad5733043c7a5bc8528bfa8dcdc3b750a3604bfb4d9",
           "source_sha256": "ee385d17657d352928193315b5508bbef0d1eafd2ae0b20950197454bbc87200"
+        }
+      }
+    },
+    {
+      "id": "chain-reorganization",
+      "title": "Les réorganisations de chaîne (reorg)",
+      "tier": "primary",
+      "status": "reviewed",
+      "parent_ids": [],
+      "related_ids": [
+        "bitcoin-transaction-confirmation",
+        "bitcoin-finality",
+        "secondary-bitcoin-stale-block"
+      ],
+      "path": "examples/chain-reorganization.fr.md",
+      "review_method": "targeted_source_review_and_corrections",
+      "language": "fr",
+      "eligible_for_retrieval": true,
+      "reviewed_at": "2026-11-13",
+      "human_reviewed_in_full": false,
+      "exhaustive_external_fact_check": false,
+      "sha256": "514d8b9394da8bf02a896f970b581a5db9f20affe4313cc37860ea36aa6f4814",
+      "translations": {
+        "en": {
+          "path": "examples/chain-reorganization.en.md",
+          "sha256": "af7f2ab75931472929535b00dbe29fe2132e7a38f7ebcf87f1da085eae84570b",
+          "source_sha256": "514d8b9394da8bf02a896f970b581a5db9f20affe4313cc37860ea36aa6f4814"
+        }
+      }
+    },
+    {
+      "id": "miner-transaction-selection",
+      "title": "Comment les mineurs choisissent les transactions",
+      "tier": "primary",
+      "status": "reviewed",
+      "parent_ids": [],
+      "related_ids": [
+        "transaction-fees",
+        "bitcoin-mempool",
+        "bitcoin-mempool-policy",
+        "child-pays-for-parent",
+        "replace-by-fee"
+      ],
+      "path": "examples/miner-transaction-selection.fr.md",
+      "review_method": "targeted_source_review_and_corrections",
+      "language": "fr",
+      "eligible_for_retrieval": true,
+      "reviewed_at": "2026-11-13",
+      "human_reviewed_in_full": false,
+      "exhaustive_external_fact_check": false,
+      "sha256": "d1c78de72708a1c1548718e72fccd35a122cdb5916c6e48715e4157365b787c3",
+      "translations": {
+        "en": {
+          "path": "examples/miner-transaction-selection.en.md",
+          "sha256": "4e70c77855d51b8c03d52371e0545de6276a6b2bec196f342305d12f1ceacf0a",
+          "source_sha256": "d1c78de72708a1c1548718e72fccd35a122cdb5916c6e48715e4157365b787c3"
+        }
+      }
+    },
+    {
+      "id": "coinjoin-history",
+      "title": "L'histoire de CoinJoin",
+      "tier": "primary",
+      "status": "reviewed",
+      "parent_ids": [],
+      "related_ids": [
+        "coinjoin",
+        "secondary-bitcoin-joinmarket",
+        "payjoin"
+      ],
+      "path": "examples/coinjoin-history.fr.md",
+      "review_method": "targeted_source_review_and_corrections",
+      "language": "fr",
+      "eligible_for_retrieval": true,
+      "reviewed_at": "2026-11-13",
+      "human_reviewed_in_full": false,
+      "exhaustive_external_fact_check": false,
+      "sha256": "5a34113cdd32389d7f9c1ce24a8ff1da77ec68819a8f6511bcbb1e2820fbb593",
+      "translations": {
+        "en": {
+          "path": "examples/coinjoin-history.en.md",
+          "sha256": "ae919c1040c37bee2f96c6ecf0e1058e546b5a4c984f601562882c344d36baa3",
+          "source_sha256": "5a34113cdd32389d7f9c1ce24a8ff1da77ec68819a8f6511bcbb1e2820fbb593"
+        }
+      }
+    },
+    {
+      "id": "third-party-seed-backup",
+      "title": "Confier sa phrase de récupération à un service tiers",
+      "tier": "primary",
+      "status": "reviewed",
+      "parent_ids": [],
+      "related_ids": [
+        "seed-phrase-backup",
+        "wallet-recovery-phrase",
+        "secure-backups"
+      ],
+      "path": "examples/third-party-seed-backup.fr.md",
+      "review_method": "targeted_source_review_and_corrections",
+      "language": "fr",
+      "eligible_for_retrieval": true,
+      "reviewed_at": "2026-11-13",
+      "human_reviewed_in_full": false,
+      "exhaustive_external_fact_check": false,
+      "sha256": "674af33215c32ed3e124bed19934e9f33ddc17df13d8323693ca0e94dad8232c",
+      "translations": {
+        "en": {
+          "path": "examples/third-party-seed-backup.en.md",
+          "sha256": "ca1d3cc5ef02f34352e23f9601c07848c9c55cdd0e4a5437e299019c1fbfa1f6",
+          "source_sha256": "674af33215c32ed3e124bed19934e9f33ddc17df13d8323693ca0e94dad8232c"
         }
       }
     }

@@ -23,6 +23,9 @@ translation_status: "machine"
 ## Questions covered
 
 - Which costs and constraints need to be understood with Ark?
+- What fees does the Ark operator charge?
+- Does an Ark server charge for transfers or renewals?
+- Why does the Ark operator charge fees?
 
 ## Short answer
 

@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useMemo,
   useState,
   type ReactNode,
@@ -85,7 +86,7 @@ export type AliceCloudUsage =
  * and it is exactly the wrong thing to say to someone who just asked to buy a
  * plan, which does need an account to be recoverable.
  */
-export type AliceSignInReason = 'default' | 'purchase';
+export type AliceSignInReason = 'default' | 'purchase' | 'web-plans' | 'change-username';
 
 type AccountContextValue = {
   status: AccountStatus;
@@ -165,6 +166,7 @@ function failureFor(error: unknown): AccountFailure {
 }
 
 export function AccountProvider({ children }: { children: ReactNode }) {
+  const sessionEpoch = useRef(0);
   const [status, setStatus] = useState<AccountStatus>('loading');
   const [account, setAccount] = useState<AliceAccount | null>(null);
   const [billing, setBilling] = useState<AliceBilling | null>(null);
@@ -187,7 +189,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const refreshBilling = useCallback(async () => {
     try {
-      setBilling(await getBilling());
+      const epoch = sessionEpoch.current;
+      const next = await getBilling();
+      if (epoch === sessionEpoch.current) setBilling(next);
     } catch {
       // Billing is presentation, not authorisation: the server enforces every
       // quota on its own. A failed fetch keeps the last known snapshot rather
@@ -196,8 +200,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshAccount = useCallback(async () => {
+    const epoch = sessionEpoch.current;
     try {
       const next = await getAccount();
+      if (epoch !== sessionEpoch.current) return;
       if (next.is_anonymous) {
         // Keep the allowance even though the account itself is discarded: it
         // is the only place an anonymous user can learn it.
@@ -218,6 +224,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       if (next.plan !== 'free') await refreshBilling();
       else setBilling(null);
     } catch (cause) {
+      if (epoch !== sessionEpoch.current) return;
       if (cause instanceof AliceAccountError && (
         cause.code === 'account_required'
         || cause.code === 'session_expired'
@@ -249,6 +256,26 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       });
     return () => { cancelled = true; };
   }, [refreshAccount]);
+
+  // Returning from a web purchase must refresh even if no invoice was created
+  // on this device. A server-confirmed entitlement is the only source of truth.
+  useEffect(() => {
+    if (status !== 'signed_in' || typeof window === 'undefined' || typeof document === 'undefined') return;
+    let running = false;
+    let lastRefresh = 0;
+    const refresh = () => {
+      if (document.visibilityState === 'hidden' || running || Date.now() - lastRefresh < 1000) return;
+      running = true;
+      lastRefresh = Date.now();
+      void refreshAccount().catch(() => {}).finally(() => { running = false; });
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [status, refreshAccount]);
 
   // A payment started before the app was closed is still owed to the user, so
   // the watch resumes on launch rather than only within the session that
@@ -345,6 +372,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setFailure(null);
     try {
       const result = await verifyEmailLogin(pendingEmail, code, newPassword);
+      sessionEpoch.current += 1;
+      setBilling(null);
+      await refreshBilling();
       setAccount(result.account);
       setStatus('signed_in');
       setSignInOpen(false);
@@ -354,12 +384,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setFailure(failureFor(cause));
       throw cause;
     }
-  }, [pendingEmail]);
+  }, [pendingEmail, refreshBilling]);
 
   const verifyEmailSignup = useCallback(async (code: string) => {
     setFailure(null);
     try {
       const result = await verifyEmailIdentityLink(pendingEmail, code);
+      sessionEpoch.current += 1;
       setAccount(result);
       setStatus('signed_in');
       setPendingEmail('');
@@ -376,6 +407,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setFailure(null);
     try {
       const result = await login();
+      sessionEpoch.current += 1;
+      setBilling(null);
+      await refreshBilling();
       setAccount(result.account);
       setStatus('signed_in');
       setSignInOpen(false);
@@ -383,7 +417,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setFailure(failureFor(cause));
       throw cause;
     }
-  }, []);
+  }, [refreshBilling]);
 
   const signInWithPassword = useCallback(
     (identifier: string, password: string) => acceptLogin(
@@ -403,7 +437,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   ) => {
     setFailure(null);
     try {
-      setAccount(await operation());
+      const updated = await operation();
+      // A refresh already in flight carries the account as it was before.
+      sessionEpoch.current += 1;
+      setAccount(updated);
     } catch (cause) {
       setFailure(failureFor(cause));
       throw cause;
@@ -453,10 +490,16 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    sessionEpoch.current += 1;
     await logoutAccount().catch(() => {});
+    sessionEpoch.current += 1;
     setAccount(null);
     setBilling(null);
     setStatus('signed_out');
+    setPendingCheckout(null);
+    setCheckoutSettled(false);
+    // The session is already closed; a storage error must not report a failure.
+    await clearPendingCheckout().catch(() => {});
     setPendingEmail('');
     setResendSeconds(0);
     setSignInOpen(false);
@@ -464,9 +507,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const deleteAccount = useCallback(async () => {
     await requestAccountDeletion();
+    sessionEpoch.current += 1;
     setAccount(null);
     setBilling(null);
     setStatus('signed_out');
+    setPendingCheckout(null);
+    setCheckoutSettled(false);
+    // The session is already closed; a storage error must not report a failure.
+    await clearPendingCheckout().catch(() => {});
     setPendingEmail('');
     setResendSeconds(0);
     setSignInOpen(false);
@@ -498,7 +546,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const acknowledgeCheckout = useCallback(() => setCheckoutSettled(false), []);
 
   const chooseProductUpdates = useCallback(async (enabled: boolean) => {
-    setAccount(await setProductUpdates(enabled));
+    const updated = await setProductUpdates(enabled);
+    sessionEpoch.current += 1;
+    setAccount(updated);
   }, []);
 
   // Derived rather than stored, so every path that sets an account -- sign-in,

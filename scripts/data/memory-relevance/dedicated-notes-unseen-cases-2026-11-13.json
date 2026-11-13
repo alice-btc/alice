@@ -1,0 +1,264 @@
+{
+  "purpose": "Unseen phrasings for the subjects where the local model invented answers on 2026-11-12 for lack of a precise note: a sender replacing an unconfirmed payment seen from the recipient, chain reorganisations, how miners select transactions, Ark operator fees, the history of CoinJoin, Ledger Recover, and consolidating small outputs at low fees. Eight two-turn conversations, four in French and four in English.",
+  "provenance": "Written before any dedicated note was drafted and before any generation on these questions. The author had read the failing answers of 2026-11-12 and knew the subjects, not the wording of future notes. Not independent of the author. Rubrics are frozen with this file.",
+  "frozenAt": "2026-11-12T21:22:57Z",
+  "reviewPolicy": "Judge what each answer actually explains, including material contradictions and invented Alice features; keyword presence alone does not satisfy a criterion. A follow-up must answer its own question rather than repeat the first answer. Saying plainly that a precise figure is not available is acceptable where the rubric allows it. Do not revise criteria after seeing outputs.",
+  "sourcesReviewed": [
+    "https://raw.githubusercontent.com/bitcoin/bitcoin/master/doc/policy/mempool-replacements.md",
+    "https://developer.bitcoin.org/devguide/block_chain.html",
+    "https://bitcointalk.org/index.php?topic=279249.0",
+    "https://www.ledger.com/recover",
+    "https://docs.arkadeos.com/",
+    "https://en.bitcoin.it/wiki/Privacy#Common-input-ownership_heuristic"
+  ],
+  "conversations": [
+    {
+      "id": "en-dedicated-replacement-recipient",
+      "language": "en",
+      "purpose": "Recipient side of a replaceable unconfirmed payment.",
+      "turns": [
+        {
+          "question": "A buyer sent me bitcoin and the transaction still shows 0 confirmations. Could they still redirect that money back to themselves?",
+          "mustCover": [
+            "Say yes, while it is unconfirmed: the sender can broadcast a replacement spending the same inputs with a higher fee, which can remove or change the output to the recipient; signaling RBF is not required by nodes applying full-RBF.",
+            "Say that this stops once the original transaction is confirmed, and that neither the replacement nor the original's confirmation is guaranteed in advance."
+          ],
+          "mustNotClaim": [
+            "That an unconfirmed payment cannot be changed because it already names the recipient's address.",
+            "That the recipient is safe at 0 confirmations as long as the transaction did not signal RBF."
+          ],
+          "critical": true
+        },
+        {
+          "question": "So at what point should I hand over the goods?",
+          "mustCover": [
+            "Advise treating the payment as received only after it confirms, with more confirmations for larger amounts.",
+            "Explain briefly that each additional block makes a reversal less likely, without promising absolute finality."
+          ],
+          "mustNotClaim": [
+            "That delivering at 0 confirmations is safe.",
+            "That one confirmation makes a payment absolutely irreversible."
+          ],
+          "critical": true
+        }
+      ]
+    },
+    {
+      "id": "fr-dedicated-replacement-recipient",
+      "language": "fr",
+      "purpose": "Recipient side of a replaceable unconfirmed payment, in French, with what the recipient can and cannot do.",
+      "turns": [
+        {
+          "question": "On m'a envoyé des bitcoins, mais la transaction n'est pas encore confirmée. Est-ce que la personne qui me paie peut encore modifier ou annuler ce paiement ?",
+          "mustCover": [
+            "Dire oui tant que la transaction n'est pas confirmée : l'expéditeur peut diffuser un remplacement qui dépense les mêmes entrées avec des frais plus élevés et qui supprime ou modifie la sortie du destinataire ; le full-RBF n'exige pas de signal à l'envoi.",
+            "Dire que cette possibilité disparaît une fois la transaction d'origine confirmée, et qu'il faut attendre la confirmation avant de considérer le paiement comme reçu."
+          ],
+          "mustNotClaim": [
+            "Qu'un paiement non confirmé ne peut plus être modifié parce qu'il contient déjà l'adresse du destinataire.",
+            "Qu'un paiement non confirmé est sûr dès qu'il apparaît dans le portefeuille."
+          ],
+          "critical": true
+        },
+        {
+          "question": "Est-ce que je peux faire quelque chose de mon côté pour l'en empêcher ?",
+          "mustCover": [
+            "Dire que le destinataire ne peut pas empêcher l'expéditeur de diffuser un remplacement ; il peut seulement attendre la confirmation.",
+            "Si CPFP est évoqué, préciser qu'il peut accélérer la confirmation sans bloquer un remplacement, et qu'un remplacement du parent invaliderait l'enfant."
+          ],
+          "mustNotClaim": [
+            "Que le destinataire peut verrouiller ou bloquer le paiement, ou qu'Alice App peut le faire.",
+            "Que CPFP garantit que l'expéditeur ne pourra plus remplacer la transaction."
+          ],
+          "critical": true
+        }
+      ]
+    },
+    {
+      "id": "en-dedicated-reorg",
+      "language": "en",
+      "purpose": "Definition of a chain reorganisation and its effect on a confirmed transaction.",
+      "turns": [
+        {
+          "question": "My block explorer says a block was orphaned and replaced by another one. What actually happened?",
+          "mustCover": [
+            "Explain that two valid blocks competed at the same height and that nodes followed the branch with the most accumulated work, so the other block became stale (often called orphaned).",
+            "Explain that transactions from the dropped block return to the mempool unless the winning branch already includes them."
+          ],
+          "mustNotClaim": [
+            "That the replaced block was invalid, hacked or forged.",
+            "That the transactions in the dropped block are lost or cancelled for good."
+          ],
+          "critical": true
+        },
+        {
+          "question": "Could a reorg undo a transaction that already had one confirmation?",
+          "mustCover": [
+            "Say yes: if its block is dropped by a reorganisation, a transaction with 1 confirmation becomes unconfirmed again, and a conflicting spend could then confirm instead.",
+            "Say that each additional confirmation makes this less likely, which is why larger payments wait for several."
+          ],
+          "mustNotClaim": [
+            "That 1 confirmation is final.",
+            "That a reorg always destroys the transaction for good."
+          ],
+          "critical": true
+        }
+      ]
+    },
+    {
+      "id": "fr-dedicated-miner-selection",
+      "language": "fr",
+      "purpose": "Why miners select by fee rate, and what happens to a low fee rate.",
+      "turns": [
+        {
+          "question": "Comment un mineur choisit-il les transactions qu'il met dans son bloc ?",
+          "mustCover": [
+            "Expliquer que la place dans un bloc est limitée et que les mineurs cherchent en général à maximiser les frais, donc trient par taux de frais (sat/vB) plutôt que par montant envoyé.",
+            "Mentionner que des transactions liées (parent et enfant) peuvent être évaluées ensemble, ou que le choix reste une politique du mineur et non une règle de consensus."
+          ],
+          "mustNotClaim": [
+            "Que les mineurs choisissent selon le montant envoyé ou obligatoirement dans l'ordre d'arrivée.",
+            "Qu'une règle de consensus impose un ordre de sélection."
+          ],
+          "critical": true
+        },
+        {
+          "question": "Si je paie 2 sat/vB alors que tout le monde paie 20, qu'est-ce qui arrive à ma transaction ?",
+          "mustCover": [
+            "Dire qu'elle risque d'attendre longtemps dans les mempools tant que des transactions mieux payées occupent les blocs, et qu'elle peut être confirmée quand la demande baisse.",
+            "Dire qu'elle peut sortir des mempools des nœuds si elle attend trop ou si le minimum exigé monte, et qu'on peut l'accélérer par RBF ou CPFP selon le portefeuille."
+          ],
+          "mustNotClaim": [
+            "Qu'elle est rejetée immédiatement par le réseau ou que les fonds sont perdus.",
+            "Qu'elle sera forcément confirmée dans le prochain bloc."
+          ],
+          "critical": true
+        }
+      ]
+    },
+    {
+      "id": "en-dedicated-ark-fees",
+      "language": "en",
+      "purpose": "Ark operator fees without invented figures.",
+      "turns": [
+        {
+          "question": "Does an Ark server charge me anything to move my funds?",
+          "mustCover": [
+            "Say that an Ark operator can charge fees, for example to enter Ark, to refresh or renew VTXOs, to transfer or to exit, besides on-chain mining fees, and that the amounts depend on the operator and the implementation and are shown by the wallet.",
+            "Say plainly that the available sources do not give a fixed fee amount."
+          ],
+          "mustNotClaim": [
+            "That Ark is free, or a precise fee figure presented as general.",
+            "That Alice App sets or charges Ark fees."
+          ],
+          "critical": true
+        },
+        {
+          "question": "Why would the operator need to charge for that at all?",
+          "mustCover": [
+            "Explain that the operator provides liquidity for the rounds, keeping bitcoin committed until VTXOs expire, and pays or shares on-chain fees for round transactions; fees compensate those costs.",
+            "Keep the answer about the cost of the service rather than repeating the trust and exit model."
+          ],
+          "mustNotClaim": [
+            "That the operator can spend users' VTXOs alone to cover its costs.",
+            "An invented exact fee schedule."
+          ],
+          "critical": true
+        }
+      ]
+    },
+    {
+      "id": "fr-dedicated-coinjoin-history",
+      "language": "fr",
+      "purpose": "Origin and implementations of CoinJoin without invented authors.",
+      "turns": [
+        {
+          "question": "Qui a eu l'idée du CoinJoin, et à quelle époque ?",
+          "mustCover": [
+            "Attribuer la proposition à Gregory Maxwell, en 2013, sur le forum Bitcointalk, ou dire clairement que les sources ne le précisent pas.",
+            "Rappeler brièvement le principe : plusieurs personnes réunissent leurs entrées dans une seule transaction pour brouiller les liens."
+          ],
+          "mustNotClaim": [
+            "Une autre attribution inventée, par exemple à Satoshi Nakamoto.",
+            "Que CoinJoin est un protocole intégré par défaut au consensus de Bitcoin."
+          ],
+          "critical": true
+        },
+        {
+          "question": "Quels logiciels ont ensuite proposé des CoinJoin ?",
+          "mustCover": [
+            "Citer des implémentations réelles, comme JoinMarket, Wasabi Wallet ou Samourai Whirlpool, ou dire que les sources ne les listent pas.",
+            "Si l'actualité est évoquée, rester exact : plusieurs coordinateurs ont cessé leur activité en 2024, ce qui ne supprime pas la technique."
+          ],
+          "mustNotClaim": [
+            "Un logiciel ou un auteur inventé.",
+            "Qu'Alice App propose des CoinJoin."
+          ],
+          "critical": true
+        }
+      ]
+    },
+    {
+      "id": "en-dedicated-ledger-recover",
+      "language": "en",
+      "purpose": "What a third-party seed backup service sends and whom it requires trusting.",
+      "turns": [
+        {
+          "question": "If I subscribe to Ledger Recover, does my recovery phrase ever leave the device?",
+          "mustCover": [
+            "Say yes: with this optional paid service, the device encrypts the secret and splits it into 3 fragments sent to 3 companies (Ledger, Coincover and EscrowTech); recovering requires identity verification.",
+            "Distinguish this from keeping the phrase only on paper or metal, which sends nothing anywhere."
+          ],
+          "mustNotClaim": [
+            "That nothing ever leaves the device with this service.",
+            "That the phrase is sent in plaintext to a single cloud."
+          ],
+          "critical": true
+        },
+        {
+          "question": "Who would I have to trust with that service?",
+          "mustCover": [
+            "Name the trust involved: the companies holding the fragments not colluding or being compelled, the identity verification process, and the device firmware that performs the split.",
+            "Present it as a trade-off chosen by the user, not as trustless."
+          ],
+          "mustNotClaim": [
+            "That the service requires no trust.",
+            "That Alice App can recover or store a recovery phrase."
+          ],
+          "critical": true
+        }
+      ]
+    },
+    {
+      "id": "fr-dedicated-dust-consolidation",
+      "language": "fr",
+      "purpose": "Consolidating small outputs at low fee rates and its privacy cost.",
+      "turns": [
+        {
+          "question": "J'ai plein de petites sorties de quelques centaines de sats. C'est le bon moment pour les regrouper quand le mempool est presque vide ?",
+          "mustCover": [
+            "Dire qu'un taux de frais bas rend chaque entrée moins chère à dépenser, ce qui peut justifier une consolidation, sans garantie.",
+            "Dire que chaque entrée reste payée : si une entrée coûte plus que sa valeur même à ce taux, la regrouper ne supprime pas la perte."
+          ],
+          "mustNotClaim": [
+            "Que la consolidation est gratuite ou supprime les frais des entrées.",
+            "Qu'un mempool vide garantit un taux donné ou une confirmation immédiate."
+          ],
+          "critical": true
+        },
+        {
+          "question": "Et est-ce que ça a un coût pour ma vie privée ?",
+          "mustCover": [
+            "Dire que dépenser plusieurs sorties ensemble les relie publiquement à un même propriétaire probable (heuristique de propriété commune des entrées).",
+            "Suggérer de ne pas mélanger des sorties de provenances qu'on veut garder séparées, sans promettre l'anonymat."
+          ],
+          "mustNotClaim": [
+            "Que la consolidation améliore la confidentialité.",
+            "Qu'elle n'a aucun effet sur la vie privée."
+          ],
+          "critical": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,3 +1,13 @@
+import { utxoArithmeticEvidence } from './utxo-arithmetic.ts';
+import { coinbaseArithmeticAntecedent, coinbaseArithmeticEvidence } from './coinbase-arithmetic.ts';
+import { withSelectedFeePreference, selectedMemoryExplanation } from './selected-memory-answer.ts';
+import { feeCalculation, hasFeeCalculationParameters } from './fee-calculation.ts';
+import { groundedExplanation } from './grounded-explanations.ts';
+import { pendingLightningPayment } from './pending-lightning-payment.ts';
+import { groundedRecoveryConfirmations } from './grounded-recovery-confirmations.ts';
+import { groundedRbfRecipient } from './grounded-rbf-recipient.ts';
+import { isUnconfirmedReceiptReplacementQuestion } from './retrieval-topic-cues.ts';
+import { groundedLightningLiquidity, onchainLightningInvoiceExplanation } from './grounded-lightning-liquidity.ts';
 import type { AIBackendType } from './ai-backend.ts';
 import { answerRuleNoteIdsIn, answerRuleNoteIdsOnSubject, answerRulesBlock } from './answer-rules.ts';
 import { aliceMemoryRefusalMessage, type AliceMemory, type AliceMemoryCandidate, type AliceMemoryWrite } from './alice-memory-core.ts';
@@ -6,9 +16,10 @@ import type { LanguageDecisionSource, SupportedLanguage } from './language-polic
 import type { Message } from './llm.ts';
 import { inferPedagogicalConcepts, type PedagogicalProfile } from './pedagogical-profile-core.ts';
 import { rewriteRetrievalQuery } from './rag-query-rewrite.ts';
-import type { RagTurnContext, RagTimingMs } from './rag.ts';
+import type { RagTurnContext, RagTimingMs, SemanticSearchUse } from './rag.ts';
 import {
   directPersonalAcknowledgement,
+  directDisabledPersonalContextResponse,
   directRequestedNoteResponse,
   directWalletActionResponse,
   directWalletStateResponse,
@@ -17,6 +28,7 @@ import {
   type AliceTurnPlan,
 } from './turn-planner.ts';
 import { liveNetworkValueResponse } from './live-network-request.ts';
+import { directWalletTroubleshootingResponse } from './wallet-troubleshooting.ts';
 
 import type { LearnSource } from './learn-context';
 
@@ -39,6 +51,8 @@ export type TurnPreparationDiagnostics = {
       the reply shows a way to open it. */
   learnSources?: LearnSource[];
   ragTimingMs?: RagTimingMs;
+  /** Whether the semantic model ranked this turn's retrieval (rag.ts). */
+  semanticSearch?: SemanticSearchUse;
   language?: TurnLanguageDiagnostics;
   phaseMs: {
     plan: number;
@@ -54,10 +68,45 @@ export type TurnPreparationDiagnostics = {
 export type PreparedAliceTurn = {
   history: Message[];
   plan: AliceTurnPlan;
+  /** Shown as the answer, without a generation: a refusal, a capability
+      limit, an acknowledgement or, on a local or custom model, the checked
+      text of a LOCAL_FIXED_TEXT subject. */
   directResponse: string | null;
+  /** Checked facts on the subject of the question, given to the model with
+      the retrieved notes. The model still writes the answer. */
+  verifiedReference?: { id: VerifiedReferenceId; text: string } | null;
   diagnostics: TurnPreparationDiagnostics;
   explicitMemoryCandidates: AliceMemoryCandidate[];
 };
+
+export type VerifiedReferenceId =
+  | 'pending-lightning-payment' | 'fee-calculation' | 'recovery-confirmations'
+  | 'rbf-recipient' | 'unconfirmed-receipt' | 'lightning-liquidity' | 'onchain-lightning-invoice'
+  | 'selected-memory' | 'grounded-explanation';
+
+/**
+ * The checked text rides with the context under its own header. The model is
+ * asked to answer the question that was put, because the text was written
+ * for a subject, and a neighbouring question on that subject is not answered
+ * by reciting it.
+ */
+export function verifiedReferenceBlock(text: string): string {
+  return `[Verified reference on this subject]\n${text}\n\nThe reference above was checked against primary sources. Answer the user's actual question in your own words and in the answer language. Use the facts that bear on the question, leave out the rest, add nothing that contradicts them, and do not mention that a reference was provided.`;
+}
+
+/**
+ * Subjects on which the on-device model contradicted the reference it was
+ * given (measured on 2026-11-12, Qwen3.5 4B: a pending Lightning payment was
+ * said to have "probably already arrived"). On a local or custom model the
+ * checked text is displayed instead of generating; Private Cloud keeps the
+ * reference and writes its own answer. The recipient of an unconfirmed
+ * payment is here as well: with the reference the model answered "yes" in
+ * both languages, but in French it added that a replacement leaves amounts
+ * and addresses unchanged, and a merchant acts on that answer. Remove an
+ * entry once a measurement on unseen questions shows the model holds the
+ * subject.
+ */
+const LOCAL_FIXED_TEXT: ReadonlySet<VerifiedReferenceId> = new Set(['pending-lightning-payment', 'unconfirmed-receipt']);
 
 export type TurnPreparationServices = {
   recordPedagogicalSignal(message: string): Promise<PedagogicalProfile>;
@@ -108,15 +157,17 @@ export async function prepareAliceTurn(input: {
   // discussion). A matched wallet request + educational message is also fully
   // short-circuited: the bounded response wins and the educational part goes
   // unanswered, a known limitation of this guard.
-  if (plan.walletStateReason || plan.walletActionReason || plan.liveNetworkReason) {
+  if (plan.walletStateReason || plan.walletActionReason || plan.walletTroubleshootingReason || plan.liveNetworkReason) {
     return {
       history: input.history,
       plan,
       directResponse: plan.walletActionReason
-        ? directWalletActionResponse(input.targetLanguage)
+        ? directWalletActionResponse(input.targetLanguage, plan.walletActionReason === 'share-secret')
         : plan.walletStateReason
-          ? directWalletStateResponse(input.targetLanguage)
-          : liveNetworkValueResponse(plan.liveNetworkReason!, input.targetLanguage),
+          ? directWalletStateResponse(input.targetLanguage, plan.walletStateReason)
+          : plan.walletTroubleshootingReason
+            ? directWalletTroubleshootingResponse(plan.walletTroubleshootingReason, input.targetLanguage)
+            : liveNetworkValueResponse(plan.liveNetworkReason!, input.targetLanguage),
       explicitMemoryCandidates: [],
       diagnostics: {
         kind: plan.kind,
@@ -219,6 +270,46 @@ export async function prepareAliceTurn(input: {
   const answerRuleNoteIds = answerRuleNoteIdsOnSubject(answerRuleNoteIdsIn(retrieval.value.ragContext ?? ''), recentUserTurns);
   const conceptSource = inferPedagogicalConcepts(input.userMessage).length > 0 ? input.userMessage : recentUserTurns;
 
+  const selectedMemoryContext = services.memoryContext(memory.value, input.userMessage);
+  const previousUserTurns = input.history.filter(message => message.role === 'user');
+  if (previousUserTurns.at(-1)?.content === input.userMessage) previousUserTurns.pop();
+  const disabledMemoryResponse = !memory.value.enabled && plan.asksAboutUserMemory && previousUserTurns.length === 0
+    ? directDisabledPersonalContextResponse(input.userMessage, input.targetLanguage)
+    : null;
+  // Checked facts on the subject of the question go to the model as a
+  // reference: displayed as the answer, a text written for one question would
+  // also be served to its neighbours. The LOCAL_FIXED_TEXT subjects are the
+  // exception, on a local or custom model.
+  const ragText = retrieval.value.ragContext ?? '';
+  const referenceSources: Array<[VerifiedReferenceId, () => string | null]> = plan.kind === 'question' && !plan.asksAboutUserMemory && !disabledMemoryResponse
+    ? [
+      ['pending-lightning-payment', () => pendingLightningPayment(input.userMessage, input.targetLanguage, ragText, input.history)],
+      ['fee-calculation', () => feeCalculation(input.userMessage, input.targetLanguage, input.history)],
+      ...(hasFeeCalculationParameters(input.userMessage) ? [] : [
+        ['recovery-confirmations', () => groundedRecoveryConfirmations(input.userMessage, input.targetLanguage, ragText, input.history)],
+        [isUnconfirmedReceiptReplacementQuestion(input.userMessage) ? 'unconfirmed-receipt' : 'rbf-recipient', () => groundedRbfRecipient(input.userMessage, input.targetLanguage, ragText, input.history)],
+        ['lightning-liquidity', () => groundedLightningLiquidity(input.userMessage, input.targetLanguage, ragText, input.history)],
+        ['onchain-lightning-invoice', () => onchainLightningInvoiceExplanation(input.userMessage, input.targetLanguage, ragText)],
+        ['selected-memory', () => selectedMemoryExplanation(input.userMessage, input.targetLanguage, selectedMemoryContext, memory.value.enabled, ragText)],
+        ['grounded-explanation', () => groundedExplanation(input.userMessage, input.targetLanguage, ragText, input.history)],
+      ] as Array<[VerifiedReferenceId, () => string | null]>),
+    ]
+    : [];
+  let verifiedReference: { id: VerifiedReferenceId; text: string } | null = null;
+  for (const [id, read] of referenceSources) {
+    const text = read();
+    if (!text) continue;
+    verifiedReference = {
+      id,
+      text: withSelectedFeePreference(text, input.userMessage, input.targetLanguage, selectedMemoryContext, memory.value.enabled) ?? text,
+    };
+    break;
+  }
+  const onDevice = input.backendType === 'local' || input.backendType === 'custom';
+  const fixedOnDevice = onDevice && verifiedReference !== null && LOCAL_FIXED_TEXT.has(verifiedReference.id);
+  const arithmeticEvidence = onDevice
+    ? [coinbaseArithmeticEvidence(input.userMessage, input.targetLanguage, answerRuleNoteIds, coinbaseArithmeticAntecedent(previousUserTurns.map(turn => turn.content))), utxoArithmeticEvidence(input.userMessage, input.targetLanguage, answerRuleNoteIds, previousUserTurns.at(-1)?.content ?? '')].filter(Boolean).join('\n\n')
+    : '';
   const history = composeGenerationHistory(
     input.history,
     retrieval.value,
@@ -233,18 +324,23 @@ export async function prepareAliceTurn(input: {
     // transit the same end-to-end encrypted enclave, so showing them back
     // adds no exposure a cloud conversation had not already accepted; they
     // remain on-device, inspectable and erasable in "What Alice knows".
-    services.memoryContext(memory.value, input.userMessage),
+    selectedMemoryContext,
     memory.value.enabled ? services.memoryCaptureInstruction : '',
     turnResponseDirective(plan, input.targetLanguage),
-    answerRulesBlock(answerRuleNoteIds, input.targetLanguage),
+    [
+      answerRulesBlock(answerRuleNoteIds, input.targetLanguage, undefined, input.userMessage),
+      arithmeticEvidence,
+      verifiedReference && !fixedOnDevice ? verifiedReferenceBlock(verifiedReference.text) : '',
+    ].filter(Boolean).join('\n\n'),
   );
 
   return {
     history,
     plan,
-    directResponse: plan.kind === 'personal-statement'
-      ? directPersonalAcknowledgement(input.targetLanguage)
-      : null,
+    directResponse: disabledMemoryResponse
+      ?? (plan.kind === 'personal-statement' ? directPersonalAcknowledgement(input.targetLanguage) : null)
+      ?? (fixedOnDevice ? verifiedReference!.text : null),
+    verifiedReference,
     explicitMemoryCandidates: plan.explicitMemoryCandidates,
     diagnostics: {
       kind: plan.kind,
@@ -254,6 +350,7 @@ export async function prepareAliceTurn(input: {
       answerRuleNoteIds,
       ...(retrieval.value.learnSources && retrieval.value.learnSources.length > 0 ? { learnSources: retrieval.value.learnSources } : {}),
       ...(retrieval.value.timingMs ? { ragTimingMs: retrieval.value.timingMs } : {}),
+      ...(retrieval.value.semanticSearch ? { semanticSearch: retrieval.value.semanticSearch } : {}),
       ...language,
       phaseMs: {
         plan: planMs,

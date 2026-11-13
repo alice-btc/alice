@@ -9,9 +9,9 @@ topics: ["Ark et autres couches"]
 aliases: ["Ark Security Model"]
 parent_ids: []
 related_ids: ["ark-implementations-bark-arkade", "ark-boarding-offboarding-and-exits"]
-reviewed_at: "2026-10-11"
+reviewed_at: "2026-11-05"
 review_due: null
-sources: ["https://second.tech/docs/learn/lifetime", "https://second.tech/docs/learn/exit"]
+sources: ["https://second.tech/docs/learn/vtxo", "https://second.tech/docs/learn/lifetime", "https://second.tech/docs/learn/exit"]
 human_reviewed_in_full: false
 review_method: "adapted_from_corrected_sources"
 exhaustive_external_fact_check: false
@@ -25,6 +25,8 @@ exhaustive_external_fact_check: false
 ## Réponse courte
 
 Ark combine une voie normale coopérative avec des mécanismes de sortie vers Bitcoin. La possibilité de sortir seul dépend du VTXO, de son échéance, des données disponibles et de l’implémentation.
+
+La dépense normale d’un VTXO demande la signature de son détenteur. L’opérateur ne peut pas le dépenser seul ; il coordonne les paiements, voit l’activité qu’il traite et peut cesser de coopérer. Cette règle ne supprime ni le risque d’expiration ni celui de collusion arkoor décrit ci-dessous.
 
 ## Explication
 
@@ -47,3 +49,5 @@ Les mécanismes de Second/Bark et d’Arkade ne sont pas identiques. Les disposi
 
 - [Second, durée de vie des VTXO](https://second.tech/docs/learn/lifetime).
 - [Second, sorties d’urgence et conditions de confirmation](https://second.tech/docs/learn/exit).
+
+- [Second, VTXO spend paths and trust assumptions](https://second.tech/docs/learn/vtxo).

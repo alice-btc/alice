@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { ChainReader } from './arkade-onchain.ts';
 import type { NormalizedOutspend, NormalizedTransaction } from './types.ts';
-import { largestOutputs, walkWalletForward, type Outpoint, type WalletWalk } from './wallet-walk.ts';
+import { StoredNegatives, largestOutputs, walkWalletForward, type Outpoint, type WalletWalk } from './wallet-walk.ts';
 
 // Distinct 64-hex txids for the fake chain, one letter each.
 const id = (c: string) => c.repeat(64);
@@ -139,5 +139,54 @@ describe('walkWalletForward', () => {
     ]);
     assert.deepEqual(walk.probed, [Y]);
     assert.deepEqual(res.frontier, [{ txid: Y, vout: 0, valueSats: 2_900_000, drift: 1 }]);
+  });
+});
+
+describe('StoredNegatives', () => {
+  function store(ready = true) {
+    const data = new Map<string, string>();
+    return {
+      data,
+      isReady: ready,
+      getItem: (k: string) => data.get(k) ?? null,
+      setItem: (k: string, v: string) => { data.set(k, v); },
+      removeItem: (k: string) => { data.delete(k); },
+    };
+  }
+  const wait = () => new Promise(r => setTimeout(r, 1100));
+
+  it('keeps the "no" answers for the next visit', async () => {
+    const s = store();
+    const a = new StoredNegatives('neg', () => s);
+    a.add(id('a'));
+    a.add(id('b'));
+    await wait();
+    const b = new StoredNegatives('neg', () => s);
+    assert.equal(b.has(id('a')), true);
+    assert.equal(b.has(id('c')), false);
+  });
+
+  it('forgets the oldest beyond its bound', async () => {
+    const s = store();
+    const n = new StoredNegatives('neg', () => s, 2);
+    for (const c of ['a', 'b', 'c']) n.add(id(c));
+    await wait();
+    const again = new StoredNegatives('neg', () => s, 2);
+    assert.deepEqual([id('a'), id('b'), id('c')].map(t => again.has(t)), [false, true, true]);
+  });
+
+  it('never writes while the storage is not ready, and merges once it is', async () => {
+    const s = store(false);
+    s.data.set('neg', JSON.stringify([id('a')]));
+    const n = new StoredNegatives('neg', () => s);
+    n.add(id('b'));
+    assert.equal(n.has(id('b')), true);
+    await wait();
+    assert.deepEqual(JSON.parse(s.data.get('neg')!), [id('a')]);
+    s.isReady = true;
+    assert.equal(n.has(id('a')), true);
+    n.add(id('c'));
+    await wait();
+    assert.deepEqual(JSON.parse(s.data.get('neg')!).sort(), [id('a'), id('b'), id('c')]);
   });
 });

@@ -155,3 +155,21 @@ Not checked yet: a reply from Private Cloud (needs the Worker deployed with
 the new origin), a real phone, the keyboard over the composer on small
 screens, rotation, the semantic model download over mobile data, a signed
 bundle on the Play Console tracks.
+
+
+## Account links — 0.2.9 distribution variants
+
+The account screen keeps signup and login in the app. Google Play builds show
+only the informational Private Cloud text, without a purchase link. This is the
+default when `ALICE_DISTRIBUTION` is absent or has any unrecognised value.
+
+Only a separately distributed APK may enable the website button. Set
+`ALICE_DISTRIBUTION=android-direct` on the build command for that artefact. The
+Rust build script tracks this variable so changing the distribution recompiles
+the native context. Never upload that direct-distribution artefact to Play.
+Keep the output names and directories distinct, and verify the command
+`account_purchase_context` on the installed build before distribution.
+
+The existing opener plugin opens the website in the system browser. The site
+uses the same Alice account, but login credentials are never put in the URL.
+Returning to the app refreshes the account and billing from the server.

@@ -9,11 +9,11 @@ topics: ["wallets"]
 aliases: ["BIP39 Passphrase"]
 parent_ids: []
 related_ids: ["bitcoin-seed", "wallet-backup", "bitcoin-inheritance-plan", "secondary-bitcoin-pbkdf2"]
-reviewed_at: "2026-11-02"
+reviewed_at: "2026-11-06"
 review_due: null
-sources: ["PlanB cyp201 — Bitcoin Wallet Architecture", "PlanB Extraction — 2026-05-23"]
+sources: ["PlanB cyp201 — Bitcoin Wallet Architecture", "PlanB Extraction — 2026-05-23", "https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki"]
 human_reviewed_in_full: false
-review_method: "adapted_from_corrected_sources"
+review_method: "targeted_source_review_and_corrections"
 exhaustive_external_fact_check: false
 ---
 # La passphrase optionnelle
@@ -29,7 +29,13 @@ La passphrase BIP39 est un secret optionnel qui modifie la seed dérivée des mo
 
 ## Explication
 
-Avec la même phrase de récupération, une passphrase différente produit un autre portefeuille. La combinaison exacte doit donc rester récupérable. Une erreur de saisie peut conduire à des adresses différentes plutôt qu’à un message signalant un mauvais mot de passe.
+BIP39 combine les mots de récupération et la passphrase exacte pour dériver une seed, dont dérivent les clés privées. Toute passphrase, y compris la chaîne vide, produit une seed valide. BIP39 ne signale pas si elle correspond au portefeuille initialement voulu. Avec les mêmes mots, changer la passphrase change normalement les clés et les adresses ; ce fait ne suffit pas à expliquer un affichage vide.
+
+Un PIN d’appareil ou mot de passe local d’application contrôle l’accès à l’appareil ou à l’application. La passphrase BIP39 participe, elle, à la dérivation des clés. Réinitialiser un mot de passe local ne reconstitue pas une passphrase oubliée ; les mots seuls ne recréent pas le même portefeuille protégé par passphrase.
+
+Un solde nul ou un affichage vide ne prouve pas, à lui seul, qu’un portefeuille différent a été dérivé, que la passphrase est correcte ou que les fonds ont disparu. Une passphrase différente est possible, mais un autre chemin de dérivation, compte ou réseau, ou une synchronisation incomplète, peut aussi expliquer cet affichage. Comparer localement des repères publics connus, comme une adresse déjà utilisée, avec les paramètres de restauration appropriés. Ne communiquer ni mots ni passphrase à un assistant, site ou support.
+
+BIP39 ne fournit pas de mécanisme de réinitialisation et la récupération n’est pas garantie. Sa faisabilité dépend des éléments encore connus et de la robustesse de la passphrase. Vérifier un ensemble limité de candidats connus peut parfois fonctionner ; reconstituer un secret robuste inconnu peut être irréalisable en pratique. Ni un succès certain ni une impossibilité mathématique universelle ne découlent du seul oubli de la passphrase.
 
 Cette séparation peut limiter les conséquences de la découverte des seuls mots. Elle introduit aussi un risque de perte supplémentaire si le détenteur ou ses proches ne disposent plus de la bonne passphrase.
 
@@ -49,3 +55,5 @@ Ajouter une passphrase n’améliore pas automatiquement la sécurité. Son int�
 
 - PlanB cyp201 — Bitcoin Wallet Architecture.
 - PlanB Extraction — 2026-05-23.
+
+- https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki

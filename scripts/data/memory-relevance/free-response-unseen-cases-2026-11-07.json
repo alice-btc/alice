@@ -1,0 +1,204 @@
+{
+  "purpose": "Unseen formulations for the free-response errors still open on 2026-11-07: CPFP package economics and limits, Lightning privacy (channel opening, route hints, invoice editing), monetary issuance versus fees, inputs/outputs/change, and the direction and failure of a Lightning payment. Six two-turn conversations, three in French and three in English, used for bounded repeated runs before and after correction.",
+  "provenance": "Written on 2026-11-07 after reading the failing answers, prompts and retrieved notes of the 2 evaluation runs of 2026-11-06, and before any code, prompt or note change. The questions deliberately avoid the wording of the earlier fixture and of the UI plan. Not independent: the author knew the failure classes. Rubrics are frozen with this file and must not be adjusted to observed answers.",
+  "frozenAt": "2026-11-06T22:35:41Z",
+  "reviewPolicy": "Judge what each answer actually explains, including material contradictions and invented Alice features; keyword presence alone does not satisfy a criterion and identical wording is not required. Each criterion is judged separately for every repetition. A response with an appended correction still counts the false sentence it contains. Do not revise these criteria after seeing outputs.",
+  "sourcesReviewed": [
+    "https://raw.githubusercontent.com/bitcoin/bitcoin/master/doc/policy/packages.md",
+    "https://bitcoinops.org/en/topics/cpfp/",
+    "https://github.com/lightning/bolts/blob/master/11-payment-encoding.md",
+    "https://github.com/lightning/bolts/blob/master/07-routing-gossip.md",
+    "https://raw.githubusercontent.com/lightning/bolts/master/04-onion-routing.md",
+    "https://developer.bitcoin.org/devguide/block_chain.html",
+    "https://developer.bitcoin.org/devguide/transactions.html",
+    "https://en.bitcoin.it/wiki/Privacy#Change_address_detection"
+  ],
+  "conversations": [
+    {
+      "id": "fr-unseen-cpfp-merchant-package",
+      "language": "fr",
+      "purpose": "CPFP from the merchant side: package economics, value limit, no key of the payer, no Alice action.",
+      "turns": [
+        {
+          "question": "Un client m'a réglé en bitcoin, mais sa transaction reste en attente parce qu'il a mis des frais trop bas. Je n'ai aucun accès à ses fonds. En quoi le fait de dépenser ce que j'ai reçu peut-il faire avancer son paiement, et comment les mineurs calculent-ils l'intérêt de l'opération ?",
+          "mustCover": [
+            "Explain that the merchant can create a child transaction spending the unconfirmed output they received, signed with their own keys, without needing the payer's keys, and that this does not replace or modify the payer's transaction.",
+            "Explain the package economics: miners consider parent and child together, so the child's fee must raise the combined fee rate, total fees of both divided by their combined size, which means the child pays for the parent's size as well as its own."
+          ],
+          "mustNotClaim": [
+            "That the merchant can re-sign, edit or replace the payer's inputs or transaction.",
+            "That CPFP requires the parent to have signaled RBF, or guarantees confirmation or a precise delay."
+          ],
+          "critical": true
+        },
+        {
+          "question": "Le montant que j'ai reçu est très petit, à peine quelques milliers de sats, alors que le parent est gros. Est-ce que ça marche quand même à coup sûr ? Et est-ce que l'appli Alice peut regarder mes clés et préparer cette transaction pour moi ?",
+          "mustCover": [
+            "Explain that the fee the child can pay is limited by the value of the output it spends, and that a small output may not lift the package to a useful fee rate; success also depends on wallet support and relay/mining policies, so it is not guaranteed.",
+            "State that Alice App cannot read or check the user's keys, nor build, sign or broadcast a real CPFP transaction; this is done in the user's own wallet, without sharing a recovery phrase or private keys."
+          ],
+          "mustNotClaim": [
+            "That CPFP always works whatever the value of the received output.",
+            "That Alice App can inspect keys, verify what they can sign, or construct, sign or send the child transaction."
+          ],
+          "critical": true
+        }
+      ]
+    },
+    {
+      "id": "fr-unseen-coinbase-fees-issuance",
+      "language": "fr",
+      "purpose": "Separate new issuance (subsidy) from fees (existing bitcoins) and explain who enforces the coinbase limit.",
+      "turns": [
+        {
+          "question": "Quand un mineur valide un bloc, il touche une récompense. Est-ce que les frais de transaction qu'il récupère sont, eux aussi, des bitcoins qui viennent d'être créés ?",
+          "mustCover": [
+            "Explain that only the block subsidy is newly issued bitcoin, while transaction fees are existing bitcoins, the difference between inputs and outputs of the included transactions, transferred to the miner.",
+            "Explain that the miner's coinbase may claim at most the subsidy for that height plus the fees of the included transactions."
+          ],
+          "mustNotClaim": [
+            "That transaction fees are newly created bitcoins or count toward new issuance.",
+            "That the miner can freely choose the reward amount."
+          ],
+          "critical": true
+        },
+        {
+          "question": "Et si un mineur s'attribue un peu plus que ce total dans sa transaction de récompense, qu'est-ce qui l'en empêche concrètement, vu qu'il a fourni tout le travail ?",
+          "mustCover": [
+            "Explain that every full node independently checks the coinbase against subsidy plus fees and rejects the whole block as invalid if it claims too much.",
+            "Explain that valid proof of work does not make an invalid block acceptable; the miner loses the block reward because the block is rejected."
+          ],
+          "mustNotClaim": [
+            "That enough proof of work, a majority of miners or a vote authorizes extra issuance for nodes enforcing the rules.",
+            "That the excess is only detected later or corrected by a central authority."
+          ],
+          "critical": true
+        }
+      ]
+    },
+    {
+      "id": "fr-unseen-inputs-outputs-change",
+      "language": "fr",
+      "purpose": "Inputs consumed in full, payment/change/fee allocation, and the limits of change detection.",
+      "turns": [
+        {
+          "question": "Avec une image simple, explique-moi ce qui se passe côté entrées et sorties si je paie 30 000 sats en utilisant une seule pièce de 100 000 sats que je possède.",
+          "mustCover": [
+            "Explain that the 100,000-sat input is spent in full, not partially, and that outputs pay 30,000 sats to the recipient and return the change to the payer.",
+            "Explain that the fee is the difference between the inputs' total and the outputs' total; it is not a separate output, so the change is 100,000 minus 30,000 minus the fee."
+          ],
+          "mustNotClaim": [
+            "That only 30,000 sats are taken from the 100,000-sat coin while the rest stays in place.",
+            "That the outputs equal the inputs plus the fee, or that the fee is an output paid to the recipient."
+          ],
+          "critical": true
+        },
+        {
+          "question": "Quelqu'un qui observe ma transaction sur un explorateur peut-il savoir avec certitude laquelle des deux sorties est ma monnaie rendue, par exemple en examinant les signatures ?",
+          "mustCover": [
+            "Explain that an observer cannot know with certainty which output is change; they can only guess with heuristics such as round amounts, script type or address reuse.",
+            "Explain that input signatures prove authorization to spend the inputs and do not identify which output is change or who owns each output."
+          ],
+          "mustNotClaim": [
+            "That verifying signatures reveals the change output or the owner of an output.",
+            "That output order reliably identifies the change."
+          ],
+          "critical": true
+        }
+      ]
+    },
+    {
+      "id": "en-unseen-channel-open-identity",
+      "language": "en",
+      "purpose": "On-chain footprint of a channel versus real-world identity, then who sees what in a shop payment.",
+      "turns": [
+        {
+          "question": "If I open a Lightning channel from my own wallet, does that tell the world who I am?",
+          "mustCover": [
+            "Explain that opening (and later closing) a channel uses on-chain transactions, and that an announced public channel links its funding output to a node public key through gossip.",
+            "Distinguish this on-chain and node-level linkage from revealing a real-world identity, which would require other linking information such as an identified exchange withdrawal, address reuse or network metadata."
+          ],
+          "mustNotClaim": [
+            "That opening or closing a channel by itself reveals the user's real-world identity.",
+            "That a channel opening leaves no on-chain trace."
+          ],
+          "critical": true
+        },
+        {
+          "question": "Then when I pay an online store over Lightning, who can see what about that payment?",
+          "mustCover": [
+            "Explain that the store sees the payment it receives and can link it to the order or customer account, without automatically learning the payer's on-chain address or real-world identity.",
+            "Explain that forwarding nodes normally see only their adjacent hops and local amounts and timing because of onion routing, while direct or short routes and observations at several points can allow inference."
+          ],
+          "mustNotClaim": [
+            "That every routing node sees the sender, the recipient and the complete route.",
+            "That Lightning payments are guaranteed anonymous."
+          ],
+          "critical": true
+        }
+      ]
+    },
+    {
+      "id": "en-unseen-invoice-route-hints-editing",
+      "language": "en",
+      "purpose": "What route hints are, and whether an invoice can be partially hidden and still paid.",
+      "turns": [
+        {
+          "question": "When I decode a Lightning invoice my wallet lists some route hints. Do those show the exact path my payment is going to travel?",
+          "mustCover": [
+            "Explain that route hints are optional invoice fields that help a payer reach the recipient, often through channels that are not publicly announced; they describe the last hop or hops toward the recipient, not the full path.",
+            "Explain that the payer's wallet still computes the actual route, and that route hints can expose information about the recipient's channels or peers."
+          ],
+          "mustNotClaim": [
+            "That route hints reveal the complete path the payment will take or the payer's node.",
+            "That every invoice must contain route hints."
+          ],
+          "critical": true
+        },
+        {
+          "question": "Could I blank out part of that invoice before posting it on a support forum, and still pay it later?",
+          "mustCover": [
+            "Explain that a BOLT11 invoice cannot be partially altered and still be paid: its checksum and signature cover the encoded data, so a modified invoice is invalid; paying requires the complete, unmodified invoice.",
+            "Suggest a bounded alternative, such as sharing only decoded fields one is comfortable revealing or describing the problem, while noting that anyone with the full invoice can read its amount and payee node key."
+          ],
+          "mustNotClaim": [
+            "That a partially hidden or edited invoice remains payable.",
+            "That posting an invoice exposes the wallet's private keys or seed."
+          ],
+          "critical": true
+        }
+      ]
+    },
+    {
+      "id": "en-unseen-lightning-flow-failure",
+      "language": "en",
+      "purpose": "Invoice direction in a Lightning payment and the absence of automatic on-chain fallback.",
+      "turns": [
+        {
+          "question": "I'm new to this. In a Lightning payment, who makes the invoice, and what happens if my wallet can't find a route?",
+          "mustCover": [
+            "Explain that the recipient creates the invoice and gives it to the payer, whose wallet decodes it and searches for a route with enough liquidity.",
+            "Explain that if no route works, the wallet may retry or report a failure; the payment does not complete, and success, speed and low fees are not guaranteed."
+          ],
+          "mustNotClaim": [
+            "That the payer creates the invoice and sends it to the recipient.",
+            "That a routing failure automatically turns into an on-chain payment or loses the funds."
+          ],
+          "critical": true
+        },
+        {
+          "question": "So in that case would my wallet just send the money on-chain instead, automatically?",
+          "mustCover": [
+            "State that a failed Lightning payment is not automatically converted into an on-chain payment.",
+            "Explain that paying on-chain would be a separate payment the user chooses, to an on-chain address the recipient provides, with its own fees and confirmation time."
+          ],
+          "mustNotClaim": [
+            "That the wallet or the network automatically settles the failed payment on-chain.",
+            "That the Lightning invoice itself can be paid by an ordinary on-chain transaction to its payment hash or node key."
+          ],
+          "critical": true
+        }
+      ]
+    }
+  ]
+}

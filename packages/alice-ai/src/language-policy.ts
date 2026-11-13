@@ -26,6 +26,7 @@ const FRENCH_WORDS = new Set([
   'nous', 'ou', 'par', 'pas', 'peux', 'pour', 'pourquoi', 'que', 'quel', 'quelle', 'qui',
   'repondre', 'reponse', 'reponses', 'compris', 'concis', 'concise', 'vais', 'aider', 'accord',
   'sans', 'sur', 'tu', 'une', 'vous', 'quoi', 'bitcoin',
+  'explique', 'expliquez', 'expliquer', 'fonctionne', 'fonctionnent', 'fonctionnement',
 ]);
 
 const ENGLISH_WORDS = new Set([
@@ -81,6 +82,12 @@ export function detectTextLanguage(text: string): Detection {
   for (const word of words) {
     if (FRENCH_WORDS.has(word)) french += 1;
     if (ENGLISH_WORDS.has(word)) english += 1;
+  }
+  // An imperative carries language even beside a shared technical name.
+  // Use the already stripped words so quoted/code examples cannot decide it.
+  if (words.length >= 2) {
+    if (/^(?:explique|expliquez)$/.test(words[0])) french += 1;
+    if (words[0] === 'explain') english += 1;
   }
   if (/[àâçéèêëîïôùûüÿœ]/i.test(text)) french += 2;
 

@@ -2,7 +2,7 @@ import type { AliceLiveNetworkReason } from './turn-planner.ts';
 
 // Narrow intent routing for requests about present network values. It only
 // selects a turn-scoped capability statement; it never answers on its own and
-// never fetches anything. No fee, mempool or Lightning-route feed is wired
+// never fetches anything. No fee, mempool, Lightning-route or market feed is wired
 // into chat, so the statement is true for every turn it could match.
 const NOW = /\b(?:right now|now|currently|at the moment|at this moment|today|current|live|real[- ]time|en ce moment|maintenant|actuellement|aujourd'hui|actuel(?:le)?s?|en temps reel|en direct|a l'instant)\b/;
 const NEXT_BLOCK = /\b(?:next block|prochain bloc)\b/;
@@ -41,9 +41,26 @@ function asksForValue(sentence: string, nextBlockOnly: boolean): boolean {
   return /\?\s*$/.test(sentence) && sentence.trim().split(/\s+/).length <= 4;
 }
 
+function asksForLiveBitcoinPrice(sentence: string): boolean {
+  const text = sentence.replace(/"[^"\n]*"|«[^»\n]*»|“[^”\n]*”/g, ' ');
+  if (!NOW.test(text) || !/\b(?:bitcoin|btc)\b/.test(text)) return false;
+  // "Worth using" is a judgment and "un cours sur Bitcoin" is a lesson;
+  // neither asks for a market quote.
+  if (!/\b(?:price|quote|exchange rate|worth(?! (?:using|buying|holding|learning|trying|it|the|a|an)\b)|prix|cours(?! (?:sur|en ligne|gratuits?|pour|video)\b)|cotation|taux de change|vaut)\b/.test(text)) return false;
+  // A current-time cue does not turn historical, conceptual or supplied-rate
+  // arithmetic into a request to fetch a market quote.
+  if (/\b(?:was|were|etait|valait|historical|historique|yesterday|hier|if|assuming|suppose|imagine|hypothetically|si|supposons|imaginons)\b/.test(text)) return false;
+  if (/\b(?:why|pourquoi|what (?:affects|determines|drives|causes|influences)|comment|difference|meaning|signifie|veut dire)\b/.test(text)) return false;
+  if (/\b(?:given|using|at a|at the|avec un|au|pour un)\b[^.!?;]{0,45}\b(?:price|rate|prix|cours|taux)\b[^.!?;]{0,25}\d/.test(text)
+    || /\b(?:price|rate|prix|cours|taux)\b[^.!?;]{0,25}\d[^.!?;]*\b(?:calculate|compute|convert|calcule\w*|converti\w*)\b/.test(text)) return false;
+  return asksForValue(text, false)
+    || /^(?:please )?(?:check|look up|fetch|verifie|cherche|affiche)\b/.test(text.trim());
+}
+
 export function liveNetworkValueReason(message: string): AliceLiveNetworkReason | null {
   for (const sentence of normalized(message).split(/(?<=[.!?;])\s+/)) {
     if (DOCUMENTATION.test(sentence) || CONCEPTUAL.test(sentence)) continue;
+    if (asksForLiveBitcoinPrice(sentence)) return 'bitcoin-market-price';
     const nextBlock = NEXT_BLOCK.test(sentence);
     const now = NOW.test(sentence);
     if (!nextBlock && !now) continue;
@@ -66,6 +83,10 @@ export function liveNetworkValueReason(message: string): AliceLiveNetworkReason 
 export function liveNetworkValueResponse(reason: AliceLiveNetworkReason, language: 'en' | 'fr'): string {
   const french = language === 'fr';
   switch (reason) {
+    case 'bitcoin-market-price':
+      return french
+        ? "Cette conversation n’a pas de flux de données de marché en direct et ne peut pas vérifier un cours actuel du bitcoin. Learn et l’Explorer d’Alice ne fournissent pas de cotations de marché en direct. Consulte une source externe de données de marché ou une plateforme d’échange et vérifie l’horodatage ainsi que la paire de devises correspondant au cours recherché."
+        : "This chat has no live market-data feed and cannot verify a current bitcoin price. Alice’s Learn and Explorer do not provide live market quotes. Check an external market-data source or exchange and verify the timestamp and currency pair for the quote you need.";
     case 'onchain-fee':
       return french
         ? "Cette conversation n'a aucune donnée en direct sur le réseau Bitcoin ni sur le mempool, et ne voit pas ton portefeuille : elle ne peut pas te donner un taux de frais actuel. Les frais on-chain dépendent de la taille virtuelle de la transaction (entrées, sorties, scripts) multipliée par le taux choisi en sat/vB, pas du montant envoyé ; la demande d'espace de bloc fait varier ce taux. Ton portefeuille affiche une estimation ou un devis basé sur ses observations actuelles : vérifie-le, ainsi que le total des frais, avant de confirmer. Un taux plus élevé augmente la priorité, mais aucun niveau de frais ne garantit l'inclusion dans le prochain bloc."

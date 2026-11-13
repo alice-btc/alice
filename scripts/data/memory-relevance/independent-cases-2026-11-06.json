@@ -1,0 +1,755 @@
+{
+  "cases": [
+    {
+      "id": "c01",
+      "question": "Comment puis-je vérifier que mon nœud complet est bien synchronisé ?",
+      "items": [
+        {
+          "id": "a",
+          "category": "setup",
+          "text": "Runs a Bitcoin full node on a small home server",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "interest",
+          "text": "Curious about Lightning routing",
+          "relevant": false
+        },
+        {
+          "id": "c",
+          "category": "background",
+          "text": "Works as a web designer",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "goal",
+          "text": "Wants to learn how mining difficulty adjusts",
+          "relevant": false
+        }
+      ],
+      "reason": "Owning a full node is directly useful for sync verification advice."
+    },
+    {
+      "id": "c02",
+      "question": "Should I use a hardware wallet or a phone wallet for long-term holding?",
+      "items": [
+        {
+          "id": "a",
+          "category": "setup",
+          "text": "Currently uses a hardware signing device for cold storage",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "experience",
+          "text": "Has used a mobile wallet for small everyday tests",
+          "relevant": true
+        },
+        {
+          "id": "c",
+          "category": "project",
+          "text": "Building a personal blog about cooking",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "interest",
+          "text": "Interested in Bitcoin halving history",
+          "relevant": false
+        }
+      ],
+      "reason": "Both wallet setups inform the comparison; others unrelated."
+    },
+    {
+      "id": "c03",
+      "question": "What is a UTXO?",
+      "items": [
+        {
+          "id": "a",
+          "category": "background",
+          "text": "Software developer familiar with databases",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "setup",
+          "text": "Uses a laptop with Linux",
+          "relevant": false
+        },
+        {
+          "id": "c",
+          "category": "interest",
+          "text": "Enjoys reading about Ark protocol",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "goal",
+          "text": "Wants to set up a seed backup on steel plates",
+          "relevant": false
+        }
+      ],
+      "reason": "Database background helps tailor an analogy; others do not."
+    },
+    {
+      "id": "c04",
+      "question": "Pourquoi mes frais de transaction sont-ils si élevés quand j'envoie depuis mon portefeuille ?",
+      "items": [
+        {
+          "id": "a",
+          "category": "experience",
+          "text": "Practised UTXO consolidation in a test environment",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "setup",
+          "text": "Wants to understand how many small UTXOs affect transaction size",
+          "relevant": true
+        },
+        {
+          "id": "c",
+          "category": "interest",
+          "text": "Likes studying Bitcoin monetary policy",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "project",
+          "text": "Writing a Python script to parse blog feeds",
+          "relevant": false
+        }
+      ],
+      "reason": "UTXO count and consolidation history explain fee size."
+    },
+    {
+      "id": "c05",
+      "question": "How do I back up my wallet safely?",
+      "items": [
+        {
+          "id": "a",
+          "category": "setup",
+          "text": "Uses an offline paper backup for wallet recovery",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "interest",
+          "text": "Follows Bitcoin price charts casually",
+          "relevant": false
+        },
+        {
+          "id": "c",
+          "category": "background",
+          "text": "Studied economics at university",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "project",
+          "text": "Learning Rust",
+          "relevant": false
+        }
+      ],
+      "reason": "Current backup arrangement is directly relevant."
+    },
+    {
+      "id": "c06",
+      "question": "Comment fonctionne un canal Lightning ?",
+      "items": [
+        {
+          "id": "a",
+          "category": "background",
+          "text": "Complete beginner with Bitcoin, no technical training",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "setup",
+          "text": "Owns a hardware signing device",
+          "relevant": false
+        },
+        {
+          "id": "c",
+          "category": "project",
+          "text": "Organizing a local Bitcoin meetup",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "interest",
+          "text": "Interested in mining hardware",
+          "relevant": false
+        }
+      ],
+      "reason": "Beginner level shapes the explanation depth."
+    },
+    {
+      "id": "c07",
+      "question": "How can I improve my on-chain privacy when receiving bitcoin?",
+      "items": [
+        {
+          "id": "a",
+          "category": "experience",
+          "text": "Has reused the same receiving address several times",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "setup",
+          "text": "Uses a wallet that supports generating fresh addresses",
+          "relevant": true
+        },
+        {
+          "id": "c",
+          "category": "goal",
+          "text": "Wants to understand Bitcoin inflation schedule",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "background",
+          "text": "Teaches high school math",
+          "relevant": false
+        }
+      ],
+      "reason": "Address reuse habit and wallet capability drive the advice."
+    },
+    {
+      "id": "c08",
+      "question": "Can I run a node on a Raspberry Pi?",
+      "items": [
+        {
+          "id": "a",
+          "category": "setup",
+          "text": "Owns a Raspberry Pi 4 with an external SSD",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "interest",
+          "text": "Fascinated by Lightning network topology",
+          "relevant": false
+        },
+        {
+          "id": "c",
+          "category": "experience",
+          "text": "Once tried a paper wallet",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "goal",
+          "text": "Wants to learn about Taproot",
+          "relevant": false
+        }
+      ],
+      "reason": "Owned hardware directly relevant."
+    },
+    {
+      "id": "c09",
+      "question": "Qu'est-ce que Ark par rapport à Lightning ?",
+      "items": [
+        {
+          "id": "a",
+          "category": "interest",
+          "text": "Wants to compare off-chain scaling approaches",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "experience",
+          "text": "Opened a Lightning channel once to test it",
+          "relevant": true
+        },
+        {
+          "id": "c",
+          "category": "setup",
+          "text": "Uses a standard office printer",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "background",
+          "text": "Former carpenter",
+          "relevant": false
+        }
+      ],
+      "reason": "Scaling interest and Lightning experience help frame the comparison."
+    },
+    {
+      "id": "c10",
+      "question": "Is mining profitable at home?",
+      "items": [
+        {
+          "id": "a",
+          "category": "setup",
+          "text": "Owns a small used ASIC miner (specialized mining machine) at home",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "interest",
+          "text": "Reads about Bitcoin history",
+          "relevant": false
+        },
+        {
+          "id": "c",
+          "category": "project",
+          "text": "Designing a hobby website",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "experience",
+          "text": "Used a phone wallet for a month",
+          "relevant": false
+        }
+      ],
+      "reason": "Owned mining equipment is key context."
+    },
+    {
+      "id": "c11",
+      "question": "Why does Bitcoin have a fixed supply of 21 million?",
+      "items": [
+        {
+          "id": "a",
+          "category": "goal",
+          "text": "Studying Bitcoin economics and scarcity",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "setup",
+          "text": "Runs a full node",
+          "relevant": false
+        },
+        {
+          "id": "c",
+          "category": "project",
+          "text": "Building a small Lightning demo app",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "experience",
+          "text": "Lost a laptop once",
+          "relevant": false
+        }
+      ],
+      "reason": "Economics study goal matches; others don't."
+    },
+    {
+      "id": "c12",
+      "question": "Je veux écrire un script pour lire les blocs via RPC, par où commencer ?",
+      "items": [
+        {
+          "id": "a",
+          "category": "setup",
+          "text": "Has a Bitcoin Core node with RPC (remote procedure call) enabled locally",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "background",
+          "text": "Comfortable programming in Python",
+          "relevant": true
+        },
+        {
+          "id": "c",
+          "category": "interest",
+          "text": "Likes hardware wallet design",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "goal",
+          "text": "Plans to buy a mining rig someday",
+          "relevant": false
+        }
+      ],
+      "reason": "Node RPC access and language skill guide the answer."
+    },
+    {
+      "id": "c13",
+      "question": "What happens if I lose my hardware wallet?",
+      "items": [
+        {
+          "id": "a",
+          "category": "experience",
+          "text": "Has tested restoring a wallet from seed phrase on a fresh device",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "setup",
+          "text": "Uses a hardware signing device",
+          "relevant": true
+        },
+        {
+          "id": "c",
+          "category": "interest",
+          "text": "Enjoys Bitcoin podcasts",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "project",
+          "text": "Learning to code in JavaScript",
+          "relevant": false
+        }
+      ],
+      "reason": "Restore test and device ownership directly relevant."
+    },
+    {
+      "id": "c14",
+      "question": "Comment choisir les frais pour une transaction peu urgente ?",
+      "items": [
+        {
+          "id": "a",
+          "category": "experience",
+          "text": "Usually waits for low-traffic periods before sending",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "interest",
+          "text": "Interested in Ark",
+          "relevant": false
+        },
+        {
+          "id": "c",
+          "category": "background",
+          "text": "Works in logistics",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "setup",
+          "text": "Uses a wallet with manual fee selection",
+          "relevant": true
+        }
+      ],
+      "reason": "Fee habits and manual fee control are useful."
+    },
+    {
+      "id": "c15",
+      "question": "Explain how a Lightning invoice works.",
+      "items": [
+        {
+          "id": "a",
+          "category": "project",
+          "text": "Building a tip-jar page that accepts Lightning payments",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "setup",
+          "text": "Owns a hardware signing device",
+          "relevant": false
+        },
+        {
+          "id": "c",
+          "category": "interest",
+          "text": "Likes reading about difficulty adjustment",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "background",
+          "text": "Studied graphic design",
+          "relevant": false
+        }
+      ],
+      "reason": "Project requires understanding invoices."
+    },
+    {
+      "id": "c16",
+      "question": "How do I teach my teenage cousin about Bitcoin?",
+      "items": [
+        {
+          "id": "a",
+          "category": "goal",
+          "text": "Wants to run beginner workshops on Bitcoin",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "background",
+          "text": "Works as a teacher",
+          "relevant": true
+        },
+        {
+          "id": "c",
+          "category": "setup",
+          "text": "Runs a Bitcoin full node",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "experience",
+          "text": "Tried mining with a small device once",
+          "relevant": false
+        }
+      ],
+      "reason": "Teaching goal and background help; node/mining do not."
+    },
+    {
+      "id": "c17",
+      "question": "Mon nœud est-il utile si je n'ai pas de canaux Lightning ?",
+      "items": [
+        {
+          "id": "a",
+          "category": "setup",
+          "text": "Runs a full node on a home server without Lightning",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "interest",
+          "text": "Wants to try Ark later",
+          "relevant": false
+        },
+        {
+          "id": "c",
+          "category": "background",
+          "text": "Enjoys cycling",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "project",
+          "text": "Writing a newsletter about economics",
+          "relevant": false
+        }
+      ],
+      "reason": "Node without Lightning is the exact scenario."
+    },
+    {
+      "id": "c18",
+      "question": "What is a multisignature setup and is it worth it?",
+      "items": [
+        {
+          "id": "a",
+          "category": "setup",
+          "text": "Owns two different hardware signing devices from separate makers",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "goal",
+          "text": "Wants stronger protection against single device failure",
+          "relevant": true
+        },
+        {
+          "id": "c",
+          "category": "interest",
+          "text": "Follows mining pool statistics",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "background",
+          "text": "Retail manager",
+          "relevant": false
+        }
+      ],
+      "reason": "Multiple devices and resilience goal matter for multisig advice."
+    },
+    {
+      "id": "c19",
+      "question": "How do I cook a good risotto?",
+      "items": [
+        {
+          "id": "a",
+          "category": "setup",
+          "text": "Runs a Bitcoin full node",
+          "relevant": false
+        },
+        {
+          "id": "b",
+          "category": "interest",
+          "text": "Interested in Lightning",
+          "relevant": false
+        },
+        {
+          "id": "c",
+          "category": "background",
+          "text": "Software developer",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "goal",
+          "text": "Wants to learn about mining",
+          "relevant": false
+        }
+      ],
+      "reason": "Unrelated domain; no memory helps."
+    },
+    {
+      "id": "c20",
+      "question": "Quelle est la capitale de l'Australie ?",
+      "items": [
+        {
+          "id": "a",
+          "category": "setup",
+          "text": "Uses a hardware signing device",
+          "relevant": false
+        },
+        {
+          "id": "b",
+          "category": "project",
+          "text": "Building a Bitcoin tutorial site",
+          "relevant": false
+        },
+        {
+          "id": "c",
+          "category": "experience",
+          "text": "Ran a node for a year",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "interest",
+          "text": "Likes Bitcoin economics",
+          "relevant": false
+        }
+      ],
+      "reason": "Geography question; no memory helps."
+    },
+    {
+      "id": "c21",
+      "question": "How do I fix a flat bicycle tire?",
+      "items": [
+        {
+          "id": "a",
+          "category": "goal",
+          "text": "Wants to understand coin selection",
+          "relevant": false
+        },
+        {
+          "id": "b",
+          "category": "setup",
+          "text": "Uses a mobile wallet",
+          "relevant": false
+        },
+        {
+          "id": "c",
+          "category": "background",
+          "text": "Studied computer science",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "interest",
+          "text": "Reads about Ark",
+          "relevant": false
+        }
+      ],
+      "reason": "Unrelated domain; all irrelevant."
+    },
+    {
+      "id": "c22",
+      "question": "Explique-moi la photosynthèse simplement.",
+      "items": [
+        {
+          "id": "a",
+          "category": "project",
+          "text": "Writing a guide on self-custody",
+          "relevant": false
+        },
+        {
+          "id": "b",
+          "category": "experience",
+          "text": "Used Lightning for small tests",
+          "relevant": false
+        },
+        {
+          "id": "c",
+          "category": "setup",
+          "text": "Owns a mining machine",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "background",
+          "text": "Works in finance",
+          "relevant": false
+        }
+      ],
+      "reason": "Biology question; nothing relevant."
+    },
+    {
+      "id": "c23",
+      "question": "What is coin selection and does it affect my privacy?",
+      "items": [
+        {
+          "id": "a",
+          "category": "setup",
+          "text": "Wallet software allows manual selection of which UTXOs to spend",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "interest",
+          "text": "Wants to learn about address clustering",
+          "relevant": true
+        },
+        {
+          "id": "c",
+          "category": "project",
+          "text": "Setting up a home media server",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "experience",
+          "text": "Attended a Bitcoin conference",
+          "relevant": false
+        }
+      ],
+      "reason": "Manual UTXO control and clustering interest apply."
+    },
+    {
+      "id": "c24",
+      "question": "Quel langage me conseilles-tu pour apprendre à programmer des scripts Bitcoin ?",
+      "items": [
+        {
+          "id": "a",
+          "category": "background",
+          "text": "Already knows JavaScript from web development",
+          "relevant": true
+        },
+        {
+          "id": "b",
+          "category": "goal",
+          "text": "Wants to build a small wallet tool for learning",
+          "relevant": true
+        },
+        {
+          "id": "c",
+          "category": "setup",
+          "text": "Owns a hardware signing device",
+          "relevant": false
+        },
+        {
+          "id": "d",
+          "category": "interest",
+          "text": "Curious about mining economics",
+          "relevant": false
+        }
+      ],
+      "reason": "Existing language skill and project goal shape the recommendation."
+    }
+  ],
+  "methodology": "24 new synthetic cases authored without access to implementation or prior fixtures. Three memory texts were revised before first execution to remove financial activity and a specific backup location; relevance labels unchanged. Selection and capture eligibility are measured separately. Once used to guide fixes, this fixture becomes a regression set, not a second independent acceptance test.",
+  "preEvaluationEdits": {
+    "c04.a": "Replaced personal consolidation history with practice in a test environment",
+    "c04.b": "Replaced wallet holdings/purchase history with an educational goal",
+    "c05.a": "Removed specific backup storage location"
+  },
+  "initialSelectorSha256": "2304e69aecd96418c246c536b144ff0115d72fc4f8a587af0f7a208a8b4a3734"
+}

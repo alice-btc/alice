@@ -9,7 +9,7 @@ topics: ["privacy"]
 aliases: ["CoinJoin", "Comprendre CoinJoin"]
 parent_ids: []
 related_ids: ["common-input-ownership-heuristic", "coin-control", "payjoin", "secondary-bitcoin-blind-signatures", "secondary-bitcoin-joinmarket", "secondary-bitcoin-privacy-by-obfuscation"]
-reviewed_at: "2026-10-11"
+reviewed_at: "2026-11-05"
 review_due: null
 sources: ["PlanB btc204 — Privacy on Bitcoin", "PlanB Extraction — 2026-05-23"]
 human_reviewed_in_full: false
@@ -33,6 +33,8 @@ A CoinJoin is a transaction built by several participants. It aims to make the a
 Bitcoin's structure allows combining several inputs and outputs with the necessary authorizations. Depending on the protocol, some outputs share common characteristics that make interpretation more ambiguous. The assumption that all the inputs have a single owner can then be false.
 
 The coordination arrangements, fees and privacy vary by implementation. Later uses of the funds can also recreate links; the collaborative transaction does not magically reset the whole history.
+
+Reusing an address or spending several mixed outputs together can recreate links. Payments close in time to the same service can also facilitate correlations. These clues alone do not prove a person’s identity.
 
 ## Limits and confusions
 

@@ -48,6 +48,8 @@ thousand Mutinynet sats in the Playground.
 - [ ] Learn opens a course, and the reading-language picker offers English and
       French as included, others as downloadable.
 - [ ] Explorer looks up a block and a transaction.
+- [ ] `npm run check:monero-pools` passes: every pool list the Monero
+      Explorer reads to name a block's miner still answers in its format.
 - [ ] Settings › AI shows the semantic search section, with its real state.
 - [ ] Nothing downloads the semantic model until the first question is asked
       (check the network panel on a fresh profile).
@@ -80,7 +82,17 @@ Read the release notes and check each claim against the app you just used.
 
 - [ ] Every feature announced exists and is reachable.
 - [ ] Every known limit in the notes is still true.
-- [ ] The site's download menu points at builds that exist.
+- [ ] The site's download menu points at builds that exist. Run
+      `npm run check:download-links -- --live --require-companion-apk` for
+      a release announcing the Android APK. The companion and the older
+      experimental Wallet must have different files and checksum pages.
+- [ ] TestFlight actually offers the announced version; a working invitation
+      link alone does not prove which build is available.
+- [ ] Mobile installation and upgrade preserve conversations/settings. On
+      Android, test the real keyboard with a prompt above 500 characters,
+      5 visible lines then scrolling, account creation and Back from What's New.
+- [ ] Open the repaired Learn videos/articles and return from the external
+      browser. Check Bitcoin and Monero on the built mobile apps, not only web.
 
 ---
 

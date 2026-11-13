@@ -108,3 +108,16 @@ describe('classifySearch', () => {
     assert.equal(classifySearch('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4', { sparkAddresses: true }).kind, 'address');
   });
 });
+
+describe('classifySearch on Monero', () => {
+  const opts = { monero: true };
+  it('takes heights, 64-hex ids and Monero addresses, and nothing Bitcoin', () => {
+    assert.deepEqual(classifySearch('3794203', opts), { kind: 'block', value: '3794203' });
+    const id = '0ac335c516fc4deb4e9f27e60f4563173ca37a45cc610a3c9cd68bfcad6b4c0e';
+    assert.deepEqual(classifySearch(id.toUpperCase(), opts), { kind: 'tx', value: id });
+    const addr = '44AFFq5kSiGBoZ4NMDwYtN18obc8AemS33DBLWs3H7otXft3XjrpDtQGv7SqSsaBYBb98uNbr2VBBEt7f2wfn3RVGQBEP3A';
+    assert.deepEqual(classifySearch(addr, opts), { kind: 'address', value: addr });
+    assert.equal(classifySearch('bc1qvqfw3kc37zw68g0lf6fnf54d4s3a8tnqku02ry', opts).kind, 'unknown');
+    assert.equal(classifySearch('xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8', opts).kind, 'unknown');
+  });
+});

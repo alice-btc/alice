@@ -2,7 +2,7 @@
 // Selected corpus; review methods do not imply exhaustive fact-checking.
 import type { KnowledgeChunk } from '../knowledge-packs';
 
-export const CURATED_CORPUS_VERSION = "curated-75f8e642d2d48ee80607";
+export const CURATED_CORPUS_VERSION = "curated-be8f4d6aa09d349d421f";
 
 export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
   {
@@ -1107,6 +1107,9 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "Les frais et la liquidité d’Ark",
       "Ark Fees and Liquidity",
       "Quels coûts et contraintes faut-il comprendre avec Ark ?",
+      "Quels frais prend l'opérateur Ark ?",
+      "Un serveur Ark fait-il payer les transferts ou les renouvellements ?",
+      "Pourquoi l'opérateur Ark facture-t-il des frais ?",
       "Ark et autres couches",
       "ark fees and liquidity"
     ],
@@ -1127,10 +1130,13 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "https://second.tech/docs/learn/liquidity"
     ],
     "questions": [
-      "Quels coûts et contraintes faut-il comprendre avec Ark ?"
+      "Quels coûts et contraintes faut-il comprendre avec Ark ?",
+      "Quels frais prend l'opérateur Ark ?",
+      "Un serveur Ark fait-il payer les transferts ou les renouvellements ?",
+      "Pourquoi l'opérateur Ark facture-t-il des frais ?"
     ],
     "status": "reviewed",
-    "sourceHash": "031a0b6b3082477494d90da872eaf8c6cf42128359a97178d2debacb201cf7ed",
+    "sourceHash": "2ef3705b7fcf3b5d3af216e2b5639249a26d266878245160a909b975e5bd0485",
     "sourcePath": "data/alice-corpus/examples/ark-fees-and-liquidity.fr.md",
     "theme": "Ark et autres couches"
   },
@@ -1143,6 +1149,9 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "Ark Fees and Liquidity",
       "Les frais et la liquidité d’Ark",
       "Which costs and constraints need to be understood with Ark?",
+      "What fees does the Ark operator charge?",
+      "Does an Ark server charge for transfers or renewals?",
+      "Why does the Ark operator charge fees?",
       "Ark and other layers",
       "ark fees and liquidity"
     ],
@@ -1163,10 +1172,13 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "https://second.tech/docs/learn/liquidity"
     ],
     "questions": [
-      "Which costs and constraints need to be understood with Ark?"
+      "Which costs and constraints need to be understood with Ark?",
+      "What fees does the Ark operator charge?",
+      "Does an Ark server charge for transfers or renewals?",
+      "Why does the Ark operator charge fees?"
     ],
     "status": "reviewed",
-    "sourceHash": "031a0b6b3082477494d90da872eaf8c6cf42128359a97178d2debacb201cf7ed",
+    "sourceHash": "2ef3705b7fcf3b5d3af216e2b5639249a26d266878245160a909b975e5bd0485",
     "sourcePath": "data/alice-corpus/examples/ark-fees-and-liquidity.en.md",
     "theme": "Ark et autres couches"
   },
@@ -1360,7 +1372,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "locale": "fr",
     "sourceLocale": "fr",
     "translationStatus": "source",
-    "content": "Réponse courte\nArk combine une voie normale coopérative avec des mécanismes de sortie vers Bitcoin. La possibilité de sortir seul dépend du VTXO, de son échéance, des données disponibles et de l’implémentation.\n\nExplication\nDétenir les clés est nécessaire, mais ne résume pas toute la sécurité. Il faut aussi conserver les transactions de récupération et pouvoir payer leur publication. Chez Second, une sortie doit être entièrement confirmée avant l’expiration du VTXO. Lancer la procédure juste avant l’échéance ne suffit donc pas.\n\nAprès expiration, l’utilisateur ne peut plus récupérer seul les fonds et dépend de la coopération de l’opérateur. Une perte devient possible si cette coopération manque. Le wallet doit renouveler les VTXO à temps. Les paiements arkoor ajoutent temporairement une hypothèse de non-collusion qui doit être distinguée de ce risque d’expiration.\n\nLimites et confusions\nUne sortie massive peut rendre les frais élevés, surtout pour de petits montants ou des chemins longs. La sortie théoriquement disponible n’est pas nécessairement économique dans toutes les conditions.\n\nLes mécanismes de Second/Bark et d’Arkade ne sont pas identiques. Les dispositifs matériels ou de signature d’une implémentation ne doivent pas être présentés comme des garanties communes à tout Ark.",
+    "content": "Réponse courte\nArk combine une voie normale coopérative avec des mécanismes de sortie vers Bitcoin. La possibilité de sortir seul dépend du VTXO, de son échéance, des données disponibles et de l’implémentation.\n\nLa dépense normale d’un VTXO demande la signature de son détenteur. L’opérateur ne peut pas le dépenser seul ; il coordonne les paiements, voit l’activité qu’il traite et peut cesser de coopérer. Cette règle ne supprime ni le risque d’expiration ni celui de collusion arkoor décrit ci-dessous.\n\nExplication\nDétenir les clés est nécessaire, mais ne résume pas toute la sécurité. Il faut aussi conserver les transactions de récupération et pouvoir payer leur publication. Chez Second, une sortie doit être entièrement confirmée avant l’expiration du VTXO. Lancer la procédure juste avant l’échéance ne suffit donc pas.\n\nAprès expiration, l’utilisateur ne peut plus récupérer seul les fonds et dépend de la coopération de l’opérateur. Une perte devient possible si cette coopération manque. Le wallet doit renouveler les VTXO à temps. Les paiements arkoor ajoutent temporairement une hypothèse de non-collusion qui doit être distinguée de ce risque d’expiration.\n\nLimites et confusions\nUne sortie massive peut rendre les frais élevés, surtout pour de petits montants ou des chemins longs. La sortie théoriquement disponible n’est pas nécessairement économique dans toutes les conditions.\n\nLes mécanismes de Second/Bark et d’Arkade ne sont pas identiques. Les dispositifs matériels ou de signature d’une implémentation ne doivent pas être présentés comme des garanties communes à tout Ark.",
     "parentIds": [],
     "relatedIds": [
       "ark-implementations-bark-arkade",
@@ -1368,6 +1380,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     ],
     "reviewMethod": "adapted_from_corrected_sources",
     "sources": [
+      "https://second.tech/docs/learn/vtxo",
       "https://second.tech/docs/learn/lifetime",
       "https://second.tech/docs/learn/exit"
     ],
@@ -1375,7 +1388,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "De qui dépend-on lorsqu’on utilise Ark ?"
     ],
     "status": "reviewed",
-    "sourceHash": "390ffd7f8385c9e001073934b19e4895b1eb3e097f32779ee41c1bf0f954dab3",
+    "sourceHash": "cb4ede17cfb18960fffb6d5ebe15d4c76df6401d65c28d681489620757b3f909",
     "sourcePath": "data/alice-corpus/examples/ark-security-model.fr.md",
     "theme": "Ark et autres couches"
   },
@@ -1396,7 +1409,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "locale": "en",
     "sourceLocale": "fr",
     "translationStatus": "machine",
-    "content": "Short answer\nArk combines a normal cooperative path with exit mechanisms to Bitcoin. The ability to exit alone depends on the VTXO, its expiry, the available data and the implementation.\n\nExplanation\nHolding the keys is necessary, but does not sum up all of the security. You also have to keep the recovery transactions and be able to pay for their broadcast. With Second, an exit must be fully confirmed before the VTXO expires. Starting the procedure just before the expiry is therefore not enough.\n\nAfter expiration, the user can no longer recover the funds alone and depends on the operator's cooperation. A loss becomes possible if that cooperation is missing. The wallet must renew VTXOs in time. Arkoor payments temporarily add a non-collusion assumption that must be distinguished from this expiration risk.\n\nLimits and confusions\nA mass exit can make fees high, especially for small amounts or long paths. The exit that is theoretically available is not necessarily economical under all conditions.\n\nThe mechanisms of Second/Bark and of Arkade are not identical. The hardware or signing arrangements of one implementation must not be presented as guarantees common to all of Ark.",
+    "content": "Short answer\nArk combines a normal cooperative path with exit mechanisms to Bitcoin. The ability to exit alone depends on the VTXO, its expiry, the available data and the implementation.\n\nNormal spending of a VTXO requires its holder’s signature. The operator cannot spend it alone; it coordinates payments, sees the activity it handles and can stop cooperating. This rule does not remove the expiry risk or the arkoor collusion risk described below.\n\nExplanation\nHolding the keys is necessary, but does not sum up all of the security. You also have to keep the recovery transactions and be able to pay for their broadcast. With Second, an exit must be fully confirmed before the VTXO expires. Starting the procedure just before the expiry is therefore not enough.\n\nAfter expiration, the user can no longer recover the funds alone and depends on the operator's cooperation. A loss becomes possible if that cooperation is missing. The wallet must renew VTXOs in time. Arkoor payments temporarily add a non-collusion assumption that must be distinguished from this expiration risk.\n\nLimits and confusions\nA mass exit can make fees high, especially for small amounts or long paths. The exit that is theoretically available is not necessarily economical under all conditions.\n\nThe mechanisms of Second/Bark and of Arkade are not identical. The hardware or signing arrangements of one implementation must not be presented as guarantees common to all of Ark.",
     "parentIds": [],
     "relatedIds": [
       "ark-implementations-bark-arkade",
@@ -1404,6 +1417,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     ],
     "reviewMethod": "adapted_from_corrected_sources",
     "sources": [
+      "https://second.tech/docs/learn/vtxo",
       "https://second.tech/docs/learn/lifetime",
       "https://second.tech/docs/learn/exit"
     ],
@@ -1411,7 +1425,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "Who do you depend on when using Ark?"
     ],
     "status": "reviewed",
-    "sourceHash": "390ffd7f8385c9e001073934b19e4895b1eb3e097f32779ee41c1bf0f954dab3",
+    "sourceHash": "cb4ede17cfb18960fffb6d5ebe15d4c76df6401d65c28d681489620757b3f909",
     "sourcePath": "data/alice-corpus/examples/ark-security-model.en.md",
     "theme": "Ark et autres couches"
   },
@@ -1736,7 +1750,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "locale": "fr",
     "sourceLocale": "fr",
     "translationStatus": "source",
-    "content": "Réponse courte\nLa passphrase BIP39 est un secret optionnel qui modifie la seed dérivée des mots de récupération. Elle ne se limite pas à déverrouiller l’interface comme un mot de passe d’application.\n\nExplication\nAvec la même phrase de récupération, une passphrase différente produit un autre portefeuille. La combinaison exacte doit donc rester récupérable. Une erreur de saisie peut conduire à des adresses différentes plutôt qu’à un message signalant un mauvais mot de passe.\n\nCette séparation peut limiter les conséquences de la découverte des seuls mots. Elle introduit aussi un risque de perte supplémentaire si le détenteur ou ses proches ne disposent plus de la bonne passphrase.\n\nLimites et confusions\nAjouter une passphrase n’améliore pas automatiquement la sécurité. Son intérêt dépend de sa qualité, de sa conservation et de la compréhension de son rôle. Elle ne remplace pas une sauvegarde complète ni les paramètres nécessaires à la restauration. La présenter simplement comme un « mot supplémentaire » peut masquer son fonctionnement et ses contraintes de compatibilité.",
+    "content": "Réponse courte\nLa passphrase BIP39 est un secret optionnel qui modifie la seed dérivée des mots de récupération. Elle ne se limite pas à déverrouiller l’interface comme un mot de passe d’application.\n\nExplication\nBIP39 combine les mots de récupération et la passphrase exacte pour dériver une seed, dont dérivent les clés privées. Toute passphrase, y compris la chaîne vide, produit une seed valide. BIP39 ne signale pas si elle correspond au portefeuille initialement voulu. Avec les mêmes mots, changer la passphrase change normalement les clés et les adresses ; ce fait ne suffit pas à expliquer un affichage vide.\n\nUn PIN d’appareil ou mot de passe local d’application contrôle l’accès à l’appareil ou à l’application. La passphrase BIP39 participe, elle, à la dérivation des clés. Réinitialiser un mot de passe local ne reconstitue pas une passphrase oubliée ; les mots seuls ne recréent pas le même portefeuille protégé par passphrase.\n\nUn solde nul ou un affichage vide ne prouve pas, à lui seul, qu’un portefeuille différent a été dérivé, que la passphrase est correcte ou que les fonds ont disparu. Une passphrase différente est possible, mais un autre chemin de dérivation, compte ou réseau, ou une synchronisation incomplète, peut aussi expliquer cet affichage. Comparer localement des repères publics connus, comme une adresse déjà utilisée, avec les paramètres de restauration appropriés. Ne communiquer ni mots ni passphrase à un assistant, site ou support.\n\nBIP39 ne fournit pas de mécanisme de réinitialisation et la récupération n’est pas garantie. Sa faisabilité dépend des éléments encore connus et de la robustesse de la passphrase. Vérifier un ensemble limité de candidats connus peut parfois fonctionner ; reconstituer un secret robuste inconnu peut être irréalisable en pratique. Ni un succès certain ni une impossibilité mathématique universelle ne découlent du seul oubli de la passphrase.\n\nCette séparation peut limiter les conséquences de la découverte des seuls mots. Elle introduit aussi un risque de perte supplémentaire si le détenteur ou ses proches ne disposent plus de la bonne passphrase.\n\nLimites et confusions\nAjouter une passphrase n’améliore pas automatiquement la sécurité. Son intérêt dépend de sa qualité, de sa conservation et de la compréhension de son rôle. Elle ne remplace pas une sauvegarde complète ni les paramètres nécessaires à la restauration. La présenter simplement comme un « mot supplémentaire » peut masquer son fonctionnement et ses contraintes de compatibilité.",
     "parentIds": [],
     "relatedIds": [
       "bitcoin-seed",
@@ -1744,17 +1758,18 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "bitcoin-inheritance-plan",
       "secondary-bitcoin-pbkdf2"
     ],
-    "reviewMethod": "adapted_from_corrected_sources",
+    "reviewMethod": "targeted_source_review_and_corrections",
     "sources": [
       "PlanB cyp201 — Bitcoin Wallet Architecture",
-      "PlanB Extraction — 2026-05-23"
+      "PlanB Extraction — 2026-05-23",
+      "https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki"
     ],
     "questions": [
       "Une passphrase est-elle simplement un mot de passe ?",
       "Ma phrase de récupération suffit-elle si j’ai aussi défini une passphrase ?"
     ],
     "status": "reviewed",
-    "sourceHash": "f4736d44150942e2d00128f124e82b7d9e568b5e6a85745031934403d767f04b",
+    "sourceHash": "91c3445f7473b94d21b1917e1cc4ba7deef9982355d1c5f914c1273a43f286ab",
     "sourcePath": "data/alice-corpus/examples/bip39-passphrase.fr.md",
     "theme": "wallets"
   },
@@ -1776,7 +1791,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "locale": "en",
     "sourceLocale": "fr",
     "translationStatus": "machine",
-    "content": "Short answer\nThe BIP39 passphrase is an optional secret that modifies the seed derived from the recovery words. It is not limited to unlocking the interface like an application password.\n\nExplanation\nWith the same recovery phrase, a different passphrase produces a different wallet. The exact combination must therefore remain recoverable. A typing error can lead to different addresses rather than to a message reporting a wrong password.\n\nThis separation can limit the consequences of the words alone being discovered. It also introduces an additional risk of loss if the holder or their relatives no longer have the right passphrase.\n\nLimits and confusions\nAdding a passphrase does not automatically improve security. Its value depends on its quality, on how it is kept and on understanding its role. It does not replace a complete backup nor the parameters needed for restoration. Presenting it simply as an \"extra word\" can hide how it works and its compatibility constraints.",
+    "content": "Short answer\nThe BIP39 passphrase is an optional secret that modifies the seed derived from the recovery words. It is not limited to unlocking the interface like an application password.\n\nExplanation\nBIP39 combines the mnemonic words and the exact passphrase to derive a seed, from which private keys are derived. Every passphrase, including the empty string, produces a valid seed. BIP39 does not report whether that is the originally intended wallet. With the same words, changing the passphrase normally changes the keys and addresses; that fact alone does not diagnose an empty display.\n\nA device PIN or local application password controls access to the device or application. The BIP39 passphrase instead participates in key derivation. Resetting a local password does not reconstruct the forgotten passphrase; the mnemonic alone does not recreate the same passphrase-protected wallet.\n\nA zero balance or empty display is not, by itself, evidence that a different wallet was derived, that the passphrase is correct or that funds were lost. The passphrase may differ, but a different derivation path, account or network, or incomplete synchronization, can also explain the display. Compare known public wallet details, such as a previously used address, locally with the appropriate recovery settings. Do not disclose the mnemonic or passphrase to an assistant, website or support contact.\n\nBIP39 supplies no reset mechanism and recovery is not guaranteed. Its feasibility depends on what remains known and the passphrase's strength. Checking a limited set of known candidates can sometimes work; an unknown strong secret may be infeasible to reconstruct. Neither certain success nor universal mathematical impossibility follows from a forgotten passphrase alone.\n\nThis separation can limit the consequences of the words alone being discovered. It also introduces an additional risk of loss if the holder or their relatives no longer have the right passphrase.\n\nLimits and confusions\nAdding a passphrase does not automatically improve security. Its value depends on its quality, on how it is kept and on understanding its role. It does not replace a complete backup nor the parameters needed for restoration. Presenting it simply as an \"extra word\" can hide how it works and its compatibility constraints.",
     "parentIds": [],
     "relatedIds": [
       "bitcoin-seed",
@@ -1784,17 +1799,18 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "bitcoin-inheritance-plan",
       "secondary-bitcoin-pbkdf2"
     ],
-    "reviewMethod": "adapted_from_corrected_sources",
+    "reviewMethod": "targeted_source_review_and_corrections",
     "sources": [
       "PlanB cyp201 — Bitcoin Wallet Architecture",
-      "PlanB Extraction — 2026-05-23"
+      "PlanB Extraction — 2026-05-23",
+      "https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki"
     ],
     "questions": [
       "Is a passphrase simply a password?",
       "Is my recovery phrase enough if I also set a passphrase?"
     ],
     "status": "reviewed",
-    "sourceHash": "f4736d44150942e2d00128f124e82b7d9e568b5e6a85745031934403d767f04b",
+    "sourceHash": "91c3445f7473b94d21b1917e1cc4ba7deef9982355d1c5f914c1273a43f286ab",
     "sourcePath": "data/alice-corpus/examples/bip39-passphrase.en.md",
     "theme": "wallets"
   },
@@ -6774,6 +6790,96 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "theme": "Monnaie et économie"
   },
   {
+    "id": "curated-chain-reorganization",
+    "conceptId": "chain-reorganization",
+    "title": "Les réorganisations de chaîne (reorg)",
+    "keywords": [
+      "Les réorganisations de chaîne (reorg)",
+      "Reorg",
+      "Réorganisation de chaîne",
+      "Chain reorganization",
+      "Bloc orphelin",
+      "Orphan block",
+      "Qu'est-ce qu'un reorg ?",
+      "Que se passe-t-il quand un bloc est orphelin ou remplacé par un autre ?",
+      "Une réorganisation peut-elle annuler une transaction déjà confirmée ?",
+      "Pourquoi un explorateur affiche-t-il un bloc abandonné ?",
+      "transactions",
+      "chain reorganization"
+    ],
+    "level": "beginner",
+    "tier": "primary",
+    "locale": "fr",
+    "sourceLocale": "fr",
+    "translationStatus": "source",
+    "content": "Réponse courte\nUne réorganisation de chaîne, ou reorg, se produit quand des nœuds abandonnent le ou les derniers blocs de leur chaîne active pour suivre une autre branche valide qui porte davantage de travail accumulé.\n\nExplication\nDeux mineurs peuvent trouver presque en même temps 2 blocs valides à la même hauteur. Les nœuds suivent provisoirement celui qu'ils ont reçu en premier, puis se rangent derrière la branche qui accumule le plus de travail quand un bloc suivant arrive. Le bloc écarté devient un bloc valide non retenu, souvent appelé bloc orphelin ou stale. Il n'était ni invalide ni piraté.\n\nLes transactions du bloc écarté ne disparaissent pas toutes : celles que la branche gagnante contient déjà restent confirmées, les autres redeviennent non confirmées et peuvent être incluses dans un bloc suivant. Pendant ce délai, une transaction concurrente qui dépense les mêmes fonds peut être confirmée à sa place.\n\nC'est pourquoi une transaction avec 1 confirmation peut redevenir non confirmée. Chaque bloc ajouté ensuite rend un tel retour en arrière moins probable, ce qui explique l'attente de plusieurs confirmations pour les montants importants.\n\nLimites et confusions\nUn reorg de 1 bloc arrive occasionnellement ; les reorgs profonds sont rares et demandent beaucoup de puissance de calcul. Le nombre de confirmations à attendre est une convention de prudence, pas une règle du protocole. La récompense du mineur dont le bloc est écarté n'est pas conservée.",
+    "parentIds": [],
+    "relatedIds": [
+      "bitcoin-transaction-confirmation",
+      "bitcoin-finality",
+      "secondary-bitcoin-stale-block"
+    ],
+    "reviewMethod": "targeted_source_review_and_corrections",
+    "sources": [
+      "https://developer.bitcoin.org/devguide/block_chain.html"
+    ],
+    "questions": [
+      "Qu'est-ce qu'un reorg ?",
+      "Que se passe-t-il quand un bloc est orphelin ou remplacé par un autre ?",
+      "Une réorganisation peut-elle annuler une transaction déjà confirmée ?",
+      "Pourquoi un explorateur affiche-t-il un bloc abandonné ?"
+    ],
+    "status": "reviewed",
+    "sourceHash": "514d8b9394da8bf02a896f970b581a5db9f20affe4313cc37860ea36aa6f4814",
+    "sourcePath": "data/alice-corpus/examples/chain-reorganization.fr.md",
+    "theme": "transactions"
+  },
+  {
+    "id": "curated-chain-reorganization.en",
+    "conceptId": "chain-reorganization",
+    "title": "Chain reorganizations (reorg)",
+    "keywords": [
+      "Chain reorganizations (reorg)",
+      "Reorg",
+      "Réorganisation de chaîne",
+      "Chain reorganization",
+      "Bloc orphelin",
+      "Orphan block",
+      "What is a reorg?",
+      "What happens when a block is orphaned or replaced by another one?",
+      "Can a reorganization undo a transaction that was already confirmed?",
+      "Why does a block explorer show an abandoned block?",
+      "transactions",
+      "chain reorganization"
+    ],
+    "level": "beginner",
+    "tier": "primary",
+    "locale": "en",
+    "sourceLocale": "fr",
+    "translationStatus": "machine",
+    "content": "Short answer\nA chain reorganization, or reorg, happens when nodes drop the last block or blocks of their active chain to follow another valid branch that carries more accumulated work.\n\nExplanation\nTwo miners can find 2 valid blocks at the same height almost at the same time. Nodes provisionally follow the one they received first, then switch to the branch with the most accumulated work when a following block arrives. The dropped block becomes a valid but abandoned block, often called an orphan or stale block. It was neither invalid nor hacked.\n\nThe transactions of the dropped block do not all disappear: those already included in the winning branch stay confirmed, the others become unconfirmed again and can be included in a later block. During that window, a conflicting transaction spending the same funds can confirm instead.\n\nThis is why a transaction with 1 confirmation can become unconfirmed again. Each block added afterwards makes such a reversal less likely, which is why large amounts wait for several confirmations.\n\nLimits and confusions\nA 1-block reorg happens occasionally; deep reorgs are rare and require a lot of hashing power. The number of confirmations to wait for is a prudence convention, not a protocol rule. The reward of the miner whose block is dropped is not kept.",
+    "parentIds": [],
+    "relatedIds": [
+      "bitcoin-transaction-confirmation",
+      "bitcoin-finality",
+      "secondary-bitcoin-stale-block"
+    ],
+    "reviewMethod": "targeted_source_review_and_corrections",
+    "sources": [
+      "https://developer.bitcoin.org/devguide/block_chain.html"
+    ],
+    "questions": [
+      "What is a reorg?",
+      "What happens when a block is orphaned or replaced by another one?",
+      "Can a reorganization undo a transaction that was already confirmed?",
+      "Why does a block explorer show an abandoned block?"
+    ],
+    "status": "reviewed",
+    "sourceHash": "514d8b9394da8bf02a896f970b581a5db9f20affe4313cc37860ea36aa6f4814",
+    "sourcePath": "data/alice-corpus/examples/chain-reorganization.en.md",
+    "theme": "transactions"
+  },
+  {
     "id": "curated-change-output",
     "conceptId": "change-output",
     "title": "La monnaie rendue",
@@ -6997,6 +7103,84 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "theme": "Lightning"
   },
   {
+    "id": "curated-child-pays-for-parent",
+    "conceptId": "child-pays-for-parent",
+    "title": "Accélérer avec CPFP",
+    "keywords": [
+      "Accélérer avec CPFP",
+      "CPFP",
+      "Child Pays For Parent",
+      "Qui peut utiliser CPFP pour aider une transaction non confirmée ?",
+      "Quelle différence avec RBF ?",
+      "transactions",
+      "child pays for parent"
+    ],
+    "level": "beginner",
+    "tier": "primary",
+    "locale": "fr",
+    "sourceLocale": "fr",
+    "translationStatus": "source",
+    "content": "Réponse courte\nCPFP signifie « Child Pays For Parent ». Une transaction enfant dépense une sortie non confirmée de la transaction parent, avec des frais qui peuvent améliorer l’intérêt du paquet parent-enfant pour les mineurs.\n\nExplication\nUn destinataire peut construire cet enfant s’il contrôle une sortie du parent et peut la dépenser. Il signe l’enfant avec ses propres clés ; il n’a pas besoin des clés de l’expéditeur. Un expéditeur peut aussi utiliser une sortie de monnaie rendue qu’il contrôle.\n\nCPFP ne remplace pas le parent et ne nécessite pas que celui-ci signale RBF. Remplacer le parent par RBF nécessite au contraire les autorisations de dépense des entrées du remplacement.\n\nLes mineurs évaluent le parent et l’enfant ensemble : le taux du paquet vaut (frais du parent + frais de l’enfant) ÷ (taille du parent + taille de l’enfant). Les frais de l’enfant doivent relever ce taux combiné ; ils paient donc aussi pour la taille du parent et ne peuvent pas dépasser la valeur de la sortie dépensée.\n\nLimites et confusions\nIl faut que la sortie soit dépensable, que sa valeur couvre les frais, que le portefeuille permette cette dépense et que les politiques de relais et de minage acceptent les transactions ou le paquet. Le soutien aux paquets varie. Aucun délai ni inclusion ne sont garantis ; si le parent devient invalide, son enfant ne peut pas être confirmé tel quel.",
+    "parentIds": [],
+    "relatedIds": [
+      "replace-by-fee",
+      "transaction-fees",
+      "bitcoin-mempool-policy"
+    ],
+    "reviewMethod": "targeted_source_review_and_corrections",
+    "sources": [
+      "https://github.com/bitcoin/bitcoin/blob/master/doc/policy/packages.md",
+      "https://github.com/bitcoin/bips/blob/master/bip-0125.mediawiki"
+    ],
+    "questions": [
+      "Qui peut utiliser CPFP pour aider une transaction non confirmée ?",
+      "Quelle différence avec RBF ?"
+    ],
+    "status": "reviewed",
+    "sourceHash": "76811f292400359c9acd0d8a0ac44a69dd39ee930fa5425e64742169b26c47ac",
+    "sourcePath": "data/alice-corpus/examples/child-pays-for-parent.fr.md",
+    "theme": "transactions"
+  },
+  {
+    "id": "curated-child-pays-for-parent.en",
+    "conceptId": "child-pays-for-parent",
+    "title": "Child pays for parent",
+    "keywords": [
+      "Child pays for parent",
+      "CPFP",
+      "Child Pays For Parent",
+      "Who can use CPFP to help an unconfirmed transaction?",
+      "How does it differ from RBF?",
+      "transactions",
+      "child pays for parent"
+    ],
+    "level": "beginner",
+    "tier": "primary",
+    "locale": "en",
+    "sourceLocale": "fr",
+    "translationStatus": "machine",
+    "content": "Short answer\nCPFP means Child Pays For Parent. A child transaction spends an unconfirmed output of the parent transaction, with fees that may make the parent-child package more attractive to miners.\n\nExplanation\nA recipient can construct this child if they control a spendable parent output. They sign the child with their own keys, without needing the sender’s keys. A sender can also use a change output they control.\n\nCPFP does not replace the parent and does not require the parent to signal RBF. Replacing the parent through RBF instead requires authorization for the replacement’s inputs.\n\nMiners evaluate the parent and the child together: the package rate is (parent fee + child fee) ÷ (parent size + child size). The child’s fee must lift that combined rate; it therefore also pays for the parent’s size and cannot exceed the value of the output it spends.\n\nLimits and confusions\nThe output must be spendable, its value must cover the fees, the wallet must support the spend, and relay/mining policies must accept the transactions or package. Package support varies. Inclusion and timing are not guaranteed; if the parent becomes invalid, that child cannot confirm as constructed.",
+    "parentIds": [],
+    "relatedIds": [
+      "replace-by-fee",
+      "transaction-fees",
+      "bitcoin-mempool-policy"
+    ],
+    "reviewMethod": "targeted_source_review_and_corrections",
+    "sources": [
+      "https://github.com/bitcoin/bitcoin/blob/master/doc/policy/packages.md",
+      "https://github.com/bitcoin/bips/blob/master/bip-0125.mediawiki"
+    ],
+    "questions": [
+      "Who can use CPFP to help an unconfirmed transaction?",
+      "How does it differ from RBF?"
+    ],
+    "status": "reviewed",
+    "sourceHash": "76811f292400359c9acd0d8a0ac44a69dd39ee930fa5425e64742169b26c47ac",
+    "sourcePath": "data/alice-corpus/examples/child-pays-for-parent.en.md",
+    "theme": "transactions"
+  },
+  {
     "id": "curated-coin-control",
     "conceptId": "coin-control",
     "title": "Choisir les fonds à dépenser",
@@ -7170,7 +7354,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "locale": "fr",
     "sourceLocale": "fr",
     "translationStatus": "source",
-    "content": "Réponse courte\nUn CoinJoin est une transaction construite par plusieurs participants. Il vise à rendre moins certaine l’association entre leurs entrées et leurs sorties, sans cacher l’existence de la transaction.\n\nExplication\nLa structure Bitcoin permet de réunir plusieurs entrées et sorties avec les autorisations nécessaires. Selon le protocole, certaines sorties présentent des caractéristiques communes qui rendent l’interprétation plus ambiguë. L’hypothèse selon laquelle toutes les entrées ont un propriétaire unique peut alors être fausse.\n\nLes modalités de coordination, les frais et la confidentialité varient selon l’implémentation. Les usages ultérieurs des fonds peuvent aussi recréer des liens ; la transaction collaborative ne réinitialise pas magiquement tout l’historique.\n\nLimites et confusions\nCoinJoin ne garantit pas un anonymat absolu et ne supprime pas les montants ni les transactions de la chaîne. Il ne faut pas confondre ce principe avec un service qui reçoit les fonds en garde et promet de les rendre. La disponibilité actuelle et les propriétés d’un produit précis exigent une vérification séparée ; les noms historiques de la source ne sont pas des recommandations.",
+    "content": "Réponse courte\nUn CoinJoin est une transaction construite par plusieurs participants. Il vise à rendre moins certaine l’association entre leurs entrées et leurs sorties, sans cacher l’existence de la transaction.\n\nExplication\nLa structure Bitcoin permet de réunir plusieurs entrées et sorties avec les autorisations nécessaires. Selon le protocole, certaines sorties présentent des caractéristiques communes qui rendent l’interprétation plus ambiguë. L’hypothèse selon laquelle toutes les entrées ont un propriétaire unique peut alors être fausse.\n\nLes modalités de coordination, les frais et la confidentialité varient selon l’implémentation. Les usages ultérieurs des fonds peuvent aussi recréer des liens ; la transaction collaborative ne réinitialise pas magiquement tout l’historique.\n\nRéutiliser une adresse ou dépenser ensemble plusieurs sorties issues du mélange peut recréer des liens. Des paiements rapprochés vers le même service peuvent aussi faciliter des corrélations. Ces indices ne prouvent pas à eux seuls l’identité d’une personne.\n\nLimites et confusions\nCoinJoin ne garantit pas un anonymat absolu et ne supprime pas les montants ni les transactions de la chaîne. Il ne faut pas confondre ce principe avec un service qui reçoit les fonds en garde et promet de les rendre. La disponibilité actuelle et les propriétés d’un produit précis exigent une vérification séparée ; les noms historiques de la source ne sont pas des recommandations.",
     "parentIds": [],
     "relatedIds": [
       "common-input-ownership-heuristic",
@@ -7189,7 +7373,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "Que fait un CoinJoin et que ne garantit-il pas ?"
     ],
     "status": "reviewed",
-    "sourceHash": "ff7d2ac90eaa5adbde0c790f54ed7b699c2a7d3160575cfde1e4ecd9db1f01f9",
+    "sourceHash": "05d342842e60ffe58735a13c11090b0502278d3d15a9bc347f979d5587bd796b",
     "sourcePath": "data/alice-corpus/examples/coinjoin.fr.md",
     "theme": "privacy"
   },
@@ -7210,7 +7394,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "locale": "en",
     "sourceLocale": "fr",
     "translationStatus": "machine",
-    "content": "Short answer\nA CoinJoin is a transaction built by several participants. It aims to make the association between their inputs and their outputs less certain, without hiding the existence of the transaction.\n\nExplanation\nBitcoin's structure allows combining several inputs and outputs with the necessary authorizations. Depending on the protocol, some outputs share common characteristics that make interpretation more ambiguous. The assumption that all the inputs have a single owner can then be false.\n\nThe coordination arrangements, fees and privacy vary by implementation. Later uses of the funds can also recreate links; the collaborative transaction does not magically reset the whole history.\n\nLimits and confusions\nCoinJoin guarantees no absolute anonymity and removes neither the amounts nor the transactions from the chain. This principle must not be confused with a service that takes the funds into custody and promises to return them. The current availability and the properties of a specific product require separate verification; the historical names in the source are not recommendations.",
+    "content": "Short answer\nA CoinJoin is a transaction built by several participants. It aims to make the association between their inputs and their outputs less certain, without hiding the existence of the transaction.\n\nExplanation\nBitcoin's structure allows combining several inputs and outputs with the necessary authorizations. Depending on the protocol, some outputs share common characteristics that make interpretation more ambiguous. The assumption that all the inputs have a single owner can then be false.\n\nThe coordination arrangements, fees and privacy vary by implementation. Later uses of the funds can also recreate links; the collaborative transaction does not magically reset the whole history.\n\nReusing an address or spending several mixed outputs together can recreate links. Payments close in time to the same service can also facilitate correlations. These clues alone do not prove a person’s identity.\n\nLimits and confusions\nCoinJoin guarantees no absolute anonymity and removes neither the amounts nor the transactions from the chain. This principle must not be confused with a service that takes the funds into custody and promises to return them. The current availability and the properties of a specific product require separate verification; the historical names in the source are not recommendations.",
     "parentIds": [],
     "relatedIds": [
       "common-input-ownership-heuristic",
@@ -7229,8 +7413,100 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "What does a CoinJoin do, and what does it not guarantee?"
     ],
     "status": "reviewed",
-    "sourceHash": "ff7d2ac90eaa5adbde0c790f54ed7b699c2a7d3160575cfde1e4ecd9db1f01f9",
+    "sourceHash": "05d342842e60ffe58735a13c11090b0502278d3d15a9bc347f979d5587bd796b",
     "sourcePath": "data/alice-corpus/examples/coinjoin.en.md",
+    "theme": "privacy"
+  },
+  {
+    "id": "curated-coinjoin-history",
+    "conceptId": "coinjoin-history",
+    "title": "L'histoire de CoinJoin",
+    "keywords": [
+      "L'histoire de CoinJoin",
+      "Histoire de CoinJoin",
+      "CoinJoin history",
+      "Origine de CoinJoin",
+      "Gregory Maxwell CoinJoin",
+      "Qui a inventé CoinJoin, et quand ?",
+      "Quelle est l'histoire de CoinJoin ?",
+      "Quels logiciels ont proposé des CoinJoin ?",
+      "D'où vient le nom CoinJoin ?",
+      "privacy",
+      "coinjoin history"
+    ],
+    "level": "beginner",
+    "tier": "primary",
+    "locale": "fr",
+    "sourceLocale": "fr",
+    "translationStatus": "source",
+    "content": "Réponse courte\nCoinJoin a été proposé par le développeur Gregory Maxwell le 22 août 2013, dans un message du forum Bitcointalk intitulé « CoinJoin: Bitcoin privacy for the real world ». L'idée n'exige aucune modification du protocole.\n\nExplication\nLe principe est de réunir dans une seule transaction des entrées appartenant à plusieurs personnes, chacune signant seulement ses propres entrées. Un observateur ne peut alors plus supposer que toutes les entrées ont le même propriétaire. Maxwell indiquait que ce type de transaction était déjà possible avec les règles existantes de Bitcoin.\n\nDes logiciels ont ensuite rendu la coordination accessible : JoinMarket, où des participants rémunèrent d'autres utilisateurs pour se joindre à leur transaction, puis des portefeuilles avec coordinateur, comme Wasabi Wallet et son protocole WabiSabi, ou Samourai Wallet avec Whirlpool. Les modes de coordination, les frais et les garanties diffèrent selon l'implémentation.\n\nLimites et confusions\nLa disponibilité de ces services a changé au fil du temps, et certains coordinateurs ont cessé leur activité ; l'état actuel d'un logiciel précis doit être vérifié au moment de l'utiliser. Cette fiche ne recommande aucun service. Alice App ne propose pas de CoinJoin.",
+    "parentIds": [],
+    "relatedIds": [
+      "coinjoin",
+      "secondary-bitcoin-joinmarket",
+      "payjoin"
+    ],
+    "reviewMethod": "targeted_source_review_and_corrections",
+    "sources": [
+      "https://bitcointalk.org/index.php?topic=279249.0",
+      "https://github.com/JoinMarket-Org/joinmarket-clientserver",
+      "https://wasabiwallet.io/"
+    ],
+    "questions": [
+      "Qui a inventé CoinJoin, et quand ?",
+      "Quelle est l'histoire de CoinJoin ?",
+      "Quels logiciels ont proposé des CoinJoin ?",
+      "D'où vient le nom CoinJoin ?"
+    ],
+    "status": "reviewed",
+    "sourceHash": "5a34113cdd32389d7f9c1ce24a8ff1da77ec68819a8f6511bcbb1e2820fbb593",
+    "sourcePath": "data/alice-corpus/examples/coinjoin-history.fr.md",
+    "theme": "privacy"
+  },
+  {
+    "id": "curated-coinjoin-history.en",
+    "conceptId": "coinjoin-history",
+    "title": "The history of CoinJoin",
+    "keywords": [
+      "The history of CoinJoin",
+      "Histoire de CoinJoin",
+      "CoinJoin history",
+      "Origine de CoinJoin",
+      "Gregory Maxwell CoinJoin",
+      "Who invented CoinJoin, and when?",
+      "What is the history of CoinJoin?",
+      "Which software offered CoinJoin?",
+      "Where does the name CoinJoin come from?",
+      "privacy",
+      "coinjoin history"
+    ],
+    "level": "beginner",
+    "tier": "primary",
+    "locale": "en",
+    "sourceLocale": "fr",
+    "translationStatus": "machine",
+    "content": "Short answer\nCoinJoin was proposed by developer Gregory Maxwell on 22 August 2013, in a Bitcointalk forum post titled “CoinJoin: Bitcoin privacy for the real world”. The idea requires no change to the protocol.\n\nExplanation\nThe principle is to gather inputs belonging to several people in a single transaction, each signing only their own inputs. An observer can then no longer assume that all inputs have the same owner. Maxwell pointed out that this kind of transaction was already possible under Bitcoin's existing rules.\n\nSoftware then made coordination accessible: JoinMarket, where participants pay other users to join their transaction, then wallets with a coordinator, such as Wasabi Wallet with its WabiSabi protocol, or Samourai Wallet with Whirlpool. Coordination, fees and guarantees differ between implementations.\n\nLimits and confusions\nThe availability of these services has changed over time, and some coordinators have stopped operating; the current state of a given software must be checked when using it. This note recommends no service. Alice App does not offer CoinJoin.",
+    "parentIds": [],
+    "relatedIds": [
+      "coinjoin",
+      "secondary-bitcoin-joinmarket",
+      "payjoin"
+    ],
+    "reviewMethod": "targeted_source_review_and_corrections",
+    "sources": [
+      "https://bitcointalk.org/index.php?topic=279249.0",
+      "https://github.com/JoinMarket-Org/joinmarket-clientserver",
+      "https://wasabiwallet.io/"
+    ],
+    "questions": [
+      "Who invented CoinJoin, and when?",
+      "What is the history of CoinJoin?",
+      "Which software offered CoinJoin?",
+      "Where does the name CoinJoin come from?"
+    ],
+    "status": "reviewed",
+    "sourceHash": "5a34113cdd32389d7f9c1ce24a8ff1da77ec68819a8f6511bcbb1e2820fbb593",
+    "sourcePath": "data/alice-corpus/examples/coinjoin-history.en.md",
     "theme": "privacy"
   },
   {
@@ -7472,6 +7748,9 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "La consolidation des UTXO",
       "Consolidation Transaction",
       "Pourquoi regrouper des UTXO et quels compromis cela implique-t-il ?",
+      "Faut-il regrouper ses petites sorties quand les frais sont bas ?",
+      "Consolider ses UTXO a-t-il un coût pour la vie privée ?",
+      "Est-ce le bon moment pour consolider quand le mempool est presque vide ?",
       "privacy",
       "consolidation transaction"
     ],
@@ -7493,10 +7772,13 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "PlanB Extraction — 2026-05-23 — btc303"
     ],
     "questions": [
-      "Pourquoi regrouper des UTXO et quels compromis cela implique-t-il ?"
+      "Pourquoi regrouper des UTXO et quels compromis cela implique-t-il ?",
+      "Faut-il regrouper ses petites sorties quand les frais sont bas ?",
+      "Consolider ses UTXO a-t-il un coût pour la vie privée ?",
+      "Est-ce le bon moment pour consolider quand le mempool est presque vide ?"
     ],
     "status": "reviewed",
-    "sourceHash": "2613cb6bde1ac7a591b0b7f21d40a134588c0208c5a31b8a944da550c0a2500a",
+    "sourceHash": "2a7aaba139616be63bf0859b9a3832926aad9fa435d9ef71779e5dbff23a5c39",
     "sourcePath": "data/alice-corpus/examples/consolidation-transaction.fr.md",
     "theme": "privacy"
   },
@@ -7509,6 +7791,9 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "Consolidation Transaction",
       "La consolidation des UTXO",
       "Why group UTXOs together, and which trade-offs does that involve?",
+      "Should I consolidate small outputs when fees are low?",
+      "Does consolidating UTXOs cost privacy?",
+      "Is it a good time to consolidate when the mempool is nearly empty?",
       "privacy",
       "consolidation transaction"
     ],
@@ -7530,10 +7815,13 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "PlanB Extraction — 2026-05-23 — btc303"
     ],
     "questions": [
-      "Why group UTXOs together, and which trade-offs does that involve?"
+      "Why group UTXOs together, and which trade-offs does that involve?",
+      "Should I consolidate small outputs when fees are low?",
+      "Does consolidating UTXOs cost privacy?",
+      "Is it a good time to consolidate when the mempool is nearly empty?"
     ],
     "status": "reviewed",
-    "sourceHash": "2613cb6bde1ac7a591b0b7f21d40a134588c0208c5a31b8a944da550c0a2500a",
+    "sourceHash": "2a7aaba139616be63bf0859b9a3832926aad9fa435d9ef71779e5dbff23a5c39",
     "sourcePath": "data/alice-corpus/examples/consolidation-transaction.en.md",
     "theme": "privacy"
   },
@@ -8390,7 +8678,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "locale": "fr",
     "sourceLocale": "fr",
     "translationStatus": "source",
-    "content": "Réponse courte\nLe mot dust recouvre deux notions. La limite de dust est une règle de relais : un nœud Bitcoin Core refuse par défaut de relayer une transaction qui crée une sortie trop petite pour valoir le coût de sa dépense. Une sortie « non rentable à dépenser » est un jugement du portefeuille : au taux de frais du moment, dépenser cette sortie coûterait autant ou plus qu’elle ne vaut.\n\nExplication\nLa règle de relais fixe un seuil par type de script. Bitcoin Core additionne la taille de la sortie et celle de l’entrée qui servira à la dépenser, puis multiplie ce total par un taux de référence, le réglage `dustrelayfee`, 3 000 sats par kvB par défaut, soit 3 sats/vB. Une sortie dont la valeur est inférieure à ce coût est du dust et la transaction qui la crée n’est pas relayée. Avec les réglages par défaut, le seuil est de 546 sats pour une sortie P2PKH, 294 sats pour une sortie P2WPKH et 330 sats pour une sortie P2WSH ou P2TR. Ce seuil ne suit pas les frais du moment : il reste fixe tant que le réglage ne change pas.\n\nLe jugement du portefeuille dépend, lui, du taux de frais du moment. Dépenser une sortie ajoute une entrée à la transaction, environ 68 vB pour une entrée P2WPKH ou 58 vB pour une entrée P2TR. Exemple fictif : à 10 sats/vB, cette entrée coûte à elle seule plusieurs centaines de sats, une sortie de 300 sats est donc dépensée à perte, et beaucoup de portefeuilles l’écartent de la sélection ou la signalent comme non rentable. Quand les frais baissent, la même sortie peut redevenir rentable à dépenser, par exemple dans une transaction de consolidation.\n\nLimites et confusions\nRecevoir une sortie sous le seuil de relais reste possible : un mineur peut inclure une transaction que les nœuds aux réglages par défaut ne relaient pas, et d’autres réglages existent. Le seuil de relais n’est pas une règle de consensus ; un bloc contenant une sortie de 1 sat reste valide. À l’inverse, une sortie au-dessus du seuil, par exemple 300 sats en P2WPKH, peut rester non rentable à dépenser tant que les frais sont élevés. Les chiffres cités sont ceux des réglages par défaut de Bitcoin Core ; un portefeuille ou un nœud peut appliquer d’autres valeurs, et le calcul exact dépend de la version. Une sortie non rentable n’est pas perdue : elle attend des frais plus bas ou un regroupement avec d’autres sorties.",
+    "content": "Réponse courte\nLe mot dust recouvre deux notions. La limite de dust est une règle de relais : un nœud Bitcoin Core refuse par défaut de relayer une transaction qui crée une sortie trop petite pour valoir le coût de sa dépense. Une sortie « non rentable à dépenser » est un jugement du portefeuille : au taux de frais du moment, dépenser cette sortie coûterait autant ou plus qu’elle ne vaut.\n\nExplication\nLa règle de relais fixe un seuil par type de script. Bitcoin Core additionne la taille de la sortie et celle de l’entrée qui servira à la dépenser, puis multiplie ce total par un taux de référence, le réglage `dustrelayfee`, 3 000 sats par kvB par défaut, soit 3 sats/vB. Une sortie dont la valeur est inférieure à ce coût est du dust et la transaction qui la crée n’est pas relayée. Avec les réglages par défaut, le seuil est de 546 sats pour une sortie P2PKH, 294 sats pour une sortie P2WPKH et 330 sats pour une sortie P2WSH ou P2TR. Ce seuil ne suit pas les frais du moment : il reste fixe tant que le réglage ne change pas.\n\nLe jugement du portefeuille dépend, lui, du taux de frais du moment. Dépenser une sortie ajoute une entrée à la transaction, environ 68 vB pour une entrée P2WPKH ou 58 vB pour une entrée P2TR. Exemple fictif : à 10 sats/vB, cette entrée coûte à elle seule plusieurs centaines de sats, une sortie de 300 sats est donc dépensée à perte, et beaucoup de portefeuilles l’écartent de la sélection ou la signalent comme non rentable. Quand les frais baissent, la même sortie peut redevenir rentable à dépenser, par exemple dans une transaction de consolidation.\n\nLimites et confusions\nRecevoir une sortie sous le seuil de relais reste possible : un mineur peut inclure une transaction que les nœuds aux réglages par défaut ne relaient pas, et d’autres réglages existent. Le seuil de relais n’est pas une règle de consensus ; un bloc contenant une sortie de 1 sat reste valide. À l’inverse, une sortie au-dessus du seuil, par exemple 300 sats en P2WPKH, peut rester non rentable à dépenser tant que les frais sont élevés. Les chiffres cités sont ceux des réglages par défaut de Bitcoin Core ; un portefeuille ou un nœud peut appliquer d’autres valeurs, et le calcul exact dépend de la version. Une sortie non rentable n’est pas perdue : elle peut redevenir économique à dépenser si le taux de frais baisse suffisamment, sans garantie.\n\nRegrouper de petites sorties coûte aussi des frais, avec 1 entrée par sortie dépensée. La consolidation ne supprime pas ce coût et ne garantit pas une dépense sans perte ; elle peut le réduire si elle est faite à un taux de frais plus bas.",
     "parentIds": [],
     "relatedIds": [
       "coin-selection-tradeoffs",
@@ -8408,7 +8696,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "Qu’est-ce que le dust et la limite de dust ?"
     ],
     "status": "reviewed",
-    "sourceHash": "28e5b6977f291b31df129f968b7127a62fd6d69ceeb29b169fbeac64ce61ca67",
+    "sourceHash": "6b1c56d85424e200325b729ffbbae4d914b5a1087239395a884cf6b3879178c3",
     "sourcePath": "data/alice-corpus/examples/dust.fr.md",
     "theme": "transactions"
   },
@@ -8433,7 +8721,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "locale": "en",
     "sourceLocale": "fr",
     "translationStatus": "reviewed",
-    "content": "Short answer\nThe word dust covers two notions. The dust limit is a relay rule: by default, a Bitcoin Core node refuses to relay a transaction that creates an output too small to be worth the cost of spending it. An output that is \"uneconomic to spend\" is a judgment of the wallet: at the current fee rate, spending that output would cost as much as or more than it is worth.\n\nExplanation\nThe relay rule sets a threshold per script type. Bitcoin Core adds the size of the output to the size of the input that will spend it, then multiplies that total by a reference rate, the `dustrelayfee` setting, 3,000 sats per kvB by default, that is 3 sats/vB. An output worth less than that cost is dust, and the transaction creating it is not relayed. With the default settings, the threshold is 546 sats for a P2PKH output, 294 sats for a P2WPKH output and 330 sats for a P2WSH or P2TR output. This threshold does not follow current fees: it stays fixed as long as the setting does not change.\n\nThe wallet's judgment, on the other hand, depends on the current fee rate. Spending an output adds an input to the transaction, about 68 vB for a P2WPKH input or 58 vB for a P2TR input. Fictional example: at 10 sats/vB, that input alone costs several hundred sats, so a 300 sat output is spent at a loss, and many wallets leave it out of the selection or flag it as uneconomic. When fees drop, the same output can become economic to spend again, for instance in a consolidation transaction.\n\nLimits and confusions\nReceiving an output below the relay threshold remains possible: a miner can include a transaction that nodes with default settings do not relay, and other settings exist. The relay threshold is not a consensus rule; a block containing a 1 sat output remains valid. Conversely, an output above the threshold, for instance 300 sats in P2WPKH, can remain uneconomic to spend as long as fees are high. The figures quoted are those of Bitcoin Core's default settings; a wallet or a node may apply other values, and the exact calculation depends on the version. An uneconomic output is not lost: it waits for lower fees or for a grouping with other outputs.",
+    "content": "Short answer\nThe word dust covers two notions. The dust limit is a relay rule: by default, a Bitcoin Core node refuses to relay a transaction that creates an output too small to be worth the cost of spending it. An output that is \"uneconomic to spend\" is a judgment of the wallet: at the current fee rate, spending that output would cost as much as or more than it is worth.\n\nExplanation\nThe relay rule sets a threshold per script type. Bitcoin Core adds the size of the output to the size of the input that will spend it, then multiplies that total by a reference rate, the `dustrelayfee` setting, 3,000 sats per kvB by default, that is 3 sats/vB. An output worth less than that cost is dust, and the transaction creating it is not relayed. With the default settings, the threshold is 546 sats for a P2PKH output, 294 sats for a P2WPKH output and 330 sats for a P2WSH or P2TR output. This threshold does not follow current fees: it stays fixed as long as the setting does not change.\n\nThe wallet's judgment, on the other hand, depends on the current fee rate. Spending an output adds an input to the transaction, about 68 vB for a P2WPKH input or 58 vB for a P2TR input. Fictional example: at 10 sats/vB, that input alone costs several hundred sats, so a 300 sat output is spent at a loss, and many wallets leave it out of the selection or flag it as uneconomic. When fees drop, the same output can become economic to spend again, for instance in a consolidation transaction.\n\nLimits and confusions\nReceiving an output below the relay threshold remains possible: a miner can include a transaction that nodes with default settings do not relay, and other settings exist. The relay threshold is not a consensus rule; a block containing a 1 sat output remains valid. Conversely, an output above the threshold, for instance 300 sats in P2WPKH, can remain uneconomic to spend as long as fees are high. The figures quoted are those of Bitcoin Core's default settings; a wallet or a node may apply other values, and the exact calculation depends on the version. An uneconomic output is not lost: it may become economic to spend if the fee rate falls sufficiently, without a guarantee.\n\nConsolidating small outputs also costs fees, with 1 input per output spent. Consolidation does not remove that cost or guarantee spending without a loss; it can reduce the cost when done at a lower fee rate.",
     "parentIds": [],
     "relatedIds": [
       "coin-selection-tradeoffs",
@@ -8451,7 +8739,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "What are dust and the dust limit?"
     ],
     "status": "reviewed",
-    "sourceHash": "28e5b6977f291b31df129f968b7127a62fd6d69ceeb29b169fbeac64ce61ca67",
+    "sourceHash": "6b1c56d85424e200325b729ffbbae4d914b5a1087239395a884cf6b3879178c3",
     "sourcePath": "data/alice-corpus/examples/dust.en.md",
     "theme": "transactions"
   },
@@ -10637,21 +10925,22 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "locale": "fr",
     "sourceLocale": "fr",
     "translationStatus": "source",
-    "content": "Réponse courte\nUne facture Lightning est une demande de paiement lisible par un portefeuille compatible. Elle fournit les informations nécessaires pour payer, avec notamment une destination, une échéance et parfois un montant fixé.\n\nExplication\nDans l’usage classique, le destinataire génère une facture BOLT11 et la transmet sous forme de texte ou de QR code. Le portefeuille du payeur la décode pour présenter les informations avant confirmation. La facture peut demander un montant précis ou laisser le payeur en choisir un.\n\nL’échéance évite qu’une ancienne demande reste utilisée indéfiniment. Des informations de routage aident à atteindre le destinataire. La facture contient aussi des éléments cryptographiques employés par le mécanisme de règlement. Elle décrit une demande ; elle ne prouve pas à elle seule que le paiement a eu lieu.\n\nLimites et confusions\nUne facture Lightning n’est pas une adresse Bitcoin on-chain. Un QR code peut contenir différents formats ; son apparence ne suffit pas à savoir comment payer.\n\nPour une nouvelle demande, il est préférable d’obtenir une facture fraîche plutôt que de supposer qu’une facture déjà réglée sera réutilisable. Une offre BOLT12 ou une Lightning Address peut rester stable tout en servant à obtenir de nouvelles factures.",
+    "content": "Réponse courte\nUne facture Lightning est une demande de paiement lisible par un portefeuille compatible. Elle fournit les informations nécessaires pour payer, avec notamment une destination, une échéance et parfois un montant fixé.\n\nExplication\nDans l’usage classique, le destinataire génère une facture BOLT11 et la transmet sous forme de texte ou de QR code. Le portefeuille du payeur la décode pour présenter les informations avant confirmation. La facture peut demander un montant précis ou laisser le payeur en choisir un.\n\nBOLT11 est encodé, pas chiffré : quiconque possède la facture peut décoder ses champs. Une facture comportant un montant révèle ce montant encodé. La clé publique du nœud destinataire figure explicitement dans le champ n ou se récupère à partir de la signature ; ce n’est pas le hash de paiement du champ p. Ce hash identifie la condition de paiement, pas une adresse on-chain ni la clé publique du destinataire. L’horodatage, l’expiration, une description ou son hash et des indices de routage facultatifs peuvent aussi être visibles. Une clé publique de nœud ne prouve pas une identité civile. Publier la facture peut permettre des rapprochements, sans révéler en soi les clés privées, la seed ou tout l’historique d’achat.\n\nL’échéance évite qu’une ancienne demande reste utilisée indéfiniment. Les indices de routage sont facultatifs : ils aident à atteindre le destinataire, souvent par des canaux non annoncés, et peuvent révéler ces canaux. Ils décrivent les derniers sauts vers le destinataire, pas le trajet que prendra le paiement, que le portefeuille du payeur calcule. Modifier le moindre caractère invalide la somme de contrôle et la signature de la facture : une facture partiellement masquée ou retouchée ne peut plus être payée. La facture contient aussi des éléments cryptographiques employés par le mécanisme de règlement. Elle décrit une demande ; elle ne prouve pas à elle seule que le paiement a eu lieu.\n\nLimites et confusions\nUne facture Lightning n’est pas une adresse Bitcoin on-chain. Un QR code peut contenir différents formats ; son apparence ne suffit pas à savoir comment payer.\n\nPour une nouvelle demande, il est préférable d’obtenir une facture fraîche plutôt que de supposer qu’une facture déjà réglée sera réutilisable. Une offre BOLT12 ou une Lightning Address peut rester stable tout en servant à obtenir de nouvelles factures.",
     "parentIds": [],
     "relatedIds": [
       "bolt12-offers",
       "lightning-address"
     ],
-    "reviewMethod": "adapted_from_corrected_sources",
+    "reviewMethod": "targeted_source_review_and_corrections",
     "sources": [
-      "PlanB lnp201 — Lightning Network Theory"
+      "PlanB lnp201 — Lightning Network Theory",
+      "https://github.com/lightning/bolts/blob/master/11-payment-encoding.md"
     ],
     "questions": [
       "Pourquoi une facture Lightning peut-elle expirer ?"
     ],
     "status": "reviewed",
-    "sourceHash": "3d68be6b16dbab7ebb1a638617e435e28d41b099adab1e9ded7669017e917f68",
+    "sourceHash": "4e50f8c21abff2289d38a874d06e32bb2b4f6b55505d5f1527f36b89d7f81180",
     "sourcePath": "data/alice-corpus/examples/lightning-invoice.fr.md",
     "theme": "Lightning"
   },
@@ -10672,21 +10961,22 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "locale": "en",
     "sourceLocale": "fr",
     "translationStatus": "machine",
-    "content": "Short answer\nA Lightning invoice is a payment request readable by a compatible wallet. It provides the information needed to pay, notably a destination, an expiry and sometimes a fixed amount.\n\nExplanation\nIn the classic flow, the recipient generates a BOLT11 invoice and shares it as text or as a QR code. The payer's wallet decodes it to present the information before confirmation. The invoice can request a precise amount or let the payer choose one.\n\nThe expiry prevents an old request from being used indefinitely. Routing hints help reach the recipient. The invoice also contains cryptographic elements used by the settlement mechanism. It describes a request; by itself it does not prove that the payment took place.\n\nLimits and confusions\nA Lightning invoice is not an on-chain Bitcoin address. A QR code can contain different formats; its appearance is not enough to know how to pay.\n\nFor a new request, it is preferable to obtain a fresh invoice rather than assume that an invoice already paid can be reused. A BOLT12 offer or a Lightning Address can stay stable while being used to obtain new invoices.",
+    "content": "Short answer\nA Lightning invoice is a payment request readable by a compatible wallet. It provides the information needed to pay, notably a destination, an expiry and sometimes a fixed amount.\n\nExplanation\nIn the classic flow, the recipient generates a BOLT11 invoice and shares it as text or as a QR code. The payer's wallet decodes it to present the information before confirmation. The invoice can request a precise amount or let the payer choose one.\n\nBOLT11 is encoded, not encrypted: anyone holding the invoice can decode its fields. An amount-bearing invoice exposes that encoded amount. The payee node public key is given explicitly in the n field or recovered from the invoice signature; it is not the payment hash in the p field. That hash identifies the payment condition, not an on-chain address or the recipient’s public key. Timestamp, expiry, description or description hash and optional routing hints may also be visible. A node public key is not proof of a person’s legal identity. Publishing an invoice can enable correlation but does not itself reveal private keys, a seed or the full purchase history.\n\nThe expiry prevents an old request from being used indefinitely. Routing hints are optional: they help reach the recipient, often through channels that are not announced, and can expose those channels. They describe the last hops toward the recipient, not the path the payment will take, which the payer's wallet computes. Changing any character invalidates the invoice checksum and signature: a partly hidden or edited invoice can no longer be paid. The invoice also contains cryptographic elements used by the settlement mechanism. It describes a request; by itself it does not prove that the payment took place.\n\nLimits and confusions\nA Lightning invoice is not an on-chain Bitcoin address. A QR code can contain different formats; its appearance is not enough to know how to pay.\n\nFor a new request, it is preferable to obtain a fresh invoice rather than assume that an invoice already paid can be reused. A BOLT12 offer or a Lightning Address can stay stable while being used to obtain new invoices.",
     "parentIds": [],
     "relatedIds": [
       "bolt12-offers",
       "lightning-address"
     ],
-    "reviewMethod": "adapted_from_corrected_sources",
+    "reviewMethod": "targeted_source_review_and_corrections",
     "sources": [
-      "PlanB lnp201 — Lightning Network Theory"
+      "PlanB lnp201 — Lightning Network Theory",
+      "https://github.com/lightning/bolts/blob/master/11-payment-encoding.md"
     ],
     "questions": [
       "Why can a Lightning invoice expire?"
     ],
     "status": "reviewed",
-    "sourceHash": "3d68be6b16dbab7ebb1a638617e435e28d41b099adab1e9ded7669017e917f68",
+    "sourceHash": "4e50f8c21abff2289d38a874d06e32bb2b4f6b55505d5f1527f36b89d7f81180",
     "sourcePath": "data/alice-corpus/examples/lightning-invoice.en.md",
     "theme": "Lightning"
   },
@@ -10961,7 +11251,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "locale": "fr",
     "sourceLocale": "fr",
     "translationStatus": "source",
-    "content": "Réponse courte\nSauvegarder Lightning demande de tenir compte de l’état vivant des canaux, pas seulement des clés. La procédure dépend du logiciel ; une recette prévue pour LND ne s’applique pas automatiquement aux autres nœuds.\n\nExplication\nPour LND, la seed seule ne suffit pas à restaurer les canaux ouverts. La sauvegarde statique des canaux, ou SCB, aide à retrouver les pairs et à demander un règlement des canaux dans la procédure de récupération. Elle ne remet pas le nœud en fonctionnement avec tous ses anciens canaux intacts.\n\nLa base channel.db contient un état dynamique. Reprendre une vieille copie peut conduire à utiliser un engagement périmé et mettre les fonds en danger. Il faut préparer une sauvegarde cohérente avec la documentation de la version employée avant qu’une panne survienne.\n\nLimites et confusions\nUne sauvegarde on-chain et une sauvegarde Lightning ne couvrent pas le même besoin. Une watchtower ne remplace pas les données de récupération.\n\nAlice doit demander quel logiciel est utilisé avant de proposer une procédure précise. Elle ne doit jamais demander à l’utilisateur de publier sa seed, ses clés ou ses fichiers secrets dans la conversation. Une explication générale ne constitue pas un test de restauration effectivement réussi.",
+    "content": "Réponse courte\nSauvegarder Lightning demande de tenir compte de l’état vivant des canaux, pas seulement des clés. La procédure dépend du logiciel ; une recette prévue pour LND ne s’applique pas automatiquement aux autres nœuds.\n\nExplication\nPour LND, la seed seule ne suffit pas à restaurer les canaux ouverts. La sauvegarde statique des canaux, ou SCB, aide à retrouver les pairs et à demander un règlement des canaux dans la procédure de récupération. Elle ne remet pas le nœud en fonctionnement avec tous ses anciens canaux intacts.\n\nLa phrase aezeed restaure les clés du portefeuille concerné ; la SCB ne remplace pas ces clés et ne constitue pas une copie des derniers soldes. Dans la récupération standard par SCB, LND utilise les informations sauvegardées sur les canaux et les pairs pour demander des fermetures forcées avec leur aide. Reconnecter les pairs ne suffit pas à reconstruire les canaux actifs ni à reprendre le routage. La disponibilité des pairs et des données valides compte ; après fermeture, les confirmations on-chain et les timelocks applicables peuvent retarder la dépense. Ni la seed seule ni la présence d’une SCB ne garantissent de récupérer chaque canal.\n\nLa base channel.db contient un état dynamique. Reprendre une vieille copie peut conduire à utiliser un engagement périmé et mettre les fonds en danger. Il faut préparer une sauvegarde cohérente avec la documentation de la version employée avant qu’une panne survienne.\n\nLimites et confusions\nUne sauvegarde on-chain et une sauvegarde Lightning ne couvrent pas le même besoin. Une watchtower ne remplace pas les données de récupération.\n\nAlice doit demander quel logiciel est utilisé avant de proposer une procédure précise. Elle ne doit jamais demander à l’utilisateur de publier sa seed, ses clés ou ses fichiers secrets dans la conversation. Une explication générale ne constitue pas un test de restauration effectivement réussi.",
     "parentIds": [],
     "relatedIds": [
       "lightning-force-close",
@@ -10971,15 +11261,16 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "secondary-lightning-lnd-aezeed",
       "secondary-lightning-static-channel-backup"
     ],
-    "reviewMethod": "adapted_from_corrected_sources",
+    "reviewMethod": "targeted_source_review_and_corrections",
     "sources": [
-      "https://docs.lightning.engineering/lightning-network-tools/lnd/recovery-planning-for-failure"
+      "https://docs.lightning.engineering/lightning-network-tools/lnd/recovery-planning-for-failure",
+      "https://github.com/lightningnetwork/lnd/blob/master/docs/recovery.md"
     ],
     "questions": [
       "Pourquoi sauvegarder Lightning demande-t-il une attention particulière ?"
     ],
     "status": "reviewed",
-    "sourceHash": "37878c41707f815dd86e3b5b25d4701aeec956c9d7c4325d7102fa3c315df114",
+    "sourceHash": "d2a341aa288efe9e020a9a422a59d7c37f041e5e2845c467ab6d3ae32bfee683",
     "sourcePath": "data/alice-corpus/examples/lightning-node-backup.fr.md",
     "theme": "Lightning"
   },
@@ -11000,7 +11291,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "locale": "en",
     "sourceLocale": "fr",
     "translationStatus": "machine",
-    "content": "Short answer\nBacking up Lightning requires taking into account the live state of the channels, not only the keys. The procedure depends on the software; a recipe designed for LND does not automatically apply to other nodes.\n\nExplanation\nFor LND, the seed alone is not enough to restore open channels. The static channel backup, or SCB, helps find the peers again and request a settlement of the channels during the recovery procedure. It does not put the node back into operation with all its old channels intact.\n\nThe channel.db database contains dynamic state. Restoring an old copy can lead to using an outdated commitment and put funds at risk. A backup consistent with the documentation of the version in use must be prepared before a failure occurs.\n\nLimits and confusions\nAn on-chain backup and a Lightning backup do not cover the same need. A watchtower does not replace recovery data.\n\nAlice must ask which software is used before proposing a precise procedure. She must never ask the user to post their seed, keys or secret files in the conversation. A general explanation is not an actual, successful restore test.",
+    "content": "Short answer\nBacking up Lightning requires taking into account the live state of the channels, not only the keys. The procedure depends on the software; a recipe designed for LND does not automatically apply to other nodes.\n\nExplanation\nFor LND, the seed alone is not enough to restore open channels. The static channel backup, or SCB, helps find the peers again and request a settlement of the channels during the recovery procedure. It does not put the node back into operation with all its old channels intact.\n\nThe aezeed recovery phrase restores the relevant wallet keys; the SCB does not replace those keys and is not a snapshot of the latest balances. In standard SCB recovery, LND uses the saved channel and peer information to request peer-assisted force closures. Reconnecting peers alone does not reconstruct live channels or resume routing. Availability of the peers and valid recovery data matter; after closure, on-chain confirmation and applicable timelocks can delay spending. Neither the seed alone nor the presence of an SCB guarantees recovery of every channel.\n\nThe channel.db database contains dynamic state. Restoring an old copy can lead to using an outdated commitment and put funds at risk. A backup consistent with the documentation of the version in use must be prepared before a failure occurs.\n\nLimits and confusions\nAn on-chain backup and a Lightning backup do not cover the same need. A watchtower does not replace recovery data.\n\nAlice must ask which software is used before proposing a precise procedure. She must never ask the user to post their seed, keys or secret files in the conversation. A general explanation is not an actual, successful restore test.",
     "parentIds": [],
     "relatedIds": [
       "lightning-force-close",
@@ -11010,15 +11301,16 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "secondary-lightning-lnd-aezeed",
       "secondary-lightning-static-channel-backup"
     ],
-    "reviewMethod": "adapted_from_corrected_sources",
+    "reviewMethod": "targeted_source_review_and_corrections",
     "sources": [
-      "https://docs.lightning.engineering/lightning-network-tools/lnd/recovery-planning-for-failure"
+      "https://docs.lightning.engineering/lightning-network-tools/lnd/recovery-planning-for-failure",
+      "https://github.com/lightningnetwork/lnd/blob/master/docs/recovery.md"
     ],
     "questions": [
       "Why does backing up Lightning require special attention?"
     ],
     "status": "reviewed",
-    "sourceHash": "37878c41707f815dd86e3b5b25d4701aeec956c9d7c4325d7102fa3c315df114",
+    "sourceHash": "d2a341aa288efe9e020a9a422a59d7c37f041e5e2845c467ab6d3ae32bfee683",
     "sourcePath": "data/alice-corpus/examples/lightning-node-backup.en.md",
     "theme": "Lightning"
   },
@@ -11113,7 +11405,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "locale": "fr",
     "sourceLocale": "fr",
     "translationStatus": "source",
-    "content": "Réponse courte\nLightning réduit la publication de chaque paiement sur la chaîne, mais ne garantit pas l’anonymat. Les informations visibles dépendent du routage, du wallet et des services utilisés.\n\nExplication\nLe routage onion limite ce que chaque intermédiaire apprend sur le trajet. D’autres informations peuvent néanmoins circuler, notamment des montants, des horaires ou des besoins de liquidité. Un fournisseur de services, un nœud hébergé ou une infrastructure de factures peut observer des éléments qui resteraient locaux avec une autre architecture.\n\nIl faut analyser qui voit quoi. Détenir soi-même les clés répond à la question de la garde ; cela ne répond pas à toutes les questions de confidentialité. La protection contre un pair curieux peut également différer de celle contre un opérateur observant plusieurs endroits du parcours.\n\nLimites et confusions\nNe pas attribuer à tous les fournisseurs la même visibilité sans examiner leur fonctionnement. Le simple mot « cloud » ne prouve pas que le fournisseur voit chaque destination ; inversement, « non custodial » ne prouve pas qu’il ne voit rien.\n\nPour une réponse débutante, expliquer les acteurs et les données exposées. Les garanties détaillées doivent être rattachées à une implémentation et à sa version, pas généralisées à tout Lightning.",
+    "content": "Réponse courte\nLightning réduit la publication de chaque paiement sur la chaîne, mais ne garantit pas l’anonymat. Les informations visibles dépendent du routage, du wallet et des services utilisés.\n\nExplication\nLe routage onion limite ce que chaque intermédiaire apprend sur le trajet. D’autres informations peuvent néanmoins circuler, notamment des montants, des horaires ou des besoins de liquidité. Un fournisseur de services, un nœud hébergé ou une infrastructure de factures peut observer des éléments qui resteraient locaux avec une autre architecture.\n\nUn nœud de routage voit normalement ses pairs voisins et les montants et échéances des HTLC entrants et sortants de son propre saut, pas une route complète fournie en clair. Une route courte ou directe et des observations en plusieurs points peuvent en révéler davantage par inférence ou corrélation. Le marchand peut relier le paiement reçu à une commande ou à un compte client. Lightning ne communique pas automatiquement au marchand une adresse d’envoi on-chain ni l’identité civile du payeur ; les pairs directs et l’architecture du portefeuille ou du service peuvent exposer d’autres informations identifiantes.\n\nOuvrir ou fermer un canal publie une transaction on-chain. Un canal annoncé au réseau relie aussi sa sortie de financement à la clé publique d’un nœud. Cela peut faciliter des rapprochements, mais ne révèle pas à lui seul l’identité civile : il faut d’autres liens, comme un retrait depuis une plateforme identifiée, une réutilisation d’adresse ou des métadonnées réseau.\n\nIl faut analyser qui voit quoi. Détenir soi-même les clés répond à la question de la garde ; cela ne répond pas à toutes les questions de confidentialité. La protection contre un pair curieux peut également différer de celle contre un opérateur observant plusieurs endroits du parcours.\n\nLimites et confusions\nNe pas attribuer à tous les fournisseurs la même visibilité sans examiner leur fonctionnement. Le simple mot « cloud » ne prouve pas que le fournisseur voit chaque destination ; inversement, « non custodial » ne prouve pas qu’il ne voit rien.\n\nPour une réponse débutante, expliquer les acteurs et les données exposées. Les garanties détaillées doivent être rattachées à une implémentation et à sa version, pas généralisées à tout Lightning.",
     "parentIds": [],
     "relatedIds": [
       "lightning-liquidity-path",
@@ -11125,15 +11417,16 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "secondary-lightning-lightning-private-channel",
       "secondary-lightning-onion-routing"
     ],
-    "reviewMethod": "adapted_from_corrected_sources",
+    "reviewMethod": "targeted_source_review_and_corrections",
     "sources": [
-      "PlanB dev303 — Learning Rust with Bitcoin"
+      "PlanB dev303 — Learning Rust with Bitcoin",
+      "https://github.com/lightning/bolts/blob/master/04-onion-routing.md"
     ],
     "questions": [
       "Quelles informations un paiement Lightning peut-il révéler ?"
     ],
     "status": "reviewed",
-    "sourceHash": "b16fee13a8927844c7a1da24a55ea3a14dfb3a547dd2eb80b97e4382b148b107",
+    "sourceHash": "cad57bba5ee36d849274b1f2b16bb42e2a9ef157b7ca442240680b402bd679ce",
     "sourcePath": "data/alice-corpus/examples/lightning-privacy-tradeoff.fr.md",
     "theme": "Lightning"
   },
@@ -11154,7 +11447,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "locale": "en",
     "sourceLocale": "fr",
     "translationStatus": "machine",
-    "content": "Short answer\nLightning reduces the publication of each payment on the chain, but does not guarantee anonymity. The information that is visible depends on the routing, the wallet and the services used.\n\nExplanation\nOnion routing limits what each intermediary learns about the route. Other information can nonetheless circulate, notably amounts, timing or liquidity needs. A service provider, a hosted node or an invoice infrastructure can observe elements that would stay local with another architecture.\n\nOne needs to analyze who sees what. Holding the keys oneself answers the question of custody; it does not answer every privacy question. Protection against a curious peer can also differ from protection against an operator observing several points along the route.\n\nLimits and confusions\nDo not attribute the same visibility to every provider without examining how it works. The mere word \"cloud\" does not prove that the provider sees every destination; conversely, \"non-custodial\" does not prove that it sees nothing.\n\nFor a beginner-level answer, explain the actors and the data exposed. Detailed guarantees must be tied to an implementation and its version, not generalized to all of Lightning.",
+    "content": "Short answer\nLightning reduces the publication of each payment on the chain, but does not guarantee anonymity. The information that is visible depends on the routing, the wallet and the services used.\n\nExplanation\nOnion routing limits what each intermediary learns about the route. Other information can nonetheless circulate, notably amounts, timing or liquidity needs. A service provider, a hosted node or an invoice infrastructure can observe elements that would stay local with another architecture.\n\nA routing node normally sees its adjacent peers and the incoming and outgoing HTLC amounts and deadlines for its own hop, not a complete route supplied in plaintext. Short or direct routes and observations at several points can reveal more by inference or correlation. The shop can link the received payment to an order or customer account. Lightning does not automatically disclose a payer’s on-chain sending address or real-world identity to the merchant; direct peers and the wallet or service architecture can expose other identifying information.\n\nOpening or closing a channel publishes an on-chain transaction. A channel announced to the network also links its funding output to a node public key. This can support correlation but does not by itself reveal a real-world identity: that requires other links, such as a withdrawal from an identified platform, address reuse or network metadata.\n\nOne needs to analyze who sees what. Holding the keys oneself answers the question of custody; it does not answer every privacy question. Protection against a curious peer can also differ from protection against an operator observing several points along the route.\n\nLimits and confusions\nDo not attribute the same visibility to every provider without examining how it works. The mere word \"cloud\" does not prove that the provider sees every destination; conversely, \"non-custodial\" does not prove that it sees nothing.\n\nFor a beginner-level answer, explain the actors and the data exposed. Detailed guarantees must be tied to an implementation and its version, not generalized to all of Lightning.",
     "parentIds": [],
     "relatedIds": [
       "lightning-liquidity-path",
@@ -11166,15 +11459,16 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "secondary-lightning-lightning-private-channel",
       "secondary-lightning-onion-routing"
     ],
-    "reviewMethod": "adapted_from_corrected_sources",
+    "reviewMethod": "targeted_source_review_and_corrections",
     "sources": [
-      "PlanB dev303 — Learning Rust with Bitcoin"
+      "PlanB dev303 — Learning Rust with Bitcoin",
+      "https://github.com/lightning/bolts/blob/master/04-onion-routing.md"
     ],
     "questions": [
       "What information can a Lightning payment reveal?"
     ],
     "status": "reviewed",
-    "sourceHash": "b16fee13a8927844c7a1da24a55ea3a14dfb3a547dd2eb80b97e4382b148b107",
+    "sourceHash": "cad57bba5ee36d849274b1f2b16bb42e2a9ef157b7ca442240680b402bd679ce",
     "sourcePath": "data/alice-corpus/examples/lightning-privacy-tradeoff.en.md",
     "theme": "Lightning"
   },
@@ -11873,6 +12167,102 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "sourceHash": "96fea5f5674b21040831f98b84c0576a23805c8e3cb417b6122bd8289fc469f8",
     "sourcePath": "data/alice-corpus/examples/merkle-tree.en.md",
     "theme": "Cryptographie et limites du protocole"
+  },
+  {
+    "id": "curated-miner-transaction-selection",
+    "conceptId": "miner-transaction-selection",
+    "title": "Comment les mineurs choisissent les transactions",
+    "keywords": [
+      "Comment les mineurs choisissent les transactions",
+      "Sélection des transactions",
+      "Transaction selection",
+      "Block template",
+      "Taux de frais des mineurs",
+      "Comment un mineur choisit-il les transactions qu'il met dans son bloc ?",
+      "Pourquoi les mineurs prennent-ils en priorité les transactions avec des frais élevés ?",
+      "Que devient une transaction qui paie beaucoup moins que les autres ?",
+      "Les mineurs trient-ils par montant envoyé ?",
+      "transactions",
+      "miner transaction selection"
+    ],
+    "level": "beginner",
+    "tier": "primary",
+    "locale": "fr",
+    "sourceLocale": "fr",
+    "translationStatus": "source",
+    "content": "Réponse courte\nLa place dans un bloc est limitée. Pour maximiser leurs revenus, les mineurs retiennent en général les transactions qui paient le meilleur taux de frais, en sat par octet virtuel (sat/vB), et non celles qui envoient le plus gros montant.\n\nExplication\nUn bloc ne peut pas dépasser 4 000 000 unités de poids, soit environ 1 000 000 d'octets virtuels. Le mineur construit son modèle de bloc à partir des transactions en attente qu'il connaît et privilégie celles qui rapportent le plus par octet virtuel occupé.\n\nDes transactions liées sont évaluées ensemble : un enfant qui paie des frais élevés peut faire entrer son parent peu payé dans le bloc, c'est le principe de CPFP. Le logiciel Bitcoin Core regroupe ainsi les transactions dépendantes avant de les classer par taux de frais.\n\nUne transaction qui paie bien moins que les autres attend tant que des transactions mieux payées remplissent les blocs. Elle peut être confirmée quand la demande baisse, ou être oubliée par les nœuds si elle attend trop longtemps (2 semaines par défaut dans Bitcoin Core) ou si leur mémoire sature. Selon le portefeuille, on peut l'accélérer par RBF ou CPFP.\n\nLimites et confusions\nCe tri est une stratégie économique et une politique du logiciel du mineur, pas une règle de consensus : un mineur peut inclure ou exclure ce qu'il veut tant que le bloc est valide. Le montant envoyé n'influence pas les frais ; c'est la taille de la transaction et son taux qui comptent. Aucun taux ne garantit une confirmation dans un délai précis.",
+    "parentIds": [],
+    "relatedIds": [
+      "transaction-fees",
+      "bitcoin-mempool",
+      "bitcoin-mempool-policy",
+      "child-pays-for-parent",
+      "replace-by-fee"
+    ],
+    "reviewMethod": "targeted_source_review_and_corrections",
+    "sources": [
+      "https://github.com/bitcoin/bitcoin/blob/master/src/consensus/consensus.h",
+      "https://github.com/bitcoin/bitcoin/blob/master/src/node/miner.cpp",
+      "https://github.com/bitcoin/bitcoin/blob/master/src/kernel/mempool_options.h"
+    ],
+    "questions": [
+      "Comment un mineur choisit-il les transactions qu'il met dans son bloc ?",
+      "Pourquoi les mineurs prennent-ils en priorité les transactions avec des frais élevés ?",
+      "Que devient une transaction qui paie beaucoup moins que les autres ?",
+      "Les mineurs trient-ils par montant envoyé ?"
+    ],
+    "status": "reviewed",
+    "sourceHash": "d1c78de72708a1c1548718e72fccd35a122cdb5916c6e48715e4157365b787c3",
+    "sourcePath": "data/alice-corpus/examples/miner-transaction-selection.fr.md",
+    "theme": "transactions"
+  },
+  {
+    "id": "curated-miner-transaction-selection.en",
+    "conceptId": "miner-transaction-selection",
+    "title": "How miners choose transactions",
+    "keywords": [
+      "How miners choose transactions",
+      "Sélection des transactions",
+      "Transaction selection",
+      "Block template",
+      "Taux de frais des mineurs",
+      "How does a miner choose which transactions go into its block?",
+      "Why do miners prioritize transactions with high fees?",
+      "What happens to a transaction that pays much less than the others?",
+      "Do miners sort transactions by the amount sent?",
+      "transactions",
+      "miner transaction selection"
+    ],
+    "level": "beginner",
+    "tier": "primary",
+    "locale": "en",
+    "sourceLocale": "fr",
+    "translationStatus": "machine",
+    "content": "Short answer\nBlock space is limited. To maximize their revenue, miners generally pick the transactions that pay the best fee rate, in sats per virtual byte (sat/vB), not those that send the largest amount.\n\nExplanation\nA block cannot exceed 4,000,000 weight units, about 1,000,000 virtual bytes. The miner builds its block template from the waiting transactions it knows about and favours those that earn the most per virtual byte used.\n\nRelated transactions are evaluated together: a child paying a high fee can pull its low-fee parent into the block, which is the principle of CPFP. Bitcoin Core groups dependent transactions before ranking them by fee rate.\n\nA transaction paying much less than the others waits as long as better-paying transactions fill the blocks. It can confirm when demand falls, or be dropped by nodes if it waits too long (2 weeks by default in Bitcoin Core) or if their memory fills up. Depending on the wallet, it can be sped up with RBF or CPFP.\n\nLimits and confusions\nThis ordering is an economic strategy and a policy of the miner's software, not a consensus rule: a miner may include or exclude what it wants as long as the block is valid. The amount sent does not drive the fee; the transaction's size and fee rate do. No fee rate guarantees confirmation within a precise time.",
+    "parentIds": [],
+    "relatedIds": [
+      "transaction-fees",
+      "bitcoin-mempool",
+      "bitcoin-mempool-policy",
+      "child-pays-for-parent",
+      "replace-by-fee"
+    ],
+    "reviewMethod": "targeted_source_review_and_corrections",
+    "sources": [
+      "https://github.com/bitcoin/bitcoin/blob/master/src/consensus/consensus.h",
+      "https://github.com/bitcoin/bitcoin/blob/master/src/node/miner.cpp",
+      "https://github.com/bitcoin/bitcoin/blob/master/src/kernel/mempool_options.h"
+    ],
+    "questions": [
+      "How does a miner choose which transactions go into its block?",
+      "Why do miners prioritize transactions with high fees?",
+      "What happens to a transaction that pays much less than the others?",
+      "Do miners sort transactions by the amount sent?"
+    ],
+    "status": "reviewed",
+    "sourceHash": "d1c78de72708a1c1548718e72fccd35a122cdb5916c6e48715e4157365b787c3",
+    "sourcePath": "data/alice-corpus/examples/miner-transaction-selection.en.md",
+    "theme": "transactions"
   },
   {
     "id": "curated-mining-centralization",
@@ -14419,22 +14809,23 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "locale": "fr",
     "sourceLocale": "fr",
     "translationStatus": "source",
-    "content": "Réponse courte\nRBF permet de proposer le remplacement d’une transaction non confirmée par une autre qui paie davantage de frais. Cela peut améliorer ses chances d’être incluse prochainement.\n\nExplication\nLe portefeuille prépare et signe une transaction concurrente utilisant des fonds déjà engagés dans la précédente. Les nœuds décident de l’accepter selon leur politique de remplacement et ses conditions. Le remplacement relève ainsi de la gestion des transactions en attente.\n\nUne politique full-RBF peut accepter ce remplacement même si la transaction d’origine ne l’avait pas signalé. La possibilité concrète dépend aussi du logiciel du portefeuille et des moyens de signature disponibles.\n\nLimites et confusions\nAugmenter les frais ne garantit pas une inclusion immédiate. RBF ne permet pas de modifier librement une transaction déjà confirmée dans la chaîne. L’absence de signalement RBF n’est pas une garantie de sécurité pour un paiement sans confirmation. Cette explication ne constitue pas une instruction pour remplacer un paiement réel ; il faut vérifier les montants, la destination et le coût proposés par le portefeuille.",
+    "content": "Réponse courte\nRBF permet de proposer le remplacement d’une transaction non confirmée par une autre qui paie davantage de frais. Cela peut améliorer ses chances d’être incluse prochainement.\n\nExplication\nLe portefeuille prépare et signe une transaction concurrente utilisant des fonds déjà engagés dans la précédente. Les nœuds décident de l’accepter selon leur politique de remplacement et ses conditions. Le remplacement relève ainsi de la gestion des transactions en attente.\n\nUne politique full-RBF peut accepter ce remplacement même si la transaction d’origine ne l’avait pas signalé. La possibilité concrète dépend aussi du logiciel du portefeuille et des moyens de signature disponibles.\n\nLimites et confusions\nLa politique RBF ne garantit pas la conservation des destinataires ni des montants des sorties. Le signataire peut les modifier dans le remplacement. Le destinataire doit vérifier la transaction de remplacement réelle et son état de confirmation ; son affichage dans un portefeuille ne garantit pas le règlement.\n\nAugmenter les frais ne garantit pas une inclusion immédiate. RBF ne permet pas de modifier librement une transaction déjà confirmée dans la chaîne. L’absence de signalement RBF n’est pas une garantie de sécurité pour un paiement sans confirmation. Cette explication ne constitue pas une instruction pour remplacer un paiement réel ; il faut vérifier les montants, la destination et le coût proposés par le portefeuille.",
     "parentIds": [],
     "relatedIds": [
       "transaction-fees",
       "bitcoin-mempool-policy",
       "bitcoin-transaction-confirmation"
     ],
-    "reviewMethod": "adapted_from_corrected_sources",
+    "reviewMethod": "targeted_source_review_and_corrections",
     "sources": [
-      "https://raw.githubusercontent.com/bitcoin/bitcoin/v28.0/doc/release-notes.md"
+      "https://raw.githubusercontent.com/bitcoin/bitcoin/v28.0/doc/release-notes.md",
+      "https://github.com/bitcoin/bips/blob/master/bip-0125.mediawiki"
     ],
     "questions": [
       "Peut-on accélérer une transaction en attente ?"
     ],
     "status": "reviewed",
-    "sourceHash": "ed10585d53d92dba1df7dcceb176f794d7c720c2745fdc7398693600cb86f567",
+    "sourceHash": "c57a2aa7f4e910b8de3b60fc3b4dbcf883c631455d88cd988307b4c29c64216a",
     "sourcePath": "data/alice-corpus/examples/replace-by-fee.fr.md",
     "theme": "transactions"
   },
@@ -14455,22 +14846,23 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "locale": "en",
     "sourceLocale": "fr",
     "translationStatus": "machine",
-    "content": "Short answer\nRBF makes it possible to propose replacing an unconfirmed transaction with another one that pays more fees. This can improve its chances of being included soon.\n\nExplanation\nThe wallet prepares and signs a competing transaction that uses funds already committed in the previous one. Nodes decide whether to accept it according to their replacement policy and its conditions. Replacement is thus part of managing pending transactions.\n\nA full-RBF policy can accept this replacement even if the original transaction did not signal it. The practical possibility also depends on the wallet software and the signing means available.\n\nLimits and confusions\nRaising fees does not guarantee immediate inclusion. RBF does not allow freely modifying a transaction already confirmed in the chain. The absence of RBF signaling is not a security guarantee for an unconfirmed payment. This explanation is not an instruction for replacing a real payment; the amounts, destination and cost proposed by the wallet must be checked.",
+    "content": "Short answer\nRBF makes it possible to propose replacing an unconfirmed transaction with another one that pays more fees. This can improve its chances of being included soon.\n\nExplanation\nThe wallet prepares and signs a competing transaction that uses funds already committed in the previous one. Nodes decide whether to accept it according to their replacement policy and its conditions. Replacement is thus part of managing pending transactions.\n\nA full-RBF policy can accept this replacement even if the original transaction did not signal it. The practical possibility also depends on the wallet software and the signing means available.\n\nLimits and confusions\nRBF policy does not guarantee preservation of output recipients or amounts. The signer may change them in the replacement. A recipient must check the actual replacement and its confirmation state; appearing in a wallet does not guarantee settlement.\n\nRaising fees does not guarantee immediate inclusion. RBF does not allow freely modifying a transaction already confirmed in the chain. The absence of RBF signaling is not a security guarantee for an unconfirmed payment. This explanation is not an instruction for replacing a real payment; the amounts, destination and cost proposed by the wallet must be checked.",
     "parentIds": [],
     "relatedIds": [
       "transaction-fees",
       "bitcoin-mempool-policy",
       "bitcoin-transaction-confirmation"
     ],
-    "reviewMethod": "adapted_from_corrected_sources",
+    "reviewMethod": "targeted_source_review_and_corrections",
     "sources": [
-      "https://raw.githubusercontent.com/bitcoin/bitcoin/v28.0/doc/release-notes.md"
+      "https://raw.githubusercontent.com/bitcoin/bitcoin/v28.0/doc/release-notes.md",
+      "https://github.com/bitcoin/bips/blob/master/bip-0125.mediawiki"
     ],
     "questions": [
       "Can a pending transaction be sped up?"
     ],
     "status": "reviewed",
-    "sourceHash": "ed10585d53d92dba1df7dcceb176f794d7c720c2745fdc7398693600cb86f567",
+    "sourceHash": "c57a2aa7f4e910b8de3b60fc3b4dbcf883c631455d88cd988307b4c29c64216a",
     "sourcePath": "data/alice-corpus/examples/replace-by-fee.en.md",
     "theme": "transactions"
   },
@@ -29834,6 +30226,94 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
     "theme": "transactions"
   },
   {
+    "id": "curated-third-party-seed-backup",
+    "conceptId": "third-party-seed-backup",
+    "title": "Confier sa phrase de récupération à un service tiers",
+    "keywords": [
+      "Confier sa phrase de récupération à un service tiers",
+      "Ledger Recover",
+      "Sauvegarde de seed par un tiers",
+      "Third-party seed backup",
+      "Seed backup service",
+      "Est-ce que Ledger Recover envoie ma phrase de récupération sur le cloud ?",
+      "Avec un service de sauvegarde de seed, mon secret quitte-t-il l'appareil ?",
+      "À qui faut-il faire confiance avec Ledger Recover ?",
+      "Est-ce une bonne idée de confier sa seed à une entreprise ?",
+      "security",
+      "third party seed backup"
+    ],
+    "level": "beginner",
+    "tier": "primary",
+    "locale": "fr",
+    "sourceLocale": "fr",
+    "translationStatus": "source",
+    "content": "Réponse courte\nOui, avec un service comme Ledger Recover, une version chiffrée du secret quitte l'appareil. Le service est optionnel, payant par abonnement, et repose sur la confiance accordée aux entreprises qui conservent les fragments.\n\nExplication\nD'après la page du service, la puce sécurisée de l'appareil chiffre le secret, le découpe en 3 fragments et les confie à 3 entreprises distinctes : Coincover, Ledger et EscrowTech. 2 fragments sur 3 suffisent pour restaurer, après une vérification d'identité en ligne.\n\nIl faut donc faire confiance à ces entreprises pour ne pas s'entendre et ne pas être contraintes de coopérer, au processus de vérification d'identité, et au logiciel de l'appareil qui effectue le chiffrement et le découpage. C'est un compromis : on gagne une solution en cas de perte, au prix d'une dépendance et d'un lien entre son identité et sa sauvegarde.\n\nUne phrase notée à la main sur papier ou gravée sur métal, gardée en plusieurs exemplaires, n'envoie rien nulle part.\n\nLimites et confusions\nLes détails techniques et le prix relèvent de la documentation actuelle du fournisseur et peuvent changer. Cette fiche ne recommande ni ne déconseille un produit. Alice App ne stocke ni ne récupère aucune phrase de récupération.",
+    "parentIds": [],
+    "relatedIds": [
+      "seed-phrase-backup",
+      "wallet-recovery-phrase",
+      "secure-backups"
+    ],
+    "reviewMethod": "targeted_source_review_and_corrections",
+    "sources": [
+      "https://shop.ledger.com/pages/ledger-recover"
+    ],
+    "questions": [
+      "Est-ce que Ledger Recover envoie ma phrase de récupération sur le cloud ?",
+      "Avec un service de sauvegarde de seed, mon secret quitte-t-il l'appareil ?",
+      "À qui faut-il faire confiance avec Ledger Recover ?",
+      "Est-ce une bonne idée de confier sa seed à une entreprise ?"
+    ],
+    "status": "reviewed",
+    "sourceHash": "674af33215c32ed3e124bed19934e9f33ddc17df13d8323693ca0e94dad8232c",
+    "sourcePath": "data/alice-corpus/examples/third-party-seed-backup.fr.md",
+    "theme": "security"
+  },
+  {
+    "id": "curated-third-party-seed-backup.en",
+    "conceptId": "third-party-seed-backup",
+    "title": "Entrusting a recovery phrase to a third-party service",
+    "keywords": [
+      "Entrusting a recovery phrase to a third-party service",
+      "Ledger Recover",
+      "Sauvegarde de seed par un tiers",
+      "Third-party seed backup",
+      "Seed backup service",
+      "Does Ledger Recover send my recovery phrase to the cloud?",
+      "With a seed backup service, does my secret leave the device?",
+      "Who do I have to trust with Ledger Recover?",
+      "Is it a good idea to entrust my seed to a company?",
+      "security",
+      "third party seed backup"
+    ],
+    "level": "beginner",
+    "tier": "primary",
+    "locale": "en",
+    "sourceLocale": "fr",
+    "translationStatus": "machine",
+    "content": "Short answer\nYes, with a service such as Ledger Recover, an encrypted version of the secret leaves the device. The service is optional, paid by subscription, and relies on trust in the companies that keep the fragments.\n\nExplanation\nAccording to the service's page, the device's secure chip encrypts the secret, splits it into 3 fragments and hands them to 3 separate companies: Coincover, Ledger and EscrowTech. 2 fragments out of 3 are enough to restore, after an online identity verification.\n\nOne must therefore trust these companies not to collude and not to be compelled to cooperate, the identity verification process, and the device software that performs the encryption and the split. It is a trade-off: a way out in case of loss, at the cost of a dependency and a link between one's identity and one's backup.\n\nA phrase written by hand on paper or stamped on metal, kept in several copies, sends nothing anywhere.\n\nLimits and confusions\nTechnical details and price belong to the provider's current documentation and can change. This note neither recommends nor discourages a product. Alice App neither stores nor recovers any recovery phrase.",
+    "parentIds": [],
+    "relatedIds": [
+      "seed-phrase-backup",
+      "wallet-recovery-phrase",
+      "secure-backups"
+    ],
+    "reviewMethod": "targeted_source_review_and_corrections",
+    "sources": [
+      "https://shop.ledger.com/pages/ledger-recover"
+    ],
+    "questions": [
+      "Does Ledger Recover send my recovery phrase to the cloud?",
+      "With a seed backup service, does my secret leave the device?",
+      "Who do I have to trust with Ledger Recover?",
+      "Is it a good idea to entrust my seed to a company?"
+    ],
+    "status": "reviewed",
+    "sourceHash": "674af33215c32ed3e124bed19934e9f33ddc17df13d8323693ca0e94dad8232c",
+    "sourcePath": "data/alice-corpus/examples/third-party-seed-backup.en.md",
+    "theme": "security"
+  },
+  {
     "id": "curated-threat-model",
     "conceptId": "threat-model",
     "title": "Adapter la protection aux risques",
@@ -30149,6 +30629,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "Les frais de transaction",
       "Transaction Fees",
       "À quoi servent les frais Bitcoin ?",
+      "Pourquoi un petit paiement coûte-t-il presque les mêmes frais qu’un gros ?",
       "transactions",
       "transaction fees"
     ],
@@ -30170,10 +30651,11 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "PlanB Extraction — 2026-05-23"
     ],
     "questions": [
-      "À quoi servent les frais Bitcoin ?"
+      "À quoi servent les frais Bitcoin ?",
+      "Pourquoi un petit paiement coûte-t-il presque les mêmes frais qu’un gros ?"
     ],
     "status": "reviewed",
-    "sourceHash": "8d8a3024cfdd9f6a61fddd5931e1700b6aa89e77df5cb8fd095fccb06ddf354a",
+    "sourceHash": "2e092dbd21367a1c52bf226bf0a42cd802429f276ffec47a87640220abd2f8e3",
     "sourcePath": "data/alice-corpus/examples/transaction-fees.fr.md",
     "theme": "transactions"
   },
@@ -30186,6 +30668,7 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "Transaction Fees",
       "Les frais de transaction",
       "What are Bitcoin fees for?",
+      "Why does a small payment cost almost as much in fees as a large one?",
       "transactions",
       "transaction fees"
     ],
@@ -30207,10 +30690,11 @@ export const GENERATED_CURATED_KNOWLEDGE_BASE: KnowledgeChunk[] = [
       "PlanB Extraction — 2026-05-23"
     ],
     "questions": [
-      "What are Bitcoin fees for?"
+      "What are Bitcoin fees for?",
+      "Why does a small payment cost almost as much in fees as a large one?"
     ],
     "status": "reviewed",
-    "sourceHash": "8d8a3024cfdd9f6a61fddd5931e1700b6aa89e77df5cb8fd095fccb06ddf354a",
+    "sourceHash": "2e092dbd21367a1c52bf226bf0a42cd802429f276ffec47a87640220abd2f8e3",
     "sourcePath": "data/alice-corpus/examples/transaction-fees.en.md",
     "theme": "transactions"
   },

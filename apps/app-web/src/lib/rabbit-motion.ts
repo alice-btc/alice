@@ -12,10 +12,21 @@ export const rabbitPaths = {
   "detente2": "M21 16 L22 16 L22 15 L23 15 L23 14 L24 14 L24 13 L25 13 L25 12 L26 12 L26 11 L29 11 L29 12 L31 12 L31 13 L32 13 L32 15 L33 15 L33 17 L30 17 L30 16 L29 16 L29 15 L28 15 L28 15 L26 15 L26 15 L25 15 L25 16 L24 16 L24 17 L26 17 L26 18 L27 18 L27 19 L28 19 L28 21 L29 21 L29 24 L28 24 L28 26 L25 26 L25 27 L26 27 L26 31 L25 31 L25 32 L26 32 L26 35 L27 35 L27 36 L28 36 L28 37 L22 37 L22 36 L21 36 L21 37 L12 37 L12 36 L11 36 L11 35 L10 35 L10 34 L8 34 L8 33 L7 33 L7 31 L8 31 L8 30 L10 30 L10 31 L11 31 L11 29 L12 29 L12 28 L13 28 L13 27 L14 27 L14 26 L16 26 L16 25 L19 25 L19 24 L18 24 L18 23 L17 23 L17 21 L18 21 L18 19 L19 19 L19 18 L18 18 L18 17 L18 16 L17 16 L17 14 L16 14 L16 12 L15 12 L15 11 L13 11 L13 12 L10 12 L10 9 L11 9 L11 8 L14 8 L14 7 L17 7 L17 8 L18 8 L18 9 L20 9 L20 12 L21 12Z"
 } as const;
 export type RabbitState = 'idle' | 'typing' | 'waiting' | 'streaming' | 'settling' | 'relaxing';
-export const rabbitCycles: Record<Exclude<RabbitState, 'idle'>, ReadonlyArray<readonly [keyof typeof rabbitPaths, number]>> = {
+export type RabbitCycle = ReadonlyArray<readonly [keyof typeof rabbitPaths, number]>;
+const sip: RabbitCycle = [['appui1',160],['appui2',160],['appui3',160],['tasse',400],['appui3',170],['appui2',170],['appui1',170]];
+export const rabbitCycles: Record<Exclude<RabbitState, 'idle'>, RabbitCycle> = {
  typing: [['lever1',140],['lever2',140],['attention',0]],
  relaxing: [['lever2',150],['lever1',150],['repos',0]],
- waiting: [['repos',500],['appui1',160],['appui2',160],['appui3',160],['tasse',400],['appui3',170],['appui2',170],['appui1',170],['repos',3100]],
+ waiting: [['repos',500],...sip,['repos',1800],['lever1',150],['lever2',220],['lever1',150],['repos',1800]],
  streaming: [['repos',900],['lever1',170],['lever2',250],['lever1',170],['repos',3500]],
  settling: [['repos',100],['detente1',150],['detente2',150],['relache',400],['detente2',170],['detente1',170],['repos',100]],
 };
+/** A wait that outlasts the opening loops (12 s) moves on to more gestures at
+ * the same pace, so a long local generation never looks stalled. */
+export const WAITING_OPENING_LOOPS = 2;
+export const rabbitLongWait: RabbitCycle = [
+ ...sip,['repos',2000],
+ ['lever1',140],['lever2',140],['attention',700],['lever2',150],['lever1',150],['repos',2000],
+ ...sip,['repos',2000],
+ ['detente1',150],['detente2',150],['relache',500],['detente2',170],['detente1',170],['repos',2000],
+];

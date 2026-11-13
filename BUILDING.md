@@ -21,6 +21,7 @@ npm ci
 npm test
 npm run check:types
 npm run check:release-version
+npm run check:download-links
 npm run check:npm-audit
 ```
 

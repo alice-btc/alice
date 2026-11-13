@@ -415,7 +415,6 @@ export function AskAliceComposer({
           }
         }}
         placeholder={t('chat.composer.placeholder')}
-        maxLength={500}
         rows={1}
         className={chat
           ? 'chat-composer-input w-full min-w-0 resize-none bg-transparent border-none outline-none font-numbers text-lg py-0 placeholder:opacity-100'

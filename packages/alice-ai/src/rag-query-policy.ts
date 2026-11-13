@@ -13,6 +13,35 @@ function fold(message: string): string {
   return message.toLowerCase().normalize('NFD').replace(DIACRITICS, '');
 }
 
+/** Full introduction requests only: specialist qualifiers must keep their own retrieval. */
+export function isGeneralLightningPaymentExplanation(message: string): boolean {
+  const q = fold(message).trim().replace(/[?.!]$/, '').trim();
+  return /^(?:please )?(?:explain how (?:a )?lightning payment works|how does (?:a )?lightning payment work)(?: (?:for my (?:experience|level)|at my level|at a level suited to my (?:experience|level)|in terms suited to my (?:experience|level)))?$/.test(q)
+    || /^(?:explique(?:-moi)? )?comment fonctionne un paiement lightning(?: (?:selon mon experience|a mon niveau|pour mon niveau|a un niveau adapte a mon (?:experience|niveau)))?$/.test(q)
+    || /^explique(?:-moi)? un paiement lightning a mon niveau$/.test(q);
+}
+
+/** A walkthrough can mention invoice and routing without asking only about
+ * invoice fields. Kept separate from the exact definition detector used by
+ * controlled memory answers: this changes retrieval, never canned responses. */
+export function isLightningPaymentWalkthrough(message: string): boolean {
+  const q = fold(message);
+  if (!/\blightning\b/.test(q) || !/\b(?:payments?|paiements?|invoices?|factures?)\b/.test(q)) return false;
+  if (/\b(?:expired|expiry|expiration|expiree?|pending|attente|privacy|confidential\w*|anonym\w*|identity|identite|backup|sauvegarde|recover\w*|recuper\w*|revoked|revoque\w*|compare\w*|comparaison|versus|ark|bolt12|decode\w*|decod\w*|fields?|champs?)\b/.test(q)) return false;
+  return /\b(?:walk me through|talk me through|guide me through|normal flow|ordinary flow|deroulement|steps?|etapes?|process|processus)\b/.test(q)
+    && /\b(?:walk|talk|guide|explain|describe|explique|decris)\b/.test(q);
+}
+
+/** A channel/routing state question, not a request to read an actual balance.
+ * HTLC is an explicit Lightning cue even when the follow-up omits its name. */
+export function isLightningRoutingStateQuestion(message: string): boolean {
+  const q = fold(message);
+  return /\b(?:lightning|htlcs?|bolt ?11)\b/.test(q)
+    && !/\b(?:ethereum|solana|monero|ark|arkade|liquid|cashu|fedimint|expired|expiry|expiration|expiree?)\b/.test(q)
+    && /\b(?:routes?|routing|paths?|chemins?|routage|channels?|canal|canaux)\b/.test(q)
+    && /\b(?:fail\w*|cannot find|no (?:route|path)|before sending|locked|frozen|pending|in.flight|echou\w*|echec|aucun chemin|avant (?:envoi|l.envoi)|bloqu\w*|gel\w*|en cours)\b/.test(q);
+}
+
 // Explicit comparison/relationship/compatibility vocabulary, FR and EN. This
 // is deliberately a short, literal word list rather than a generic "with"
 // heuristic: an arbitrary "with" clause ("explain Bitcoin with examples")
@@ -53,9 +82,10 @@ export function isBroadBitcoinDefinition(message: string): boolean {
 export function isGeneralBitcoinFeeQuestion(message: string): boolean {
   const value = fold(message);
   if (isComparisonRagQuery(message)) return false;
+  if (/\b(?:paypal|visa|mastercard|cards?|bank|bancaires?|sepa|swift)\b/.test(value)) return false;
   if (/\b(?:lightning|ark|arkade|spark|liquid|ecash|cashu|fedimint|lnurl|swap|provider|exchange|plateforme|prestataire|retrait|withdrawal|ethereum|solana|credit|carte|rbf|cpfp|mempool|stuck|pending|unconfirmed|bloquee?|attente|confirmee?|bump|accelerat\w*|augmenter|consolidat\w*|batch\w*|regroup\w*|utxo|dust|coinjoin|payjoin|mining|minage|subsid(?:y|ies)|rewards?|subventions?|recompenses?|weight|poids|halving|demi[ -]?reduction|subscription|abonnement|alice)\b/.test(value)) return false;
   const explicitFee = /\b(?:fees?|frais)\b/.test(value);
-  const onChain = /\b(?:bitcoins?|on[ -]?chain|en chaine|transactions?|miners?|mineurs?)\b/.test(value);
+  const onChain = /\b(?:bitcoins?|on[ -]?chain|en chaine|transactions?|payments?|paiements?|miners?|mineurs?)\b/.test(value);
   // A fee/congestion question in this Bitcoin assistant has an L1 meaning;
   // a cost question without "fees" still needs an explicit on-chain transfer.
   const congestion = /\b(?:network|reseau)\b/.test(value)
@@ -187,6 +217,9 @@ export function ragQueryChunkBudget(
   isLocal: boolean,
   isTechnical: () => boolean,
 ): number {
+  // A walkthrough or failed-route explanation needs both the mechanism and
+  // its requested detail, even when an opening 'Explain' looks definitional.
+  if (isLightningPaymentWalkthrough(message) || isLightningRoutingStateQuestion(message)) return 2;
   const shape = classifyRagQuery(message);
   if (shape === 'definition') return 1;
   if (shape === 'comparison') return isLocal ? 2 : 3;

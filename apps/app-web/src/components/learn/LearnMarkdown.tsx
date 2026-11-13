@@ -7,7 +7,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { useT, type Translator } from '@/i18n';
 import { useLearnT } from './learn-locale';
 import type { LearnBlock, LearnInline } from '@/lib/learn/markdown';
-import { normalizeLinkHref, parseMarkdown, resolveAssetUrl } from '@/lib/learn/markdown';
+import { normalizeLinkHref, parseMarkdown, resolveAssetUrl, youTubeWatchUrl } from '@/lib/learn/markdown';
 import { openExternalUrl } from '@/lib/open-external';
 
 type AnchorClick = (anchorId: string) => void;
@@ -162,11 +162,29 @@ function VideoBlock({
 }) {
   // Many courses only carry the fr YouTube id; fall back to whatever exists
   // rather than dropping the video.
-  const t = useMarkdownT();
   const byLang = videos[videoId] ?? {};
   const youtubeId = byLang[lang] ?? byLang.en ?? byLang.fr ?? Object.values(byLang)[0];
   if (!youtubeId) return null;
-  const url = `https://www.youtube.com/watch?v=${youtubeId}`;
+  return <YouTubeEmbed youtubeId={youtubeId} startSeconds={0} title="" online={online} />;
+}
+
+// An alt of a single word ("video", "lecture", "bitfinex") is a label, not a
+// title a screen reader should announce; the generic one says more.
+const isVideoTitle = (alt: string) => /\s/.test(alt.trim());
+
+function YouTubeEmbed({
+  youtubeId,
+  startSeconds,
+  title,
+  online,
+}: {
+  youtubeId: string;
+  startSeconds: number;
+  title: string;
+  online: boolean;
+}) {
+  const t = useMarkdownT();
+  const url = youTubeWatchUrl(youtubeId, startSeconds);
   if (!online) {
     return (
       <div
@@ -200,8 +218,8 @@ function VideoBlock({
           YouTube player refuses to start without one (error 153). This frame
           alone sends Alice's origin, never the page path or its query. */}
       <iframe
-        src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
-        title={t('learn.markdown.videoTitle')}
+        src={`https://www.youtube-nocookie.com/embed/${youtubeId}${startSeconds > 0 ? `?start=${startSeconds}` : ''}`}
+        title={isVideoTitle(title) ? title.trim() : t('learn.markdown.videoTitle')}
         allow="encrypted-media; picture-in-picture"
         allowFullScreen
         referrerPolicy="strict-origin"
@@ -360,6 +378,8 @@ function Block({
       return <CourseImage key={resolveAssetUrl(block.src, assetBase)} src={resolveAssetUrl(block.src, assetBase)} alt={block.alt} />;
     case 'video':
       return <VideoBlock videoId={block.videoId} videos={videos} lang={lang} online={online} />;
+    case 'youtube':
+      return <YouTubeEmbed youtubeId={block.youtubeId} startSeconds={block.startSeconds} title={block.alt} online={online} />;
     case 'hr':
       return <hr style={{ border: 0, borderTop: '1px solid var(--alice-border)', margin: '24px 0' }} />;
     default:

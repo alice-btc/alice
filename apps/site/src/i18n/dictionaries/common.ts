@@ -72,6 +72,8 @@ export type CommonCopy = {
     linuxDebian: string;
     ios: string;
     android: string;
+    iosTestFlight: string;
+    androidApk: string;
     release: string;
   };
   downloadNotice: {
@@ -176,6 +178,8 @@ const en: CommonCopy = {
     linuxDebian: 'Linux Debian',
     ios: 'iOS',
     android: 'Android',
+    iosTestFlight: 'iPhone / iPad · TestFlight beta',
+    androidApk: 'Android · APK beta',
     release: 'Release & checksum',
   },
   downloadNotice: {
@@ -296,6 +300,8 @@ const fr: CommonCopy = {
     linuxDebian: 'Linux Debian',
     ios: 'iOS',
     android: 'Android',
+    iosTestFlight: 'iPhone / iPad · Bêta TestFlight',
+    androidApk: 'Android · APK bêta',
     release: 'Version et somme de contrôle',
   },
   downloadNotice: {

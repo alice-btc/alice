@@ -39,6 +39,19 @@ for (const state of ['waiting','streaming'] as const) test(`${state} repeats and
  time.advance(15000);assert.ok(frames.length>10);
  stop();const count=frames.length;time.advance(30000);assert.equal(frames.length,count);assert.equal(time.pending(),0);
 });
+test('a long wait adds gestures after the opening loops and never rests more than 2.5 s',()=>{
+ const time=manualClock(), frames:{pose:RabbitFrame;at:number}[]=[];
+ let now=0;
+ const stop=playRabbit('waiting',pose=>frames.push({pose,at:now}),time.clock);
+ for(;now<60000;now+=10)time.advance(10);
+ const poses=(from:number,to:number)=>new Set(frames.filter(f=>f.at>=from&&f.at<to).map(f=>f.pose));
+ assert.ok(!poses(0,12000).has('attention')&&!poses(0,12000).has('relache'));
+ assert.ok(poses(12000,60000).has('attention')&&poses(12000,60000).has('relache')&&poses(12000,60000).has('tasse'));
+ let rest=0,longest=0;
+ frames.forEach((f,i)=>{const next=frames[i+1]?.at??60000;rest=f.pose==='repos'?rest+next-f.at:0;longest=Math.max(longest,rest);});
+ assert.ok(longest<=2500,`longest rest ${longest} ms`);
+ stop();assert.equal(time.pending(),0);
+});
 test('changing to offline/idle cancels the active movement',()=>{
  const time=manualClock();let frame:RabbitFrame='repos';
  const stop=playRabbit('typing',f=>{frame=f},time.clock);time.advance(140);stop();

@@ -271,7 +271,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
           subtitle={accountSubtitle}
           version={version}
           onSettings={() => openSettings()}
-          onAccount={() => account.requestSignIn()}
+          onAccount={() => openSettings('account')}
           onReport={() => setFeedbackOpen(true)}
         />
         {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} />}
@@ -508,7 +508,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
           subtitle={accountSubtitle}
           version={version}
           onSettings={() => openSettings()}
-          onAccount={() => account.requestSignIn()}
+          onAccount={() => openSettings('account')}
           onReport={() => setFeedbackOpen(true)}
         />
       </div>
