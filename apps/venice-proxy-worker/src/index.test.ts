@@ -215,6 +215,31 @@ describe('the explorer anchors door', () => {
   });
 });
 
+describe('the Monero pool lists door', () => {
+  it('reads every pool list once and names the blocks, saying which list failed', async () => {
+    const hash = 'ab'.repeat(32);
+    stubUpstream((url) => {
+      if (url.includes('hashvault')) return new Response(JSON.stringify([{ height: 1, hash }]), { status: 200 });
+      if (url.includes('nanopool')) return new Response('{"status":true,"data":[]}', { status: 200 });
+      return new Response('down', { status: 503 });
+    });
+    const res = await worker.fetch(new Request('https://proxy.test/explorer/monero-pools', { method: 'GET', headers: { Origin: 'https://alice.example' } }), ENV);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('Cache-Control') ?? '', /public, max-age=300/);
+    assert.equal(res.headers.get('Access-Control-Allow-Origin'), 'https://alice.example');
+    const body = await res.json() as { blocks: Record<string, string>; lists: { name: string; ok: boolean; failure?: string; status?: number }[] };
+    assert.deepEqual(body.blocks, { [hash]: 'HashVault' });
+    assert.equal(body.lists.find(l => l.name === 'HashVault')?.ok, true);
+    assert.deepEqual(body.lists.find(l => l.name === 'Nanopool'), { name: 'Nanopool', ok: false, blocks: 0, failure: 'format' });
+    assert.deepEqual(body.lists.find(l => l.name === 'C3Pool'), { name: 'C3Pool', ok: false, blocks: 0, failure: 'http', status: 503 });
+  });
+
+  it('is GET-only', async () => {
+    const res = await worker.fetch(new Request('https://proxy.test/explorer/monero-pools', { method: 'POST' }), ENV);
+    assert.equal(res.status, 404);
+  });
+});
+
 describe('the released version door', () => {
   it('answers publicly, cacheable, with the release constant', async () => {
     const res = await worker.fetch(new Request('https://proxy.test/app-version', { method: 'GET' }), ENV);

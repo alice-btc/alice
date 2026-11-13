@@ -1,3 +1,5 @@
+#[cfg(mobile)]
+mod account_purchase;
 #[cfg(any(desktop, target_os = "ios"))]
 mod keychain_storage;
 #[cfg(target_os = "ios")]
@@ -168,6 +170,7 @@ fn with_ios_features(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<taur
     with_mobile_local_ai(builder)
         .manage(keychain_storage::ChatStorageKeyState(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
+            account_purchase::account_purchase_context,
             keychain_storage::chat_storage_decrypt,
             keychain_storage::chat_storage_encrypt,
             local_ai::local_ai_delete_model,
@@ -194,6 +197,7 @@ fn with_ios_features(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<taur
 #[cfg(target_os = "android")]
 fn with_android_features(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     with_mobile_local_ai(builder).invoke_handler(tauri::generate_handler![
+        account_purchase::account_purchase_context,
         local_ai::local_ai_delete_model,
         local_ai::local_ai_download_model_progress,
         local_ai::local_ai_download_model_start,

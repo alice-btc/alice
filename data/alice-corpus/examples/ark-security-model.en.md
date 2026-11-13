@@ -9,9 +9,9 @@ topics: ["Ark and other layers"]
 aliases: ["Ark Security Model", "Les hypothèses de sécurité d’Ark"]
 parent_ids: []
 related_ids: ["ark-implementations-bark-arkade", "ark-boarding-offboarding-and-exits"]
-reviewed_at: "2026-10-11"
+reviewed_at: "2026-11-05"
 review_due: null
-sources: ["https://second.tech/docs/learn/lifetime", "https://second.tech/docs/learn/exit"]
+sources: ["https://second.tech/docs/learn/vtxo", "https://second.tech/docs/learn/lifetime", "https://second.tech/docs/learn/exit"]
 human_reviewed_in_full: false
 review_method: "adapted_from_corrected_sources"
 exhaustive_external_fact_check: false
@@ -27,6 +27,8 @@ translation_status: "machine"
 ## Short answer
 
 Ark combines a normal cooperative path with exit mechanisms to Bitcoin. The ability to exit alone depends on the VTXO, its expiry, the available data and the implementation.
+
+Normal spending of a VTXO requires its holder’s signature. The operator cannot spend it alone; it coordinates payments, sees the activity it handles and can stop cooperating. This rule does not remove the expiry risk or the arkoor collusion risk described below.
 
 ## Explanation
 
@@ -49,3 +51,5 @@ The mechanisms of Second/Bark and of Arkade are not identical. The hardware or s
 
 - [Second, VTXO lifetime](https://second.tech/docs/learn/lifetime).
 - [Second, emergency exits and confirmation conditions](https://second.tech/docs/learn/exit).
+
+- [Second, VTXO spend paths and trust assumptions](https://second.tech/docs/learn/vtxo).

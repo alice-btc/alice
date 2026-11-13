@@ -5,6 +5,7 @@ import { CHECK_ICON, CLOSE_ICON, DOWNLOAD_ICON } from '@/lib/atelier-icons';
 
 import { useEffect, useState } from 'react';
 import { getModelName, type LocalModelId } from '@alice-wallet/alice-ai';
+import { LocalModelError } from '@alice-wallet/alice-ai/local-model-registry';
 import {
   MODEL_DOWNLOAD_EVENT,
   clearModelDownload,
@@ -12,6 +13,7 @@ import {
   isModelDownloadRunning,
 } from '@/lib/model-downloads';
 import { useT } from '@/i18n';
+import { localModelErrorText } from '@/lib/model-text';
 
 // Lateral notification for background model downloads: mounted once at the
 // app root, so "model ready" (or "download failed") reaches the user wherever
@@ -22,7 +24,7 @@ const AUTO_DISMISS_MS = 8000;
 interface Toast {
   id: LocalModelId;
   kind: 'installed' | 'error';
-  detail?: string;
+  error?: unknown;
 }
 
 export function ModelDownloadToasts() {
@@ -40,7 +42,7 @@ export function ModelDownloadToasts() {
         const toast: Toast = {
           id,
           kind: state.status,
-          detail: state.status === 'error' ? state.error : undefined,
+          error: state.status === 'error' ? state.error : undefined,
         };
         setToasts((current) => [...current.filter((item) => item.id !== id), toast]);
         window.setTimeout(() => {
@@ -61,6 +63,11 @@ export function ModelDownloadToasts() {
     <div aria-live="polite" aria-relevant="additions" className="fixed z-50 flex flex-col gap-2" style={{ right: 16, bottom: 76, maxWidth: 'calc(100vw - 32px)' }}>
       {toasts.map((toast) => {
         const name = getModelName(toast.id);
+        const fallback = t('models.toast.failedDetail');
+        const detail = localModelErrorText(toast.error, toast.error === undefined ? fallback : String(toast.error), t.locale);
+        const message = toast.error instanceof LocalModelError
+          ? detail
+          : t('models.toast.failed', { name, detail });
         return (
           <button
             key={`${toast.id}:${toast.kind}`}
@@ -94,7 +101,7 @@ export function ModelDownloadToasts() {
             <div className="font-numbers" style={{ fontSize: 13, marginTop: 6 }}>
               {toast.kind === 'installed'
                 ? t('models.toast.installed', { name })
-                : t('models.toast.failed', { name, detail: toast.detail ?? t('models.toast.failedDetail') })}
+                : message}
             </div>
           </button>
         );

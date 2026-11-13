@@ -1,24 +1,25 @@
 import type { LearnSource, LearnTurnContext } from '@alice-wallet/alice-ai';
 
-// Pure half of the Learn turn-context provider's composition: how a
-// dictionary definition and a course excerpt share one context, and which
-// sources ride along. Node-testable.
+// Pure half of the Learn turn-context provider's composition: how two
+// excerpts share the context budget without losing their source provenance.
 
 export const PLANB_ATTRIBUTION = 'Plan ₿ Network, CC BY-SA 4.0';
 
 /**
- * The definition first, the course after it under its own label line, both
- * sources listed in that order. The bridge trims the excerpt at a paragraph
- * boundary, and rag.ts keeps a later source only when its label survived.
+ * The caller selects the order. The second source's exact citation label is
+ * on its own line, joined to its first nonempty paragraph. A paragraph budget
+ * can therefore keep both that evidence and its citation, or discard both;
+ * it cannot keep an orphan heading and cite a source whose text was cut.
  */
-export function mergeLearnContexts(definition: LearnTurnContext | null, course: LearnTurnContext | null): LearnTurnContext | null {
-  if (definition && course) {
-    const sources: LearnSource[] = [...(definition.sources ?? []), ...(course.sources ?? [])];
-    return {
-      label: definition.label,
-      excerpt: `${definition.excerpt}\n\n${course.label}\n${course.excerpt}`,
-      ...(sources.length > 0 ? { sources } : {}),
-    };
-  }
-  return definition ?? course;
+export function mergeLearnContexts(first: LearnTurnContext | null, second: LearnTurnContext | null): LearnTurnContext | null {
+  if (!first?.excerpt.trim()) return second?.excerpt.trim() ? second : null;
+  if (!second?.excerpt.trim()) return first;
+  const sources: LearnSource[] = [...(first.sources ?? []), ...(second.sources ?? [])];
+  const citationLabel = second.sources?.[0]?.label ?? second.label;
+  const heading = citationLabel === second.label ? second.label : `${second.label}\n${citationLabel}`;
+  return {
+    label: first.label,
+    excerpt: `${first.excerpt.trimEnd()}\n\n${heading}\n${second.excerpt.trim()}`,
+    ...(sources.length > 0 ? { sources } : {}),
+  };
 }

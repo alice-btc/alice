@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A0295700E111000000000001 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A0295700E111000000000002 /* StoreKit.framework */; };
 		05EC9950139227AAAE0ED4EE /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 9F26E9390C37A5E7B0E9DFC2 /* assets */; };
 		0A11E3C0D5F4B6A7C8D9E0F1 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0A11E3C0D5F4B6A7C8D9E0F2 /* Accelerate.framework */; };
 		18087763E6FCA15A3CB97D79 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9C8E528ADF0742BBE4346853 /* WebKit.framework */; };
@@ -23,6 +24,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A0295700E111000000000002 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		0DD94EF17C80F53780810A0F /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
 		2ECB93B3CE7BF5DABFC69CD8 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
 		0A11E3C0D5F4B6A7C8D9E0F2 /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
@@ -53,6 +55,7 @@
 			files = (
 				FCDD66F5B590370AA6E0301B /* libapp.a in Frameworks */,
 				0A11E3C0D5F4B6A7C8D9E0F1 /* Accelerate.framework in Frameworks */,
+				A0295700E111000000000001 /* StoreKit.framework in Frameworks */,
 				4D81309E8D3829821357C9A1 /* CoreGraphics.framework in Frameworks */,
 				91CF5B206EB8CFCF4866F7C5 /* Metal.framework in Frameworks */,
 				C07FD4AC44396B794704F7BD /* MetalKit.framework in Frameworks */,
@@ -79,6 +82,7 @@
 			isa = PBXGroup;
 			children = (
 				0A11E3C0D5F4B6A7C8D9E0F2 /* Accelerate.framework */,
+				A0295700E111000000000002 /* StoreKit.framework */,
 				6662CAF16DC488F273BAEAB9 /* CoreGraphics.framework */,
 				F1E4AF6DCF7270F8492E57A7 /* libapp.a */,
 				CD5F6D24422C14502CE2B60D /* Metal.framework */,

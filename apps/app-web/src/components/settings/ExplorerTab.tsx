@@ -7,6 +7,8 @@ import { configurableNetworks, getNodeOverride, setNodeOverride } from '@/lib/ex
 import { getNetwork } from '@/lib/explorer/networks';
 import { getDefaultNetworkId, selectableNetworks, setDefaultNetworkId } from '@/lib/explorer/prefs';
 import { loadWallets, removeWallet, type SavedWallet } from '@/lib/explorer/wallet-store';
+import { MONERO_NETWORK_ID } from '@/lib/explorer/monero';
+import { MonerodSource, normalizeMoneroNodeUrl } from '@/lib/explorer/monero-node';
 import {
   ConfirmDialog,
   inputStyle,
@@ -15,7 +17,8 @@ import {
   sectionStyle,
 } from './ui';
 import { localVault } from '@/lib/local-vault';
-import { useT } from '@/i18n';
+import { moneroErrorText } from '@/lib/explorer/monero-text';
+import { useT, type MessageKey, type MessageParams } from '@/i18n';
 
 function NetworkDot({ color }: { color: string }) {
   return (
@@ -34,6 +37,11 @@ export function ExplorerTab() {
   const [defaultNetwork, setDefaultNetwork] = useState<string>('');
   const [wallets, setWallets] = useState<SavedWallet[]>([]);
   const [confirmClearWallets, setConfirmClearWallets] = useState(false);
+  /* The Monero node: monerod's RPC, a different protocol from Esplora, so
+     its own field; stored under the same per-network key as the others. */
+  const [moneroDraft, setMoneroDraft] = useState('');
+  const [moneroNotice, setMoneroNotice] = useState<{ key: MessageKey; params?: MessageParams } | { error: unknown } | null>(null);
+  const [moneroTesting, setMoneroTesting] = useState(false);
 
   useEffect(() => {
     localVault.whenReady(() => {
@@ -41,6 +49,7 @@ export function ExplorerTab() {
         Object.fromEntries(configurableNetworks().map(n => [n.id, getNodeOverride(n.id)])),
       );
       setWallets(loadWallets());
+      setMoneroDraft(getNodeOverride(MONERO_NETWORK_ID));
     });
     setDefaultNetwork(getDefaultNetworkId());
   }, []);
@@ -58,6 +67,30 @@ export function ExplorerTab() {
     setNodeDrafts(prev => ({ ...prev, [networkId]: '' }));
     setNodeNotice(t('settings.explorer.nodeReset'));
     setTimeout(() => setNodeNotice(''), 4000);
+  };
+
+  const handleSaveMonero = () => {
+    setNodeOverride(MONERO_NETWORK_ID, normalizeMoneroNodeUrl(moneroDraft));
+    setMoneroDraft(getNodeOverride(MONERO_NETWORK_ID));
+    setMoneroNotice({ key: getNodeOverride(MONERO_NETWORK_ID) ? 'explorerMonero.nodeSaved' : 'explorerMonero.nodeReset' });
+    setTimeout(() => setMoneroNotice(null), 4000);
+  };
+
+  // Ask the node its height, from this browser, before saving: the answer
+  // says whether it is reachable and allows this origin.
+  const handleTestMonero = async () => {
+    const url = normalizeMoneroNodeUrl(moneroDraft);
+    if (!url) return;
+    setMoneroTesting(true);
+    setMoneroNotice({ key: 'explorerMonero.nodeAsking' });
+    try {
+      const info = await new MonerodSource(url).getNetworkInfo();
+      setMoneroNotice({ key: 'explorerMonero.nodeAnswer', params: { height: info.height, version: info.hardForkVersion } });
+    } catch (e) {
+      setMoneroNotice({ error: e });
+    } finally {
+      setMoneroTesting(false);
+    }
   };
 
   const handleClearWallets = () => {
@@ -150,6 +183,61 @@ export function ExplorerTab() {
         {nodeNotice && (
           <p className="font-numbers m-0 mt-3" style={{ fontSize: 13, opacity: 1 }}>
             {nodeNotice}
+          </p>
+        )}
+      </div>
+
+      <div style={sectionStyle}>
+        <SectionLabel>{t('explorerMonero.nodeTitle')}</SectionLabel>
+        <SectionHint>
+          {t('explorerMonero.nodeHint')}
+        </SectionHint>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <NetworkDot color={getNetwork(MONERO_NETWORK_ID).color} />
+            <label htmlFor="node-monero" className="alice-field-label">{t('explorerMonero.nodeRpc')}</label>
+            {getNodeOverride(MONERO_NETWORK_ID) && (
+              <span className="font-numbers" style={{ fontSize: 13, opacity: 1 }}>{t('explorerMonero.custom')}</span>
+            )}
+          </div>
+          <input
+            id="node-monero"
+            aria-label={t('explorerMonero.nodeRpc')}
+            type="url"
+            value={moneroDraft}
+            onChange={(e) => setMoneroDraft(e.target.value)}
+            placeholder="http://umbrel.local:18089"
+            className="alice-field font-numbers outline-none w-full"
+            style={inputStyle}
+          />
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={handleSaveMonero}
+              className="alice-control alice-control--primary font-numbers"
+              disabled={normalizeMoneroNodeUrl(moneroDraft) === getNodeOverride(MONERO_NETWORK_ID)}
+            >
+              {t('explorerMonero.save')}
+            </button>
+            <button
+              onClick={() => void handleTestMonero()}
+              className="alice-control alice-control--quiet font-numbers"
+              disabled={moneroTesting || !moneroDraft.trim()}
+            >
+              {moneroTesting ? t('explorerMonero.testing') : t('explorerMonero.test')}
+            </button>
+            {getNodeOverride(MONERO_NETWORK_ID) && (
+              <button
+                onClick={() => { setMoneroDraft(''); setNodeOverride(MONERO_NETWORK_ID, ''); setMoneroNotice({ key: 'explorerMonero.nodeReset' }); setTimeout(() => setMoneroNotice(null), 4000); }}
+                className="alice-control alice-control--quiet font-numbers"
+              >
+                {t('explorerMonero.default')}
+              </button>
+            )}
+          </div>
+        </div>
+        {moneroNotice && (
+          <p className="font-numbers m-0 mt-3" role="status" style={{ fontSize: 13, opacity: 1 }}>
+            {'error' in moneroNotice ? moneroErrorText(moneroNotice.error, 'explorerMonero.nodeNoAnswer') : t(moneroNotice.key, moneroNotice.params)}
           </p>
         )}
       </div>

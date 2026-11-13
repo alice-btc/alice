@@ -1,4 +1,4 @@
-import { rabbitCycles, type RabbitState, type rabbitPaths } from './rabbit-motion.ts';
+import { rabbitCycles, rabbitLongWait, WAITING_OPENING_LOOPS, type RabbitState, type rabbitPaths } from './rabbit-motion.ts';
 
 export type RabbitFrame = keyof typeof rabbitPaths;
 export interface RabbitClock { schedule(callback: () => void, delay: number): unknown; cancel(timer: unknown): void }
@@ -8,10 +8,11 @@ export function playRabbit(state: RabbitState, onFrame: (frame: RabbitFrame) => 
   let timer: unknown;
   let stopped = false;
   let index = 0;
+  let loops = 0;
   const step = () => {
     if (stopped) return;
     if (state === 'idle') { onFrame('repos'); return; }
-    const cycle = rabbitCycles[state];
+    const cycle = state === 'waiting' && loops >= WAITING_OPENING_LOOPS ? rabbitLongWait : rabbitCycles[state];
     const [pose, duration] = cycle[index];
     onFrame(pose);
     if (state === 'typing' && index === cycle.length - 1) return;
@@ -19,7 +20,7 @@ export function playRabbit(state: RabbitState, onFrame: (frame: RabbitFrame) => 
       if (stopped) return;
       index++;
       if (index === cycle.length) {
-        if (state === 'waiting' || state === 'streaming') index = 0;
+        if (state === 'waiting' || state === 'streaming') { index = 0; loops++; }
         else { onFrame('repos'); return; }
       }
       step();

@@ -65,6 +65,7 @@ const ERROR_TEXT: Record<LocalModelErrorCode, MessageKey> = {
   repo_missing: 'models.error.repoMissing',
   repo_gated: 'models.error.repoGated',
   hf_status: 'models.error.hfStatus',
+  hf_network: 'models.error.hfNetwork',
   no_gguf: 'models.error.noGguf',
   listing_unexpected: 'models.error.listingUnexpected',
   listing_revision: 'models.error.listingRevision',
@@ -73,6 +74,9 @@ const ERROR_TEXT: Record<LocalModelErrorCode, MessageKey> = {
   file_not_listed: 'models.error.fileNotListed',
   not_huggingface: 'models.error.notHuggingFace',
   already_in_catalog: 'models.error.alreadyInCatalog',
+  download_legacy: 'models.error.downloadLegacy',
+  download_unpinned: 'models.error.downloadUnpinned',
+  download_missing_checksum: 'models.error.downloadMissingChecksum',
 };
 
 /**

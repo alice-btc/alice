@@ -20,6 +20,7 @@ export function startMobileShell(): () => void {
   if (!viewport) return () => {};
   const update = () => {
     root.style.setProperty('--alice-viewport-height', `${viewport.height}px`);
+    root.style.setProperty('--alice-viewport-top', `${viewport.offsetTop}px`);
     root.toggleAttribute('data-keyboard', window.innerHeight - viewport.height > KEYBOARD_MIN_HEIGHT);
     if (window.scrollY !== 0) window.scrollTo(0, 0);
   };

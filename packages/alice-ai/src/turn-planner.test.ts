@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { directWalletActionResponse, directWalletStateResponse, isContextualFollowUp, isExplicitContinuationRequest, planAliceTurn, turnResponseDirective } from './turn-planner.ts';
+import { directDisabledPersonalContextResponse, directWalletActionResponse, directWalletStateResponse, isContextualFollowUp, isExplicitContinuationRequest, planAliceTurn, turnResponseDirective } from './turn-planner.ts';
 
 test('a response preference is remembered without invoking the RAG', () => {
   const plan = planAliceTurn('I prefer concise answers.');
@@ -605,4 +605,113 @@ test('the confirmation reflects what the store holds afterwards', () => {
   assert.match(directRequestedNoteResponse({ memory, saved: false }, 'I like diagrams', 'fr'), /n'a pas pu enregistrer/);
   assert.match(directRequestedNoteResponse({ memory, saved: false }, 'I like diagrams', 'en'), /could not save/);
   assert.match(directRequestedNoteResponse({ memory: createAliceMemory(), saved: true }, 'I like diagrams', 'en'), /could not save/);
+});
+
+
+test('bounded learning and fee-habit declarations become topical memory, not standing instructions', () => {
+  for (const [message, category, text] of [
+    ['I am a complete beginner with Bitcoin.', 'background', 'Beginner with Bitcoin'],
+    ['Je débute avec Bitcoin.', 'background', 'Beginner with Bitcoin'],
+    ['I work with relational databases.', 'background', 'Familiar with relational databases'],
+    ['Je travaille avec des bases de données relationnelles.', 'background', 'Familiar with relational databases'],
+    ['I prefer sending when network traffic is low.', 'experience', 'Prefers sending during low-traffic periods'],
+    ["Je préfère envoyer quand le trafic du réseau est faible.", 'experience', 'Prefers sending during low-traffic periods'],
+  ]) {
+    assert.deepEqual(planAliceTurn(message).explicitMemoryCandidates, [{ category, text }], message);
+  }
+});
+
+test('topical capture refuses negated, hypothetical, quoted, unrelated and private declarations', () => {
+  for (const message of [
+    'I am not a beginner with Bitcoin.', 'If I am a beginner with Bitcoin, how should I start?',
+    'Am I a beginner with Bitcoin?', 'My friend is a beginner with Bitcoin.',
+    '"I am a complete beginner with Bitcoin."', 'I am a beginner with Python.',
+    'I do not work with databases.', 'I prefer sending emails when network traffic is low.',
+    'I work with relational databases. My password is hunter2.',
+  ]) assert.deepEqual(planAliceTurn(message).explicitMemoryCandidates, [], message);
+});
+
+test('bounded captured timing declarations acknowledge without treating when as a question', () => {
+  for (const message of ['I prefer sending when network traffic is low.', 'Je préfère envoyer quand le trafic du réseau est faible.']) {
+    const plan = planAliceTurn(message);
+    assert.equal(plan.kind, 'personal-statement');
+    assert.equal(plan.retrievalQuery, null);
+    assert.equal(plan.explicitMemoryCandidates[0]?.category, 'experience');
+  }
+  for (const message of ['I prefer sending when network traffic is low. Why are fees variable?', 'Je préfère envoyer quand le trafic du réseau est faible. Explique les frais.', 'I prefer short answers when explaining fees. How do fees work?', 'I prefer sending when network traffic is low?', 'I prefer sending when network traffic is low.Explain fees.']) {
+    assert.notEqual(planAliceTurn(message).retrievalQuery, null, message);
+  }
+});
+
+
+test('known-background questions are personal recall, with a narrow disabled-state response', () => {
+  for (const message of ['What background information do you know about me?', 'What do you remember about me?', 'Que sais-tu sur moi ?', 'Quelles informations sur mon parcours connais-tu sur moi ?']) {
+    const plan = planAliceTurn(message);
+    assert.equal(plan.asksAboutUserMemory, true, message);
+    assert.equal(plan.retrievalQuery, null, message);
+    assert.match(directDisabledPersonalContextResponse(message, 'en')!, /Personal memory is disabled/);
+    assert.match(directDisabledPersonalContextResponse(message, 'fr')!, /mémoire personnelle est désactivée/);
+    assert.doesNotMatch(directDisabledPersonalContextResponse(message, 'en')!, /only.*current|nothing about you|no memory of you/);
+  }
+  for (const message of ['How do nodes use memory?', 'What do you know about memory allocation?', 'Remember that I work with databases.', 'What background information do you know about me? Explain Lightning.', 'Que sais-tu de moi ? Envoie un paiement.', 'What do you know about me and my current wallet balance?']) {
+    assert.equal(directDisabledPersonalContextResponse(message, 'en'), null, message);
+  }
+  const mixed = planAliceTurn('What background information do you know about me? Explain Lightning.');
+  assert.equal(mixed.asksAboutUserMemory, false);
+  assert.match(mixed.retrievalQuery!, /Lightning/);
+});
+
+
+test('learning how to do something is not a knowledge question inside a declaration', () => {
+  const declaration="I'm learning how to spend unconfirmed outputs I received to raise fees.";
+  assert.equal(planAliceTurn(declaration).retrievalQuery,null);
+  assert.equal(planAliceTurn(declaration+' Why do pending bitcoin transactions expire?').retrievalQuery,'Why do pending bitcoin transactions expire?');
+  assert.equal(planAliceTurn("I'm learning Bitcoin, how does Lightning work?").retrievalQuery,'how does Lightning work?');
+});
+
+
+test('an explanatory imperative is not swallowed by a following personal learning goal', () => {
+  for (const question of [
+    'Walk me through an ordinary Lightning payment from a wallet to a shop, including the invoice and the route.',
+    'Décris une transaction Bitcoin avec une comparaison à des lignes de base de données.',
+    'Please describe the mechanism of a routed Lightning payment.',
+  ]) {
+    const plan = planAliceTurn(question + ' I want to understand the mechanism, not make a payment.');
+    assert.ok(plan.retrievalQuery?.startsWith(question.replace(/[.]$/, '')), JSON.stringify(plan));
+    assert.notEqual(plan.kind, 'personal-statement');
+    assert.equal(plan.walletActionReason, null);
+  }
+  for (const statement of ['I want to understand Lightning.', 'I can walk people through Lightning payments.']) {
+    assert.equal(planAliceTurn(statement).retrievalQuery, null);
+  }
+});
+
+
+test('recalculation imperatives retain their premises without treating declarations as requests',()=>{
+ for(const question of ['Keep the subsidy and claimed coinbase amount the same, but set the included fees to 400 sat instead. Recalculate the ceiling and net increase.','Garde la même subvention et les mêmes sorties coinbase, avec 400 sat de frais. Recalcule le plafond.']){
+  const plan=planAliceTurn(question);
+  assert.equal(plan.kind,'question');
+  assert.match(plan.retrievalQuery ?? '',/400 sat/);
+ }
+ for(const statement of ['I calculate Bitcoin transaction fees every day.','Je calcule les frais Bitcoin tous les jours.']) assert.notEqual(planAliceTurn(statement).kind,'question');
+});
+
+
+test('French requests to redo a calculation are questions, not declarative arithmetic remarks',()=>{
+ for(const q of ['Refais le calcul.', 'Refais les deux calculs.', 'Je conserve la subvention et le montant réclamé dans la coinbase, mais les frais inclus passent à 350 sat. Refais les deux calculs.']) assert.equal(planAliceTurn(q).kind,'question',q);
+ for(const q of ['Je refais les deux calculs.', 'Refais ma chambre.'])assert.notEqual(planAliceTurn(q).kind,'question',q);
+});
+
+
+test('a short setup declaration does not become a topic-only question',()=>{
+ for(const q of ['I use Lightning.', 'J’utilise Lightning.']){const plan=planAliceTurn(q); assert.equal(plan.kind,'personal-statement');assert.equal(plan.retrievalQuery,null);}
+ assert.equal(planAliceTurn('If I use Lightning, how does a payment settle?').kind,'question');
+});
+
+
+test('comparison imperatives request information while personal comparisons remain declarations',()=>{
+ for(const q of ['Compare la monnaie avant et après.', 'Compare the change before and after.', 'Please compare the change before and after.', 'Je garde les mêmes entrées et le même paiement, mais prépare la transaction avec 200 sat de frais. Compare la monnaie avant et après.']){
+  const p=planAliceTurn(q);assert.equal(p.kind,'question',q);assert.ok(p.retrievalQuery,q);
+ }
+ for(const q of ['Je compare les frais tous les jours.', 'I compare Bitcoin fees every day.'])assert.notEqual(planAliceTurn(q).kind,'question',q);
 });

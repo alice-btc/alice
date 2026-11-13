@@ -1,10 +1,10 @@
 import { useLayoutEffect, type KeyboardEvent, type RefObject } from 'react';
 import { finePointer } from './pointer.ts';
 
-// The message fields grow with their text up to three lines, so the chat
+// The message fields grow with their text up to five lines, so the chat
 // behind them stays visible, then scroll inside. The limit is read from the
 // field's own line height and padding, so it never cuts a line in half.
-export const COMPOSER_MAX_LINES = 3;
+export const COMPOSER_MAX_LINES = 5;
 
 type FieldStyle = Pick<CSSStyleDeclaration, 'lineHeight' | 'paddingTop' | 'paddingBottom'>;
 

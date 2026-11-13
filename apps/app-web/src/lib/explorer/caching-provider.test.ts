@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { CachingProvider, PriorityGate } from './caching-provider.ts';
+import { CachingProvider, MUTABLE_MEMORY_MS, PriorityGate } from './caching-provider.ts';
 import { ChainDataError, type ChainDataProvider } from './provider.ts';
 import type { NormalizedTransaction } from './types.ts';
 import type { AddressStats } from './signals.ts';
@@ -332,5 +332,125 @@ describe('CachingProvider persistent cache', () => {
     await new Promise(r => setTimeout(r, 0)); // writes are fire-and-forget
     assert.ok(cache.store.has('tx|aa'));
     assert.ok(!cache.store.has('tx|bb'));
+  });
+});
+
+// Mutable answers expire from memory, so an open transaction can show its
+// confirmation and an address its new coins without restarting the app.
+describe('CachingProvider freshness', () => {
+  function clock() {
+    let t = 1_000_000;
+    return { now: () => t, advance: (ms: number) => { t += ms; } };
+  }
+
+  it('re-asks for an unconfirmed transaction once its memory window expires', async () => {
+    const c = clock();
+    let confirmed = false, calls = 0;
+    const inner: ChainDataProvider = {
+      source,
+      async getTransaction(txid) { calls += 1; return { ...fakeTx(txid), status: { confirmed } }; },
+      async getAddressStats() { throw new Error('unused'); },
+    };
+    const p = new CachingProvider(inner, { sleep: noSleep, now: c.now });
+    assert.equal((await p.getTransaction('aa')).status.confirmed, false);
+    await p.getTransaction('aa');
+    assert.equal(calls, 1, 'reused within the window');
+
+    confirmed = true;
+    c.advance(MUTABLE_MEMORY_MS);
+    assert.equal((await p.getTransaction('aa')).status.confirmed, true);
+    assert.equal(calls, 2);
+
+    // Once confirmed it is immutable: kept for the session.
+    c.advance(MUTABLE_MEMORY_MS * 100);
+    await p.getTransaction('aa');
+    assert.equal(calls, 2);
+  });
+
+  it('skips memory and the persistent cache when asked for a fresh answer', async () => {
+    let txCount = 1, calls = 0;
+    const store = new Map<string, unknown>();
+    const cache = {
+      async get(key: string) { return store.get(key); },
+      async set(key: string, value: unknown) { store.set(key, value); },
+    };
+    const inner: ChainDataProvider = {
+      source,
+      async getTransaction() { throw new Error('unused'); },
+      async getAddressStats(address) {
+        calls += 1;
+        return { address, fundedCount: txCount, spentCount: 0, txCount, fundedSum: 0, spentSum: 0 };
+      },
+    };
+    const p = new CachingProvider(inner, { sleep: noSleep, persistent: cache });
+    assert.equal((await p.getAddressStats('bc1q')).txCount, 1);
+    txCount = 2;
+    assert.equal((await p.getAddressStats('bc1q')).txCount, 1, 'cached read');
+    assert.equal((await p.getAddressStats('bc1q', { fresh: true })).txCount, 2);
+    assert.equal(calls, 2);
+    // The fresh answer replaces the cached one for later plain reads.
+    assert.equal((await p.getAddressStats('bc1q')).txCount, 2);
+    await new Promise(r => setTimeout(r, 0));
+    assert.equal((store.get('addrStats|bc1q') as { txCount: number }).txCount, 2);
+  });
+
+  it('shares a fetch already in flight even when asked for a fresh answer', async () => {
+    let calls = 0;
+    const inner: ChainDataProvider = {
+      source,
+      async getTransaction(txid) { calls += 1; await new Promise(r => setTimeout(r, 5)); return fakeTx(txid); },
+      async getAddressStats() { throw new Error('unused'); },
+    };
+    const p = new CachingProvider(inner, { sleep: noSleep });
+    await Promise.all([p.getTransaction('aa'), p.getTransaction('aa', { fresh: true })]);
+    assert.equal(calls, 1);
+  });
+
+  it('forgets a not-found after the memory window, so a new broadcast can be found', async () => {
+    const c = clock();
+    let known = false, calls = 0;
+    const inner: ChainDataProvider = {
+      source,
+      async getTransaction(txid) {
+        calls += 1;
+        if (!known) throw new ChainDataError('not-found', 'nope');
+        return fakeTx(txid);
+      },
+      async getAddressStats() { throw new Error('unused'); },
+    };
+    const p = new CachingProvider(inner, { sleep: noSleep, now: c.now });
+    await assert.rejects(p.getTransaction('aa'));
+    await assert.rejects(p.getTransaction('aa'));
+    assert.equal(calls, 1, 'not-found reused within the window');
+    known = true;
+    c.advance(MUTABLE_MEMORY_MS);
+    assert.equal((await p.getTransaction('aa')).txid, 'aa');
+    assert.equal(calls, 2);
+  });
+});
+
+describe('CachingProvider outspends', () => {
+  it('keeps on disk only an answer where every output is spent by a confirmed transaction', async () => {
+    const store = new Map<string, unknown>();
+    const cache = {
+      async get(key: string) { return store.get(key); },
+      async set(key: string, value: unknown) { store.set(key, value); },
+    };
+    const inner: ChainDataProvider = {
+      source,
+      async getTransaction() { throw new Error('unused'); },
+      async getAddressStats() { throw new Error('unused'); },
+      async getOutspends(txid) {
+        return txid === 'a'.repeat(64)
+          ? [{ spent: true, txid: 'c'.repeat(64), vin: 0, confirmed: true }]
+          : [{ spent: true, txid: 'c'.repeat(64), vin: 0, confirmed: false }, { spent: false }];
+      },
+    };
+    const p = new CachingProvider(inner, { sleep: noSleep, persistent: cache });
+    await p.getOutspends!('a'.repeat(64));
+    await p.getOutspends!('b'.repeat(64));
+    await new Promise(r => setTimeout(r, 0));
+    assert.ok(store.has(`outspends|${'a'.repeat(64)}`));
+    assert.ok(!store.has(`outspends|${'b'.repeat(64)}`));
   });
 });

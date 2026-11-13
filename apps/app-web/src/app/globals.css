@@ -679,6 +679,25 @@ body, .font-numbers { font-family: var(--alice-font-reading); }
   }
 }
 
+.alice-account-dialog { max-height: calc(100vh - 40px); }
+
+/* The Android keyboard can shrink and pan the visual viewport independently
+   of the layout viewport. Keep the account form inside the visible area. */
+html[data-shell=android] .alice-account-overlay {
+  top: var(--alice-viewport-top, 0px);
+  bottom: auto;
+  height: var(--alice-viewport-height, 100dvh);
+  padding-top: max(12px, env(safe-area-inset-top));
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+html[data-shell=android] .alice-account-dialog { max-height: 100%; }
+html[data-shell=android] .alice-account-dialog-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--alice-bg);
+}
+
 /* Full-screen sheets on a phone (Settings below 640 px, Ask Alice in Learn
    below 768 px) keep their controls out of the status bar, the clock and the
    home indicator. In the Android and iOS apps they also end where the keyboard

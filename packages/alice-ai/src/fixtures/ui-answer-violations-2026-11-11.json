@@ -1,0 +1,49 @@
+{
+  "cases": [
+    {
+      "id": "unrelated",
+      "question": "Why do Bitcoin nodes reject a block that creates too many coins?",
+      "answer": "Bitcoin nodes reject a block that creates too many coins because every full node independently verifies that the total value of the block's reward (the subsidy) plus the fees from included transactions does not exceed the specific limit defined by the block height. This is a fundamental monetary consensus check: the protocol strictly enforces that new bitcoins are only issued according to the pre-programmed schedule, and any block claiming more than this authorized amount is considered invalid and discarded by the network.\n\nTo clarify the mechanics:\n\n•\nThe Check: Nodes calculate the sum of the block subsidy and the transaction fees. If this sum exceeds the permitted issuance for that block height, the block is rejected.\n•\nWhat is Issued: Only the subsidy portion represents newly created bitcoins. The fees represent the transfer of coins that already exist in the network.\n•\nThe Limit: The limit is not based on the total output of all transactions in the block, but specifically on the coinbase transaction's value against the subsidy-plus-fees rule.\n\nThis mechanism ensures that the supply of Bitcoin is predictable and cannot be inflated by miners or validators, regardless of the amount of computational work (proof of work) or the complexity of the transaction data (Merkle root) in the block.\n\nRecommended courses\n1\n6m ago",
+      "noteIds": [
+        "bitcoin-issuance-validation"
+      ],
+      "expected": [
+        "issuance-fees-new-coins"
+      ]
+    },
+    {
+      "id": "disabled",
+      "question": "Explain how a Lightning payment works for my level.",
+      "answer": "A Lightning payment is a fast, low-cost transaction that happens off the main Bitcoin blockchain. It works by using a payment channel, which is an agreement between two parties to exchange funds repeatedly without recording each swap on the blockchain.\n\nHere is how it works for a beginner:\n\n•\nSetting up the channel: Before sending money, you and your recipient must establish a payment channel. This involves locking a specific amount of Bitcoin on the blockchain and creating a shared ledger of your balances. This initial step is recorded on-chain.\n•\nMaking the payment: When you want to send money, you do not send a new Bitcoin transaction. Instead, you update your balance within the channel to reflect the new distribution of funds. This update is an \"off-chain\" change to the shared ledger.\n•\nRouting: If you are sending money to someone far away, your wallet finds a path through other users' channels. The funds flow through these intermediaries, updating their balances along the way, until they reach your recipient. You do not need a direct channel with everyone you pay.\n•\nClosing the channel: The payment is only finalized when you close the channel. At this point, the updated balances are recorded as a new transaction on the main Bitcoin blockchain. Until then, the funds remain locked in the channel.\n\nImportant points to remember:\n\n•\nSpeed and low fees are not guaranteed. Routing can fail if there is no path with enough available funds (liquidity).\n•\nFees are usually small but depend on the route taken and the current network conditions.\n•\nYou must manage your own backups and security; the channel is not a bank account where the service holds your money for you.\n\nDo you want to know how to set up a payment channel, or are you interested in the risks of using payment channels?\n\nTo explore\n3\n4m ago",
+      "noteIds": [
+        "lightning-payment-mechanics"
+      ],
+      "expected": [
+        "lightning-direct-channel-required",
+        "lightning-payment-waits-for-close"
+      ]
+    },
+    {
+      "id": "issuance-fr",
+      "question": "Comment un nœud contrôle-t-il ce que le mineur s’attribue dans une coinbase, frais compris ?",
+      "answer": "Un nœud complet contrôle ce que le mineur peut s'attribuer dans une coinbase en vérifiant indépendamment que la somme totale de la subvention (nouveaux bitcoins) et des frais de transaction ne dépasse pas la limite autorisée pour cette hauteur de bloc précise.\n\nLa règle est simple : le montant de la coinbase ne peut jamais être supérieur à la somme de la subvention fixée par le protocole pour ce bloc spécifique, plus la somme des frais des transactions incluses dans ce bloc. Les frais ne sont pas de nouveaux bitcoins émis ; ils représentent simplement la différence entre la valeur des entrées (inputs) et des sorties (outputs) des transactions, transférant ainsi des bitcoins déjà existants. La subvention, elle, crée de nouveaux bitcoins.\n\nLe nœud applique cette règle comme un contrôle de consensus sur les données de transactions. Même si un mineur propose un bloc avec une coinbase contenant plus de bitcoins que ce plafond autorisé, ou si les frais sont mal calculés, le nœud rejettera ce bloc car il viole les règles du protocole. L'ajustement de la difficulté ou la preuve de travail ne déterminent pas directement le montant de la coinbase ; ils influencent la fréquence à laquelle les blocs sont trouvés, mais c'est la vérification des sorties de coinbase contre la subvention et les frais qui garantit que l'émission reste prévisible et limitée.\n\nPour aller plus loin, souhaitez-vous comprendre comment les frais de transaction sont calculés en fonction de la taille de la transaction ou comment le mécanisme de \"halving\" réduit progressivement cette subvention ?\n\nTo explore\n1\n7m ago",
+      "noteIds": [
+        "bitcoin-issuance-validation"
+      ],
+      "expected": [],
+      "review": "Opening sentence is imprecise, but next paragraph explicitly states the correct coinbase <= subsidy + fees rule. Do not infer a false height-only cap."
+    },
+    {
+      "id": "lightning-fr",
+      "question": "Explique comment fonctionne un paiement Lightning.",
+      "answer": "Un paiement Lightning se déroule en deux phases principales : l'établissement d'un canal et l'exécution du paiement.\n\n1. L'établissement du canal\n\nAvant de pouvoir payer, Alice et Bob doivent d'abord ouvrir un canal de paiement. Pour cela, ils envoient ensemble une transaction sur la blockchain Bitcoin qui verrouille des fonds. Cette transaction crée un \"canal\" entre eux, où ces fonds sont gelés mais non encore comptabilisés individuellement sur la blockchain. Ils peuvent maintenant modifier la répartition de ces fonds entre eux sans attendre la confirmation d'une transaction publique.\n\n2. L'exécution du paiement\n\nLorsqu'Alice veut envoyer de l'argent à Bob, elle ne crée pas une nouvelle transaction sur la blockchain. Au lieu de cela, elle met à jour la répartition des fonds déjà verrouillés dans le canal. Cette mise à jour est signée cryptographiquement par les deux parties et transmise instantanément. Bob reçoit les fonds immédiatement, sans frais de réseau Bitcoin.\n\nPoints clés à retenir\n\n•\nPas de facture automatique : Le payeur (Alice) doit normalement fournir une facture ou une adresse spécifique au destinataire (Bob) avant d'envoyer les fonds. Si le chemin de liquidité n'est pas disponible, le paiement échoue et les fonds restent dans le canal.\n•\nPas de garantie de succès : Un paiement ne garantit pas la réception immédiate. Si le réseau est saturé ou si un intermédiaire refuse de propager la mise à jour, le paiement peut échouer.\n•\nPas de clôture automatique : Un simple paiement ne ferme pas le canal. Les fonds sont toujours verrouillés jusqu'à ce que le canal soit explicitement fermé par une transaction sur la blockchain.\n•\nPas de compte bancaire : Les canaux Lightning ne sont pas des comptes de confiance. Ils reposent sur la confiance mutuelle entre les participants et la cryptographie.\n\nSouhaitez-vous savoir comment un paiement peut traverser plusieurs canaux interconnectés pour atteindre un destinataire distant ?\n\nTo explore\n3\n6m ago",
+      "noteIds": [
+        "lightning-payment-mechanics"
+      ],
+      "expected": [
+        "lightning-invoice-direction",
+        "lightning-direct-channel-required"
+      ]
+    }
+  ]
+}

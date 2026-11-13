@@ -23,7 +23,7 @@
 
 import { getArkadeCommitmentIfAny } from './arkade.ts';
 import { fetchExplorerAnchors, type ExplorerAnchor } from './anchors.ts';
-import { largestOutputs, loadFrontier, saveFrontier, walkWalletBackward, walkWalletForward, type Outpoint, type SettlementProbe, type WalletWalkResult } from './wallet-walk.ts';
+import { StoredNegatives, largestOutputs, loadFrontier, saveFrontier, walkWalletBackward, walkWalletForward, type Outpoint, type ProbeNegatives, type SettlementProbe, type WalletWalkResult } from './wallet-walk.ts';
 import type { NormalizedOutspend, NormalizedTransaction } from './types.ts';
 import type { RequestOptions } from './provider.ts';
 import { vaultStorage } from '../local-vault.ts';
@@ -261,9 +261,13 @@ export type ChainReader = {
 /** Answers whether a txid is a commitment transaction. */
 export type CommitmentProbe = SettlementProbe;
 
-/** The default probe: ask the ASP indexer. Non-commitments are remembered so a
- *  txid is never re-checked; commitments land in the registry via the walker. */
-export function makeAspProbe(arkApiUrl: string, negatives: Set<string> = new Set()): CommitmentProbe {
+/** The txids the ASP said are not commitments, kept across visits. */
+const arkadeNegatives = new StoredNegatives('alice_arkade_negatives_v1', () => defaultStorage());
+
+/** The default probe: ask the ASP indexer. Non-commitments are remembered, in
+ *  this browser across visits, so a txid is never re-checked; commitments land
+ *  in the registry via the walker. */
+export function makeAspProbe(arkApiUrl: string, negatives: ProbeNegatives = arkadeNegatives): CommitmentProbe {
   return async (txid, signal) => {
     if (settlementRegistry.has(txid)) return true;
     if (negatives.has(txid)) return false;

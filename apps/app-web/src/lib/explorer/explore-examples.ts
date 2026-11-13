@@ -57,3 +57,29 @@ export const EXPLORE_ADDRESSES: ExploreExample[] = [
   example('address', 'proofOfBurn', '1CounterpartyXXXXXXXXXXXXXXXUWLpVr'),
   example('address', 'eater', '1BitcoinEaterAddressDontSendf59kuE'),
 ];
+
+// Monero, opened on the Monero network. The transactions are ones anyone can
+// check on the device, since their owners published the key: the Monero
+// General Fund its view key, P2Pool every coinbase's key. The heights are
+// the hard forks', from the protocol's own schedule.
+export const MONERO_EXPLORE_TXS: ExploreExample[] = [
+  {
+    kind: 'tx', get label() { return t('explorerMonero.example.donation'); },
+    get note() { return t('explorerMonero.example.donationNote'); },
+    value: '17049bc5f2d9fbca1ce8dae443bbbbed2fc02f1ee003ffdd0571996905faa831',
+  },
+  {
+    kind: 'tx', get label() { return t('explorerMonero.example.p2pool'); },
+    get note() { return t('explorerMonero.example.p2poolNote'); },
+    value: '135bdc07e9a51b4a6c130d5be87f5483e960957159d2f0b366d91847c092d815',
+  },
+];
+
+export const MONERO_EXPLORE_BLOCKS: ExploreExample[] = [
+  { kind: 'block', get label() { return t('explorerMonero.example.genesis'); }, get note() { return t('explorerMonero.example.genesisNote'); }, value: '0' },
+  { kind: 'block', get label() { return t('explorerMonero.example.ringct'); }, get note() { return t('explorerMonero.example.ringctNote'); }, value: '1400000' },
+  { kind: 'block', label: 'RandomX', get note() { return t('explorerMonero.example.randomxNote'); }, value: '1978433' },
+  { kind: 'block', label: 'CLSAG', get note() { return t('explorerMonero.example.clsagNote'); }, value: '2210000' },
+  { kind: 'block', get label() { return t('explorerMonero.example.tail'); }, get note() { return t('explorerMonero.example.tailNote'); }, value: '2641623' },
+  { kind: 'block', get label() { return t('explorerMonero.example.rings'); }, get note() { return t('explorerMonero.example.ringsNote'); }, value: '2688888' },
+];

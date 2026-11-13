@@ -1,14 +1,13 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useAccount, type UsernameSuggestion } from '@alice-wallet/alice-ai';
+import { useAccount } from '@alice-wallet/alice-ai';
 import { SvgIcon } from '@/components/SvgIcon';
 import { CLOSE_ICON, CHEVRON_DOWN_ICON, CHECK_ICON, MAIL_ICON, KEY_ICON } from '@/lib/atelier-icons';
 import { useDialogFocus } from '@/components/settings/ui';
 import { useOpenSettings } from '@/lib/settings-url';
 import { useT } from '@/i18n';
 import { accountErrorMessage } from '@/lib/account-errors';
-import { sellsPlans } from '@/lib/store-rules';
 
 type Mode = 'create' | 'signin';
 type Flow = 'form' | 'verify-email' | 'choose-username' | 'change-username';
@@ -36,7 +35,6 @@ export function AccountPasswordDialog() {
   const [usePassword, setUsePassword] = useState(true);
   const [resetPassword, setResetPassword] = useState('');
   const [prefix, setPrefix] = useState('');
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // The parts of a username, fetched when the screen opens and not when a
   // name is typed. The middle words and the number exist first; the name is
@@ -66,6 +64,12 @@ export function AccountPasswordDialog() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usernameFlow, digits]);
 
+  // Arrivals from the native app usually already have an Alice account.
+  // Set the initial tab once per opening; switching to signup remains possible.
+  useEffect(() => {
+    if (account.signInOpen && account.signInReason === 'web-plans') setMode('signin');
+  }, [account.signInOpen, account.signInReason]);
+
   useEffect(() => {
     if (account.signInOpen) return;
     setMode('create');
@@ -76,7 +80,6 @@ export function AccountPasswordDialog() {
     setIdentifier('');
     setPassword('');
     setPrefix('');
-    setConfirmDelete(false);
     setSuffixOpen(false);
     // Closing has to put the sign-in form back on the password, or one visit
     // to the reset leaves every later visit opening on it: the dialog is
@@ -96,25 +99,22 @@ export function AccountPasswordDialog() {
     // an account that lost its password (the CORS era ate some) could never
     // see its own card again: every visit reopened the creation screen,
     // which read as “sometimes it shows the password form” because it was.
-    if (!account.account || account.account.username) return;
+    if (!account.signInOpen || !account.account || account.account.username) return;
     setFlow('choose-username');
-  }, [account.account]);
+  }, [account.account, account.signInOpen]);
+
+  useEffect(() => {
+    if (!account.signInOpen || !account.account?.username) return;
+    if (account.signInReason === 'change-username') {
+      setFlow('change-username');
+      return;
+    }
+    account.dismissSignIn();
+    // A checkout already lives in Account; avoid adding a redundant history entry.
+    if (new URLSearchParams(window.location.search).get('settings') !== 'account') openSettings('account');
+  }, [account.signInOpen, account.account?.username, account.signInReason, account.dismissSignIn, openSettings]);
 
   if (!account.signInOpen) return null;
-
-  // One paid product, one name. A cloud_plus entitlement bought before the
-  // withdrawal still runs to its expiry date, and reads as Private Cloud
-  // because that is what it now grants: the extra it was sold for, Deep
-  // Research, no longer exists to grant.
-  const usage = account.cloudUsage;
-  const planLabel = usage?.kind === 'paid' ? 'Private Cloud' : t('account.card.free');
-  // A bitcoin plan has an end date and no renewal, so the date is not a
-  // detail: it is the thing the holder has to act on.
-  const renewsOn = usage?.kind === 'paid' && usage.expiresAt
-    ? new Date(usage.expiresAt).toLocaleDateString(undefined, {
-        day: 'numeric', month: 'short', year: 'numeric',
-      })
-    : null;
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
@@ -127,7 +127,6 @@ export function AccountPasswordDialog() {
     }
   };
 
-
   // Assembled, never stored: three inputs and one reading of them.
   const chosenUsername = digits && suffix && prefix.trim()
     ? { username: `${prefix.trim()}.${suffix}#${digits}`, prefix: prefix.trim(), suffix }
@@ -139,7 +138,7 @@ export function AccountPasswordDialog() {
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center px-5"
+      className="alice-account-overlay fixed inset-0 z-[80] flex items-center justify-center px-5"
       style={{ backgroundColor: 'rgba(0,0,0,0.68)' }}
       role="presentation"
       onMouseDown={event => {
@@ -154,10 +153,9 @@ export function AccountPasswordDialog() {
         onKeyDown={event => {
           if (event.key === 'Escape' && !busy) { event.stopPropagation(); account.dismissSignIn(); }
         }}
-        className="w-full"
+        className="alice-account-dialog w-full"
         style={{
           maxWidth: 420,
-          maxHeight: 'calc(100vh - 40px)',
           overflowY: 'auto',
           padding: 20,
           border: '1px solid var(--alice-border)',
@@ -166,7 +164,7 @@ export function AccountPasswordDialog() {
           color: 'var(--alice-text)',
         }}
       >
-        <div className="flex items-start justify-between gap-4">
+        <div className="alice-account-dialog-header flex items-start justify-between gap-4">
           <div>
             <h2
               id="alice-account-title"
@@ -178,7 +176,7 @@ export function AccountPasswordDialog() {
             <p className="font-numbers m-0 mt-2" style={{ fontSize: 16, lineHeight: '21px', color: 'var(--alice-muted)' }}>
               {account.status === 'signed_in'
                 ? t('account.intro.signedIn')
-                : account.signInReason === 'purchase'
+                : (account.signInReason === 'purchase' || account.signInReason === 'web-plans')
                   // Telling someone their free requests need no account, right
                   // after they asked to buy a plan, answers a question they
                   // did not ask and contradicts the one they did.
@@ -199,93 +197,7 @@ export function AccountPasswordDialog() {
           </button>
         </div>
 
-        {account.status === 'signed_in' && account.account && flow !== 'choose-username' && flow !== 'change-username' ? (
-          <div className="mt-5">
-            <dl className="m-0 grid grid-cols-[1fr_auto] gap-x-4 gap-y-3 font-numbers">
-              <dt style={{ color: 'var(--alice-muted)' }}>{t('account.card.username')}</dt>
-              <dd className="m-0 max-w-[230px] truncate text-right">{account.account.username}</dd>
-              <dt style={{ color: 'var(--alice-muted)' }}>{t('account.card.email')}</dt>
-              <dd className="m-0 text-right">{account.account.email_masked ?? t('account.card.notLinked')}</dd>
-              {/* Which plan, before how much of it is left. The card used to
-                  show only a percentage under the words "Private Cloud",
-                  which someone who had just paid for Cloud+ could read
-                  without ever seeing that they had it. A number means
-                  nothing until you know what it is a number of. */}
-              <dt style={{ color: 'var(--alice-muted)' }}>{t('account.card.plan')}</dt>
-              <dd className="m-0 text-right">{planLabel}</dd>
-              <dt style={{ color: 'var(--alice-muted)' }}>
-                {account.cloudUsage?.kind === 'paid' ? t('account.card.allowanceUsed') : t('account.card.freeRequests')}
-              </dt>
-              <dd className="m-0 text-right">
-                {/* Paid plans are metered in bytes server-side, so the exact
-                    request counter only exists on the free plan. */}
-                {account.cloudUsage?.kind === 'paid'
-                  ? t('account.card.percent', { percent: account.cloudUsage.percentUsed })
-                  : `${account.account.cloud_requests_remaining} / ${account.account.cloud_requests_limit}`}
-              </dd>
-              {renewsOn ? (
-                <>
-                  <dt style={{ color: 'var(--alice-muted)' }}>{t('account.card.runsOut')}</dt>
-                  <dd className="m-0 text-right">{renewsOn}</dd>
-                </>
-              ) : null}
-            </dl>
-            {confirmDelete ? (
-              <div className="mt-5" style={{ borderTop: '1px solid var(--alice-border)', paddingTop: 16 }}>
-                <p className="font-numbers m-0" style={{ fontSize: 15, lineHeight: '20px' }}>
-                  {t('account.delete.confirm')}
-                </p>
-                <div className="mt-3 flex gap-2">
-                  <button type="button" className="alice-control alice-control--quiet font-numbers flex-1" disabled={busy} onClick={() => setConfirmDelete(false)}>{t('account.cancelCaps')}</button>
-                  <button type="button" className="alice-control alice-control--danger font-numbers flex-1" disabled={busy} onClick={() => void run(account.deleteAccount)}>{t('account.delete.confirmButton')}</button>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-5">
-                {/* Buying lived only in the settings tab, so this card could
-                    tell someone their plan was running out and offer them no
-                    way to do anything about it. The purchase itself stays in
-                    one place; this is a door to it, next to the line that
-                    prompts the question. The phone apps have no door
-                    (store-rules.ts). */}
-                {sellsPlans() && <button
-                  type="button"
-                  className="alice-control alice-control--primary font-numbers w-full"
-                  disabled={busy}
-                  onClick={() => {
-                    account.dismissSignIn();
-                    openSettings('account');
-                  }}
-                >
-                  {/* "Add credit" waits until topping up actually exists:
-                      a button must not promise more than the screen behind
-                      it sells, and today that screen sells plans and months,
-                      not credit. */}
-                  {t('account.upgrade')}
-                </button>}
-                <button
-                  type="button"
-                  className="alice-control alice-control--quiet font-numbers mt-2 w-full"
-                  disabled={busy}
-                  onClick={() => {
-                    account.clearError();
-                    setPrefix('');
-                    setDigits(null);
-                    setSuffixes([]);
-                    setSuffix(null);
-                    setFlow('change-username');
-                  }}
-                >
-                  {t('account.changeUsername')}
-                </button>
-                <button type="button" className="alice-control alice-control--quiet font-numbers mt-2 w-full" disabled={busy} onClick={() => void run(account.logout)}>{t('account.signOut')}</button>
-                <div className="mt-5 pt-4" style={{ borderTop: '1px solid var(--alice-border)' }}>
-                  <button type="button" className="alice-control alice-control--danger font-numbers w-full" disabled={busy} onClick={() => setConfirmDelete(true)}>{t('account.delete.button')}</button>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : flow === 'choose-username' || flow === 'change-username' ? (
+        {flow === 'choose-username' || flow === 'change-username' ? (
           <form
             className="mt-5"
             onSubmit={event => {
@@ -437,7 +349,7 @@ export function AccountPasswordDialog() {
               {flow === 'change-username' ? t('account.username.save') : t('account.create')}
             </button>
             {flow === 'change-username' ? (
-              <button type="button" className="alice-control alice-control--quiet font-numbers mt-2 w-full" disabled={busy} onClick={() => setFlow('form')}>
+              <button type="button" className="alice-control alice-control--quiet font-numbers mt-2 w-full" disabled={busy} onClick={account.dismissSignIn}>
                 {t('account.cancelCaps')}
               </button>
             ) : null}
@@ -575,7 +487,7 @@ export function AccountPasswordDialog() {
               </form>
             )}
             <button type="button" className="alice-control alice-control--quiet mt-4 w-full font-numbers" style={{ color: 'var(--alice-muted)', fontSize: 14 }} onClick={account.dismissSignIn} disabled={busy}>
-              {account.signInReason === 'purchase' ? t('account.cancelCaps') : t('account.continueWithout')}
+              {(account.signInReason === 'purchase' || account.signInReason === 'web-plans') ? t('account.cancelCaps') : t('account.continueWithout')}
             </button>
           </div>
         )}

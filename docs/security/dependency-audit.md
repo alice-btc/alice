@@ -4,6 +4,22 @@ Alice uses a lockfile and runs `npm audit` in CI after a clean install. The CI
 fails on any critical vulnerability, any high-severity package or advisory not
 in the reviewed baseline, and when that baseline expires.
 
+## 0.2.9 review, 2026-11-11
+
+The 0.2.9 preparation found a critical advisory in `bitcoinjs-lib` 7.0.1,
+[GHSA-8vv3-6qpc-gpw6](https://github.com/advisories/GHSA-8vv3-6qpc-gpw6).
+It concerns duplicate transactions accepted by the block Merkle-root verifier.
+Alice brings this package through `@bitcoinerlab/descriptors` for Explorer
+address derivation; the application does not call `Block.checkTxRoots`.
+That reachability observation is not an audit exception.
+
+`npm update bitcoinjs-lib --ignore-scripts` resolves it to 7.0.5 within the
+existing dependency ranges. Its related lockfile nodes move to `bip174` 3.0.1,
+`varuint-bitcoin` 2.0.1 and their nested `uint8array-tools` 0.0.10 copies.
+No new dependency or override is added. The repeated audit reports **0 high,
+0 critical** (15 moderate and 3 low remain). The gate and its 2026-11-28
+review deadline are unchanged.
+
 ## Current reviewed baseline, 2026-10-31
 
 Review brought forward from 2026-11-02: on 2026-10-31, 7 advisories published

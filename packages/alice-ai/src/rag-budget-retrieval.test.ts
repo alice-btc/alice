@@ -19,6 +19,16 @@ async function retrieve(query: string, local: boolean, language: string) {
   return result.diagnostics.map((c: { id: string; conceptId?: string }) => c.conceptId ?? c.id);
 }
 
+test('small-payment fee questions keep the fee anchor despite the possessive "mine"', async () => {
+  for (const [language, query] of [
+    ['en', 'Why did a tiny payment of mine cost almost the same fee as a large one?'],
+    ['fr', "Pourquoi un tout petit paiement m'a-t-il coûté presque les mêmes frais qu'un gros ?"],
+  ]) for (const local of [true, false]) {
+    assert.equal(isGeneralBitcoinFeeQuestion(query), true);
+    assert.equal((await retrieve(query, local, language))[0], 'transaction-fees');
+  }
+});
+
 test('definition and cloud budgets do not perform an unnecessary technical lookup', () => {
   const unnecessary = () => { throw new Error('Technical lookup should not run'); };
   assert.equal(ragQueryChunkBudget('Explain Bitcoin.', true, unnecessary), 1);
@@ -299,4 +309,32 @@ test('the acceptance subjects the lexical path used to miss reach their notes fr
       assert.ok(ids.some((id: string) => (expected as readonly string[]).includes(id)), `${message} (${local ? 'local' : 'cloud'}) -> ${ids.join(', ')}`);
     }
   }
+});
+
+
+test('production chunk budgets retain requested invoice and routing details, while plain definitions stay small',async()=>{
+ for(const [language,query,detail] of [
+  ['fr','Explique les étapes d’un paiement Lightning ordinaire vers un commerce, de la facture au routage. Je cherche seulement à comprendre le mécanisme.','lightning-invoice'],
+  ['en','A cafe gives me a Lightning invoice. Explain the normal flow.','lightning-invoice'],
+  ['en','My wallet cannot find any route before sending. Is my whole channel balance now locked until I close it? How is that different from an HTLC already in flight?','lightning-routing'],
+ ]) {
+  const ids=await retrieve(query,true,language);
+  assert.deepEqual(ids,['lightning-network',detail],query);
+ }
+ assert.equal(ragQueryChunkBudget('What is Lightning?',true,()=>false),1);
+});
+
+const followupConversations = [["I want to pay a museum's Lightning invoice. Walk me through how the payment reaches the museum and completes.", "My wallet gives up finding a route before it sends anything. Is my channel balance now frozen?", "Separately, the other peer broadcasts an old revoked commitment. What must my wallet or watchtower actually do?"], ["Prenons des valeurs fictives : subvention autorisée de 8000 sat, frais inclus de 600 sat, sorties de coinbase de 8300 sat. Quel est le plafond autorisé et l’augmentation nette de la quantité de bitcoins ? Cette coinbase respecte-t-elle la limite ?", "Je conserve la subvention et le montant réclamé dans la coinbase, mais les frais inclus passent à 350 sat. Refais les deux calculs.", "Avec ces nouveaux frais, un mineur pourrait-il réclamer 8400 sat si sa preuve de travail est plus forte ?"]];
+test('actual rewritten walkthrough and monetary follow-ups reach their notes within production budgets',async()=>{
+ for(const [index,questions] of followupConversations.entries()){
+  const history:{role:'user'|'assistant';content:string}[]=[];
+  for(const [turn,userMessage] of questions.entries()){
+   const plan=runtime.planAliceTurn(userMessage);
+   const query=runtime.rewriteRetrievalQuery({history:[...history,{role:'user',content:userMessage}],userMessage,plan});assert.ok(query);
+   const ids=await retrieve(query,true,index===0?'en':'fr');
+   const expected=index===0?(turn===2?'secondary-lightning-revocation-key':'lightning-network'):'bitcoin-monetary-policy';
+   assert.ok(ids.includes(expected),`${query}: ${ids}`);
+   history.push({role:'user',content:userMessage},{role:'assistant',content:'An earlier unsupported answer must not become retrieval evidence.'});
+  }
+ }
 });

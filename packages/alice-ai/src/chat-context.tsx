@@ -752,6 +752,8 @@ export function ChatProvider({
         tokensPerSecond,
         attempts: result.attempts,
         answerRuleCorrections: result.answerRuleCorrections,
+        ...(result.answerRuleRetry ? { answerRuleRetry: result.answerRuleRetry } : {}),
+        ...(result.answerRuleFailure ? { answerRuleFailure: result.answerRuleFailure } : {}),
         backendTimings: result.backendTimings ?? null,
       }));
       full = applyAliceResponseConstraints(instructions, result.text);
@@ -947,6 +949,8 @@ export function ChatProvider({
           firstDisplayMs: result.firstDisplayMs ?? null,
           attempts: result.attempts,
           answerRuleCorrections: result.answerRuleCorrections,
+          ...(result.answerRuleRetry ? { answerRuleRetry: result.answerRuleRetry } : {}),
+        ...(result.answerRuleFailure ? { answerRuleFailure: result.answerRuleFailure } : {}),
           backendTimings: result.backendTimings ?? null,
         }));
 
@@ -990,6 +994,8 @@ export function ChatProvider({
           firstDisplayMs: result.firstDisplayMs ?? null,
           attempts: result.attempts,
           answerRuleCorrections: result.answerRuleCorrections,
+          ...(result.answerRuleRetry ? { answerRuleRetry: result.answerRuleRetry } : {}),
+        ...(result.answerRuleFailure ? { answerRuleFailure: result.answerRuleFailure } : {}),
           backendTimings: result.backendTimings ?? null,
         }));
         full = applyAliceResponseConstraints(instructions, result.text);

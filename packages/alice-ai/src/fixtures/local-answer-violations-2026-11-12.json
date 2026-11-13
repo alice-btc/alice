@@ -1,0 +1,265 @@
+[
+  {
+    "id": "utxo-fr-local-pilot-t1",
+    "question": "Décris une transaction Bitcoin avec une comparaison à des lignes de base de données : que deviennent les entrées et les sorties, et comment se calculent les frais ?",
+    "previousUserQuestion": "",
+    "notes": [
+      "transaction-inputs-outputs"
+    ],
+    "answer": "Imaginez que Bitcoin fonctionne comme un système de base de données où chaque pièce de valeur est une ligne unique, appelée une **entrée (UTXO)**, contenant un montant précis et des règles de dépense. Une **transaction** n'est pas un débit sur un compte global, mais une requête qui dit : « Je veux utiliser ces lignes spécifiques pour créer de nouvelles lignes avec des montants différents ».\n\nDans cette comparaison :\n*   **Les entrées** sont les lignes de base de données que vous sélectionnez pour être « consommées ». Elles disparaissent du pool disponible (on dit qu'elles sont « dépensées »), mais leur historique reste gravé dans la base de données pour la preuve de valeur.\n*   **Les sorties** sont les nouvelles lignes créées par la transaction. Elles ne modifient pas les anciennes lignes, elles en créent de nouvelles. Une partie va au destinataire, une autre peut revenir à vous (monnaie rendue), et une dernière ligne spéciale sert à payer les frais.\n\nLe calcul des frais suit une comptabilité stricte : le **total des entrées consommées** doit être égal à la **somme de toutes les sorties créées** plus les **frais**. Les frais ne sont pas une sortie supplémentaire du paiement lui-même, mais la différence mathématique nécessaire pour rémunérer le réseau. Si vous dépensez 10 000 sats et payez 500 sats de frais, vous ne pouvez créer de sorties totales que pour 9 500 sats.\n\nSouhaitez-vous voir un exemple concret de chiffres pour visualiser comment la monnaie rendue est calculée, ou préférez-vous comprendre comment ces règles empêchent la double dépense ?",
+    "expected": "utxo-fee-output"
+  },
+  {
+    "id": "utxo-fr-local-pilot-t2",
+    "question": "Exemple fictif : une entrée de 23000 sat, 14000 sat pour le destinataire et 800 sat de frais. Quelle monnaie reste-t-il ? La signature permet-elle de savoir quelle sortie appartient au payeur ?",
+    "previousUserQuestion": "Décris une transaction Bitcoin avec une comparaison à des lignes de base de données : que deviennent les entrées et les sorties, et comment se calculent les frais ?",
+    "notes": [
+      "transaction-inputs-outputs"
+    ],
+    "answer": "Avec une entrée de 23 000 sats, un paiement de 14 000 sats et des frais de 800 sats, la monnaie rendue au payeur s'élève à **8 200 sats**. Ce résultat provient du calcul comptable strict : le total des entrées consommées (23 000) doit être égal à la somme de toutes les sorties créées (paiement + monnaie) plus les frais. Ici, 14 000 (paiement) + 8 200 (monnaie) + 800 (frais) = 23 000 sats.\n\nLa signature de l'entrée autorise uniquement la dépense de la valeur contenue dans l'UTXO consommé ; elle ne permet pas d'identifier le propriétaire des nouvelles sorties créées. Les scripts définissent les conditions pour dépenser une sortie, mais ne révèlent pas l'identité de la personne qui la possède. De même, l'ordre des sorties dans une transaction ne suffit pas à déterminer laquelle est la monnaie rendue, car un observateur ne peut pas prouver la propriété sans accéder aux clés privées.\n\nPour conclure, le montant de la monnaie est déterminé par la soustraction des frais et du paiement au total des entrées, mais l'identité du propriétaire de cette monnaie ne peut être déduite que par la vérification des signatures sur les entrées correspondantes. Souhaitez-vous voir comment ces règles empêchent la double dépense ou comprendre comment les frais sont déterminés par le réseau ?",
+    "expected": "signature-reveals-change"
+  },
+  {
+    "id": "lightning-fr-t1",
+    "question": "Explique les étapes d’un paiement Lightning ordinaire vers un commerce, de la facture au routage. Je cherche seulement à comprendre le mécanisme.",
+    "previousUserQuestion": "",
+    "notes": [
+      "lightning-payment-mechanics"
+    ],
+    "answer": "Pour un paiement Lightning ordinaire vers un commerce, le processus commence par la présentation de la facture. Le commerçant, qui détient le canal de paiement, génère une transaction de paiement pré-établie (un HTLC) correspondant au montant de la facture. Il envoie cette information cryptée au client.\n\nLe client de la carte de crédit (payeur) ne possède pas de canal direct vers le commerce. Son portefeuille cherche automatiquement un chemin de routage en utilisant des canaux intermédiaires sécurisés. Il sélectionne une séquence de nœuds où chaque participant possède assez de liquidité pour permettre le passage des fonds. Une fois le chemin trouvé, le client signe la transaction et l'envoie.\n\nLes nœuds intermédiaires vérifient la validité de la transaction et mettent à jour leurs engagements hors chaîne sans la publier sur la blockchain. Le dernier nœud du chemin (le commerce) reçoit la transaction, vérifie qu'elle est valide, et la publie sur la blockchain Bitcoin pour clôturer le canal et libérer les fonds. Le client voit alors le solde mis à jour.\n\n**Question de suivi :** Souhaitez-vous savoir comment fonctionne la récupération des fonds en cas de fermeture forcée d'un canal, ou comment les frais sont calculés lors de ce routage ?",
+    "expected": "lightning-payment-waits-for-close"
+  },
+  {
+    "id": "lightning-fr-t2",
+    "question": "Si aucun chemin ne fonctionne, le paiement passe-t-il tout seul sur la blockchain ? Et si un pair publie un ancien état du canal, Bitcoin me rend-il automatiquement les fonds ?",
+    "previousUserQuestion": "Explique les étapes d’un paiement Lightning ordinaire vers un commerce, de la facture au routage. Je cherche seulement à comprendre le mécanisme.",
+    "notes": [
+      "lightning-revoked-state",
+      "lightning-payment-mechanics"
+    ],
+    "answer": "Non, si aucun chemin ne fonctionne, le paiement ne passe pas tout seul sur la blockchain. Le portefeuille du payeur doit réessayer de trouver un autre chemin ou fermer le canal manuellement. Les fonds restent bloqués dans le canal jusqu'à ce qu'une transaction de clôture soit publiée, ce qui peut prendre du temps si le canal est fermé de manière forcée.\n\nPour la deuxième question, Bitcoin ne rend pas automatiquement les fonds si un partenaire publie un ancien état. Ce mécanisme de révocation nécessite une action proactive : le portefeuille ou une watchtower doit surveiller la chaîne, détecter la publication de cet état obsolète et publier une transaction de pénalité dans les délais impartis par le timelock. Sans cette réaction rapide, le pair malhonnête peut s'approprier les fonds.\n\nEn résumé, le routage échoue sans intervention utilisateur, et la récupération des fonds en cas de révocation dépend de la surveillance et de l'action rapide, pas d'un processus automatique garanti par la blockchain seule.",
+    "expected": "lightning-route-failure-locks-funds"
+  },
+  {
+    "id": "issuance-reserve-fr-t1",
+    "question": "Dans un bloc fictif, la subvention autorisée à cette hauteur vaut 8500 sat et les frais des transactions valent 700 sat. Le mineur réclame 9000 sat dans sa coinbase. Explique si le contrôle monétaire accepte cela, sans utiliser la subvention actuelle.",
+    "previousUserQuestion": "",
+    "notes": [
+      "bitcoin-issuance-validation"
+    ],
+    "answer": "Oui, le contrôle monétaire accepte ce bloc. La règle fondamentale exige que la somme des sorties de la transaction coinbase (C) ne dépasse pas la somme de la subvention autorisée (S) et des frais de transaction (F). Dans votre exemple, le plafond autorisé est de 9 200 sat (8 500 + 700). Puisque le mineur réclame 9 000 sat, cette demande est inférieure au plafond et donc valide par les nœuds de la réseau.\n\nIl est important de distinguer ce qui est émis de ce qui circule. La subvention de 8 500 sat représente de la monnaie nouvelle créée par le protocole. Les 700 sat de frais proviennent de bitcoins déjà existants transférés vers le mineur. Bien que le mineur puisse réclamer 9 000 sat, la quantité de monnaie *nouvellement* émise par ce bloc ne sera que de 8 500 sat. La différence de 500 sat correspond à des bitcoins existants qui changent de propriétaire (des utilisateurs aux mineurs) sans augmenter l'offre totale.\n\nLe mécanisme de validation s'assure que le total demandé (C) respecte la limite (S + F), mais cela ne garantit pas que le mineur aura l'intégralité de la subvention ou que les frais seront exactement tels qu'attendu. Le mineur peut choisir de réclamer moins que le plafond autorisé, ce qui réduirait encore l'augmentation nette de l'offre.\n\nVoulez-vous savoir comment cette règle de limite s'applique concrètement lors de la validation d'une transaction par un nœud ?",
+    "expected": "coinbase-numeric-issuance"
+  },
+  {
+    "id": "issuance-reserve-fr-t2",
+    "question": "Est-ce que cela signifie que 9000 nouveaux satoshis sont émis ? Si la coinbase réclamait plutôt 9300 sat, une preuve de travail valide ou un bloc plus petit pourrait-il la rendre acceptable ?",
+    "previousUserQuestion": "Dans un bloc fictif, la subvention autorisée à cette hauteur vaut 8500 sat et les frais des transactions valent 700 sat. Le mineur réclame 9000 sat dans sa coinbase. Explique si le contrôle monétaire accepte cela, sans utiliser la subvention actuelle.",
+    "notes": [
+      "bitcoin-issuance-validation"
+    ],
+    "answer": "Non, cela ne signifie pas que 9 000 nouveaux satoshis sont émis. Dans votre exemple, la subvention autorisée est de 8 500 sat et les frais sont de 700 sat. Le plafond total de la récompense du bloc est donc de 9 200 sat (8 500 + 700). Si le mineur réclame 9 000 sat, il obtient 8 300 sat de monnaie *nouvelle* (la subvention) et 700 sat de monnaie *existante* (les frais). La somme totale de 9 000 sat est acceptée car elle ne dépasse pas le plafond de 9 200 sat, mais seule la partie de 8 500 sat correspond à une émission nouvelle.\n\nSi la coinbase réclamait 9 300 sat, ce bloc serait rejeté par les nœuds du réseau, même avec une preuve de travail valide. Le contrôle monétaire vérifie strictement que la somme des sorties de la transaction coinbase ne dépasse jamais la somme de la subvention autorisée et des frais. Un bloc plus petit ne permettrait pas de contourner cette règle, car la limite dépend de la hauteur du bloc (la subvention) et des frais, pas de la taille physique du bloc. Une demande de 9 300 sat exigerait soit une subvention plus élevée (ce qui n'est pas le cas à cette hauteur), soit des frais plus élevés, sinon le bloc est invalide.\n\nVoulez-vous comprendre comment les frais de transaction sont calculés pour atteindre un plafond supérieur dans un bloc donné ?",
+    "expected": "coinbase-numeric-issuance"
+  },
+  {
+    "id": "net-issuance-falsely-constant",
+    "answer": "Non, une coinbase de 6500 sat ne deviendra jamais acceptable, même avec une quantité infinie de preuve de travail. Le réseau Bitcoin rejette automatiquement toute transaction de récompense de bloc qui dépasse le plafond strict de 6400 sat (la somme de la subvention autorisée de 6000 sat et des frais de 400 sat). La preuve de travail valide uniquement que le bloc est calculé correctement, mais elle ne peut pas contredire les règles de validation monétaire du protocole.\n\nLes frais de transaction ne sont jamais de nouveaux bitcoins émis. Ils représentent uniquement des bitcoins déjà existants qui sont transférés du réseau des transactions vers le mineur du bloc. Par conséquent, l'augmentation nette de la quantité totale de bitcoins reste de 5800 sat (la différence entre la coinbase de 6200 sat et les 400 sat de frais), quelle que soit la taille de la coinbase, tant qu'elle ne dépasse pas le plafond de 6400 sat.",
+    "notes": [
+      "bitcoin-issuance-validation"
+    ],
+    "question": "Et une coinbase à 6500 sat deviendrait-elle acceptable avec davantage de preuve de travail ? Est-ce que les frais deviennent alors des nouveaux bitcoins ?",
+    "previousUserQuestion": "Exemple fictif : la subvention autorisée est 6000 sat, les frais sont 400 sat et le mineur réclame 6200 sat dans la coinbase. Quel est le plafond permis et de combien augmente la quantité totale de bitcoins ?",
+    "expected": "coinbase-numeric-issuance"
+  },
+  {
+    "id": "lightning-walkthrough-a-t1",
+    "answer": "Un paiement Lightning vers un commerce commence par la facture : le commerçant (le destinataire) crée une demande de paiement, signe cette demande et l'envoie au client (le payeur). Cette demande n'est pas une transaction sur la blockchain, ni une clé privée révélée, mais simplement une instruction cryptographique que le client doit accepter pour payer.\n\nEnsuite, le client sélectionne un chemin de paiement. Son portefeuille analyse les canaux ouverts entre lui et le commerce, ainsi que les canaux intermédiaires possibles, pour trouver une suite de nœuds ayant assez de liquidité pour transférer les fonds. Ce chemin peut passer par plusieurs personnes sans que chacun connaisse directement l'autre. Une fois le chemin choisi, le client envoie la demande de paiement sur ce chemin.\n\nLe paiement réussit lorsque chaque nœud du chemin met à jour ses soldes hors chaîne, permettant au commerce de recevoir les fonds sans attendre une confirmation sur la blockchain. Le commerce révèle ensuite la preuve de paiement (la préimage) pour débloquer ses fonds. Si le routage échoue, le client essaie un autre chemin ou annule la tentative ; les fonds restent généralement disponibles sauf si un paiement en cours est bloqué. La clôture des canaux se fait ensuite sur la blockchain pour régler les soldes restants, mais c'est une opération distincte et automatique qui n'annule pas le paiement Lightning déjà effectué.",
+    "notes": [
+      "lightning-payment-mechanics"
+    ],
+    "question": "Explique les étapes d’un paiement Lightning ordinaire vers un commerce, de la facture au routage. Je cherche seulement à comprendre le mécanisme.",
+    "expected": "lightning-automatic-closure"
+  },
+  {
+    "id": "lightning-walkthrough-a-t2",
+    "answer": "Si aucun chemin de paiement Lightning ne fonctionne, le paiement ne passe pas automatiquement sur la blockchain. Le système de routage ne lance pas de transaction sur la chaîne principale si le routage échoue ; les fonds restent généralement disponibles pour une nouvelle tentative ou sont bloqués si un paiement en cours est annulé.\n\nSi un partenaire publie un ancien état du canal (un état révoqué), Bitcoin ne rend pas automatiquement les fonds. La récupération des fonds dépend de la détection rapide de cet état par une watchtower et de la publication d'une transaction de pénalité dans les délais imposés par le timelock. Sans cette réaction immédiate, le pair malhonnête peut garder les fonds.\n\nLe mécanisme de révocation ne garantit pas la récupération automatique ni la liquidité de routage. Il impose une surveillance continue et des frais pour vérifier les états. Si la réaction est trop lente, les fonds peuvent être perdus définitivement.",
+    "notes": [
+      "lightning-revoked-state",
+      "lightning-payment-mechanics"
+    ],
+    "question": "Si aucun chemin ne fonctionne, le paiement passe-t-il tout seul sur la blockchain ? Et si un pair publie un ancien état du canal, Bitcoin me rend-il automatiquement les fonds ?",
+    "expected": "lightning-monitoring-protocol-fees"
+  },
+  {
+    "id": "lightning-payer-sends-preimage",
+    "answer": "No, the invoice itself is not an HTLC transaction, and the cafe does not need to close its channel to receive your payment. An invoice is simply a signed payment request created by the recipient (the cafe) that tells the payer how much to send and which conditions to meet. It is a request, not a transaction on the blockchain or a signed commitment from the payer.\n\nWhen you pay, your wallet selects a route through a series of channels to reach the cafe's channel. Your wallet sends a pre-image along this route, and the cafe reveals the pre-image to unlock the payment. This updates the balances in the channels off-chain, allowing the cafe to receive the funds while the channel remains open. The cafe only closes its channel as a separate, optional action to settle its balance on the Bitcoin blockchain, not as a requirement to receive the payment.",
+    "notes": [
+      "lightning-payment-mechanics"
+    ],
+    "question": "A cafe gives me a Lightning invoice. Is that invoice already an HTLC transaction, and must the cafe close its channel to receive my ordinary payment? Explain the normal flow.",
+    "expected": "lightning-payer-reveals-preimage"
+  },
+  {
+    "id": "lightning-walkthrough-b-t1",
+    "answer": "Un paiement Lightning ordinaire vers un commerce suit trois étapes principales : la création de la facture, le routage du paiement et le règlement.\n\nD'abord, le commerce (le destinataire) crée et signe une demande de paiement. Cette facture contient les détails du montant et de la destination, mais elle n'est pas une transaction sur la chaîne Bitcoin et ne nécessite pas la signature du client. Ensuite, votre portefeuille sélectionne un chemin de canaux entre plusieurs intermédiaires pour atteindre le commerce, sans avoir besoin d'un canal direct avec lui. Enfin, le commerce révèle la clé secrète (préimage) pour valider le paiement, ce qui met à jour les soldes de tous les participants sur la chaîne sans inscrire le paiement lui-même.\n\nCe processus permet des règlements rapides et peu coûteux, mais il dépend de la liquidité disponible dans les canaux et ne garantit pas toujours un succès immédiat. Si le chemin choisi est bloqué, votre portefeuille essaiera automatiquement un autre itinéraire ou annulera la tentative sans perdre vos fonds.",
+    "notes": [
+      "lightning-payment-mechanics"
+    ],
+    "question": "Explique les étapes d’un paiement Lightning ordinaire vers un commerce, de la facture au routage. Je cherche seulement à comprendre le mécanisme.",
+    "expected": "lightning-settlement-on-chain"
+  },
+  {
+    "id": "lightning-walkthrough-b-t2",
+    "answer": "Non, si aucun chemin de canaux ne fonctionne, le paiement ne passe pas automatiquement sur la blockchain. Votre portefeuille doit alors utiliser un mécanisme de paiement par défaut (comme un paiement HTLC classique ou une transaction standard) pour envoyer les fonds, ce qui peut prendre plusieurs minutes ou heures et coûter plus cher.\n\nConcernant la révocation d'un état ancien, Bitcoin ne rend pas automatiquement les fonds. Si un partenaire publie un ancien état de canal, cela déclenche une transaction de pénalité sur la chaîne. Cependant, la récupération des fonds dépend de la rapidité avec laquelle votre watchtower (ou votre portefeuille) détecte et exécute cette transaction dans le délai imparti. Si vous réagissez trop tard, le pair malhonnête peut avoir déjà utilisé les fonds, et la récupération ne sera pas garantie.\n\nEn résumé, les canaux Lightning sont rapides car ils évitent la blockchain, mais en cas de blocage total, on revient à la blockchain avec des délais et des coûts différents. La sécurité contre les états révoqués repose sur la surveillance active et la réactivité, pas sur une action automatique de la blockchain elle-même.",
+    "notes": [
+      "lightning-revoked-state",
+      "lightning-payment-mechanics"
+    ],
+    "question": "Si aucun chemin ne fonctionne, le paiement passe-t-il tout seul sur la blockchain ? Et si un pair publie un ancien état du canal, Bitcoin me rend-il automatiquement les fonds ?",
+    "expected": "lightning-failure-on-chain"
+  },
+  {
+    "id": "utxo-invented-expansion",
+    "answer": "Imaginez la blockchain comme une base de données immuable qui conserve l'historique complet de toutes les transactions, tandis que l'ensemble des UTXO (Unités de Transfert Non Spécifiées) représente uniquement la vue actuelle des sommes disponibles pour être dépensées.\n\nDans cette comparaison, une **entrée** agit comme une référence qui consomme une ligne historique spécifique (une ancienne sortie) pour la retirer de la vue des UTXO disponibles. Elle ne crée pas de nouvelle ligne mais annule l'existence de la ligne source. À l'inverse, une **sortie** crée une nouvelle ligne dans la vue actuelle, définissant un montant et des conditions pour son utilisation future.\n\nLe calcul des frais repose sur la différence entre la valeur totale des entrées consommées et la somme des sorties créées. La formule est : **Total des entrées = Total des sorties + Frais**. Les frais ne sont pas une sortie supplémentaire visible pour le destinataire ; ils sont simplement la différence mathématique qui est attribuée au mineur via la transaction coinbase du bloc.\n\nPour résumer : les entrées retirent de la vue active des fonds historiques, les sorties y ajoutent de nouveaux fonds, et les frais sont le reste de l'équation comptable qui ne forme pas une nouvelle sortie utilisable par un utilisateur.",
+    "notes": [
+      "transaction-inputs-outputs"
+    ],
+    "question": "Décris une transaction Bitcoin avec une comparaison à des lignes de base de données : que deviennent les entrées et les sorties, et comment se calculent les frais ?",
+    "expected": "utxo-invented-expansion"
+  },
+  {
+    "id": "utxo-source-record-deletion",
+    "answer": "Imaginez la blockchain comme une base de données immuable qui conserve l'historique complet de toutes les transactions, tandis que l'ensemble des UTXO (Unités de Transfert Non Spécifiées) représente uniquement la vue actuelle des sommes disponibles pour être dépensées.\n\nDans cette comparaison, une **entrée** agit comme une référence qui consomme une ligne historique spécifique (une ancienne sortie) pour la retirer de la vue des UTXO disponibles. Elle ne crée pas de nouvelle ligne mais annule l'existence de la ligne source. À l'inverse, une **sortie** crée une nouvelle ligne dans la vue actuelle, définissant un montant et des conditions pour son utilisation future.\n\nLe calcul des frais repose sur la différence entre la valeur totale des entrées consommées et la somme des sorties créées. La formule est : **Total des entrées = Total des sorties + Frais**. Les frais ne sont pas une sortie supplémentaire visible pour le destinataire ; ils sont simplement la différence mathématique qui est attribuée au mineur via la transaction coinbase du bloc.\n\nPour résumer : les entrées retirent de la vue active des fonds historiques, les sorties y ajoutent de nouveaux fonds, et les frais sont le reste de l'équation comptable qui ne forme pas une nouvelle sortie utilisable par un utilisateur.",
+    "notes": [
+      "transaction-inputs-outputs"
+    ],
+    "question": "Décris une transaction Bitcoin avec une comparaison à des lignes de base de données : que deviennent les entrées et les sorties, et comment se calculent les frais ?",
+    "expected": "utxo-source-record-deletion"
+  },
+  {
+    "id": "lightning-invoice-forwarded",
+    "answer": "Un paiement Lightning ordinaire commence par le commerce qui émet une facture numérique. Cette facture contient les détails du paiement et est signée par le commerce pour être authentifiée. Le client reçoit cette facture, la vérifie et la transmet au réseau Lightning.\n\nEnsuite, le portefeuille du client sélectionne un chemin de paiement. Ce chemin est une suite de canaux ouverts entre plusieurs participants, chacun ayant assez de liquidité pour permettre le transfert. Le client envoie la demande de paiement le long de ce chemin. Le commerce n'a pas besoin d'avoir un canal direct avec le client ; le paiement peut passer par plusieurs intermédiaires.\n\nEnfin, le règlement se produit hors chaîne. Le commerce révèle la préimage cryptographique nécessaire pour débloquer les fonds. Cette information est relayée en retour, ce qui permet à tous les participants du chemin de mettre à jour leurs soldes dans leurs canaux respectifs. Le paiement est alors finalisé sans inscription sur la blockchain Bitcoin. Les canaux restent ouverts pour permettre d'autres paiements futurs.",
+    "notes": [
+      "lightning-payment-mechanics"
+    ],
+    "question": "Explique les étapes d’un paiement Lightning ordinaire vers un commerce, de la facture au routage. Je cherche seulement à comprendre le mécanisme.",
+    "expected": "lightning-invoice-forwarded"
+  },
+  {
+    "id": "lightning-route-search-certainty",
+    "answer": "No, if your wallet cannot find a route before sending, your channel balance is not locked. The funds remain available in your channel and can be used for other payments or spent once the channel is settled. The inability to route simply means the network path with sufficient liquidity for that specific amount does not exist at this moment.\n\nThis situation is different from an HTLC already in flight. An in-flight HTLC is a payment that has already been sent but is waiting for the recipient to reveal the preimage to complete the transaction. During this time, the funds are technically \"committed\" and cannot be sent elsewhere, but they are not locked in the sense of being unusable forever; they can be released upon successful settlement or returned if the recipient fails to fulfill the contract.\n\nIn your case, since no payment has been initiated, the funds are still fully yours in your channel. You can try again later when liquidity improves, or you can close the channel to move the funds to a new channel or to the Bitcoin blockchain.",
+    "notes": [
+      "lightning-payment-mechanics"
+    ],
+    "question": "My wallet cannot find any route before sending. Is my whole channel balance now locked until I close it? How is that different from an HTLC already in flight?",
+    "expected": "lightning-route-search-certainty"
+  },
+  {
+    "id": "utxo-remainder-must-be-lost",
+    "answer": "Une transaction Bitcoin fonctionne comme une mise à jour de la base de données des sorties non dépensées (UTXO). Elle ne vide pas un compte global, mais consomme des enregistrements existants (les entrées) pour créer de nouveaux enregistrements (les sorties).\n\nDans le langage des bases de données, imaginez que la blockchain est l'historique complet de toutes les lignes de compte. Les **entrées** sont des références spécifiques à des lignes de compte passées que vous choisissez de « consommer » pour payer quelque chose. Elles sont retirées de la vue des fonds disponibles. Les **sorties** sont de nouvelles lignes de compte créées par la transaction : l'une pour le destinataire et une autre pour vous-même (la monnaie rendue). La blockchain conserve l'historique de toutes ces lignes, mais la vue active des fonds utilisables ne contient que les sorties qui n'ont pas encore été consommées.\n\nLes **frais** ne sont pas une nouvelle ligne de compte créée pour le paiement. Ils sont le résultat mathématique de la différence entre la valeur totale des entrées consommées et la somme des sorties créées. Le reste est attribué au mineur via une sortie spéciale (coinbase) dans le bloc suivant. Comme les entrées sont consommées entièrement, si vous dépensez 10 000 sats pour payer 9 000 sats, les 1 000 sats de différence (frais) ne peuvent pas être envoyés à un autre destinataire ; ils doivent être perdus ou donnés au réseau, ce qui explique pourquoi les frais ne sont pas une sortie supplémentaire du paiement.",
+    "notes": [
+      "transaction-inputs-outputs"
+    ],
+    "question": "Décris une transaction Bitcoin avec une comparaison à des lignes de base de données : que deviennent les entrées et les sorties, et comment se calculent les frais ?",
+    "expected": "utxo-remainder-must-be-lost"
+  },
+  {
+    "id": "lightning-preimage-after-settlement",
+    "answer": "No, the Lightning invoice is not an HTLC transaction, and the cafe does not need to close its channel to receive your ordinary payment.\n\nAn **invoice** is a signed payment request created by the cafe. It contains details like a destination, an expiry time, and a cryptographic hash that defines the payment condition. It is merely a request for payment, not a transaction itself. The invoice does not move along the network; it stays with the cafe until you pay it.\n\nThe **settlement** happens only after you pay the invoice. Your wallet uses the invoice to find a route through other channels and sends funds. Once your payment is confirmed, the cafe reveals the secret preimage to unlock the funds. This completes the payment while the channel remains open for future use.",
+    "notes": [
+      "lightning-payment-mechanics"
+    ],
+    "question": "A cafe gives me a Lightning invoice. Is that invoice already an HTLC transaction, and must the cafe close its channel to receive my ordinary payment? Explain the normal flow.",
+    "expected": "lightning-preimage-after-settlement"
+  },
+  {
+    "id": "utxo-unrequested-numeric-example",
+    "answer": "Imaginez la blockchain comme une base de données immuable qui conserve l'historique complet de toutes les transactions, tout comme un journal comptable qui ne s'efface jamais. Dans cette vision, les **entrées** représentent des références à des lignes de données passées (des sorties non dépensées) que l'on souhaite utiliser. Elles ne sont pas des lignes actives de la base de données, mais des pointeurs vers des enregistrements historiques qui sont \"consommés\" ou \"verrouillés\" par la nouvelle transaction.\n\nLes **sorties**, en revanche, sont de nouvelles lignes de données créées dans la base de données pour définir où va l'argent et sous quelles conditions il peut être dépensé. Elles contiennent le montant et le script de dépense. Contrairement aux entrées qui pointent vers le passé, les sorties sont des enregistrements actuels qui s'ajoutent à la vue des données disponibles.\n\nPour calculer les frais, on compare la valeur totale des entrées (ce que l'on dépense) avec la somme des sorties (ce que l'on crée). La différence entre ces deux montants sont les frais, qui ne sont pas une nouvelle sortie mais une réduction de la valeur disponible. Si vous dépensez 100 000 sats et créez deux sorties de 50 000 sats chacune, les 10 000 sats restants sont les frais, attribués au mineur.",
+    "notes": [
+      "transaction-inputs-outputs"
+    ],
+    "question": "Décris une transaction Bitcoin avec une comparaison à des lignes de base de données : que deviennent les entrées et les sorties, et comment se calculent les frais ?",
+    "expected": "utxo-unrequested-numeric-example"
+  },
+  {
+    "id": "signature-sets-spending-conditions",
+    "answer": "Il reste **8 200 sats** de monnaie. Ce montant se calcule en soustrayant le paiement (14 000 sats) et les frais (800 sats) du total des entrées consommées (23 000 sats). La somme des sorties (paiement + monnaie) est donc de 22 200 sats, ce qui correspond exactement au total des entrées moins les frais.\n\nLa signature autorise la dépense de l'entrée, mais elle ne permet pas de déterminer quelle sortie spécifique appartient au payeur. Les signatures définissent simplement la condition pour dépenser l'argent, pas l'identité du détenteur. De même, l'ordre des sorties dans la transaction ne révèle pas la monnaie rendue. Il faut attendre la confirmation sur la blockchain pour savoir avec certitude qui possède quelle sortie, car les hypothèses basées sur l'ordre ou les montants ne sont pas des preuves.",
+    "notes": [
+      "transaction-inputs-outputs"
+    ],
+    "question": "Exemple fictif : une entrée de 23000 sat, 14000 sat pour le destinataire et 800 sat de frais. Quelle monnaie reste-t-il ? La signature permet-elle de savoir quelle sortie appartient au payeur ?",
+    "expected": "signature-sets-spending-conditions"
+  },
+  {
+    "id": "confirmation-proves-output-owner",
+    "answer": "Il reste **8 200 sats** de monnaie. Ce montant se calcule en soustrayant le paiement (14 000 sats) et les frais (800 sats) du total des entrées consommées (23 000 sats). La somme des sorties (paiement + monnaie) est donc de 22 200 sats, ce qui correspond exactement au total des entrées moins les frais.\n\nLa signature autorise la dépense de l'entrée, mais elle ne permet pas de déterminer quelle sortie spécifique appartient au payeur. Les signatures définissent simplement la condition pour dépenser l'argent, pas l'identité du détenteur. De même, l'ordre des sorties dans la transaction ne révèle pas la monnaie rendue. Il faut attendre la confirmation sur la blockchain pour savoir avec certitude qui possède quelle sortie, car les hypothèses basées sur l'ordre ou les montants ne sont pas des preuves.",
+    "notes": [
+      "transaction-inputs-outputs"
+    ],
+    "question": "Exemple fictif : une entrée de 23000 sat, 14000 sat pour le destinataire et 800 sat de frais. Quelle monnaie reste-t-il ? La signature permet-elle de savoir quelle sortie appartient au payeur ?",
+    "expected": "confirmation-proves-output-owner"
+  },
+  {
+    "id": "utxo-fee-output",
+    "answer": "Une transaction Bitcoin fonctionne comme une mise à jour de l'historique des sorties disponibles, où les anciennes sorties sont consommées pour créer de nouvelles. Dans une analogie de base de données, imaginez que la blockchain est un journal immuable qui conserve chaque enregistrement (une sortie) pour toujours. Les \"entrées\" d'une transaction ne sont pas des comptes à déduire, mais des références pointant vers des enregistrements spécifiques de ce journal que l'on souhaite utiliser.\n\nLorsqu'une transaction est validée, elle \"consomme\" ces entrées : les sorties qu'elles référencent sont retirées de la vue des sorties non dépensées (UTXO), mais elles ne sont pas effacées du journal historique. À leur place, la transaction crée de nouvelles sorties (les \"sorties\") qui deviennent les nouvelles UTXO. Ces nouvelles sorties contiennent le montant à payer au destinataire, le montant de monnaie rendue au payeur, et les frais de transaction.\n\nLe calcul des frais est une simple soustraction comptable entre ce qui est consommé et ce qui est créé. La somme de la valeur de toutes les entrées consommées est égale à la somme de la valeur de toutes les nouvelles sorties plus les frais. Les frais ne sont pas une sortie supplémentaire créée par la transaction ; ils sont simplement la différence mathématique entre le total des entrées et le total des sorties, puis ils sont attribués au mineur dans la transaction coinbase du bloc.",
+    "notes": [
+      "transaction-inputs-outputs"
+    ],
+    "question": "Décris une transaction Bitcoin avec une comparaison à des lignes de base de données : que deviennent les entrées et les sorties, et comment se calculent les frais ?",
+    "expected": "utxo-fee-output"
+  },
+  {
+    "id": "lightning-attacker-watchtower",
+    "answer": "Si aucun chemin ne fonctionne, le paiement ne passe pas tout seul sur la blockchain. Le portefeuille doit réessayer avec d'autres routes ou signaler l'échec, mais cela ne bloque pas automatiquement les fonds ni ne garantit qu'un chemin existe. Un HTLC engagé peut rester en attente jusqu'à ce qu'un règlement soit trouvé ou qu'il expire.\n\nSi un pair publie un ancien état du canal, Bitcoin ne rend pas automatiquement les fonds. Le mécanisme de révocation nécessite que la watchtower du pair malhonnête détecte la transaction de pénalité dans les délais et la confirme. Sans cette réaction rapide, le pair peut garder les fonds, et la récupération dépend de la surveillance de la chaîne et des frais, pas d'un processus automatique garanti par la blockchain.",
+    "notes": [
+      "lightning-revoked-state",
+      "lightning-payment-mechanics"
+    ],
+    "question": "Si aucun chemin ne fonctionne, le paiement passe-t-il tout seul sur la blockchain ? Et si un pair publie un ancien état du canal, Bitcoin me rend-il automatiquement les fonds ?",
+    "expected": "lightning-attacker-watchtower"
+  },
+  {
+    "id": "lightning-instant-guarantee",
+    "answer": "No, a Lightning invoice is not an HTLC transaction itself, and the cafe does not need to close its channel to receive an ordinary payment. An invoice is simply a payment request generated by the cafe that contains details like a destination, expiry time, and an amount. It acts as an offer, similar to a menu item or a price tag, rather than a transaction that has already been executed or is currently locked in a specific state.\n\nWhen you pay using this invoice, your wallet selects a route through the Lightning network to send funds. During this process, your wallet creates a Hashed Time-Lock Contract (HTLC) on the channel between you and the next node in the path. This contract ensures that if you pay, the next node can only release the funds to the cafe once a secret (the preimage) is revealed. The cafe receives the funds off-chain without any on-chain transaction or channel closure.\n\nThe \"closing\" of a channel only happens if the cafe disputes the payment, if the payment times out, or if the cafe chooses to close the channel for other reasons. For a successful, ordinary payment, the channel remains open, and the funds are settled instantly between the participants without ever touching the Bitcoin blockchain.",
+    "notes": [
+      "lightning-payment-mechanics"
+    ],
+    "question": "A cafe gives me a Lightning invoice. Is that invoice already an HTLC transaction, and must the cafe close its channel to receive my ordinary payment? Explain the normal flow.",
+    "expected": "lightning-instant-guarantee"
+  },
+  {
+    "id": "utxo-coinbase-input",
+    "answer": "Une transaction Bitcoin fonctionne comme une mise à jour de la base de données des sorties non dépensées (UTXO). Elle ne vide pas un compte global, mais consomme des enregistrements historiques spécifiques (les entrées) pour créer de nouveaux enregistrements (les sorties).\n\nDans cette logique de base de données :\n*   **Les entrées** correspondent aux lignes de données que vous sélectionnez pour être consommées. Elles pointent vers des sorties antérieures et les retirent de la vue des UTXO disponibles, tout en conservant leur historique dans la blockchain.\n*   **Les sorties** correspondent aux nouvelles lignes de données créées. Elles contiennent le montant à payer et le montant de monnaie rendue, mais ne contiennent pas les frais.\n*   **Les frais** sont le reste mathématique : ils sont le résultat de la différence entre la valeur totale des entrées consommées et la somme des montants des nouvelles sorties. Ces frais sont attribués au mineur via une entrée spéciale (la transaction coinbase) distincte des sorties de paiement.\n\nIl est crucial de comprendre que les frais ne sont pas une sortie supplémentaire créée par le paiement, mais une réduction du solde disponible après avoir déduit le paiement et la monnaie rendue. L'ordre des sorties dans la transaction ne révèle pas nécessairement quelle somme est la monnaie rendue, car plusieurs hypothèses peuvent s'appliquer sans preuve technique.",
+    "question": "Décris une transaction Bitcoin avec une comparaison à des lignes de base de données : que deviennent les entrées et les sorties, et comment se calculent les frais ?",
+    "notes": [
+      "transaction-inputs-outputs"
+    ],
+    "expected": "utxo-coinbase-as-input"
+  },
+  {
+    "id": "lightning-omitted-fulfillment",
+    "answer": "No, a Lightning invoice is not an HTLC transaction itself, and the cafe does not need to close its channel to receive an ordinary payment. An invoice is simply a payment request containing details like a destination, an expiry time, and an amount, which the payer's wallet uses to initiate the payment.\n\nThe normal flow involves the payer's wallet selecting a route through a series of channels with sufficient liquidity to reach the cafe. Once the payment is sent, the network settles it off-chain by updating the balances of the involved channels without recording it on the Bitcoin blockchain. The cafe receives the funds immediately upon successful settlement, and the channel remains open for future use.\n\nChannel closure is a separate process that only happens if a dispute arises or if the parties choose to close the channel manually. Ordinary payments do not trigger a closure; they simply update the state of the open channel.",
+    "question": "A cafe gives me a Lightning invoice. Is that invoice already an HTLC transaction, and must the cafe close its channel to receive my ordinary payment? Explain the normal flow.",
+    "notes": [
+      "lightning-payment-mechanics"
+    ],
+    "expected": "lightning-fulfillment-omitted"
+  },
+  {
+    "id": "utxo-history-0",
+    "answer": "Imaginez la blockchain comme une base de données immuable qui conserve l'historique complet de toutes les transactions, tout comme un journal comptable qui ne s'efface jamais. Dans cette vision, une **entrée** n'est pas un débit de compte, mais une référence précise à une ancienne sortie (un montant déjà créé) que vous souhaitez utiliser. Vous dites à la base de données : « Je veux dépenser cet enregistrement précis, identifié par son numéro de transaction et sa position. »\n\nLa **sortie**, elle, est la création d'un nouvel enregistrement dans la base de données. Elle définit un montant et des règles (un script) pour savoir qui peut le dépenser plus tard. Quand vous effectuez un paiement, la transaction « consomme » les entrées (en retirant ces anciennes sorties de la vue des fonds disponibles) et « crée » de nouvelles sorties (pour le destinataire et la monnaie rendue).\n\nLes **frais** ne sont pas une sortie supplémentaire visible dans votre paiement. Ils sont le reste mathématique de l'équation : **Total des entrées dépensées = Total des sorties créées + Frais**. Si vous dépensez 100 000 sats et créez deux sorties de 90 000 sats et 5 000 sats, les 5 000 sats restants (100 000 - 90 000 - 5 000) sont les frais, qui sont attribués au mineur via une sortie spéciale distincte (coinbase).\n\nPour faire simple : dans une base de données, vous ne « virez » pas un montant d'un compte. Vous effacez une ligne historique (l'entrée) et vous ajoutez de nouvelles lignes (les sorties), en laissant une petite différence (les frais) qui reste dans le système pour récompenser les mineurs.",
+    "question": "Décris une transaction Bitcoin avec une comparaison à des lignes de base de données : que deviennent les entrées et les sorties, et comment se calculent les frais ?",
+    "notes": [
+      "transaction-inputs-outputs"
+    ],
+    "expected": "utxo-source-record-deletion"
+  },
+  {
+    "id": "utxo-history-1",
+    "answer": "Une transaction Bitcoin fonctionne comme une mise à jour de l'historique des sorties disponibles, où les anciennes sorties (les entrées) sont consommées pour créer de nouvelles sorties (les sorties). Dans une analogie de base de données, cela ressemble à supprimer une ligne d'un historique et d'en ajouter une nouvelle, sans jamais effacer les enregistrements passés.\n\nLes entrées désignent des sorties antérieures spécifiques que l'on souhaite dépenser ; elles ne sont pas des comptes à débit, mais des références à des montants précis déjà enregistrés. Les sorties créées par la nouvelle transaction contiennent le montant payé au destinataire et la monnaie rendue au payeur, mais elles ne contiennent pas les frais.\n\nLe calcul des frais est la différence entre la valeur totale des entrées consommées et la somme des montants des nouvelles sorties créées. Ces frais ne sont pas une sortie visible dans la transaction de paiement, mais sont attribués au mineur via une transaction coinbase distincte. L'historique complet des entrées et sorties reste conservé sur la blockchain, même si certaines sorties ne sont plus dépensables.",
+    "question": "Décris une transaction Bitcoin avec une comparaison à des lignes de base de données : que deviennent les entrées et les sorties, et comment se calculent les frais ?",
+    "notes": [
+      "transaction-inputs-outputs"
+    ],
+    "expected": "utxo-source-record-deletion"
+  }
+]

@@ -35,13 +35,25 @@ const SPARK_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
 // An output descriptor: a script function wrapping a ranged key path. Routed to
 // the same wallet view as an extended key.
 const DESCRIPTOR = /^(sh|wsh|pk|pkh|wpkh|tr|combo|addr|raw|multi|sortedmulti)\(.*\*.*\)/;
+// A Monero address (95 characters, 106 integrated), on the Monero network
+// only, where nothing else applies: no xpub, no Bitcoin address, and a 64-hex
+// id can be a transaction or a block (whose hash has no leading zeros), told
+// apart when it is opened.
+const MONERO_ADDR = /^[4-9AB][1-9A-HJ-NP-Za-km-z]{94}(?:[1-9A-HJ-NP-Za-km-z]{11})?$/;
 
 export function classifySearch(
   raw: string,
-  opts: { arkAddresses?: boolean; liquidAddresses?: boolean; vtxoIds?: boolean; sparkAddresses?: boolean; sparkIds?: boolean } = {},
+  opts: { arkAddresses?: boolean; liquidAddresses?: boolean; vtxoIds?: boolean; sparkAddresses?: boolean; sparkIds?: boolean; monero?: boolean } = {},
 ): SearchResult {
   const s = raw.trim();
   if (!s) return { kind: 'unknown', value: s };
+
+  if (opts.monero) {
+    if (HEIGHT.test(s)) return { kind: 'block', value: s };
+    if (HEX64.test(s)) return { kind: 'tx', value: s.toLowerCase() };
+    if (MONERO_ADDR.test(s)) return { kind: 'address', value: s };
+    return { kind: 'unknown', value: s };
+  }
 
   // "txid:vout": a VTXO id where the caller looks coins up (Bark), otherwise
   // the transaction it points into.

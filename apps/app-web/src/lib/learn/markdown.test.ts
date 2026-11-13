@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { annotateAnchors, normalizeLinkHref, parseInline, parseMarkdown, resolveAssetUrl } from './markdown.ts';
+import { annotateAnchors, normalizeLinkHref, parseInline, parseMarkdown, parseYouTubeUrl, resolveAssetUrl } from './markdown.ts';
 
 describe('parseInline', () => {
   it('parses bold, italic, code and links', () => {
@@ -31,6 +31,37 @@ describe('parseMarkdown', () => {
   it('parses standalone images as blocks', () => {
     const blocks = parseMarkdown('![légende](assets/fr/001.webp)');
     assert.deepEqual(blocks, [{ kind: 'image', src: 'assets/fr/001.webp', alt: 'légende' }]);
+  });
+
+  it('turns a YouTube link written as an image into a video block', () => {
+    // The whole body of the wallet/bitkey tutorial.
+    const blocks = parseMarkdown('![cover](assets/cover.webp)\n\n\n![video](https://youtu.be/ccKZDNGhK9M)');
+    assert.deepEqual(blocks, [
+      { kind: 'image', src: 'assets/cover.webp', alt: 'cover' },
+      { kind: 'youtube', youtubeId: 'ccKZDNGhK9M', startSeconds: 0, alt: 'video' },
+    ]);
+  });
+
+  it('renders known tutorial pages written as images as links', () => {
+    assert.deepEqual(parseMarkdown('![https://bitcoinvn.io/](https://bitcoinvn.io/)'), [
+      { kind: 'paragraph', inline: [{ kind: 'link', text: 'https://bitcoinvn.io/', href: 'https://bitcoinvn.io/' }] },
+    ]);
+    assert.deepEqual(parseInline('Read ![this guide](https://armantheparman.com/utxo/) first.'), [
+      { kind: 'text', text: 'Read ' },
+      { kind: 'link', text: 'this guide', href: 'https://armantheparman.com/utxo/' },
+      { kind: 'text', text: ' first.' },
+    ]);
+    assert.deepEqual(parseMarkdown('![Photo](https://bitcoinvn.io/assets/photo.png)'), [
+      { kind: 'image', src: 'https://bitcoinvn.io/assets/photo.png', alt: 'Photo' },
+    ]);
+  });
+
+  it('keeps a YouTube link inside a sentence as a link to the video', () => {
+    assert.deepEqual(parseInline('Voir ![la démo](https://youtu.be/ccKZDNGhK9M?t=90) ici'), [
+      { kind: 'text', text: 'Voir ' },
+      { kind: 'link', text: 'la démo', href: 'https://www.youtube.com/watch?v=ccKZDNGhK9M&t=90s' },
+      { kind: 'text', text: ' ici' },
+    ]);
   });
 
   it('does not treat headings inside code fences as structure', () => {
@@ -136,5 +167,36 @@ describe('normalizeLinkHref', () => {
 
   it('resolves relative paths against the asset base', () => {
     assert.equal(normalizeLinkHref('./assets/fr/001.webp', 'https://raw.example/c/'), 'https://raw.example/c/assets/fr/001.webp');
+  });
+});
+
+describe('parseYouTubeUrl', () => {
+  it('reads every form the Plan B corpus uses', () => {
+    const cases: Array<[string, string, number]> = [
+      ['https://youtu.be/ccKZDNGhK9M', 'ccKZDNGhK9M', 0],
+      ['https://youtu.be/66ZoGUAnY9s?t=4019', '66ZoGUAnY9s', 4019],
+      ['https://www.youtube.com/watch?v=XibPhZtNQak', 'XibPhZtNQak', 0],
+      ['https://www.youtube.com/watch?v=miMz-5gF6qM&t=774s', 'miMz-5gF6qM', 774],
+      ['https://www.youtube.com/watch?v=v0lzmfH81AY&list=PLbgdHszjwqsZ7gtielvu3H7iSMViE7xKl&index=3', 'v0lzmfH81AY', 0],
+      ['https://www.youtube.com/embed/-by2xBtXQeE', '-by2xBtXQeE', 0],
+      ['https://youtube.com/live/KIaC31YQLBA', 'KIaC31YQLBA', 0],
+      ['https://m.youtube.com/watch?v=d0TmI19Lkc8&t=1h2m3s', 'd0TmI19Lkc8', 3723],
+    ];
+    for (const [url, youtubeId, startSeconds] of cases) {
+      assert.deepEqual(parseYouTubeUrl(url), { youtubeId, startSeconds }, url);
+    }
+  });
+
+  it('rejects images, other hosts and template placeholders', () => {
+    for (const url of [
+      'assets/fr/001.webp',
+      'https://raw.githubusercontent.com/x/y/cover.webp',
+      'https://bitcoinvn.io/',
+      'https://youtu.be/XXXXXXXXXXXX',
+      'https://www.youtube.com/@channel',
+      'https://notyoutube.com/watch?v=ccKZDNGhK9M',
+    ]) {
+      assert.equal(parseYouTubeUrl(url), null, url);
+    }
   });
 });

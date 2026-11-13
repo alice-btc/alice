@@ -30,6 +30,10 @@ describe('account errors', () => {
       'Le faucet distribue des sats à quelqu’un d’autre. Réessayez dans quelques secondes.');
     assert.equal(accountErrorMessage('network', 'Network error. Check your connection and try again.', 'fr'),
       'Erreur réseau. Vérifiez votre connexion et réessayez.');
+    const unavailable = 'Alice accounts are not fully configured.';
+    assert.equal(accountErrorMessage('account_email_unavailable', unavailable, 'fr'),
+      'Les comptes Alice par e-mail sont indisponibles pour le moment.');
+    assert.equal(accountErrorMessage('account_email_unavailable', unavailable, 'en'), unavailable);
   });
 
   it('carry the figures the English words hold', () => {

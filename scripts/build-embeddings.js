@@ -13,6 +13,10 @@ const crypto = require('crypto');
 const { build } = require('esbuild');
 
 const BATCH_SIZE = 32;
+const THREADS = process.env.ALICE_EMBEDDING_THREADS ? Number(process.env.ALICE_EMBEDDING_THREADS) : undefined;
+if (THREADS !== undefined && (!Number.isInteger(THREADS) || THREADS < 1)) {
+  throw new Error('ALICE_EMBEDDING_THREADS must be a positive integer.');
+}
 const TARGET = process.env.ALICE_EMBEDDING_TARGET ?? 'web';
 const TARGETS = {
   web: {
@@ -43,6 +47,7 @@ async function createEmbedder(target) {
       env.localModelPath = process.env.ALICE_EMBEDDING_LOCAL_MODEL_DIR;
     }
     const options = process.env.ALICE_EMBEDDING_DTYPE ? { dtype: process.env.ALICE_EMBEDDING_DTYPE } : {};
+    if (THREADS) options.session_options = { intraOpNumThreads: THREADS, interOpNumThreads: 1 };
     const extractor = await pipeline('feature-extraction', target.modelId, options);
     return async texts => {
       const output = await extractor(texts, { pooling: 'mean', normalize: true });

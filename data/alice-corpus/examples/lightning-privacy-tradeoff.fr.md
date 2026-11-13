@@ -9,11 +9,11 @@ topics: ["Lightning"]
 aliases: ["Lightning Privacy Tradeoff"]
 parent_ids: []
 related_ids: ["lightning-liquidity-path", "lightning-service-provider", "secondary-bitcoin-onion-messaging", "secondary-bitcoin-privacy-by-omission", "secondary-lightning-blinded-paths", "secondary-lightning-lightning-gossip-protocol", "secondary-lightning-lightning-private-channel", "secondary-lightning-onion-routing"]
-reviewed_at: "2026-10-11"
+reviewed_at: "2026-11-06"
 review_due: null
-sources: ["PlanB dev303 — Learning Rust with Bitcoin"]
+sources: ["PlanB dev303 — Learning Rust with Bitcoin", "https://github.com/lightning/bolts/blob/master/04-onion-routing.md"]
 human_reviewed_in_full: false
-review_method: "adapted_from_corrected_sources"
+review_method: "targeted_source_review_and_corrections"
 exhaustive_external_fact_check: false
 ---
 # La confidentialité sur Lightning
@@ -29,6 +29,10 @@ Lightning réduit la publication de chaque paiement sur la chaîne, mais ne gara
 ## Explication
 
 Le routage onion limite ce que chaque intermédiaire apprend sur le trajet. D’autres informations peuvent néanmoins circuler, notamment des montants, des horaires ou des besoins de liquidité. Un fournisseur de services, un nœud hébergé ou une infrastructure de factures peut observer des éléments qui resteraient locaux avec une autre architecture.
+
+Un nœud de routage voit normalement ses pairs voisins et les montants et échéances des HTLC entrants et sortants de son propre saut, pas une route complète fournie en clair. Une route courte ou directe et des observations en plusieurs points peuvent en révéler davantage par inférence ou corrélation. Le marchand peut relier le paiement reçu à une commande ou à un compte client. Lightning ne communique pas automatiquement au marchand une adresse d’envoi on-chain ni l’identité civile du payeur ; les pairs directs et l’architecture du portefeuille ou du service peuvent exposer d’autres informations identifiantes.
+
+Ouvrir ou fermer un canal publie une transaction on-chain. Un canal annoncé au réseau relie aussi sa sortie de financement à la clé publique d’un nœud. Cela peut faciliter des rapprochements, mais ne révèle pas à lui seul l’identité civile : il faut d’autres liens, comme un retrait depuis une plateforme identifiée, une réutilisation d’adresse ou des métadonnées réseau.
 
 Il faut analyser qui voit quoi. Détenir soi-même les clés répond à la question de la garde ; cela ne répond pas à toutes les questions de confidentialité. La protection contre un pair curieux peut également différer de celle contre un opérateur observant plusieurs endroits du parcours.
 
@@ -53,3 +57,5 @@ Pour une réponse débutante, expliquer les acteurs et les données exposées. L
 ## Références
 
 - PlanB dev303 — Learning Rust with Bitcoin (référence de la note source, non reconsultée directement pour cette adaptation).
+
+- https://github.com/lightning/bolts/blob/master/04-onion-routing.md

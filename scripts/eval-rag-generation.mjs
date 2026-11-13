@@ -1,16 +1,24 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { PROBE_REVISION, PROBE_REASONING_BUDGET, PROBE_FINAL_LIMIT, PROBE_VARIANT, PROBE_REASONING_BUDGET_MESSAGE, thinkingProbeRequest, finalOnlyProbeResponse } from './rag-thinking-probe.mjs';
 import { readFile, writeFile, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { resolve, relative } from 'node:path';
+import { conversationRows, createConversationHistory } from './rag-conversation-fixture.mjs';
+import { createMemoryEvaluation, selectedMemoryIds, assertMemoryExpectations } from './rag-memory-evaluation.mjs';
 import { loadRagEvaluationRuntime, redactLocalPaths } from './rag-eval-runtime.mjs';
 
 const args = process.argv.slice(2);
 const value = (flag, fallback) => args.includes(flag) ? args[args.indexOf(flag) + 1] : fallback;
 const fixturePath = value('--fixture');
 const outputPath = value('--output');
+const thinkingProbeMode = value('--thinking-probe-mode', null);
+assert.ok(thinkingProbeMode === null || ['answer-only', 'thinking384'].includes(thinkingProbeMode), 'Unknown thinking probe mode');
+if (thinkingProbeMode) {
+  assert.ok(process.env.GITHUB_ACTIONS === 'true' && process.env.RUNNER_OS === 'Linux', 'Thinking probe runs on Linux Actions only');
+}
 const modelId = value('--model');
 const modelPath = value('--model-file');
 assert.ok(fixturePath && outputPath && modelId && modelPath, 'Require --fixture, --output, --model and --model-file');
@@ -19,7 +27,13 @@ assert.equal(endpoint.protocol, 'http:');
 assert.equal(endpoint.hostname, '127.0.0.1', 'Only isolated loopback inference is permitted');
 assert.equal(endpoint.pathname, '/');
 assert.ok(!endpoint.username && !endpoint.password && !endpoint.search && !endpoint.hash);
+const requestTimeoutMs = Number(value('--request-timeout-ms', '180000'));
+assert.ok(Number.isInteger(requestTimeoutMs) && requestTimeoutMs >= 1000 && requestTimeoutMs <= 600000, 'Request timeout must be 1000..600000 ms');
 const preset = value('--preset', 'balanced');
+// Evaluation-only sampling seed sent with every request; repetitions use
+// several seeds to sample the answer distribution instead of one draw.
+const seed = Number(value('--seed', '42'));
+assert.ok(Number.isInteger(seed) && seed >= 0 && seed <= 2147483647, '--seed must be an integer 0..2147483647');
 assert.ok(['fast', 'balanced', 'deep'].includes(preset));
 const limit = Number(value('--limit', '0'));
 assert.ok(Number.isInteger(limit) && limit >= 0);
@@ -30,6 +44,10 @@ const syntheticKnowledgeMode = args.includes('--synthetic-knowledge');
 // in-memory profile instead of the historical empty string. Off by default so
 // earlier baselines stay comparable; record it with every run.
 const productionPedagogy = args.includes('--production-pedagogy');
+// Diagnostic opt-in: retain answer-only drafts before output checks so a
+// refusal can be distinguished from a false-positive guard. Never keep reasoning.
+const retainVisibleDrafts = args.includes('--retain-visible-drafts');
+assert.ok(!retainVisibleDrafts || !thinkingProbeMode, 'Visible draft capture is answer-only evaluation');
 // Evaluation-only: load the application sources of an earlier commit (the
 // harness file itself stays current) so both arms of a paired run share the
 // same harness, engine and flags and differ only in application code.
@@ -38,27 +56,48 @@ assert.ok(!revisionArg || /^[0-9a-f]{7,40}$/.test(revisionArg), '--revision must
 const codeRevision = revisionArg ? execFileSync('git', ['rev-parse', `${revisionArg}^{commit}`], { encoding: 'utf8' }).trim() : null;
 const fixtureBytes = await readFile(fixturePath);
 const fixture = JSON.parse(fixtureBytes);
-assert.ok(Array.isArray(fixture.cases) && fixture.cases.length > 0);
-assert.equal(new Set(fixture.cases.map(row => row.id)).size, fixture.cases.length);
-for (const row of fixture.cases) {
-  assert.ok(row.question && ['fr', 'en'].includes(row.language) && Array.isArray(row.history));
-  assert.ok(Array.isArray(row.mustCover) && Array.isArray(row.mustNotClaim));
-  if (syntheticKnowledgeMode) {
-    assert.ok(row.syntheticKnowledge && typeof row.syntheticKnowledge === 'object', `Row ${row.id} missing syntheticKnowledge under --synthetic-knowledge`);
-    const keys = Object.keys(row.syntheticKnowledge);
-    assert.ok(keys.every(key => key === 'ragContext' || key === 'learnContext'), `Row ${row.id} syntheticKnowledge may only contain ragContext and learnContext`);
-    assert.equal(typeof row.syntheticKnowledge.ragContext, 'string', `Row ${row.id} syntheticKnowledge.ragContext must be a nonempty string`);
-    assert.ok(row.syntheticKnowledge.ragContext.trim().length > 0, `Row ${row.id} syntheticKnowledge.ragContext must be a nonempty string`);
-    assert.ok(row.syntheticKnowledge.learnContext === undefined || row.syntheticKnowledge.learnContext === null || typeof row.syntheticKnowledge.learnContext === 'string', `Row ${row.id} syntheticKnowledge.learnContext must be null or a string`);
-  } else {
-    assert.ok(row.syntheticKnowledge === undefined, `Row ${row.id} provides syntheticKnowledge without --synthetic-knowledge`);
+const conversationMode = args.includes('--conversation-fixture');
+const conversationId = value('--conversation-id', null);
+const memoryMode = args.includes('--memory-conversations');
+assert.ok(!memoryMode || conversationMode, '--memory-conversations requires --conversation-fixture');
+assert.ok(conversationMode || conversationId === null, '--conversation-id requires --conversation-fixture');
+assert.ok(!conversationMode || !syntheticKnowledgeMode, 'Conversation mode cannot use synthetic knowledge');
+assert.ok(!conversationMode || !args.includes('--limit'), 'Conversation mode cannot use --limit; select a whole --conversation-id');
+if (thinkingProbeMode) {
+  assert.equal(codeRevision, PROBE_REVISION, 'Both probe arms require the same fixed app revision');
+  assert.equal(modelId, 'qwen3.5-4b');
+  assert.equal(preset, 'balanced');
+  assert.equal(seed, 42, 'Initial pilot is seed 42 only');
+  assert.ok(conversationMode && productionPedagogy && !memoryMode && !syntheticKnowledgeMode && !args.includes('--learn-root'));
+  assert.ok(['fr-unseen-coinbase-fees-issuance', 'en-unseen-channel-open-identity'].includes(conversationId), 'Pilot conversations only');
+}
+const conversationCases = conversationMode ? conversationRows(fixture, conversationId, memoryMode) : null;
+if (!conversationMode) {
+  assert.ok(Array.isArray(fixture.cases) && fixture.cases.length > 0);
+  assert.equal(new Set(fixture.cases.map(row => row.id)).size, fixture.cases.length);
+  for (const row of fixture.cases) {
+    assert.ok(row.question && ['fr', 'en'].includes(row.language) && Array.isArray(row.history));
+    assert.ok(Array.isArray(row.mustCover) && Array.isArray(row.mustNotClaim));
+    if (syntheticKnowledgeMode) {
+      assert.ok(row.syntheticKnowledge && typeof row.syntheticKnowledge === 'object', `Row ${row.id} missing syntheticKnowledge under --synthetic-knowledge`);
+      const keys = Object.keys(row.syntheticKnowledge);
+      assert.ok(keys.every(key => key === 'ragContext' || key === 'learnContext'), `Row ${row.id} syntheticKnowledge may only contain ragContext and learnContext`);
+      assert.equal(typeof row.syntheticKnowledge.ragContext, 'string', `Row ${row.id} syntheticKnowledge.ragContext must be a nonempty string`);
+      assert.ok(row.syntheticKnowledge.ragContext.trim().length > 0, `Row ${row.id} syntheticKnowledge.ragContext must be a nonempty string`);
+      assert.ok(row.syntheticKnowledge.learnContext === undefined || row.syntheticKnowledge.learnContext === null || typeof row.syntheticKnowledge.learnContext === 'string', `Row ${row.id} syntheticKnowledge.learnContext must be null or a string`);
+    } else {
+      assert.ok(row.syntheticKnowledge === undefined, `Row ${row.id} provides syntheticKnowledge without --synthetic-knowledge`);
+    }
   }
 }
-const selected = limit ? fixture.cases.slice(0, limit) : fixture.cases;
+const selected = conversationCases ?? (limit ? fixture.cases.slice(0, limit) : fixture.cases);
+const conversationHistory = createConversationHistory();
 const learnRoot = value('--learn-root', null);
 assert.ok(!syntheticKnowledgeMode || !learnRoot, 'Synthetic context cannot be combined with --learn-root');
 const originalFetch = globalThis.fetch;
 let requests = [];
+let thinkingProbeCalls = [];
+let thinkingProbeFinals = [];
 let verifiedServerModelId = null;
 globalThis.fetch = async (url, options) => {
   if (learnRoot && typeof url === 'string' && url.startsWith('/learn/')) {
@@ -71,23 +110,51 @@ globalThis.fetch = async (url, options) => {
   assert.equal(target.origin, 'http://localhost:11435', 'Unexpected backend destination');
   assert.ok(['/v1/models', '/v1/chat/completions'].includes(target.pathname));
   let safeOptions = options;
+  let probeMetrics = null;
+  const transportStarted = performance.now();
   if (target.pathname === '/v1/chat/completions') {
-    const body = JSON.parse(options.body);
+    let body = JSON.parse(options.body);
     // Recorded evaluation-only controls; actual model/preset/prompt/budget
     // come from the production backend, including its language retry.
     assert.ok(verifiedServerModelId, 'Model identity has not been checked');
     assert.equal(body.model, 'local', 'Unexpected production backend model selector');
     body.model = verifiedServerModelId;
-    body.seed = 42;
+    body.seed = seed;
     body.cache_prompt = false;
+    if (thinkingProbeMode) {
+      const prepared = thinkingProbeRequest(body, thinkingProbeMode);
+      body = prepared.body;
+      probeMetrics = { mode: thinkingProbeMode, mutations: prepared.mutations };
+      thinkingProbeCalls.push(probeMetrics);
+    }
     requests.push(body);
     safeOptions = { ...options, body: JSON.stringify(body) };
   }
-  return originalFetch(new URL(target.pathname, endpoint), { ...safeOptions, redirect: 'error', signal: AbortSignal.timeout(180_000) });
+  const response = await originalFetch(new URL(target.pathname, endpoint), { ...safeOptions, redirect: 'error', signal: AbortSignal.timeout(requestTimeoutMs) });
+  if (!probeMetrics) return response;
+  return finalOnlyProbeResponse(response, {
+    mode: thinkingProbeMode, requestMaxTokens: probeMetrics.mutations.sentMaxTokens, metrics: probeMetrics, startedAt: transportStarted,
+    onFinal: finalText => thinkingProbeFinals.push(finalText),
+    tokenize: async finalText => {
+      // Same already-attested loopback server; no reasoning text is sent here.
+      const counted = await originalFetch(new URL('/tokenize', endpoint), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: finalText, add_special: false, parse_special: false }),
+        redirect: 'error', signal: AbortSignal.timeout(10_000),
+      });
+      assert.ok(counted.ok, `Final tokenization HTTP ${counted.status}`);
+      let data;
+      try { data = await counted.json(); }
+      catch { throw new Error('Invalid tokenizer response; response text omitted'); }
+      assert.ok(Array.isArray(data.tokens) && data.tokens.every(Number.isInteger), 'Invalid final tokenization');
+      return data.tokens.length;
+    },
+  });
 };
 const runtime = await loadRagEvaluationRuntime(`
  export { prepareAliceTurn } from './packages/alice-ai/src/turn-engine.ts';
- export { createAliceMemory } from './packages/alice-ai/src/alice-memory-core.ts';
+ export { stripThinking } from './packages/alice-ai/src/custom-server-policy.ts';
+ export { createAliceMemory, getAliceMemoryFromStorage, writeAliceCandidatesToStorage, setAliceMemoryEnabledInStorage, clearAliceMemoryFromStorage, aliceMemoryContext, ALICE_MEMORY_CAPTURE_INSTRUCTION } from './packages/alice-ai/src/alice-memory-core.ts';
  export { createPedagogicalProfile, pedagogicalContext } from './packages/alice-ai/src/pedagogical-profile-core.ts';
  export { loadRagCorpus, buildRagTurnContext, isTechnicalRagQuery } from './packages/alice-ai/src/rag.ts';
  export { ragQueryChunkBudget } from './packages/alice-ai/src/rag-query-policy.ts';
@@ -133,43 +200,63 @@ backend.sendMessage = async (messages, onChunk, options) => {
       if (delta) firstTokenMs ??= performance.now() - started;
       onChunk?.(delta);
     }, options);
-    calls.push({ firstTokenMs, durationMs: performance.now() - started, truncated: result.truncated, usage: result.usage });
+    calls.push({ firstTokenMs, durationMs: performance.now() - started, truncated: result.truncated, usage: result.usage, ...(retainVisibleDrafts ? { visibleDraft: /<\|/.test(result.content) ? '[control marker: draft omitted]' : runtime.stripThinking(result.content) } : {}) });
     return result;
   } catch (error) {
     calls.push({ firstTokenMs, durationMs: performance.now() - started, error: String(error) });
     throw error;
   }
 };
+const memoryEvaluation = memoryMode ? createMemoryEvaluation(runtime) : null;
 const report = {
-  startedAt: new Date().toISOString(), completedAt: null, status: 'running',
-  methodology: 'Development generation through actual desktop backend, prepareAliceTurn, local context fit and generateLanguageChecked. Lexical retrieval; optional Web Learn provider. Storage/preferences/pedagogy isolated in memory. No wallet data, network services, native Android or cloud inference. Exact single-server model path selector, seed 42 and cache_prompt=false are evaluation-only transport controls. Redirects are forbidden. Identity is observed from a caller-owned server process and model path/hash, not remote cryptographic attestation. No automatic factual score: exact answers require rubric review. First raw token and first visible display are separate; no paired latency acceptance is claimed.'
+  startedAt: new Date().toISOString(), completedAt: null, status: 'running', requestTimeoutMs, retainVisibleDrafts,
+  methodology: 'Development generation through actual desktop backend, prepareAliceTurn, local context fit and generateLanguageChecked. Lexical retrieval; optional Web Learn provider. Storage/preferences/pedagogy isolated in memory. No wallet data, network services, native Android or cloud inference. Exact single-server model path selector, the recorded seed and cache_prompt=false are evaluation-only transport controls. Redirects are forbidden. Identity is observed from a caller-owned server process and model path/hash, not remote cryptographic attestation. No automatic factual score: exact answers require rubric review. First raw token and first visible display are separate; no paired latency acceptance is claimed.'
+    + (conversationMode ? ' MULTI-TURN: each turn receives the actual preceding raw replies; conversations are isolated and a failed, empty or truncated answer blocks its dependent turns. Personal memory is disabled unless the explicit memory mode is enabled.' : '')
+    + (memoryMode ? ' MEMORY-LIFECYCLE: synthetic user declarations pass through production capture, storage filters, reads and selection in conversation-isolated ephemeral stores. resetHistory starts a new chat while retaining that store; memoryAction simulates the production disable/clear settings. Recorded selection and prompt delivery do not prove semantic use; rubric review is required.' : '')
+    + (thinkingProbeMode ? ' THINKING-PROBE: identical fixed application revision for both arms; evaluation-only removal of the leading system /no_think suffix, enable_thinking=true and max_tokens=1152 only for thinking384. Server reasoning budget 384 per thinking block, with a recorded generic transition instruction before forced closure; b9850 can rearm on another block. The 1152 total token allowance is the global cap, not a separate 768-final guarantee. Each call must satisfy server prompt_tokens + sent max_tokens + 64 <= 8192. Numeric usage and allowlisted control-marker types/offsets survive rejection; suspect content never does. Final text is retokenized on the same server; above 768 is marked truncated before conversation history advances. Reasoning text is discarded, never logged or stored. Both arms buffer final-only delivery, so production first-display timings are not comparable; transport first-final-delta timing is recorded separately. Raw final answers are retained, including rejected over-budget finals.' : '')
     + (productionPedagogy ? ' PRODUCTION-PEDAGOGY: the pedagogical block of a fresh in-memory profile is sent instead of an empty string.' : '')
     + (syntheticKnowledgeMode ? ' SYNTHETIC-KNOWLEDGE-OVERRIDE: corpus retrieval was bypassed and fixture-supplied ragContext/learnContext were injected directly; these rows exercise prompt composition and generation only, not retrieval ranking or corpus relevance.' : ''),
+  ...(thinkingProbeMode ? { thinkingProbe: { variant: PROBE_VARIANT, mode: thinkingProbeMode, reasoningBudgetScope: 'per-block', transitionInstruction: PROBE_REASONING_BUDGET_MESSAGE, contextMarginTokens: 64, appRevision: PROBE_REVISION, serverReasoningBudget: PROBE_REASONING_BUDGET, finalAcceptanceTokenLimit: PROBE_FINAL_LIMIT, totalRequestTokenLimit: thinkingProbeMode === 'thinking384' ? 1152 : 768, finalCounting: 'same-server-tokenize-add_special=false-parse_special=false', reasoningTextRetained: false, bufferedFinalDelivery: true } } : {}),
+  conversationMode, conversationId, memoryMode: memoryMode ? 'production-in-memory' : 'disabled',
   knowledgeMode: syntheticKnowledgeMode ? 'synthetic-knowledge-override' : 'production-retrieval',
   head: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
   codeRevision: codeRevision ?? 'working-tree',
   gitStatus: execFileSync('git', ['status', '--short', '--untracked-files=all'], { encoding: 'utf8' }).trim().split('\n').filter(Boolean),
-  harnessSources: Object.fromEntries(await Promise.all(['scripts/eval-rag-generation.mjs', 'scripts/rag-eval-runtime.mjs'].map(async path => [path, createHash('sha256').update(await readFile(path)).digest('hex')]))),
+  harnessSources: Object.fromEntries(await Promise.all(['scripts/eval-rag-generation.mjs', 'scripts/rag-eval-runtime.mjs', 'scripts/rag-conversation-fixture.mjs', 'scripts/rag-memory-evaluation.mjs', ...(thinkingProbeMode ? ['scripts/rag-thinking-probe.mjs'] : [])].map(async path => [path, createHash('sha256').update(await readFile(path)).digest('hex')]))),
   fixturePath, fixtureSha256: createHash('sha256').update(fixtureBytes).digest('hex'),
   model: { id: modelId, filename: entry.filename, sizeBytes: entry.sizeBytes, sha256: modelHash, server: models },
-  preset, seed: 42, learnEnabled: Boolean(learnRoot), productionPedagogy, expectedCases: selected.length,
+  preset, seed, learnEnabled: Boolean(learnRoot), productionPedagogy, expectedCases: selected.length,
   generatedAnswers: 0, directAnswers: 0, errors: 0, rows: [],
 };
 // Never accidentally overwrite a previous evidence run.
 await writeFile(outputPath, JSON.stringify(redactLocalPaths(report), null, 2) + '\n', { flag: 'wx' });
 for (const row of selected) {
-  requests = []; calls = [];
+  requests = []; calls = []; thinkingProbeCalls = []; thinkingProbeFinals = [];
   let context = null;
+  let selectedIds = [];
+  let memoryContext = '';
+  let preparedMemory = null;
   const started = performance.now();
   const result = { id: row.id, language: row.language, question: row.question, history: row.history,
+    ...(conversationMode ? { conversationId: row.conversationId, turnIndex: row.turnIndex } : {}),
     rubric: { mustCover: row.mustCover, mustNotClaim: row.mustNotClaim, critical: row.critical }, review: null,
     knowledgeSource: syntheticKnowledgeMode ? 'synthetic-knowledge-override' : 'production-retrieval' };
   try {
-    const prepared = await runtime.prepareAliceTurn({ history: [...row.history, { role: 'user', content: row.question }], userMessage: row.question, backendType: 'local', targetLanguage: row.language }, {
+    if (memoryMode) result.memoryBefore = await memoryEvaluation.begin(row);
+    result.history = conversationMode ? conversationHistory.begin(row) : row.history;
+    const prepared = await runtime.prepareAliceTurn({ history: [...result.history, { role: 'user', content: row.question }], userMessage: row.question, backendType: 'local', targetLanguage: row.language }, {
       recordPedagogicalSignal: async () => runtime.createPedagogicalProfile(),
-      getMemory: async () => ({ ...runtime.createAliceMemory(), enabled: false }),
-      rememberMemoryCandidates: async () => ({ memory: { ...runtime.createAliceMemory(), enabled: false }, saved: true }),
-      pedagogicalContext: productionPedagogy ? runtime.pedagogicalContext : () => '', memoryContext: () => '', memoryCaptureInstruction: '',
+      getMemory: async () => memoryMode ? memoryEvaluation.read(row) : ({ ...runtime.createAliceMemory(), enabled: false }),
+      rememberMemoryCandidates: async candidates => memoryMode ? memoryEvaluation.write(row, candidates) : ({ memory: { ...runtime.createAliceMemory(), enabled: false }, saved: true }),
+      pedagogicalContext: productionPedagogy ? runtime.pedagogicalContext : () => '',
+      memoryContext: (memory, question) => {
+        if (!memoryMode) return '';
+        preparedMemory = memory;
+        memoryContext = runtime.aliceMemoryContext(memory, question);
+        selectedIds = selectedMemoryIds(memory, memoryContext);
+        return memoryContext;
+      },
+      memoryCaptureInstruction: memoryMode ? runtime.ALICE_MEMORY_CAPTURE_INSTRUCTION : '',
       retrieveKnowledge: async query => {
         if (syntheticKnowledgeMode) {
           context = { ragContext: row.syntheticKnowledge.ragContext, learnContext: row.syntheticKnowledge.learnContext ?? null, localContext: null, diagnostics: [] };
@@ -183,7 +270,7 @@ for (const row of selected) {
     result.context = context;
     if (prepared.directResponse !== null) {
       assert.ok(!syntheticKnowledgeMode, `Row ${row.id} produced a direct response under --synthetic-knowledge; refusing, as it never exercises injected evidence`);
-      result.source = 'direct-response'; result.answer = prepared.directResponse; report.directAnswers++;
+      result.source = 'direct-response'; result.answer = prepared.directResponse;
     } else {
       assert.ok(!syntheticKnowledgeMode || context?.ragContext, `Row ${row.id} never requested synthetic evidence`);
       const generated = await runtime.generateLanguageChecked({ backend, history: prepared.history, allowContinuation: false, targetLanguage: row.language, onText: () => {} });
@@ -191,11 +278,31 @@ for (const row of selected) {
         assert.ok(requests.length > 0 && requests.every(request => request.messages.some(message => message.content.includes(context.ragContext))), `Row ${row.id} lost synthetic RAG text during prompt fitting`);
         if (context.learnContext) assert.ok(requests.every(request => request.messages.some(message => message.content.includes(context.learnContext))), `Row ${row.id} lost synthetic Learn text during prompt fitting`);
       }
-      result.source = 'model'; result.answer = generated.text; result.generation = generated; report.generatedAnswers++;
+      result.source = 'model'; result.answer = generated.text; result.generation = generated;
+      if (memoryMode && !generated.truncated) await memoryEvaluation.write(row, generated.memoryCandidates ?? []);
     }
-  } catch (error) { result.error = String(error); report.errors++; }
+    if (memoryMode) {
+      result.memoryAfter = await memoryEvaluation.read(row);
+      result.memorySelection = { ids: selectedIds, context: memoryContext, preparedMemory, deliveredToModel: result.source === 'model' && selectedIds.length > 0 };
+      result.memoryExpected = row.memoryExpected ?? {};
+      result.resetHistory = row.resetHistory ?? false;
+      result.memoryAction = row.memoryAction ?? null;
+      assertMemoryExpectations(row.memoryExpected, result.memoryAfter, selectedIds, requests, result.source);
+    }
+    if (conversationMode) conversationHistory.complete(row, result);
+    if (result.source === 'direct-response') report.directAnswers++;
+    else report.generatedAnswers++;
+  } catch (error) {
+    if (memoryMode) {
+      result.memoryAfter = await memoryEvaluation.read(row);
+      result.memorySelection = { ids: selectedIds, context: memoryContext, preparedMemory };
+    }
+    if (conversationMode) conversationHistory.fail(row);
+    result.error = String(error); report.errors++;
+  }
   result.durationMs = performance.now() - started;
   result.calls = calls; result.requests = requests;
+  if (thinkingProbeMode) { result.thinkingProbeCalls = thinkingProbeCalls; result.rawFinalAnswers = thinkingProbeFinals; }
   report.rows.push(result);
   await writeFile(outputPath, JSON.stringify(redactLocalPaths(report), null, 2) + '\n');
   console.log(JSON.stringify({ id: row.id, source: result.source, error: result.error, chars: result.answer?.length, durationMs: Math.round(result.durationMs) }));

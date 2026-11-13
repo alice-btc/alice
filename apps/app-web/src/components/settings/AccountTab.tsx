@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAccount, type AliceBilling, type AliceCloudUsage } from '@alice-wallet/alice-ai';
-import { isBillingPreview, PREVIEW_ACCOUNT_NAME } from './billing-preview';
-import { PlanCheckout } from './PlanCheckout';
+import { AccountManagement } from './AccountManagement';
+import { AccountPurchase } from './AccountPurchase';
 import { RenewalReminders } from './RenewalReminders';
 import { useT, type Locale, type MessageKey } from '@/i18n';
-import { SectionHint, SectionLabel, sectionStyle } from './ui';
 import { sellsPlans } from '@/lib/store-rules';
+import { SectionHint, SectionLabel, sectionStyle } from './ui';
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
@@ -141,14 +142,43 @@ function previewState(now: number): { usage: AliceCloudUsage; billing: AliceBill
 export function AccountTab() {
   const t = useT();
   const account = useAccount();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const signInRequested = searchParams.get('auth') === 'signin';
+  const entryHandled = useRef(false);
+
+  useEffect(() => {
+    if (!signInRequested) { entryHandled.current = false; return; }
+    // Restoring a valid browser session must not flash the login form.
+    if (account.status === 'loading' || entryHandled.current) return;
+    entryHandled.current = true;
+    // Consume the intent, including on cancel. The fixed Account destination
+    // stays in the URL throughout login/signup/reset; no external return URL
+    // or credentials are accepted or transferred from the native app.
+    const url = new URL(window.location.href);
+    url.searchParams.delete('auth');
+    router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+    if (account.status !== 'signed_in' || !account.account?.username) {
+      account.requestSignIn('web-plans');
+    }
+  }, [signInRequested, account.status, account.account?.username, account.requestSignIn, router]);
 
   // The snapshot may be minutes old when the user opens settings, and this is
   // exactly the screen where a stale figure misleads. One refresh on entry.
   useEffect(() => {
-    void account.refreshAccount();
+    void account.refreshAccount().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshFailed, setRefreshFailed] = useState(false);
+  const refresh = async () => {
+    setRefreshing(true);
+    setRefreshFailed(false);
+    try { await account.refreshAccount(); }
+    catch { setRefreshFailed(true); }
+    finally { setRefreshing(false); }
+  };
   const now = Date.now();
   // Applied after mount, never during render: the server cannot see the query
   // string, and a server/client disagreement here is a hydration error.
@@ -165,15 +195,9 @@ export function AccountTab() {
   // `purchased_plan` outlives the plan itself, which is what lets this screen
   // tell "never paid" apart from "paid, and it lapsed".
   const lapsed = billing !== null && billing.expired;
-  // A previewed plan implies a previewed account: see billing-preview.ts.
-  const signedInAs = preview !== null
-    ? PREVIEW_ACCOUNT_NAME
-    : account.account
-      ? account.account.username ?? account.account.display_name ?? t('settings.account.signedIn')
-      : null;
-
   return (
     <div>
+      <AccountManagement preview={preview !== null} />
       {/* What plan this account holds, and until when. */}
       <section style={sectionStyle}>
         <SectionLabel>{t('settings.account.plan')}</SectionLabel>
@@ -215,9 +239,15 @@ export function AccountTab() {
         )}
       </section>
 
+      <AccountPurchase />
+
       {/* How much of it has been used. */}
       <section style={sectionStyle}>
-        <SectionLabel>{t('settings.account.usage')}</SectionLabel>
+        <div className="flex items-center justify-between gap-3">
+          <SectionLabel>{t('settings.account.usage')}</SectionLabel>
+          <button type="button" className="alice-control alice-control--quiet font-numbers" disabled={refreshing || preview !== null} onClick={() => void refresh()}>{t('settings.account.refresh')}</button>
+        </div>
+        {refreshFailed && <p role="alert" className="font-numbers" style={{ color: 'var(--alice-danger)' }}>{t('settings.account.refreshFailed')}</p>}
         <div className="mt-3">
           {paid ? (
             <>
@@ -249,36 +279,10 @@ export function AccountTab() {
         </div>
       </section>
 
-      {/* Buying, renewing, or waiting for a payment to settle; never in the
-          phone apps (store-rules.ts). */}
-      {sellsPlans() && <PlanCheckout />}
-
       {/* Only once there is a plan to be reminded about. Offering this to
           someone on the free allowance would be asking for an address to warn
           them about an expiry that cannot happen. */}
       {(paid || lapsed) && <RenewalReminders />}
-
-      {/* The account row: who is signed in, or the invitation to be. */}
-      <section style={sectionStyle}>
-        <SectionLabel>{t('settings.account.aliceAccount')}</SectionLabel>
-        <div className="mt-3 flex items-center justify-between gap-4">
-          <span className="font-numbers truncate" style={{ fontSize: 15 }}>
-            {signedInAs ?? t('settings.account.notSignedIn')}
-          </span>
-          <button
-            type="button"
-            className="alice-control alice-control--quiet font-numbers"
-            onClick={() => account.requestSignIn()}
-          >
-            {signedInAs ? t('settings.account.manage') : t('settings.account.signIn')}
-          </button>
-        </div>
-        {account.account?.email_masked && (
-          <p className="font-numbers m-0 mt-2" style={{ fontSize: 13, opacity: 1 }}>
-            {account.account.email_masked}
-          </p>
-        )}
-      </section>
     </div>
   );
 }

@@ -25,6 +25,9 @@ import { isDateExpired, pickExpiry, readExpiry, type ArkadeExpiry } from './arka
 import type { BarkAddress, BarkInfo } from './bark.ts';
 import { arkoorHops, vtxoOrigin, type BarkVtxo } from './bark-vtxo.ts';
 import type { TxStatus } from './types.ts';
+import { formatXmr, moneroRctLabel, type MoneroBlock, type MoneroTx } from './monero.ts';
+import type { MoneroSignal } from './monero-signals.ts';
+import { moneroAddressKindLabel, type MoneroAddress } from './monero-address.ts';
 
 export type LayerContext = { signal: PrivacySignal; full: FullContext };
 
@@ -486,6 +489,81 @@ export function barkVtxoContext(o: {
       settled: origin === 'round' || origin === 'board',
       ...(elapsed(nowSec, anchor?.blockTime) !== undefined ? { elapsedSeconds: elapsed(nowSec, anchor?.blockTime)! } : {}),
     },
+  });
+  return { signal, full: { description: lines.join('\n'), subjects: subjects.list } };
+}
+
+/* --------------------------------- Monero --------------------------------- */
+
+// A Monero page's context. What a key check found on the page (which outputs
+// are the user's, how much) is NOT part of it: that result stays in the
+// check's own panel, on the device, whatever the mode.
+
+export function moneroTxContext(tx: MoneroTx, signals: MoneroSignal[], nowSec = Math.floor(Date.now() / 1000)): LayerContext {
+  const subjects = new Subjects();
+  subjects.add('txid', tx.txid);
+  const ringSize = tx.inputs[0]?.ring.length ?? 0;
+  const lines = [
+    `Monero transaction ${tx.txid}`,
+    tx.blockHeight === null
+      ? 'Waiting in the mempool.'
+      : `In block ${tx.blockHeight.toLocaleString('en-US')}, ${tx.confirmations.toLocaleString('en-US')} confirmation${tx.confirmations === 1 ? '' : 's'}, ${when(tx.timestamp)}.`,
+    tx.coinbase
+      ? `Coinbase paying ${formatXmr(tx.outputs.reduce((s, o) => s + o.clearAmount, BigInt(0)))} in ${tx.outputs.length} output${tx.outputs.length === 1 ? '' : 's'}, amounts in clear.`
+      : `${tx.inputs.length} input${tx.inputs.length === 1 ? '' : 's'} (each a ring of ${ringSize}), ${tx.outputs.length} outputs, fee ${formatXmr(tx.fee)}, ${tx.size.toLocaleString('en-US')} bytes, ${moneroRctLabel(tx.rctType)}. Amounts${tx.rctType === 0 ? ' are in clear' : ' are encrypted'}; senders and recipients are not on the chain.`,
+  ];
+  if (signals.length) lines.push(`Signals: ${signals.map(s => s.title).join('; ')}.`);
+  const signal = contextSignal({
+    key: tx.txid,
+    title: 'Monero transaction page',
+    detail: `${tx.inputs.length} input(s), ${tx.outputs.length} output(s).`,
+    subjects: [tx.txid],
+    evidence: {
+      layer: 'monero',
+      page: 'transaction',
+      addressCount: 0,
+      txCount: 1,
+      coinCount: tx.outputs.length,
+      inputCount: tx.inputs.length,
+      outputCount: tx.outputs.length,
+      pending: tx.blockHeight === null,
+      coinbase: tx.coinbase,
+      multi: tx.outputs.length > 2,
+      ...(elapsed(nowSec, tx.timestamp || undefined) !== undefined ? { elapsedSeconds: elapsed(nowSec, tx.timestamp || undefined)! } : {}),
+    },
+  });
+  return { signal, full: { description: lines.join('\n'), subjects: subjects.list } };
+}
+
+export function moneroBlockContext(b: MoneroBlock): LayerContext {
+  const lines = [
+    `Monero block ${b.height.toLocaleString('en-US')} (${b.hash})`,
+    `${when(b.timestamp)}, ${b.txCount.toLocaleString('en-US')} transaction${b.txCount === 1 ? '' : 's'} including the coinbase, ${b.size.toLocaleString('en-US')} bytes, reward ${formatXmr(b.reward)} of which ${formatXmr(b.fees)} in fees.`,
+  ];
+  // A block is public and shared by every transaction in it: no subject.
+  const signal = contextSignal({
+    key: b.hash || String(b.height),
+    title: 'Monero block page',
+    detail: `${b.txCount} transaction(s).`,
+    subjects: [],
+    evidence: { layer: 'monero', page: 'block', addressCount: 0, txCount: b.txCount, coinCount: 0 },
+  });
+  return { signal, full: { description: lines.join('\n'), subjects: [] } };
+}
+
+export function moneroAddressContext(a: MoneroAddress): LayerContext {
+  const subjects = new Subjects();
+  subjects.add('address', a.address);
+  const lines = [
+    `Monero address ${a.address}`,
+    `${moneroAddressKindLabel(a.kind)} on ${a.network}${a.paymentId ? `, carrying payment id ${a.paymentId}` : ''}. Decoded on the device. A Monero address never appears on the chain, so no balance or history can be read from it.`,
+  ];
+  const signal = contextSignal({
+    key: a.address,
+    title: 'Monero address page',
+    detail: 'Decoded on the device; nothing to look up on the chain.',
+    subjects: [a.address],
+    evidence: { layer: 'monero', page: 'address', addressCount: 1, txCount: 0, coinCount: 0, private: true },
   });
   return { signal, full: { description: lines.join('\n'), subjects: subjects.list } };
 }

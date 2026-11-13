@@ -24,6 +24,7 @@ import { analyzeQuantumExposure, detectQuantumExposure } from '@/lib/explorer/qu
 import { Amount, formatAmount, useAmountState, WithBitcoinGlyph } from '@/components/AmountDisplay';
 import { Analyzing, SectionPanel, Skeleton, SkeletonLines } from '@/components/ExplorerUI';
 import { formatDateTime } from '@/lib/explorer/blocks';
+import { useLiveRefresh } from '@/lib/explorer/use-live-refresh';
 
 function shortAddr(a: string): string {
   return a.length > 20 ? `${a.slice(0, 10)}...${a.slice(-6)}` : a;
@@ -62,6 +63,14 @@ const MAX_TXS = 500;
 // The list opens short (the page is already dense) and pages out on demand.
 const LIST_INITIAL = 5;
 const LIST_PAGE = 10;
+
+/** What the live refresh compares: the confirmed totals, plus the newest
+ *  transactions with their confirmation state (the stats ignore the mempool,
+ *  the first history page does not). */
+function addressFingerprint(stats: AddressStats, newest: NormalizedTransaction[] | null): string {
+  const head = newest ? newest.map(tx => `${tx.txid}:${tx.status.confirmed ? 1 : 0}`).join(',') : '';
+  return `${stats.txCount}|${stats.fundedSum}|${stats.spentSum}|${head}`;
+}
 
 type State =
   | { kind: 'loading' }
@@ -159,19 +168,32 @@ export function ExplorerAddressTab({
   const onSignalsRef = useRef(onSignals);
   onSignalsRef.current = onSignals;
 
+  // Bumped by the live refresh (below) when the address changed on chain: the
+  // load runs again, quietly, over what is on screen.
+  const [reloadKey, setReloadKey] = useState(0);
+  const quietReload = useRef(false);
+
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
-    setState({ kind: 'loading' });
-    setTxs([]); setUtxos([]); setUtxosUnavailable(false); setUtxosLoaded(false); setHistoryDone(false);
-    setPartial(false); setVisible(LIST_INITIAL); setRemoteLabels([]);
+    // A quiet reload keeps the current view on screen and swaps the data in
+    // when it arrives, asking the network rather than any cache.
+    const quiet = quietReload.current;
+    quietReload.current = false;
+    const fresh = quiet;
+    if (!quiet) {
+      setState({ kind: 'loading' });
+      setTxs([]); setUtxos([]); setUtxosUnavailable(false); setUtxosLoaded(false); setHistoryDone(false);
+      setPartial(false); setVisible(LIST_INITIAL); setRemoteLabels([]);
+    }
 
     (async () => {
       let stats: AddressStats;
       try {
-        stats = await provider.getAddressStats(address, { signal: controller.signal });
+        stats = await provider.getAddressStats(address, { signal: controller.signal, fresh });
       } catch (err) {
         if (cancelled || (err instanceof ChainDataError && err.code === 'aborted')) return;
+        if (quiet) return; // keep what is shown; the next check tries again
         setState({ kind: 'error', message: err instanceof ChainDataError ? err.message : t('explorer.address.loadError') });
         return;
       }
@@ -207,8 +229,8 @@ export function ExplorerAddressTab({
       // A refusal (the public endpoint caps busy addresses at 500 UTXOs) is
       // remembered so the bubbles can fall back to the loaded history.
       if (typeof provider.getAddressUtxos === 'function') {
-        provider.getAddressUtxos(address, { signal: controller.signal })
-          .then(u => { if (!cancelled) { setUtxos(u); setUtxosLoaded(true); } })
+        provider.getAddressUtxos(address, { signal: controller.signal, fresh })
+          .then(u => { if (!cancelled) { setUtxos(u); setUtxosUnavailable(false); setUtxosLoaded(true); } })
           .catch(err => {
             if (!cancelled && !(err instanceof ChainDataError && err.code === 'aborted')) {
               setUtxosUnavailable(true);
@@ -222,7 +244,7 @@ export function ExplorerAddressTab({
       // Walk the whole history (bounded) so the chart is complete. Bulk
       // traffic: it yields to interactive requests and dies with the tab.
       if (typeof provider.getAddressTxs !== 'function') { setHistoryDone(true); return; }
-      const request: RequestOptions = { signal: controller.signal, priority: 'bulk', timeoutMs: 8_000 };
+      const request: RequestOptions = { signal: controller.signal, priority: 'bulk', timeoutMs: 8_000, fresh };
       const all: NormalizedTransaction[] = [];
       let after: string | undefined;
       while (all.length < MAX_TXS) {
@@ -233,16 +255,40 @@ export function ExplorerAddressTab({
         if (cancelled) return;
         if (page.length === 0) break;
         all.push(...page);
-        setTxs([...all]);
+        // A first load shows pages as they come; a quiet reload swaps the
+        // whole list at the end, so the history never shrinks under the eye.
+        if (!quiet) setTxs([...all]);
         if (page.length < 25) break; // last page
         after = page[page.length - 1].txid;
       }
-      if (!cancelled && all.length >= MAX_TXS) setPartial(true);
-      if (!cancelled) setHistoryDone(true);
+      if (cancelled) return;
+      if (quiet) setTxs(all);
+      setPartial(all.length >= MAX_TXS);
+      setHistoryDone(true);
     })();
 
     return () => { cancelled = true; controller.abort(); };
-  }, [address, provider, remoteEntities]);
+  }, [address, provider, remoteEntities, reloadKey]);
+
+  // Live refresh while the tab is open: every minute, the address's stats and
+  // newest page (which carries unconfirmed transactions) are asked again. Any
+  // change (a payment arriving, confirming or spent) reloads the view in place.
+  const txsRef = useRef(txs);
+  txsRef.current = txs;
+  const loadedStats = state.kind === 'loaded' ? state.stats : null;
+  useLiveRefresh(async (signal) => {
+    if (!loadedStats) return;
+    const [fresh, page] = await Promise.all([
+      provider.getAddressStats(address, { signal, fresh: true }),
+      provider.getAddressTxs?.(address, undefined, { signal, fresh: true }) ?? Promise.resolve(null),
+    ]);
+    if (signal.aborted) return;
+    const before = addressFingerprint(loadedStats, page ? txsRef.current.slice(0, page.length) : null);
+    if (addressFingerprint(fresh, page) !== before) {
+      quietReload.current = true;
+      setReloadKey(k => k + 1);
+    }
+  }, 60_000, loadedStats !== null && historyDone);
 
   const stats = state.kind === 'loaded' ? state.stats : null;
   const balance = stats ? stats.fundedSum - stats.spentSum : 0;
@@ -251,6 +297,9 @@ export function ExplorerAddressTab({
     [txs, address, balance, stats],
   );
   const linked = useMemo(() => linkedAddresses(txs, address), [txs, address]);
+  // The stats count confirmed transactions only; the list also holds the
+  // pending ones, so the "N of M" total adds them.
+  const pendingCount = useMemo(() => txs.filter(tx => !tx.status.confirmed).length, [txs]);
   // When the UTXO endpoint refused (giant address), approximate from the
   // loaded history: outputs paying this address that no loaded transaction
   // spends. Recent coins only, marked as such where they are shown.
@@ -491,7 +540,7 @@ export function ExplorerAddressTab({
         title={t('explorer.address.transactions')}
         right={
           <span className="font-numbers" style={{ fontSize: 12, color: 'var(--alice-muted)' }}>
-            {t('explorer.list.shownOf', { shown: Math.min(visible, txs.length).toLocaleString(formatLocale()), total: s.txCount.toLocaleString(formatLocale()) })}
+            {t('explorer.list.shownOf', { shown: Math.min(visible, txs.length).toLocaleString(formatLocale()), total: (s.txCount + pendingCount).toLocaleString(formatLocale()) })}
           </span>
         }
       >

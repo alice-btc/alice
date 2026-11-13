@@ -16,8 +16,8 @@ function field(lines: number, caretAtEnd = true) {
 }
 const style = { lineHeight: '26px', paddingTop: '4px', paddingBottom: '4px' };
 
-test('the field grows with its text, without scrolling, up to three lines', () => {
-  for (const lines of [1, 2, 3]) {
+test('the field grows with its text, without scrolling, up to five lines', () => {
+  for (const lines of [1, 2, 3, 4, 5]) {
     const el = field(lines);
     fitComposer(el, style);
     assert.equal(el.style.height, `${lines * 26 + 8}px`);
@@ -25,10 +25,10 @@ test('the field grows with its text, without scrolling, up to three lines', () =
   }
 });
 
-test('past three lines it keeps three and scrolls inside, the newest line in view', () => {
+test('past five lines it keeps five and scrolls inside, the newest line in view', () => {
   const el = field(7);
   fitComposer(el, style);
-  assert.equal(el.style.height, `${3 * 26 + 8}px`);
+  assert.equal(el.style.height, `${5 * 26 + 8}px`);
   assert.equal(el.style.overflowY, 'auto');
   assert.equal(el.scrollTop, 7 * 26 + 8);
 });

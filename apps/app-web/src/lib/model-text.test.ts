@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
-import { LocalModelError, buildCustomModelEntry, type LocalModelEntry } from '../../../../packages/alice-ai/src/local-model-registry.ts';
+import { LocalModelError, buildCustomModelEntry, fetchHuggingFaceGgufListing, modelDownloadRefusalError, type LocalModelEntry } from '../../../../packages/alice-ai/src/local-model-registry.ts';
 import { en } from '../i18n/en.ts';
 import { formatGigabytes, formatModelSize, formatStorageSize } from './format-size.ts';
 import { localModelErrorText, modelDescription, modelRam, modelRecommendation, modelSpeed } from './model-text.ts';
@@ -75,6 +75,45 @@ describe('local model texts', () => {
     assert.equal(modelSpeed(entry, 'en'), entry.speed);
     assert.match(modelDescription(entry, 'fr'), /^Modèle personnalisé de unsloth\/Qwen3.5-2B-GGUF\./);
     assert.equal(modelRam(entry, 'fr'), 'environ 1,9 Go');
+  });
+
+  it('translate each model download refusal with its model name', () => {
+    const pinned = { ...qwen4b, url: qwen4b.url.replace('/resolve/0/', '/resolve/' + 'a'.repeat(40) + '/') };
+    const cases = [
+      {
+        entry: { ...qwen4b, source: 'legacy' },
+        fr: 'Qwen3.5 4B appartient à l’ancien catalogue et ne peut plus être téléchargé.',
+        en: 'Qwen3.5 4B is from the previous catalog and can no longer be downloaded.',
+      },
+      {
+        entry: qwen4b,
+        fr: 'Qwen3.5 4B n’est pas associé à un commit précis sur Hugging Face. Alice télécharge uniquement les fichiers associés à un commit précis.',
+        en: 'Qwen3.5 4B is not pinned to a Hugging Face commit. Alice only downloads files pinned to a commit.',
+      },
+      {
+        entry: pinned,
+        fr: 'Aucune somme de contrôle n’a été publiée pour Qwen3.5 4B.',
+        en: 'Qwen3.5 4B has no published checksum.',
+      },
+    ] satisfies { entry: LocalModelEntry; fr: string; en: string }[];
+
+    for (const { entry, fr, en } of cases) {
+      const error = modelDownloadRefusalError(entry);
+      assert.ok(error instanceof LocalModelError);
+      assert.equal(localModelErrorText(error, 'fallback', 'fr'), fr);
+      assert.equal(localModelErrorText(error, 'fallback', 'en'), en);
+    }
+  });
+
+  it('localizes an unreachable Hugging Face catalog without losing the cause', async () => {
+    const cause = new TypeError('Failed to fetch');
+    await assert.rejects(fetchHuggingFaceGgufListing('unsloth/Qwen3.5-4B-GGUF', async () => { throw cause; }), error => {
+      assert.ok(error instanceof LocalModelError);
+      assert.equal(error.cause, cause);
+      assert.equal(localModelErrorText(error, 'fallback', 'fr'), 'Impossible de joindre Hugging Face. Vérifiez votre connexion et réessayez.');
+      assert.equal(localModelErrorText(error, 'fallback', 'en'), 'Could not reach Hugging Face. Check your connection and try again.');
+      return true;
+    });
   });
 
   it('translate a coded refusal and keep any other error as it is', () => {

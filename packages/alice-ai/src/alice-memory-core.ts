@@ -1,4 +1,5 @@
 import { detectSensitiveInput } from './ai-sensitive-input.ts';
+import { memoryRelevanceScorer } from './memory-relevance.ts';
 import type { SupportedLanguage } from './language-policy.ts';
 
 export type AliceMemoryCategory =
@@ -156,7 +157,7 @@ const ACCOUNT_WORDS = /\b(?:compte|account|wallet|portefeuille|kyc|exchange|plat
 // policy, not politics, and is let through.
 const POLICY_NOT_POLITICS = String.raw`(?!ques?\s+(?:monetaires?|de\s+(?:frais|mempool|relais|scripts?|confidentialite|securite)))`;
 const FORBIDDEN_MEMORY: Array<{ reason: AliceMemoryRefusalReason; pattern: RegExp }> = [
-  { reason: 'secret', pattern: /\b(seed phrases?|recovery phrases?|mnemonics?|private keys?|cles? privees?|phrases? de recuperation|phrases? secretes?|xprv|nsec)\b/ },
+  { reason: 'secret', pattern: /\b(seeds?|seed phrases?|recovery phrases?|recovery words|mnemoni\w*|passphrases?|phrases? de passe|private keys?|secret keys?|cles? privees?|cles? secretes?|phrases? de recuperation|mots de recuperation|phrases? secretes?|pin codes?|codes? pin|(?:my|mon) pin|(?:12|24|twelve|twenty[- ]four|douze|vingt[- ]quatre) (?:words|mots)|xprv|nsec)\b/ },
   { reason: 'address', pattern: /\b(address(?:es)?|adresses?|invoices?|factures?)\b/ },
   { reason: 'activity', pattern: /\b(txids?|transactions?|balances?|solde|sats?)\b/ },
   // "Phone" alone is a device ("only has a phone, no computer" is a valid
@@ -186,6 +187,7 @@ const FORBIDDEN_RAW_VALUE: Array<{ reason: AliceMemoryRefusalReason; pattern: Re
 export const ALICE_MEMORY_CAPTURE_INSTRUCTION = `Memory capture protocol. After the visible answer, append exactly one optional block in this format:
 <alice_memory>{"items":[{"category":"preference|setup|experience|goal|project|interest|background|constraint","text":"short factual memory"}]}</alice_memory>
 Use 0 to 3 items. Save only facts the user explicitly stated about themselves that would materially improve future answers. Do not infer identity, personality, beliefs, expertise, or circumstances.
+Use only declarations in the current user message. A request to explain with an analogy or adapt to their background is not a declaration of a lasting preference or beginner status. Never derive a memory from your own answer, earlier assistant text, retrieved context or already saved memory.
 Categories: preference (answer length, tone, examples, format), setup (the hardware and rails the user says they use, never an identifier, a balance or a provider account), experience (the user's history and habits with Bitcoin, never a dated operation or a counterparty), goal, project, interest, background (situation without place or identity), constraint (practical limits to respect).
 Setup, keep: "Uses a hardware wallet with a 2-of-3 multisig". Setup, never: "Keeps 0.5 BTC on a hardware wallet" (an amount).
 Experience, keep: "Has used Bitcoin since 2021 and once lost access to a wallet". Experience, never: "Bought bitcoin on Coinbase in 2021" (an exchange account).
@@ -518,31 +520,10 @@ export async function clearAliceMemoryFromStorage(storage: AliceMemoryStorage): 
   await storage.remove();
 }
 
-// How a memory item earns its place in the context window.
-//
-// "The last ten" was the old rule, and recency is the wrong axis: the fact
-// that helps answer a Lightning question may be three weeks old, and the ten
-// newest items may all be about something else entirely. Two kinds of items,
-// two rules. Preferences and constraints shape every answer whatever the
-// topic, so they always ride, and so does a note the user asked for in so
-// many words. The topical kinds (setup, experience, goals, projects,
-// interests, background) are scored by word overlap with the current message
-// and only the ones that touch it come along; when nothing matches, the
-// newest fill the remaining seats, which is exactly the old behaviour as the
-// fallback rather than the policy.
+// Standing instructions apply across topics. Other memories need a subject
+// match; recency only breaks ties and never fills unused context slots.
 const ALWAYS_RELEVANT: ReadonlySet<AliceMemoryCategory> = new Set(['preference', 'constraint', 'requested-note']);
 const MEMORY_CONTEXT_ITEMS = 10;
-
-function contentWords(text: string): Set<string> {
-  return new Set(
-    text
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
-      .split(/[^a-z0-9]+/)
-      .filter(word => word.length >= 4),
-  );
-}
 
 export function aliceMemoryContext(memory: AliceMemory, userMessage = ''): string {
   if (!memory.enabled || memory.items.length === 0) return '';
@@ -551,15 +532,9 @@ export function aliceMemoryContext(memory: AliceMemory, userMessage = ''): strin
   const standing = newestFirst.filter(item => ALWAYS_RELEVANT.has(item.category));
   const topical = newestFirst.filter(item => !ALWAYS_RELEVANT.has(item.category));
 
-  const messageWords = contentWords(userMessage);
+  const relevance = memoryRelevanceScorer(userMessage);
   const scored = topical
-    .map((item, index) => {
-      let score = 0;
-      for (const word of contentWords(item.text)) {
-        if (messageWords.has(word)) score += 1;
-      }
-      return { item, score, index };
-    })
+    .map((item, index) => ({ item, score: relevance(item.text, item.category), index }))
     .sort((a, b) => (b.score - a.score) || (a.index - b.index));
 
   const picked = [
@@ -568,12 +543,7 @@ export function aliceMemoryContext(memory: AliceMemory, userMessage = ''): strin
       .filter(entry => entry.score > 0)
       .map(entry => entry.item),
   ].slice(0, MEMORY_CONTEXT_ITEMS);
-  if (picked.length < MEMORY_CONTEXT_ITEMS) {
-    for (const entry of scored) {
-      if (picked.length >= MEMORY_CONTEXT_ITEMS) break;
-      if (!picked.includes(entry.item)) picked.push(entry.item);
-    }
-  }
+  if (picked.length === 0) return '';
 
   // Each fact says where it comes from and when it was noted: the Private
   // Cloud model presented a remembered fact as a phrase of the current

@@ -17,9 +17,13 @@ import { ExplorerWalletCards } from '@/components/ExplorerWalletCards';
 import { ArkadeAspInfo, ArkadeLiveSettlements } from '@/components/ExplorerArkade';
 import { BarkLiveRounds, BarkServerInfo } from '@/components/ExplorerBark';
 import { SparkLiveFeed, SparkOperatorsInfo } from '@/components/ExplorerSpark';
+import { MoneroHome } from '@/components/ExplorerMonero';
+import { activeMoneroSource, isUsingMoneroNode } from '@/lib/explorer/monero';
 import type { KnownSettlement } from '@/lib/explorer/arkade-onchain';
 import type { SettlementSync } from '@/lib/explorer/use-settlement-sync';
-import { EXPLORE_ADDRESSES, EXPLORE_BLOCKS, EXPLORE_TXS, type ExploreExample } from '@/lib/explorer/explore-examples';
+import {
+  EXPLORE_ADDRESSES, EXPLORE_BLOCKS, EXPLORE_TXS, MONERO_EXPLORE_BLOCKS, MONERO_EXPLORE_TXS, type ExploreExample,
+} from '@/lib/explorer/explore-examples';
 
 // Overview / home tab: the universal search (transaction, address, block or
 // xpub) with clickable examples, a preview of what the explorer can show, and
@@ -79,6 +83,29 @@ function SignalsGlyph() {
   );
 }
 
+// The Monero views, in the same visual language: a ring of possible spends,
+// a key opening one output, fingerprint rows.
+function RingGlyph() {
+  return (
+    <svg width={48} height={32} viewBox="0 0 48 32" aria-hidden="true">
+      <line x1={4} y1={16} x2={44} y2={16} stroke="var(--alice-border)" strokeWidth={1.5} />
+      {[6, 11, 15, 18, 24, 31, 39].map((x, i) => (
+        <circle key={x} cx={x} cy={16} r={3} fill={i === 3 ? 'var(--alice-primary)' : 'var(--alice-muted)'} opacity={i === 3 ? 1 : 0.6} />
+      ))}
+    </svg>
+  );
+}
+
+function KeyGlyph() {
+  return (
+    <svg width={48} height={32} viewBox="0 0 48 32" aria-hidden="true">
+      <circle cx={12} cy={16} r={6} fill="none" stroke="var(--alice-primary)" strokeWidth={2} />
+      <path d="M18 16 H34 M28 16 V21 M32 16 V20" stroke="var(--alice-primary)" strokeWidth={2} />
+      <rect x={37} y={10} width={8} height={12} fill="var(--alice-muted)" opacity={0.6} />
+    </svg>
+  );
+}
+
 function FeatureCard({ glyph, title, text }: { glyph: ReactNode; title: string; text: string }) {
   return (
     <div
@@ -127,10 +154,12 @@ function ExampleChip({ example, onOpen }: { example: ExploreExample; onOpen: () 
 }
 
 // A curated group of examples: transactions, blocks, or addresses.
-function ExploreGroup({ title, items, onOpen }: {
+function ExploreGroup({ title, items, onOpen, networkId = 'mainnet' }: {
   title: string;
   items: ExploreExample[];
   onOpen: (kind: 'tx' | 'block' | 'address', value: string, networkId?: string) => void;
+  /** The chain every example of the group lives on. */
+  networkId?: string;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -141,7 +170,7 @@ function ExploreGroup({ title, items, onOpen }: {
           // coinbase, the seizures all live on one chain and no other. Pinning
           // it here is what lets someone browse Mutinynet and still tap
           // "First BTC payment" without being told it does not exist.
-          <ExampleChip key={ex.value} example={ex} onOpen={() => onOpen(ex.kind, ex.value, 'mainnet')} />
+          <ExampleChip key={ex.value} example={ex} onOpen={() => onOpen(ex.kind, ex.value, networkId)} />
         ))}
       </div>
     </div>
@@ -159,6 +188,7 @@ export function ExplorerOverviewTab({
   arkade,
   bark,
   spark,
+  monero,
 }: {
   activeNetworkId: string;
   getProvider: (networkId: string) => ChainDataProvider;
@@ -180,6 +210,10 @@ export function ExplorerOverviewTab({
    *  leaves) are recognised, and the network's live feed and the operators'
    *  parameters replace the curated history. */
   spark?: boolean;
+  /** Set on the Monero network: the search takes transaction ids, blocks and
+   *  Monero addresses only, and the network's own state and latest blocks
+   *  replace the curated Bitcoin history and the saved wallets. */
+  monero?: boolean;
 }) {
   const t = useT();
   const [raw, setRaw] = useState('');
@@ -205,12 +239,14 @@ export function ExplorerOverviewTab({
     vtxoIds: !!bark || !!arkade,
     sparkAddresses: !!spark,
     sparkIds: !!spark,
+    monero: !!monero,
   });
   // A pasted xpub now opens the wallet view; unknown is a plain format error.
   const routable = result.kind !== 'unknown';
   const showError = trimmed.length > 0 && !routable;
 
   function errorMessage(): string {
+    if (monero) return t('explorerMonero.searchError');
     if (spark) return t('explorer.search.error.spark');
     return bark
       ? t('explorer.search.error.bark')
@@ -245,7 +281,7 @@ export function ExplorerOverviewTab({
       </header>
       {/* The universal search, centrepiece of the page. */}
       <div className="flex flex-col gap-2">
-        <label htmlFor="explorer-search" className="font-numbers text-sm">{t('explorer.search.label')}</label>
+        <label htmlFor="explorer-search" className="font-numbers text-sm">{monero ? t('explorerMonero.searchLabel') : t('explorer.search.label')}</label>
         <div className="relative">
           <input
             id="explorer-search"
@@ -258,7 +294,9 @@ export function ExplorerOverviewTab({
             autoComplete="off"
             onChange={(e) => setRaw(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
-            placeholder={spark
+            placeholder={monero
+              ? t('explorerMonero.searchPlaceholder')
+            : spark
               ? t('explorer.search.placeholder.spark')
               : bark
                 ? t('explorer.search.placeholder.ark')
@@ -327,14 +365,30 @@ export function ExplorerOverviewTab({
 
       {/* Saved wallets first, right under the search: balance, trend and last
           movement per saved xpub / descriptor / address. */}
-      <ExplorerWalletCards
-        activeNetworkId={activeNetworkId}
-        getProvider={getProvider}
-        onOpenXpub={onOpenXpub}
-        onOpenAddress={onOpenAddress}
-      />
+      {!monero && (
+        <ExplorerWalletCards
+          activeNetworkId={activeNetworkId}
+          getProvider={getProvider}
+          onOpenXpub={onOpenXpub}
+          onOpenAddress={onOpenAddress}
+        />
+      )}
 
-      {spark ? (
+      {monero ? (
+        // Monero's own live layer: the network's state and who mined the
+        // latest blocks, then the curated examples. A Monero address has
+        // nothing to save: no balance can be read from it.
+        <>
+          <MoneroHome />
+          <div className="flex flex-col gap-4">
+            <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
+              {t('explorerMonero.history')}
+            </span>
+            <ExploreGroup title={t('explorerMonero.checkExamples')} items={MONERO_EXPLORE_TXS} onOpen={open} networkId={activeNetworkId} />
+            <ExploreGroup title={t('explorerMonero.milestones')} items={MONERO_EXPLORE_BLOCKS} onOpen={open} networkId={activeNetworkId} />
+          </div>
+        </>
+      ) : spark ? (
         // Spark's own live layer: the network's newest transactions (from
         // Sparkscan) and the operators' parameters. A wallet, a transfer or
         // a leaf is reached through the search above.
@@ -375,6 +429,30 @@ export function ExplorerOverviewTab({
         <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
           {t('explorer.overview.features')}
         </span>
+        {monero ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <FeatureCard
+            glyph={<RingGlyph />}
+            title={t('explorerMonero.rings')}
+            text={t('explorerMonero.ringsFeature')}
+          />
+          <FeatureCard
+            glyph={<KeyGlyph />}
+            title={t('explorerMonero.checkFeatureTitle')}
+            text={t('explorerMonero.checkFeature')}
+          />
+          <FeatureCard
+            glyph={<SignalsGlyph />}
+            title={t('explorerMonero.fingerprints')}
+            text={t('explorerMonero.fingerprintsFeature')}
+          />
+          <FeatureCard
+            glyph={<BlockMapGlyph />}
+            title={t('explorerMonero.network')}
+            text={t('explorerMonero.networkFeature')}
+          />
+        </div>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <FeatureCard
             glyph={<FlowGlyph />}
@@ -397,6 +475,7 @@ export function ExplorerOverviewTab({
             text={t('explorer.overview.feature.signals.text')}
           />
         </div>
+        )}
       </div>
 
       {/* Where the data comes from, and what that means for privacy. */}
@@ -413,7 +492,13 @@ export function ExplorerOverviewTab({
           {t('explorer.overview.dataSource')}
         </span>
         <p className="font-numbers m-0" style={{ fontSize: 12.5, lineHeight: '18px', color: 'var(--alice-muted)' }}>
-          {spark
+          {monero
+            ? `${isUsingMoneroNode()
+                ? t('explorerMonero.sourceNode', { name: activeMoneroSource().name })
+                : t('explorerMonero.sourcePublic')} ${anchorsConfigured()
+                ? t('explorerMonero.sourcePoolsRelay')
+                : t('explorerMonero.sourcePoolsDirect')} ${t('explorerMonero.sourceLocal')}`
+          : spark
             ? t('explorer.overview.source.spark')
             : arkade
             ? t('explorer.overview.source.arkade', { anchors: anchorsNote })

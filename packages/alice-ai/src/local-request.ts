@@ -5,10 +5,11 @@
 // decided here once. A phone gets the condensed persona: it reads the prompt
 // on its CPU before the first word, where the desktop has a GPU.
 
-import type { SendMessageOptions } from './ai-backend';
+import { effectiveTemperature, type SendMessageOptions } from './ai-backend.ts';
 import type { Message } from './llm';
+import { assertAnswerRepairContext } from './answer-repair-context.ts';
 import { getActiveModelId, getAliceInstructions, getPreset, PRESETS } from './ai-preferences';
-import { buildAliceLocalSystemPrompt, buildAliceSystemPrompt, requiresBufferedAliceResponse, withAliceInstructionReminder } from './ai-system-prompt';
+import { groundedAnswerPolicy, buildAliceLocalSystemPrompt, buildAliceSystemPrompt, requiresBufferedAliceResponse, withAliceInstructionReminder } from './ai-system-prompt';
 import { fitMessagesToEstimatedLocalContext } from './local-context-budget';
 import { fitLocalModelRoles, usesAnswerOnlyLocalMode, withLocalAnswerLanguageLine } from './local-model-message-policy';
 
@@ -45,10 +46,11 @@ export async function prepareLocalRequest(
   const disableThinking = usesAnswerOnlyLocalMode(activeModelId);
   const language = options?.responseLanguage ?? 'en';
   const buildPersona = persona === 'condensed' ? buildAliceLocalSystemPrompt : buildAliceSystemPrompt;
-  const systemPrompt = buildPersona(instructions, language) + (disableThinking ? ' /no_think' : '');
+  const groundedPolicy = groundedAnswerPolicy(messages, instructions, language);
+  const systemPrompt = buildPersona(instructions, language, Boolean(groundedPolicy)) + groundedPolicy + (disableThinking ? ' /no_think' : '');
   const fullMessages = withLocalAnswerLanguageLine([
     { role: 'system' as const, content: systemPrompt },
-    ...withAliceInstructionReminder(messages, instructions, language, options?.strictLanguageRetry),
+    ...withAliceInstructionReminder(messages, instructions, language, options?.strictLanguageRetry, true),
   ], language);
   const fitted = fitMessagesToEstimatedLocalContext(
     fullMessages,
@@ -56,9 +58,10 @@ export async function prepareLocalRequest(
     contextTokens,
     candidate => fitLocalModelRoles(candidate, activeModelId),
   );
+  assertAnswerRepairContext(fitted.messages, options?.requiredAnswerRepairContext);
   return {
     messages: fitted.messages,
-    temperature: options?.temperatureOverride ?? params.temperature,
+    temperature: effectiveTemperature(params.temperature, options),
     maxTokens: fitted.responseTokens,
     disableThinking,
     instructions,

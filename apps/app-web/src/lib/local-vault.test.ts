@@ -417,3 +417,18 @@ describe('storage read failures', () => {
     });
   }
 });
+
+// A key the explorer's walkers write through the vault but that is missing
+// from VAULT_KEYS is saved and never read back.
+describe('VAULT_KEYS covers the walkers\' storage keys', () => {
+  it('lists every alice_*_vN key of the on-chain walkers', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { VAULT_KEYS } = await import('./local-vault.ts');
+    for (const file of ['arkade-onchain.ts', 'bark-onchain.ts', 'spark-onchain.ts']) {
+      const src = readFileSync(new URL(`./explorer/${file}`, import.meta.url), 'utf8');
+      for (const [, key] of src.matchAll(/'(alice_[a-z_]+_v\d+)'/g)) {
+        assert.ok(VAULT_KEYS.includes(key), `${file}: ${key} is not in VAULT_KEYS`);
+      }
+    }
+  });
+});

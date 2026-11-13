@@ -36,6 +36,15 @@ export const DESKTOP_WINDOWS_URL = `${DESKTOP_DOWNLOAD_BASE}/Alice_${DESKTOP_VER
 export const DESKTOP_LINUX_APPIMAGE_URL = `${DESKTOP_DOWNLOAD_BASE}/Alice_${DESKTOP_VERSION}_amd64.AppImage`;
 export const DESKTOP_LINUX_DEB_URL = `${DESKTOP_DOWNLOAD_BASE}/Alice_${DESKTOP_VERSION}_amd64.deb`;
 
+// Companion beta distribution. These are separate from the old Wallet APK.
+// TestFlight was approved for external testing; its current build can still
+// precede the source version. Only set the APK pair after its signed asset and
+// checksum page are publicly available. Preparing a release must not enable a
+// broken download or silently replace it with the wallet APK.
+export const IOS_TESTFLIGHT_URL = 'https://testflight.apple.com/join/SgUry7w6';
+export const COMPANION_ANDROID_APK_URL: string | undefined = undefined;
+export const COMPANION_ANDROID_RELEASE_URL: string | undefined = undefined;
+
 // Shown under "Alice Wallet" in the download menu. The wallet is a beta that
 // holds real bitcoin on mainnet, and the person choosing a download is the
 // one who needs to read that, before the release notes rather than after.

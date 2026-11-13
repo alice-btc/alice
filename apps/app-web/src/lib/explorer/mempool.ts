@@ -249,7 +249,7 @@ export class MempoolProvider implements ChainDataProvider {
       throw new ChainDataError('backend', t('explorer.provider.backendError', { name: this.source.name, status: res.status }));
     }
 
-    type EsploraOutspend = { spent: boolean; txid?: string; vin?: number };
+    type EsploraOutspend = { spent: boolean; txid?: string; vin?: number; status?: { confirmed?: boolean } };
     let json: EsploraOutspend[];
     try {
       json = (await res.json()) as EsploraOutspend[];
@@ -257,7 +257,10 @@ export class MempoolProvider implements ChainDataProvider {
       throw new ChainDataError('backend', t('explorer.provider.unreadable', { name: this.source.name }));
     }
 
-    return json.map(o => ({ spent: o.spent, txid: o.txid, vin: o.vin }));
+    return json.map(o => ({
+      spent: o.spent, txid: o.txid, vin: o.vin,
+      ...(o.spent && o.status?.confirmed !== undefined ? { confirmed: o.status.confirmed } : {}),
+    }));
   }
 
   async getAddressStats(address: string, opts?: RequestOptions): Promise<AddressStats> {

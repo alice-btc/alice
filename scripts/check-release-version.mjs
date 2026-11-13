@@ -99,6 +99,20 @@ expectMatch(
   releaseVersion,
 );
 
+// The checked-in iOS inputs must agree before Tauri regenerates the project.
+expectMatch(
+  'apps/app-desktop/src-tauri/gen/apple/project.yml',
+  'iOS marketing version',
+  /CFBundleShortVersionString: ([^\s]+)/,
+  releaseVersion,
+);
+expectMatch(
+  'apps/app-desktop/src-tauri/gen/apple/alice-desktop_iOS/Info.plist',
+  'iOS marketing version',
+  /<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/,
+  releaseVersion,
+);
+
 if (failures.length > 0) {
   console.error(`Release version check failed (${failures.length}/${checked} mismatches):`);
   for (const failure of failures) console.error(`  - ${failure}`);

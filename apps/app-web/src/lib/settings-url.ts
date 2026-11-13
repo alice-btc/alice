@@ -17,6 +17,9 @@ export const SETTINGS_PARAM = 'settings';
 
 function withParams(mutate: (params: URLSearchParams) => void): string {
   const params = new URLSearchParams(window.location.search);
+  // The sign-in request of a link from the app belongs to that one visit of
+  // Account. Changing tab or closing Settings must not carry it along.
+  params.delete('auth');
   mutate(params);
   const query = params.toString();
   return `${window.location.pathname}${query ? `?${query}` : ''}`;

@@ -18,8 +18,11 @@
 //      transactions), so reopening a view costs zero network round-trips.
 //
 // Reads are cached; the in-memory cache is per-instance and per-network (one
-// wrapper per network), so it never crosses chains. Not-found and invalid-input
-// errors are cached too: they are stable facts, no point retrying them.
+// wrapper per network), so it never crosses chains. Immutable answers stay in
+// memory for the session; mutable ones (an unconfirmed transaction, address
+// data, outspends) and not-found errors for MUTABLE_MEMORY_MS only, and a
+// caller passing `fresh` skips every cache. Invalid-input errors are cached for
+// good: no point retrying them.
 
 import { t } from '../../i18n/translate.ts';
 import type { ChainDataProvider, RequestOptions, RequestPriority } from './provider.ts';
@@ -55,6 +58,13 @@ const TTL_SHORT_MS = 10 * 60 * 1000;
 const TTL_DAY_MS = 24 * 60 * 60 * 1000;
 const TTL_LONG_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** How long a MUTABLE answer (an unconfirmed transaction, an address's stats,
+ *  history or UTXOs, outspends, a not-found) is reused from memory. Long
+ *  enough to de-duplicate the burst of one analysis, short enough that
+ *  reopening the view later asks again. Immutable answers stay for the
+ *  session. */
+export const MUTABLE_MEMORY_MS = 30_000;
+
 /** A tiny async key-value store for cross-session caching (IndexedDB in the
  *  browser, a Map in tests). Failures must be swallowed by the implementation:
  *  a broken cache should degrade to "no cache", never break a fetch. */
@@ -71,6 +81,8 @@ export type CachingOptions = {
   sleep?: (ms: number) => Promise<void>;
   /** Cross-session cache for immutable results; omitted means memory-only. */
   persistent?: PersistentCache;
+  /** Injectable for tests; defaults to Date.now. */
+  now?: () => number;
 };
 
 const realSleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
@@ -167,10 +179,14 @@ type Entry = {
   waiters: number;
   pinned: boolean;
   settled: boolean;
+  /** When a settled answer stops being served from memory (ms since epoch). */
+  expiresAt: number;
 };
 
 /** How long a persisted value stays valid; null means "do not persist". */
 type PersistTtl<T> = number | ((value: T) => number | null);
+/** How long a settled value is served from memory; Infinity for immutable data. */
+type MemoryTtl<T> = number | ((value: T) => number);
 
 export class CachingProvider implements ChainDataProvider {
   readonly source: DataSource;
@@ -179,6 +195,7 @@ export class CachingProvider implements ChainDataProvider {
   private readonly retries: number;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly persistent?: PersistentCache;
+  private readonly now: () => number;
   // One in-flight/result cache per read method, keyed by the argument.
   private readonly caches = new Map<string, Map<string, Entry>>();
 
@@ -192,6 +209,7 @@ export class CachingProvider implements ChainDataProvider {
     this.retries = Math.max(0, opts.retries ?? DEFAULT_RETRIES);
     this.sleep = opts.sleep ?? realSleep;
     this.persistent = opts.persistent;
+    this.now = opts.now ?? Date.now;
 
     // Mirror the inner provider's capability surface: drop the optional methods
     // it does not implement, so consumers' `typeof provider.getX === 'function'`
@@ -239,14 +257,21 @@ export class CachingProvider implements ChainDataProvider {
     opts: RequestOptions | undefined,
     fetch: (o: RequestOptions) => Promise<T>,
     persistTtl?: PersistTtl<T>,
+    memoryTtl: MemoryTtl<T> = Infinity,
   ): Promise<T> {
     let byKey = this.caches.get(method);
     if (!byKey) { byKey = new Map(); this.caches.set(method, byKey); }
     const hit = byKey.get(key);
-    if (hit) return this.attach<T>(hit, opts?.signal, () => byKey.delete(key));
+    // A fetch still in flight is always shared, even with `fresh`: it is as
+    // fresh as it gets. A settled answer is reused only until it expires.
+    const reusable = hit && (!hit.settled || (!opts?.fresh && this.now() < hit.expiresAt));
+    if (hit && reusable) return this.attach<T>(hit, opts?.signal, () => byKey.delete(key));
+    if (hit) byKey.delete(key);
 
     const controller = new AbortController();
-    const entry: Entry = { promise: Promise.resolve(), controller, waiters: 0, pinned: false, settled: false };
+    const entry: Entry = {
+      promise: Promise.resolve(), controller, waiters: 0, pinned: false, settled: false, expiresAt: Infinity,
+    };
     const shared: RequestOptions = {
       signal: controller.signal,
       priority: opts?.priority,
@@ -254,7 +279,7 @@ export class CachingProvider implements ChainDataProvider {
     };
     const storageKey = `${method}|${key}`;
     entry.promise = (async () => {
-      if (this.persistent && persistTtl !== undefined) {
+      if (this.persistent && persistTtl !== undefined && !opts?.fresh) {
         const stored = await this.persistent.get(storageKey);
         if (stored !== undefined) return stored as T;
       }
@@ -265,9 +290,20 @@ export class CachingProvider implements ChainDataProvider {
       }
       return value;
     })().then(
-      (value) => { entry.settled = true; return value; },
+      (value) => {
+        entry.settled = true;
+        const ttl = typeof memoryTtl === 'function' ? memoryTtl(value) : memoryTtl;
+        entry.expiresAt = this.now() + ttl;
+        return value;
+      },
       (err: unknown) => {
         entry.settled = true;
+        // A not-found can stop being true (a transaction just broadcast, not
+        // yet seen by the endpoint): remembered briefly, like mutable data.
+        // An invalid input never becomes valid.
+        if (err instanceof ChainDataError && err.code === 'not-found') {
+          entry.expiresAt = this.now() + MUTABLE_MEMORY_MS;
+        }
         // Cache only STABLE failures ('not-found', 'invalid-input'): asking
         // again cannot change those. Everything else, including a raw error a
         // provider let slip, is dropped so a later call retries instead of
@@ -333,6 +369,7 @@ export class CachingProvider implements ChainDataProvider {
       (o) => this.inner.getTransaction(txid, o),
       // A confirmed transaction is immutable; an unconfirmed one is not.
       (tx) => (tx.status.confirmed ? TTL_LONG_MS : null),
+      (tx) => (tx.status.confirmed ? Infinity : MUTABLE_MEMORY_MS),
     );
   }
 
@@ -341,14 +378,23 @@ export class CachingProvider implements ChainDataProvider {
       'addrStats', address.trim(), opts,
       (o) => this.inner.getAddressStats(address, o),
       TTL_SHORT_MS,
+      MUTABLE_MEMORY_MS,
     );
   }
 
   getOutspends(txid: string, opts?: RequestOptions): Promise<NormalizedOutspend[]> {
     if (!this.inner.getOutspends) return Promise.reject(new ChainDataError('backend', 'Outspends unsupported.'));
     const fn = this.inner.getOutspends.bind(this.inner);
-    // Outspends flip as coins get spent: memory-only, never persisted.
-    return this.memo('outspends', txid.trim().toLowerCase(), opts, (o) => fn(txid, o));
+    // Outspends flip as coins get spent. Once every output is spent by a
+    // confirmed transaction nothing can change any more: that answer is kept
+    // like a confirmed transaction, in memory and on disk. Any other stays a
+    // short-lived memory entry.
+    const settled = (list: NormalizedOutspend[]) => list.length > 0 && list.every(o => o.spent && o.confirmed === true);
+    return this.memo(
+      'outspends', txid.trim().toLowerCase(), opts, (o) => fn(txid, o),
+      (list) => (settled(list) ? TTL_LONG_MS : null),
+      (list) => (settled(list) ? Infinity : MUTABLE_MEMORY_MS),
+    );
   }
 
   // Address tx pages and utxos are cheap to re-fetch and page-dependent; still
@@ -360,13 +406,14 @@ export class CachingProvider implements ChainDataProvider {
       'addrTxs', `${address.trim()}|${afterTxid ?? ''}`, opts,
       (o) => fn(address, afterTxid, o),
       TTL_SHORT_MS,
+      MUTABLE_MEMORY_MS,
     );
   }
 
   getAddressUtxos(address: string, opts?: RequestOptions): Promise<AddressUtxo[]> {
     if (!this.inner.getAddressUtxos) return Promise.reject(new ChainDataError('backend', 'Address utxos unsupported.'));
     const fn = this.inner.getAddressUtxos.bind(this.inner);
-    return this.memo('addrUtxos', address.trim(), opts, (o) => fn(address, o), TTL_SHORT_MS);
+    return this.memo('addrUtxos', address.trim(), opts, (o) => fn(address, o), TTL_SHORT_MS, MUTABLE_MEMORY_MS);
   }
 
   // Block endpoints: cache confirmed data (immutable once mined). Recent-blocks

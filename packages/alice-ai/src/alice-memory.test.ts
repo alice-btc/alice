@@ -147,6 +147,51 @@ test('memory context picks by relevance, not by recency', () => {
   const memory = { ...createAliceMemory(), items };
   const context = aliceMemoryContext(memory, 'How should I manage my Lightning channel liquidity?');
   assert.match(context, /Lightning routing node/);
+  assert.doesNotMatch(context, /garden irrigation/);
+});
+
+test('memory selects bilingual subjects without filling unused slots', () => {
+  const texts = [
+    'Interested in channel liquidity management',
+    'Veut vérifier sa sauvegarde',
+    "S'intéresse à la confidentialité",
+    'Interested in Bitcoin mining',
+  ];
+  const memory = { ...createAliceMemory(), items: texts.map((text, i) => ({
+    id: `${i}`, category: 'interest' as const, text, createdDay: '2026-10-01', updatedDay: '2026-10-01',
+  })) };
+  for (const [question, wanted] of [
+    ['Comment équilibrer mes canaux Lightning ?', texts[0]],
+    ['How should I store my recovery phrase?', texts[1]],
+    ['Does CoinJoin make me anonymous?', texts[2]],
+    ['Comment fonctionne la preuve de travail ?', texts[3]],
+  ]) {
+    const context = aliceMemoryContext(memory, question);
+    assert.ok(context.includes(wanted), question);
+    for (const other of texts.filter(text => text !== wanted)) assert.ok(!context.includes(other), `${question}: ${other}`);
+  }
+  for (const question of ['', 'What is a covenant?', 'Explique Bitcoin simplement']) {
+    assert.equal(aliceMemoryContext(memory, question), '', question);
+  }
+  assert.equal(aliceMemoryContext({ ...memory, enabled: false }, 'Lightning'), '');
+});
+
+test('memory keeps standing instructions, caps context and uses recency only for equal relevance', () => {
+  const items = Array.from({ length: 15 }, (_, i) => ({
+    id: `${i}`, category: 'interest' as const, text: `Lightning project ${i}`,
+    createdDay: '2026-10-01', updatedDay: '2026-10-01',
+  }));
+  const memory = { ...createAliceMemory(), items: [
+    { id: 'preference', category: 'preference' as const, text: 'Prefers concise answers', createdDay: '2026-09-01', updatedDay: '2026-09-01' },
+    ...items,
+  ] };
+  const before = JSON.stringify(memory);
+  const context = aliceMemoryContext(memory, 'Explain Lightning');
+  assert.equal(context.split('\n').filter(line => line.startsWith('- ')).length, 10);
+  assert.match(context, /Prefers concise answers/);
+  assert.match(context, /Lightning project 14/);
+  assert.doesNotMatch(context, /Lightning project 0\n/);
+  assert.equal(JSON.stringify(memory), before);
 });
 
 test('the memory context says where its facts come from and dates each one', () => {
@@ -518,4 +563,23 @@ test('a write reports whether it reached the store', async () => {
   // Nothing to write is not a failure.
   const disabled = createStorage(JSON.stringify({ ...createAliceMemory(), enabled: false }));
   assert.equal((await writeAliceCandidatesToStorage([{ category: 'goal', text: 'Wants to run a node' }], disabled.storage)).saved, true);
+});
+
+
+test('memory bridges stated learning background and fee habits only to useful questions', () => {
+  const cases = [
+    { category: 'background' as const, text: 'Familiar with relational databases', yes: 'What is a UTXO?', no: ['How do I back up a wallet?', 'What is mining?', 'How do I choose transaction fees?'] },
+    { category: 'background' as const, text: 'Complete beginner with Bitcoin', yes: 'Comment fonctionne un canal Lightning ?', no: ['What is a relational database?', 'Who won the football match?', 'How do I bake bread?'] },
+    { category: 'experience' as const, text: 'Prefers sending during low-traffic periods', yes: 'Comment choisir les frais pour une transaction peu urgente ?', no: ['How do Lightning routing fees work?', 'How do I choose bank fees?', 'What is a UTXO?'] },
+  ];
+  for (const row of cases) {
+    const memory = { ...createAliceMemory(), items: [{ id: 'test', category: row.category, text: row.text, createdDay: '2026-11-06', updatedDay: '2026-11-06' }] };
+    assert.ok(aliceMemoryContext(memory, row.yes).includes(row.text));
+    for (const question of row.no) assert.equal(aliceMemoryContext(memory, question), '', question);
+    assert.equal(aliceMemoryContext({ ...memory, items: [{ ...memory.items[0], category: 'interest' }] }, row.yes), '', 'An interest alone is not stated personal background/experience');
+  }
+  for (const text of ['Usually waits for low-traffic periods before sending emails', 'Usually waits for low-traffic periods before sending parcels', 'Prefers sending emails during low-traffic periods']) {
+    const memory = { ...createAliceMemory(), items: [{ id: 'other-domain', category: 'experience' as const, text, createdDay: '2026-11-06', updatedDay: '2026-11-06' }] };
+    assert.equal(aliceMemoryContext(memory, 'Comment choisir les frais pour une transaction peu urgente ?'), '');
+  }
 });

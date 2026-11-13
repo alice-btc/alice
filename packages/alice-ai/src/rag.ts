@@ -30,7 +30,15 @@ export type RagTurnContext = {
   diagnostics?: RagChunkDiagnostic[];
   /** Numeric, request-local timings only; parallel phases are not additive. */
   timingMs?: RagTimingMs;
+  /**
+   * Whether the semantic model ranked this retrieval: 'used' when its matches
+   * entered the fusion, 'no-match' when it ran without a usable match, and
+   * 'unavailable' when it was not ready (lexical fallback). No query text.
+   */
+  semanticSearch?: SemanticSearchUse;
 };
+
+export type SemanticSearchUse = 'used' | 'no-match' | 'unavailable';
 
 export type RagTimingMs = {
   corpus: number;
@@ -137,7 +145,8 @@ function fitTurnKnowledge(
  */
 export function quotedLearnSources(learn: LearnTurnContext | null, learnContext: string | null): LearnSource[] {
   if (!learn?.sources || !learnContext) return [];
-  return learn.sources.filter((source, index) => index === 0 || learnContext.includes(source.label));
+  const labelLines = new Set(learnContext.split('\n').map(line => line.trim()));
+  return learn.sources.filter((source, index) => index === 0 || labelLines.has(source.label.trim()));
 }
 
 export function retrieveContext(query: string, options?: RagRetrievalOptions): string | null {
@@ -159,7 +168,7 @@ export function isTechnicalRagQuery(query: string, targetLanguage?: SupportedLan
 }
 
 async function hybridSelectedChunks(query: string, maxChunks: number, language?: SupportedLanguage,
-  timings?: Pick<RagTimingMs, 'lexical' | 'semantic' | 'fusion'>): Promise<CuratedMatch[]> {
+  timings?: Pick<RagTimingMs, 'lexical' | 'semantic' | 'fusion'>): Promise<{ selected: CuratedMatch[]; semanticSearch: SemanticSearchUse }> {
   const started = timingNow();
   const lexical = lexicalSelectedChunks(query, maxChunks, language);
   if (timings) timings.lexical = elapsed(started);
@@ -171,10 +180,11 @@ async function hybridSelectedChunks(query: string, maxChunks: number, language?:
   } catch { /* model/index unavailable; lexical evidence remains usable */ }
   if (timings) timings.semantic = elapsed(semanticStarted);
   const fusionStarted = timingNow();
-  const selected = semanticMatches?.some(match => activeCandidates().some(chunk => chunk.id === match.id))
-    ? selectCuratedKnowledge(query, activeCandidates(), { maxChunks, semanticMatches, targetLanguage: language }) : lexical;
+  const usable = semanticMatches?.some(match => activeCandidates().some(chunk => chunk.id === match.id)) ?? false;
+  const selected = usable
+    ? selectCuratedKnowledge(query, activeCandidates(), { maxChunks, semanticMatches: semanticMatches!, targetLanguage: language }) : lexical;
   if (timings) timings.fusion = elapsed(fusionStarted);
-  return selected;
+  return { selected, semanticSearch: usable ? 'used' : semanticMatches === null ? 'unavailable' : 'no-match' };
 }
 export async function retrieveContextHybrid(query: string, options?: RagRetrievalOptions): Promise<string | null> {
   await loadRagCorpus();
@@ -185,10 +195,10 @@ async function retrieveChunksHybridWithTiming(query: string, options?: RagRetrie
   const started = timingNow();
   await loadRagCorpus();
   const timingMs = { corpus: elapsed(started), lexical: 0, semantic: 0, fusion: 0 };
-  const selected = await hybridSelectedChunks(
+  const { selected, semanticSearch } = await hybridSelectedChunks(
     query, resolveContextChunkLimit(options), options?.targetLanguage, timingMs,
   );
-  return { selected, timingMs };
+  return { selected, timingMs, semanticSearch };
 }
 
 export async function retrieveContextHybridWithDiagnostics(
@@ -258,7 +268,7 @@ export async function buildRagTurnContext(
   };
   const finish = (result: RagTurnContext): RagTurnContext => {
     timingMs.total = elapsed(started);
-    return { ...result, timingMs };
+    return { ...result, timingMs, semanticSearch: retrieval.semanticSearch };
   };
   const { ragContext, learnContext, learnSources, diagnostics } = fitTurnKnowledge(retrieval.selected, options, learn);
   if (!shouldIncludeLocalChatSummary(userMessage)) {

@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { DownloadNotice, type DownloadPlatform } from '@/components/DownloadNotice';
 import {
-  ANDROID_RELEASE_URL,
+  COMPANION_ANDROID_APK_URL,
+  COMPANION_ANDROID_RELEASE_URL,
+  IOS_TESTFLIGHT_URL,
   APP_URL,
   DESKTOP_LINUX_APPIMAGE_URL,
   DESKTOP_LINUX_DEB_URL,
@@ -40,6 +42,8 @@ export type PlatformItem = {
   href?: string;
   /** Set when the download triggers an OS warning worth explaining first. */
   notice?: DownloadPlatform;
+  /** Release page for this installer, never the separate Wallet release. */
+  verifyHref?: string;
 };
 
 // Companion platforms shared by the desktop and mobile download menus.
@@ -57,10 +61,14 @@ export function appPlatformItems(copy: CtaCopy): PlatformItem[] {
     // Linux raises no platform warning, so both packages link straight through.
     { icon: <LinuxGlyph size={18} />, label: copy.linuxAppImage, href: DESKTOP_LINUX_APPIMAGE_URL },
     { icon: <LinuxGlyph size={18} />, label: copy.linuxDebian, href: DESKTOP_LINUX_DEB_URL },
-    // The phone apps are on their way to the stores; until then the rows
-    // stay unlinked and read "Coming soon", and phones use the web app.
-    { icon: <AppleGlyph size={18} />, label: copy.ios },
-    { icon: <AndroidGlyph size={18} />, label: copy.android },
+    { icon: <AppleGlyph size={18} />, label: copy.iosTestFlight, href: IOS_TESTFLIGHT_URL },
+    {
+      icon: <AndroidGlyph size={18} />,
+      label: copy.androidApk,
+      href: COMPANION_ANDROID_RELEASE_URL ? COMPANION_ANDROID_APK_URL : undefined,
+      notice: 'android',
+      verifyHref: COMPANION_ANDROID_RELEASE_URL,
+    },
     { icon: <DownloadIcon size={18} />, label: copy.release, href: DESKTOP_RELEASE_URL },
   ];
 }
@@ -83,6 +91,7 @@ export function PlatformRow({
   label,
   href,
   notice,
+  verifyHref,
   compact,
   comingSoon,
   noticeCopy,
@@ -124,7 +133,7 @@ export function PlatformRow({
             platform={notice}
             copy={noticeCopy}
             href={href}
-            verifyHref={notice === 'android' ? ANDROID_RELEASE_URL : DESKTOP_RELEASE_URL}
+            verifyHref={verifyHref ?? DESKTOP_RELEASE_URL}
             onCancel={() => setShowNotice(false)}
           />
         )}

@@ -53,7 +53,12 @@ only, never in the app);
 Venice runs AI inference inside a hardware enclave and receives ciphertext;
 Esplora (a blockchain-explorer API) answers on-chain lookups, including the
 Playground's on Mutinynet (a test network); Explorer asks the Arkade, Bark
-and Spark servers about coins on those layers; Resend delivers login-code
+and Spark servers about coins on those layers, and xmrchain.net about Monero
+blocks and transactions (or your own node when one is set); seven Monero
+mining pools (SupportXMR, MoneroOcean, C3Pool, HashVault, Nanopool,
+HeroMiners, xmrpool.eu) are asked which blocks they found, by Alice's Worker
+when a proxy is configured and by your browser otherwise, in which case each
+pool sees your IP address; Resend delivers login-code
 emails; Hugging Face serves the semantic-search model to web builds (fetched
 on your first question, never on a data-saving connection, and the installed
 desktop app carries it and asks Hugging Face nothing) and the optional local
@@ -100,7 +105,10 @@ Alice App is more than the chat:
   Bitcoin side: the commitment, round or deposit transaction it hangs from,
   the block that confirmed it, and the exit path that brings it on-chain
   without the operator. The layers' own explorers (Sparkscan, for one) stop
-  at the off-chain ledger; Alice shows both sides in one place.
+  at the off-chain ledger; Alice shows both sides in one place. Monero has
+  its own view: rings drawn by age, fingerprints, and a check of what a
+  transaction paid to an address with a view key or a transaction key, run
+  on the device without importing a wallet.
 - **Learn**: the [Plan ₿ Network](https://planb.network) educational corpus
   (CC BY-SA 4.0), reshaped into per-language packs. English and French ship
   in the app; 26 more languages download on demand from

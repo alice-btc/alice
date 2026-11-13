@@ -1,6 +1,6 @@
 {
   "name": "alice-wallet",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "license": "AGPL-3.0-or-later",
   "private": true,
   "engines": {
@@ -13,9 +13,11 @@
   "scripts": {
     "test": "bash scripts/run-tests.sh",
     "check:types": "tsc --noEmit --incremental false -p apps/app-web/tsconfig.json && tsc --noEmit --incremental false -p apps/site/tsconfig.json && npm run typecheck --workspace @alice-wallet/venice-proxy-worker",
+    "check:download-links": "node scripts/check-download-links.mjs",
     "check:release-version": "node scripts/check-release-version.mjs",
     "check:npm-audit": "node scripts/check-npm-audit.mjs",
     "check:csp-parity": "node scripts/check-csp-parity.mjs",
+    "check:monero-pools": "node scripts/check-monero-pools.mjs",
     "build:curated-rag": "node scripts/build-curated-rag.mjs",
     "check:curated-rag": "node scripts/build-curated-rag.mjs --check"
   },

@@ -9,7 +9,7 @@ topics: ["transactions"]
 aliases: ["Transaction Fees", "Les frais de transaction"]
 parent_ids: []
 related_ids: ["block-weight", "bitcoin-mempool", "replace-by-fee"]
-reviewed_at: "2026-10-11"
+reviewed_at: "2026-11-05"
 review_due: null
 sources: ["PlanB min101 — Introduction to Bitcoin mining", "PlanB Extraction — 2026-05-23"]
 human_reviewed_in_full: false
@@ -23,6 +23,8 @@ translation_status: "machine"
 ## Questions covered
 
 - What are Bitcoin fees for?
+
+- Why does a small payment cost almost as much in fees as a large one?
 
 ## Short answer
 

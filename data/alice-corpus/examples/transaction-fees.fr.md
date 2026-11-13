@@ -9,7 +9,7 @@ topics: ["transactions"]
 aliases: ["Transaction Fees"]
 parent_ids: []
 related_ids: ["block-weight", "bitcoin-mempool", "replace-by-fee"]
-reviewed_at: "2026-10-11"
+reviewed_at: "2026-11-05"
 review_due: null
 sources: ["PlanB min101 — Introduction to Bitcoin mining", "PlanB Extraction — 2026-05-23"]
 human_reviewed_in_full: false
@@ -21,6 +21,8 @@ exhaustive_external_fact_check: false
 ## Questions couvertes
 
 - À quoi servent les frais Bitcoin ?
+
+- Pourquoi un petit paiement coûte-t-il presque les mêmes frais qu’un gros ?
 
 ## Réponse courte
 

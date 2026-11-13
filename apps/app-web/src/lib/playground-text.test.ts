@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
 import { PRACTICE_LESSONS } from '../../../../packages/alice-content/src/practice-lessons.ts';
-import { PracticeWalletError, planPracticeTransaction, type PracticeTxReview } from '../../../../packages/practice-wallet/src/index.ts';
+import { PracticeEsploraClient, PracticeWalletError, planPracticeTransaction, type PracticeTxReview } from '../../../../packages/practice-wallet/src/index.ts';
 import { en } from '../i18n/en.ts';
 import { setCurrentLocale } from '../i18n/translate.ts';
 import { playgroundErrorText, reviewIssuesText } from './playground.ts';
@@ -47,7 +47,20 @@ describe('Playground refusals', () => {
       playgroundErrorText(planError({ amountSats: 41_000 })),
       'Fonds d’entraînement insuffisants : 0 sats disponibles, il faut 41 000 sats plus les frais.',
     );
-    assert.equal(playgroundErrorText(new Error('Failed to fetch')), 'Failed to fetch');
+    assert.equal(playgroundErrorText(new Error('Unknown error')), 'Unknown error');
+  });
+
+  it('localizes a network failure while looking up wallet outputs', async () => {
+    const networkError = new TypeError('Failed to fetch');
+    const client = new PracticeEsploraClient('https://example.test/api', async () => { throw networkError; });
+    await assert.rejects(client.getAddressUtxos('tb1qexample'), (error: unknown) => {
+      assert.ok(error instanceof PracticeWalletError);
+      assert.equal(error.cause, networkError);
+      assert.equal(playgroundErrorText(error), 'Could not reach the Mutinynet explorer.');
+      setCurrentLocale('fr');
+      assert.equal(playgroundErrorText(error), 'Impossible de joindre l’explorateur Mutinynet.');
+      return true;
+    });
   });
 
   it('name the mismatches of a review in the app language', () => {

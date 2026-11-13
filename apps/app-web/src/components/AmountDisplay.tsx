@@ -4,7 +4,8 @@
 // click, exactly like the main wallet's balance: ₿ (sats with the symbol) →
 // sats → BTC → fiat. The preference is the SAME stored one the wallet uses
 // (alice_balance_format via alice-ui), so both surfaces always agree, and the
-// fiat leg uses the wallet's currency preference and Coinbase spot price.
+// fiat leg uses the wallet's currency preference and the price from the same
+// mempool server the Explorer reads (see priceUrl).
 //
 // One module-level store keeps every Amount on the page in step: clicking any
 // of them switches all of them (and persists the choice).
@@ -17,10 +18,13 @@ import {
   type BalanceFormat,
 } from '@alice-wallet/alice-ui/balance-format';
 import {
-  getFiatCurrency, priceApiUrl, CURRENCY_SYMBOL, type FiatCurrency,
+  getFiatCurrency, CURRENCY_SYMBOL, type FiatCurrency,
 } from '@alice-wallet/alice-ui/fiat-currency';
 import { BITCOIN_ICON_SVG } from '@alice-wallet/alice-ui/components/bitcoin-icon-svg';
 import { formatLocale, useT } from '@/i18n';
+import { effectiveBaseUrl } from '@/lib/explorer/node-config';
+import { DEFAULT_NETWORK_ID } from '@/lib/explorer/networks';
+import { localVault } from '@/lib/local-vault';
 
 export type AmountState = {
   format: BalanceFormat;
@@ -40,22 +44,40 @@ const PRICE_TTL_MS = 2 * 60 * 1000;
 let priceFetchedAt = 0;
 let initStarted = false;
 
+// The price is asked for only while amounts show in fiat: in ₿, sats or BTC
+// it is never used, and every request tells the price source this device's IP.
 function refreshPrice(): void {
+  if (state.format !== 'usd') return;
   if (Date.now() - priceFetchedAt < PRICE_TTL_MS) return;
   priceFetchedAt = Date.now();
-  fetch(priceApiUrl(state.currency))
+  const currency = state.currency;
+  void priceUrl()
+    .then(url => (url ? fetch(url) : Promise.reject(new Error('no price source'))))
     .then(r => r.json())
-    .then((d: { data?: { amount?: string } }) => {
-      const p = parseFloat(d.data?.amount ?? '');
-      if (Number.isFinite(p)) { state = { ...state, price: p }; emit(); }
+    .then((d: Record<string, unknown>) => {
+      const p = d[currency];
+      if (typeof p === 'number' && Number.isFinite(p) && p > 0 && currency === state.currency) {
+        state = { ...state, price: p }; emit();
+      }
     })
     .catch(() => { /* fiat shows "..." until a fetch lands */ });
+}
+
+/** The price endpoint: `/v1/prices` of the mempool server the Explorer uses for
+ *  Bitcoin, the person's own node when they set one, mempool.space otherwise.
+ *  No extra party learns this device's IP: it is a server the Explorer already
+ *  talks to. A bare Esplora node has no prices, and fiat then stays "...":
+ *  a chosen node is never bypassed for a third party. */
+async function priceUrl(): Promise<string | null> {
+  await localVault.ready();
+  const base = effectiveBaseUrl(DEFAULT_NETWORK_ID);
+  return base ? `${base.replace(/\/$/, '')}/v1/prices` : null;
 }
 
 function ensureInit(): void {
   if (initStarted) return;
   initStarted = true;
-  void getBalanceFormat().then(f => { state = { ...state, format: f }; emit(); });
+  void getBalanceFormat().then(f => { state = { ...state, format: f }; emit(); refreshPrice(); });
   void getFiatCurrency().then(c => {
     if (c !== state.currency) { state = { ...state, currency: c }; priceFetchedAt = 0; emit(); }
     refreshPrice();
@@ -68,6 +90,7 @@ export function cycleAmountFormat(): void {
   state = { ...state, format: next };
   emit();
   void setBalanceFormat(next);
+  refreshPrice();
 }
 
 /** Set an explicit unit (the Settings picker) and persist it. */
@@ -75,6 +98,7 @@ export function setAmountFormat(format: BalanceFormat): void {
   state = { ...state, format };
   emit();
   void setBalanceFormat(format);
+  refreshPrice();
 }
 
 export function useAmountState(): AmountState {

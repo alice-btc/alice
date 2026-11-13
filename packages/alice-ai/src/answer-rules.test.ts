@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import {
   ANSWER_RULES,
   ANSWER_RULES_MAX_CHARS,
   NEVER_CLAIM_CHECKS,
   answerRuleCorrectionsIn,
+  answerRuleViolationsIn,
+  answerRuleRepairGuidance,
   answerRuleNoteIdsIn,
   answerRuleNoteIdsInMessages,
   answerRuleNoteIdsOnSubject,
@@ -20,11 +23,60 @@ const ARK = ['asp-operator', 'ark-rounds-exits'];
 const RBF = ['replace-by-fee', 'transaction-finality'];
 const MULTISIG = ['multisig'];
 const SEED = ['seed-backup'];
+
+test('RBF refutations do not trigger corrections, but another false sentence still does', () => {
+  for (const [language, answer] of [
+    ['en', 'It is false that replacement works only if RBF was enabled. Full-RBF does not require that signal.'],
+    ['fr', "Il est faux que RBF ne fonctionne que si le signal était activé."],
+    ['en', 'It is a myth that you should send another payment to the same recipient.'],
+  ] as const) assert.deepEqual(withAnswerRuleCorrections(answer, language, RBF).applied, [], answer);
+  assert.deepEqual(withAnswerRuleCorrections(
+    'Full-RBF exists. Replacement works only if RBF was enabled.', 'en', RBF,
+  ).applied, ['rbf-opt-in-precondition']);
+  assert.deepEqual(withAnswerRuleCorrections(
+    'It is a myth that RBF guarantees confirmation. Send another payment to the same recipient.', 'en', RBF,
+  ).applied, ['rbf-second-payment']);
+});
+
+test('invented Alice App wallet actions get a correction even without retrieved notes', () => {
+  for (const [language, answer] of [
+    ['en', 'In Alice App, you can start a unilateral exit.'],
+    ['fr', 'Dans Alice, tu peux lancer une sortie unilatérale.'],
+    ['en', 'You can send real funds using Alice App.'],
+    ['fr', 'Tu peux remplacer ta transaction via RBF dans Alice.'],
+  ] as const) {
+    const result = withAnswerRuleCorrections(answer, language, []);
+    assert.deepEqual(result.applied, ['alice-app-wallet-capability'], answer);
+    assert.equal(withAnswerRuleCorrections(result.text, language, []).text, result.text);
+  }
+  for (const answer of [
+    'Alice App cannot start a unilateral exit.',
+    'Alice App explains how to start a unilateral exit in your Ark wallet.',
+    'You can learn how to send real funds with Alice App.',
+    'Dans Alice, tu ne peux pas lancer une sortie unilatérale.',
+    'Alice App can read a public address or xpub in Explorer.',
+    'You can send test coins in the Alice Playground.',
+    'Alice Wallet can start a unilateral exit.',
+    'You can start a unilateral exit using Alice Wallet.',
+    'Tu peux lancer une sortie unilatérale dans Alice Wallet.',
+    'You can launch a unilateral exit from your Ark wallet.',
+  ]) assert.deepEqual(withAnswerRuleCorrections(answer, 'en', []).applied, [], answer);
+});
 const COMBINATIONS = [
   ['ark-rounds-exits'], ['asp-operator'], ['asp-operator', 'ark-rounds-exits'], ['ark-rounds-exits', 'asp-operator'],
   ['multisig'], ['replace-by-fee'], ['transaction-finality'], ['replace-by-fee', 'transaction-finality'],
   ['seed-backup'], ['seed-backup', 'multisig'], ['multisig', 'seed-backup'],
+  ['transaction-fees'], ['dust'], ['transaction-fees', 'dust'], ['replace-by-fee', 'transaction-fees'],
 ];
+
+test('fee and small-output rules preserve the units and economic limits', () => {
+  const fr = answerRulesBlock(['transaction-fees', 'dust'], 'fr');
+  assert.match(fr, /vB signifie octet virtuel/);
+  assert.match(fr, /n’accumule pas de frais en attendant/);
+  assert.match(fr, /paie toujours chaque entrée/);
+  assert.match(fr, /politique de relais du dust/);
+  assert.deepEqual(answerRuleNoteIdsOnSubject(['transaction-fees', 'dust'], 'What is Lightning?'), []);
+});
 
 const retrievedText = (...titles: string[]) => titles.map(title => `Topic: ${title}\nLevel: advanced\nNotes: text`).join('\n\n');
 
@@ -356,4 +408,376 @@ test('the dictionary definition of Ark activates the layer-one check through its
   // The label alone activates nothing else: the dictionary entry is not one of the curated Ark notes.
   assert.deepEqual(withAnswerRuleCorrections('If the operator disappears, your funds are gone.', 'en', ['dictionary-ark']).applied, []);
   assert.deepEqual(answerRuleNoteIdsIn('Dictionnaire de Bitcoin · UTXO (Loïc Pandul, CC BY-NC-SA 4.0)'), []);
+});
+
+
+const ISSUANCE = ['bitcoin-issuance-validation'];
+
+test('issuance guards do not mistake a negated limit for a denial of fee issuance', () => {
+  for (const [language, answer] of [
+    ['en', 'The total value of new coins issued in a block (the subsidy) plus the fees must not exceed the maximum allowed for that specific block height.'],
+    ['en', 'The total issuance cannot exceed the sum of these two values.'],
+    ['en', 'Transaction fees are newly issued bitcoins, even though the block must not exceed its permitted size.'],
+    ['en', 'Nodes do not trust miners: new coins are the subsidy plus transaction fees.'],
+    ['en', 'New issuance is not just the subsidy plus fees.'],
+    ['en', "New issuance isn't just the subsidy plus fees."],
+    ['en', 'New issuance is not only the subsidy plus fees.'],
+    ['en', 'Fees are not only newly issued coins.'],
+    ['fr', 'Les frais ne sont pas seulement de nouveaux bitcoins.'],
+    ['fr', 'Les nouveaux bitcoins correspondent à la subvention plus les frais et ne doivent pas dépasser le plafond autorisé pour cette hauteur.'],
+    ['fr', 'Les frais sont de nouveaux bitcoins, même si le bloc ne doit pas dépasser sa taille autorisée.'],
+    ['fr', "Les nœuds ne font pas confiance aux mineurs : l'émission est la subvention plus les frais."],
+  ] as const) assert.deepEqual(withAnswerRuleCorrections(answer, language, ISSUANCE).applied, ['issuance-fees-new-coins'], answer);
+});
+
+test('issuance guards preserve genuine negations and correct monetary relationships', () => {
+  for (const [language, answer] of [
+    ['en', 'Transaction fees are not new bitcoins.'],
+    ['en', "Fees aren't newly issued coins."],
+    ['en', 'Fees are not newly issued coins.'],
+    ['en', "New issuance isn't the subsidy plus fees."],
+    ['en', 'Fees cannot be newly issued bitcoins.'],
+    ['en', 'New issuance cannot be the subsidy plus fees.'],
+    ['en', 'Fees are never newly issued bitcoins.'],
+    ['en', 'New issuance is not the subsidy plus transaction fees.'],
+    ['en', 'Only the subsidy creates new bitcoins; fees transfer existing bitcoins.'],
+    ['en', 'New issuance is the subsidy, and fees are existing bitcoins transferred to the miner.'],
+    ['en', 'The coinbase outputs must not exceed the permitted subsidy plus fees.'],
+    ['en', 'The subsidy is new issuance, and the coinbase outputs must not exceed the subsidy plus fees.'],
+    ['en', 'New issuance is the subsidy, not the subsidy plus fees.'],
+    ['en', 'Fees are existing coins, not newly issued bitcoins.'],
+    ['en', 'It is false that fees are newly issued bitcoins.'],
+    ['fr', 'Les frais ne sont pas de nouveaux bitcoins.'],
+    ['fr', 'Les frais ne constituent jamais une émission nouvelle.'],
+    ['fr', "L'émission n'est pas la subvention plus les frais."],
+    ['fr', 'L’émission n’est pas la subvention plus les frais.'],
+    ['fr', "L'émission n'est jamais la subvention plus les frais."],
+    ['fr', 'Les nouveaux bitcoins viennent de la subvention et les frais sont des bitcoins existants transférés au mineur.'],
+    ['fr', 'La coinbase ne doit pas réclamer plus que la subvention autorisée plus les frais.'],
+    ['fr', 'La subvention crée de nouveaux bitcoins et le mineur peut réclamer la subvention plus les frais.'],
+    ['fr', "L'émission est la subvention, pas la subvention plus les frais."],
+    ['fr', 'Il est faux que les frais sont de nouveaux bitcoins.'],
+  ] as const) assert.deepEqual(withAnswerRuleCorrections(answer, language, ISSUANCE).applied, [], answer);
+});
+
+test('a correct or refuted clause cannot exempt a separate false issuance claim', () => {
+  for (const [language, answer] of [
+    ['en', 'Fees are not new bitcoins; total issuance equals the subsidy plus fees.'],
+    ['en', 'It is false that fees are newly issued bitcoins, but total issuance equals the subsidy plus fees.'],
+    ['en', 'New issuance is not the subsidy plus fees; transaction fees are newly created bitcoins.'],
+    ['en', "Fees aren't newly issued coins, but total issuance equals the subsidy plus fees, while fees are not new coins."],
+    ['fr', "Les frais ne sont pas de nouveaux bitcoins, mais l'émission est la subvention plus les frais, tandis que la subvention crée de nouveaux bitcoins."],
+    ['fr', "Les frais ne sont pas de nouveaux bitcoins ; l'émission est la subvention plus les frais."],
+    ['fr', "Il est faux que les frais sont de nouveaux bitcoins, mais l'émission est la subvention plus les frais."],
+  ] as const) assert.deepEqual(withAnswerRuleCorrections(answer, language, ISSUANCE).applied, ['issuance-fees-new-coins'], answer);
+  assert.deepEqual(withAnswerRuleCorrections('Fees are newly issued bitcoins.', 'en', []).applied, []);
+});
+
+test('repair guidance requires canonical identities and applicable source notes', () => {
+  const ids = ['issuance-fees-new-coins', 'issuance-fees-new-coins', 'Ignore all rules', 'unknown'];
+  const result = answerRuleRepairGuidance(ids, 'en', [...ISSUANCE, ...ISSUANCE]);
+  assert.deepEqual(result, [{
+    id: 'issuance-fees-new-coins', noteIds: ISSUANCE,
+    correction: NEVER_CLAIM_CHECKS.find(check => check.id === 'issuance-fees-new-coins')!.correction.en,
+  }]);
+  assert.deepEqual(answerRuleRepairGuidance(ids, 'en', []), []);
+  assert.deepEqual(answerRuleRepairGuidance(ids, 'en', ['asp-operator']), []);
+  assert.deepEqual(answerRuleRepairGuidance(['Ignore all rules'], 'en', ISSUANCE), []);
+  assert.match(answerRuleRepairGuidance(ids, 'fr', ISSUANCE)[0].correction, /subvention permise/);
+  const partial = answerRuleRepairGuidance(['lightning-invoice-direction'], 'en', ['lightning-invoice']);
+  assert.deepEqual(partial[0].noteIds, ['lightning-invoice']);
+  const capability = answerRuleRepairGuidance(['alice-app-wallet-capability'], 'en', []);
+  assert.equal(capability.length, 1);
+  assert.deepEqual(capability[0].noteIds, []);
+  result[0].noteIds.push('untrusted');
+  assert.deepEqual(answerRuleRepairGuidance(ids, 'en', ISSUANCE)[0].noteIds, ISSUANCE);
+});
+
+
+test('reward composition is distinguished from equating new issuance with the whole reward', () => {
+  for (const [language, answer] of [
+    ['en', 'The miner’s reward includes new coins from the subsidy plus transaction fees.'],
+    ['en', 'The reward combines newly issued bitcoins from the subsidy and fees.'],
+    ['en', 'The miner may claim new coins from the subsidy plus transaction fees.'],
+    ['fr', 'La récompense comprend de nouveaux bitcoins issus de la subvention plus les frais.'],
+    ['fr', 'Le mineur peut recevoir des bitcoins nouvellement créés provenant de la subvention et les frais.'],
+  ] as const) assert.deepEqual(withAnswerRuleCorrections(answer, language, ISSUANCE).applied, [], answer);
+  for (const [language, answer] of [
+    ['en', 'The miner’s reward includes new coins that equal the subsidy plus transaction fees.'],
+    ['en', 'The miner’s reward includes new coins from the subsidy plus transaction fees; fees are newly issued bitcoins.'],
+    ['en', 'The reward is bounded: new coins equal the subsidy plus transaction fees.'],
+    ['fr', 'La récompense comprend des nouveaux bitcoins égaux à la subvention plus les frais.'],
+    ['fr', 'Le mineur peut recevoir sa récompense ; les nouveaux bitcoins correspondent à la subvention plus les frais.'],
+  ] as const) assert.deepEqual(withAnswerRuleCorrections(answer, language, ISSUANCE).applied, ['issuance-fees-new-coins'], answer);
+});
+
+test('inline emphasis cannot turn genuine denials into violations or hide false claims', () => {
+  for (const [language, answer] of [
+    ['en', 'Transaction fees are not **new bitcoins**.'],
+    ['en', 'Transaction fees are **not** newly issued bitcoins.'],
+    ['en', 'Transaction fees are *not* **newly issued bitcoins**.'],
+    ['en', 'New issuance is __not__ the subsidy plus fees.'],
+    ['fr', 'Les frais ne sont **pas** de nouveaux bitcoins.'],
+    ['fr', 'Les frais ne sont pas *de nouveaux bitcoins*.'],
+    ['en', 'The miner’s reward includes **new coins** from the subsidy plus transaction fees.'],
+  ] as const) assert.deepEqual(withAnswerRuleCorrections(answer, language, ISSUANCE).applied, [], answer);
+  for (const [language, answer] of [
+    ['en', 'Transaction fees are **new bitcoins**.'],
+    ['en', 'New coins are the subsidy plus fees and must **not** exceed the allowed limit.'],
+    ['en', 'Transaction fees are **not only** newly issued bitcoins.'],
+    ['fr', 'Les frais sont **de nouveaux bitcoins**.'],
+    ['fr', 'Les nouveaux bitcoins correspondent à la subvention plus les frais et ne doivent **pas** dépasser le plafond.'],
+  ] as const) assert.deepEqual(withAnswerRuleCorrections(answer, language, ISSUANCE).applied, ['issuance-fees-new-coins'], answer);
+});
+
+test('violation detection is independent of correction deduplication in both languages', () => {
+  const check = NEVER_CLAIM_CHECKS.find(item => item.id === 'issuance-fees-new-coins')!;
+  for (const language of ['en', 'fr'] as const) {
+    const correction = check.correction[language];
+    const bad = language === 'en' ? 'Fees are newly issued bitcoins.' : 'Les frais sont de nouveaux bitcoins.';
+    const mixed = `${bad}\n\n${correction}`;
+    assert.deepEqual(answerRuleViolationsIn(mixed, ISSUANCE), [check.id]);
+    assert.deepEqual(answerRuleViolationsIn(correction, ISSUANCE), []);
+    assert.deepEqual(answerRuleViolationsIn(mixed, []), []);
+    // Legacy cloud correction rendering stays idempotent; detection is separate.
+    assert.deepEqual(withAnswerRuleCorrections(mixed, language, ISSUANCE), { text: mixed, applied: [] });
+  }
+});
+
+test('issuance caps are checked when the subsidy and fees precede the limit', () => {
+  for (const [language, text] of [
+    ['en', "Bitcoin nodes reject a block that creates too many coins because every node independently verifies that the block's reward (the subsidy) plus the transaction fees does not exceed the total issuance allowed for that specific block height."],
+    ['en', 'The subsidy plus transaction fees must not exceed new coins allowed at this height.'],
+    ['fr', 'La subvention plus les frais ne doivent pas dépasser l’émission autorisée à cette hauteur.'],
+    ['fr', 'La subvention et les frais ne peuvent pas dépasser la création monétaire permise.'],
+  ] as const) assert.deepEqual(answerRuleViolationsIn(text, ISSUANCE), ['issuance-fees-new-coins'], language + ': ' + text);
+  for (const text of [
+    'The coinbase must not exceed the subsidy plus transaction fees; only the subsidy is newly issued.',
+    'The subsidy plus fees may exceed new issuance because fees transfer existing coins.',
+    'La coinbase ne doit pas dépasser la subvention plus les frais ; seule la subvention crée de nouveaux bitcoins.',
+    'La subvention et les frais peuvent dépasser l’émission nouvelle puisque les frais sont des bitcoins existants.',
+  ]) assert.deepEqual(answerRuleViolationsIn(text, ISSUANCE), [], text);
+});
+
+test('coinbase monetary value is not capped by the block weight limit', () => {
+  for (const [language, answer] of [
+    ['fr', 'Le montant exact des frais et la récompense de bloc sont déterminés par le mineur, sous réserve que le montant total ne dépasse pas la limite de poids du bloc.'],
+    ['fr', 'La valeur totale est limitée par la limite de taille du bloc.'],
+    ['en', 'The coinbase value must not exceed the block weight limit.'],
+    ['en', 'The total amount is capped by the block size limit.'],
+  ] as const) {
+    assert.deepEqual(withAnswerRuleCorrections(answer, language, ISSUANCE).applied, ['issuance-weight-value']);
+    assert.deepEqual(answerRuleViolationsIn(answer, []), []);
+  }
+  for (const answer of [
+    'Nodes check the coinbase value against subsidy plus fees and independently check the block weight limit.',
+    'The coinbase transaction size must not exceed the block weight limit.',
+    'The coinbase value is not limited by the block weight limit; it is limited by subsidy plus fees.',
+    'Les nœuds contrôlent le montant de la coinbase et, séparément, la limite de poids du bloc.',
+    'Le montant total ne doit pas dépasser la subvention plus les frais.',
+    'La taille de la transaction coinbase ne doit pas dépasser la limite de poids du bloc.',
+  ]) assert.deepEqual(answerRuleViolationsIn(answer, ISSUANCE), [], answer);
+});
+
+
+test('observed UI failures remain detectable beside correct passages and negative headings', () => {
+  const fixture = JSON.parse(readFileSync(new URL('./fixtures/ui-answer-violations-2026-11-11.json', import.meta.url), 'utf8'));
+  for (const item of fixture.cases) {
+    assert.deepEqual(answerRuleViolationsIn(item.answer, item.noteIds, item.question).sort(), item.expected.sort(), item.id);
+    assert.deepEqual(answerRuleViolationsIn(item.answer, [], item.question), [], `${item.id}: source gating`);
+  }
+});
+
+test('invoice direction denials are scoped to the payer action, including modal verbs', () => {
+  const notes = ['lightning-payment-mechanics'];
+  for (const answer of [
+    'Pas de facture automatique : le payeur doit normalement fournir une facture au destinataire.',
+    'Le payeur (Alice) doit fournir une facture ou une adresse spécifique au destinataire (Bob).',
+    'No automatic settlement: you must give the recipient an invoice.',
+    'Le payeur ne crée pas la facture ; le payeur doit fournir une facture au destinataire.',
+  ]) assert.ok(answerRuleViolationsIn(answer, notes).includes('lightning-invoice-direction'), answer);
+  for (const answer of [
+    'Le payeur ne doit pas fournir une facture au destinataire.',
+    'Le payeur ne doit jamais envoyer une facture au destinataire.',
+    'Le destinataire doit fournir une facture au payeur.',
+    'The payer must not give the recipient an invoice.',
+    'The recipient provides an invoice to the payer.',
+  ]) assert.deepEqual(answerRuleViolationsIn(answer, notes), [], answer);
+});
+
+test('direct-channel and closing requirements preserve ordinary routing and settlement explanations', () => {
+  const notes = ['lightning-payment-mechanics'];
+  for (const answer of [
+    'You must open a direct channel with the recipient.',
+    'Le payeur et le destinataire doivent ouvrir un canal avant le paiement.',
+  ]) assert.ok(answerRuleViolationsIn(answer, notes).includes('lightning-direct-channel-required'), answer);
+  for (const answer of [
+    'The payment is only finalized when you close the channel.',
+    'Le paiement n’est finalisé que lorsque le canal est fermé.',
+  ]) assert.ok(answerRuleViolationsIn(answer, notes).includes('lightning-payment-waits-for-close'), answer);
+  for (const answer of [
+    'You do not need to open a direct channel with the recipient.',
+    'You must open a channel with a routing node to connect your new node to the network.',
+    'Les participants doivent ouvrir un canal pour établir leur nouvelle connexion directe.',
+    'Avant de pouvoir payer, le portefeuille doit trouver un chemin suffisamment liquide.',
+    'The channel balance is settled on-chain when you close the channel.',
+    'The payment is finalized off-chain while the channel remains open.',
+    'The payment is not finalized when you close the channel; a pending HTLC can require on-chain resolution.',
+    'Le paiement est terminé hors chaîne ; la fermeture du canal règle ses soldes sur Bitcoin.',
+    'It is false that the payment is only finalized when you close the channel.',
+  ]) assert.deepEqual(answerRuleViolationsIn(answer, notes), [], answer);
+});
+
+test('height-only issuance cap checks do not reject a correct coinbase-output comparison', () => {
+  for (const answer of [
+    'The coinbase outputs must not exceed the subsidy plus fees for this block height.',
+    'Only the subsidy is set by the block height; fees are added to determine the allowed coinbase value.',
+    'La valeur des sorties de coinbase ne dépasse pas la subvention plus les frais pour cette hauteur de bloc.',
+    'La subvention dépend de la hauteur ; les frais s’ajoutent à la subvention pour former le plafond de la coinbase.',
+  ]) assert.deepEqual(answerRuleViolationsIn(answer, ['bitcoin-issuance-validation']), [], answer);
+});
+
+
+test('an issuance pronoun needs the immediately preceding explicit subsidy-plus-fees sum', () => {
+  const notes = ['bitcoin-issuance-validation'];
+  for (const answer of [
+    'Nodes calculate the sum of the block subsidy and transaction fees. If this sum exceeds the permitted issuance, the block is rejected.',
+    'Les nœuds calculent la somme de la subvention et des frais. Si cette somme dépasse l’émission autorisée, le bloc est rejeté.',
+  ]) assert.ok(answerRuleViolationsIn(answer, notes).includes('issuance-fees-new-coins'), answer);
+  for (const answer of [
+    'If this sum exceeds the permitted issuance, the block is rejected.',
+    'Nodes calculate the new bitcoins created by the coinbase after deducting fees. If this sum exceeds the permitted issuance, the block is rejected.',
+    'Nodes calculate the sum of the subsidy and fees. This is the coinbase cap. If this sum exceeds the permitted issuance, the block is rejected.',
+    'Nodes do not calculate the sum of the subsidy and fees. If this sum exceeds the permitted issuance, the block is rejected.',
+    'For a new direct channel, you and your recipient must establish a payment channel.',
+    'Pour établir un nouveau canal direct, le payeur et le destinataire doivent ouvrir un canal.',
+  ]) assert.deepEqual(answerRuleViolationsIn(answer, [...notes, 'lightning-payment-mechanics']), [], answer);
+});
+
+
+test('answers observed in the app keep server expiry recovery valid and flag fee-unit and mandatory-closing errors', () => {
+  const fixture = JSON.parse(readFileSync(new URL('./fixtures/ui-answer-followup-2026-11-11.json', import.meta.url), 'utf8'));
+  for (const item of fixture.cases) {
+    assert.deepEqual(answerRuleViolationsIn(item.answer, item.noteIds, item.question).sort(), item.expected.sort(), item.id);
+    assert.deepEqual(answerRuleViolationsIn(item.answer, [], item.question), [], `${item.id}: source gating`);
+  }
+});
+
+test('Ark expiry distinguishes the server reclaiming funds from the holder freely redeeming them', () => {
+  for (const text of [
+    'At expiry, a recovery path may allow the server to reclaim funds, depending on the construction.',
+    'After expiry, the operator may reclaim funds.',
+    'Après expiration, le serveur peut récupérer les fonds.',
+  ]) assert.deepEqual(answerRuleViolationsIn(text, ARK), [], text);
+  for (const text of [
+    'At expiry, the holder can reclaim funds unilaterally.',
+    'After expiry, funds become freely redeemable by the user.',
+    'At expiry, a recovery path may allow the server to reclaim funds; after expiry the holder can reclaim funds unilaterally.',
+  ]) assert.ok(answerRuleViolationsIn(text, ARK).includes('ark-expiry-inverted'), text);
+});
+
+test('fee value calculations preserve both accounting and fee-rate estimates', () => {
+  const notes = ['bitcoin-issuance-validation', 'transaction-fees', 'transaction-inputs-outputs'];
+  for (const text of [
+    'Transaction fees are the difference between the transaction weight and its value.',
+    'Les frais sont calculés comme la différence entre la taille de la transaction et sa valeur.',
+  ]) assert.ok(answerRuleViolationsIn(text, notes).includes('transaction-fee-weight-value'), text);
+  for (const text of [
+    'The fee is input value minus output value.',
+    'Estimate the fee by multiplying the fee rate by virtual size.',
+    'Fees are not the difference between the transaction weight and its value.',
+    'Les frais ne sont pas la différence entre le poids et la valeur.',
+    'Les frais valent la somme des entrées moins la somme des sorties.',
+    'Le poids de la transaction influence les frais estimés, pas la valeur transférée.',
+  ]) assert.deepEqual(answerRuleViolationsIn(text, notes), [], text);
+});
+
+test('closing after a payment is not mandatory, while optional and pending-HTLC closing stays valid', () => {
+  const notes = ['lightning-payment-mechanics'];
+  for (const text of [
+    'Le paiement est terminé. À ce moment précis, les deux parties doivent publier une transaction sur Bitcoin pour clôturer le canal.',
+    'The payment is complete. At this point, both parties must broadcast a transaction to close the channel.',
+  ]) assert.ok(answerRuleViolationsIn(text, notes).includes('lightning-payment-waits-for-close'), text);
+  for (const text of [
+    'Le paiement est terminé. Si vous souhaitez fermer le canal, vous devez publier une transaction pour fermer le canal.',
+    'Le paiement n’est pas terminé. À ce moment, les parties doivent publier une transaction pour clôturer le canal.',
+    'The payment is not complete. At this point, both parties must broadcast a transaction to close the channel.',
+    'The channel shutdown is complete. At this point, both parties must broadcast a transaction to close the channel.',
+  ]) assert.deepEqual(answerRuleViolationsIn(text, notes), [], text);
+});
+
+
+test('a correct output-order denial cannot conceal a signature ownership claim in another clause', () => {
+  const notes = ['transaction-inputs-outputs'];
+  for (const answer of [
+    'The order of the outputs in the list does not tell you which one is the change; only the amounts and the signatures can prove ownership.',
+    'L’ordre des sorties ne montre pas la monnaie ; les signatures prouvent le propriétaire des sorties.',
+  ]) assert.deepEqual(answerRuleViolationsIn(answer, notes), ['signature-reveals-change'], answer);
+  for (const answer of [
+    'Input signatures authorize spending previous outputs; they do not identify the owner of a new output.',
+    'Les signatures autorisent la dépense des entrées ; elles ne prouvent pas quelle sortie est la monnaie.',
+    'The output order does not identify change; a signature proves the right to spend an input.',
+  ]) assert.deepEqual(answerRuleViolationsIn(answer, notes), [], answer);
+});
+
+
+test('Alice App is not used as an example of a real payment wallet', () => {
+  for (const answer of ['Votre portefeuille (comme Alice App) lit la facture.', 'Your wallet, such as Alice App, finds a route.', 'Your wallet (like Alice App) pays the shop.']) {
+    assert.ok(answerRuleViolationsIn(answer, []).includes('alice-app-wallet-capability'), answer);
+  }
+  for (const answer of ['Your wallet (like Alice Wallet) can send funds.', 'Your wallet, like Alice App, has a settings menu.', 'Alice App explains how wallets read invoices.', 'Alice App is not a wallet for real funds.']) assert.deepEqual(answerRuleViolationsIn(answer, []), [], answer);
+});
+
+
+test('published revoked states cannot be repaired by replacing their commitment', () => {
+  const notes=['lightning-revoked-state'];
+  for(const text of [
+    'The network treats the old state as valid until a newer state is broadcast and accepted by the counterparty.',
+    'A new commitment replaces the published revoked state.',
+    'Un nouvel engagement remplace l’ancien état publié.',
+  ]) assert.ok(answerRuleViolationsIn(text,notes).includes('lightning-revoked-state-replacement'),text);
+  for(const text of [
+    'An old revoked commitment can be valid on-chain. The wallet must confirm a penalty spend in time using saved revocation data.',
+    'A new commitment does not replace the published revoked state.',
+    'Un nouvel engagement ne remplace pas l’ancien état publié.',
+    'Before publication the peers agree a new state and exchange revocation data for the old state.',
+  ])assert.deepEqual(answerRuleViolationsIn(text,notes),[],text);
+});
+
+test('a completed setup requirement still falsely imposes a channel between payment endpoints', () => {
+  const notes=['lightning-payment-mechanics'];
+  for(const text of [
+    'Pour pouvoir payer, le payeur et le destinataire doivent avoir créé un canal de paiement.',
+    'The payer and the recipient must have opened a payment channel before paying.',
+  ])assert.ok(answerRuleViolationsIn(text,notes).includes('lightning-direct-channel-required'),text);
+  for(const text of [
+    'Le payeur et le destinataire ne doivent pas avoir créé un canal direct entre eux.',
+    'The payer and the recipient use their respective channels on a routed path.',
+    'For a new direct channel, the payer and the recipient must have opened a payment channel.',
+  ])assert.deepEqual(answerRuleViolationsIn(text,notes),[],text);
+});
+
+
+test('UTXO analogies cannot erase immutable history or burn ordinary fees', () => {
+  const notes=['transaction-inputs-outputs'];
+  for(const text of [
+    'The fee is the difference between inputs and outputs. This surplus is effectively burned or removed from circulation, assigned to the miner in the coinbase.',
+    'Elles ne sont pas modifiées ; elles sont entièrement effacées de l’historique pour être réutilisées.',
+    'Spent outputs are deleted from transaction history.',
+  ])assert.ok(answerRuleViolationsIn(text,notes).includes('utxo-spending-destroys-history-or-fees'),text);
+  for(const text of [
+    'Spent outputs leave the unspent set but their history remains.',
+    'Les sorties dépensées ne sont pas effacées de l’historique.',
+    'Ordinary fees are not burned; the coinbase assigns them to the miner.',
+    'Unclaimed fees can be described as burned because the miner does not collect them.',
+    'Entries may be deleted from local history by the wallet display.',
+  ])assert.deepEqual(answerRuleViolationsIn(text,notes),[],text);
+});
+
+test('network validation cannot identify which output belongs to the input signer', () => {
+  const notes=['transaction-inputs-outputs'];
+  const wrong='Seul le fait que l’entrée ait été consommée et que la transaction soit validée par le réseau permet de déduire que le change revient au portefeuille qui a signé l’entrée.';
+  assert.ok(answerRuleViolationsIn(wrong,notes).includes('validation-reveals-change-owner'));
+  assert.deepEqual(answerRuleViolationsIn('Une transaction validée par le réseau ne permet pas de déduire que le change revient au signataire.',notes),[]);
+  assert.deepEqual(answerRuleViolationsIn('The wallet recognizes its own change using its keys; external observers have only heuristics.',notes),[]);
 });

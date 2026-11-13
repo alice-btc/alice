@@ -9,7 +9,7 @@ topics: ["privacy"]
 aliases: ["CoinJoin"]
 parent_ids: []
 related_ids: ["common-input-ownership-heuristic", "coin-control", "payjoin", "secondary-bitcoin-blind-signatures", "secondary-bitcoin-joinmarket", "secondary-bitcoin-privacy-by-obfuscation"]
-reviewed_at: "2026-10-11"
+reviewed_at: "2026-11-05"
 review_due: null
 sources: ["PlanB btc204 — Privacy on Bitcoin", "PlanB Extraction — 2026-05-23"]
 human_reviewed_in_full: false
@@ -31,6 +31,8 @@ Un CoinJoin est une transaction construite par plusieurs participants. Il vise �
 La structure Bitcoin permet de réunir plusieurs entrées et sorties avec les autorisations nécessaires. Selon le protocole, certaines sorties présentent des caractéristiques communes qui rendent l’interprétation plus ambiguë. L’hypothèse selon laquelle toutes les entrées ont un propriétaire unique peut alors être fausse.
 
 Les modalités de coordination, les frais et la confidentialité varient selon l’implémentation. Les usages ultérieurs des fonds peuvent aussi recréer des liens ; la transaction collaborative ne réinitialise pas magiquement tout l’historique.
+
+Réutiliser une adresse ou dépenser ensemble plusieurs sorties issues du mélange peut recréer des liens. Des paiements rapprochés vers le même service peuvent aussi faciliter des corrélations. Ces indices ne prouvent pas à eux seuls l’identité d’une personne.
 
 ## Limites et confusions
 

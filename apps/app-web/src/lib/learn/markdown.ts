@@ -1,8 +1,9 @@
 // Minimal markdown → AST parser for PlanB course content. The app has no
 // markdown dependency (the chat renderer is line-based and chat-specific), and
 // Learn needs structures the chat never meets: fenced code, images with a
-// remote asset base, tables, blockquotes and :::video::: directives. Keeping
-// the parser pure makes it testable under the native node:test runner.
+// remote asset base, tables, blockquotes, :::video::: directives and YouTube
+// links written as images (see parseYouTubeUrl). Keeping the parser pure makes
+// it testable under the native node:test runner.
 
 export type LearnInline =
   | { kind: 'text'; text: string }
@@ -22,11 +23,59 @@ export type LearnBlock =
   | { kind: 'table'; header: LearnInline[][]; rows: LearnInline[][][] }
   | { kind: 'image'; src: string; alt: string }
   | { kind: 'video'; videoId: string }
+  // A YouTube link written as an image, `![video](https://youtu.be/<id>)`,
+  // the way Plan B tutorials and some courses embed videos. As an <img> it fails.
+  | { kind: 'youtube'; youtubeId: string; startSeconds: number; alt: string }
   | { kind: 'hr' };
 
 const INLINE_RE = /(\*\*[^*]+\*\*|\*[^*\s][^*]*\*|`[^`]+`|!?\[[^\]]*\]\([^)\s]+\))/g;
 const VIDEO_RE = /^:::video\s+id=([0-9a-f-]{36})\s*:::\s*$/;
 const IMAGE_RE = /^!\[([^\]]*)\]\(([^)\s]+)\)\s*$/;
+const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+
+// These Plan B tutorial URLs point to articles, despite the image syntax.
+const PAGE_LINK_IMAGES = new Set(['https://bitcoinvn.io/', 'https://armantheparman.com/utxo/']);
+
+/** "4019", "774s" or "1h2m3s" → seconds; anything else → 0. */
+function parseStartSeconds(value: string | null): number {
+  if (!value) return 0;
+  if (/^\d+$/.test(value)) return Number(value);
+  const m = value.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/);
+  if (!m) return 0;
+  return Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0);
+}
+
+/**
+ * The video id and start time of a YouTube URL in any of the forms the corpus
+ * uses (youtu.be/<id>, watch?v=<id>, embed/, live/, shorts/), or null for
+ * anything else, including the template placeholders some tutorials show.
+ * Playlist parameters are dropped: the embed plays the one video.
+ */
+export function parseYouTubeUrl(src: string): { youtubeId: string; startSeconds: number } | null {
+  let url: URL;
+  try {
+    url = new URL(src);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+  const host = url.hostname.toLowerCase().replace(/^(www|m)\./, '');
+  let id: string | null = null;
+  if (host === 'youtu.be') {
+    id = url.pathname.split('/')[1] ?? null;
+  } else if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+    id = url.pathname === '/watch'
+      ? url.searchParams.get('v')
+      : (url.pathname.match(/^\/(?:embed|live|shorts)\/([^/]+)/)?.[1] ?? null);
+  }
+  if (!id || !YOUTUBE_ID_RE.test(id)) return null;
+  return { youtubeId: id, startSeconds: parseStartSeconds(url.searchParams.get('t') ?? url.searchParams.get('start')) };
+}
+
+/** The youtube.com page of a video, for links that leave the app. */
+export function youTubeWatchUrl(youtubeId: string, startSeconds = 0): string {
+  return `https://www.youtube.com/watch?v=${youtubeId}${startSeconds > 0 ? `&t=${startSeconds}s` : ''}`;
+}
 
 export function parseInline(text: string): LearnInline[] {
   const nodes: LearnInline[] = [];
@@ -40,9 +89,18 @@ export function parseInline(text: string): LearnInline[] {
       nodes.push({ kind: 'code', text: token.slice(1, -1) });
     } else if (token.startsWith('![')) {
       // Inline image inside a sentence: keep the alt text, the block-level
-      // image path is handled by parseMarkdown.
+      // image path is handled by parseMarkdown. A YouTube "image" becomes a
+      // link to the video so it stays reachable.
       const m = token.match(/^!\[([^\]]*)\]\(([^)\s]+)\)$/);
-      nodes.push({ kind: 'text', text: m?.[1] ?? '' });
+      const youtube = m ? parseYouTubeUrl(m[2]) : null;
+      if (m && youtube) {
+        const href = youTubeWatchUrl(youtube.youtubeId, youtube.startSeconds);
+        nodes.push({ kind: 'link', text: m[1].trim() || href, href });
+      } else if (m && PAGE_LINK_IMAGES.has(m[2])) {
+        nodes.push({ kind: 'link', text: m[1].trim() || m[2], href: m[2] });
+      } else {
+        nodes.push({ kind: 'text', text: m?.[1] ?? '' });
+      }
     } else if (token.startsWith('[')) {
       const m = token.match(/^\[([^\]]*)\]\(([^)\s]+)\)$/);
       if (m) nodes.push({ kind: 'link', text: m[1], href: m[2] });
@@ -108,7 +166,14 @@ export function parseMarkdown(markdown: string): LearnBlock[] {
     const image = trimmed.match(IMAGE_RE);
     if (image) {
       flushParagraph();
-      blocks.push({ kind: 'image', src: image[2], alt: image[1] });
+      const youtube = parseYouTubeUrl(image[2]);
+      if (youtube) {
+        blocks.push({ kind: 'youtube', ...youtube, alt: image[1].trim() });
+      } else if (PAGE_LINK_IMAGES.has(image[2])) {
+        blocks.push({ kind: 'paragraph', inline: parseInline(trimmed) });
+      } else {
+        blocks.push({ kind: 'image', src: image[2], alt: image[1] });
+      }
       continue;
     }
 

@@ -11,6 +11,7 @@ export type PracticeWalletErrorCode =
   | 'recipient_address_invalid'
   | 'change_address_invalid'
   | 'insufficient_funds'
+  | 'explorer_unreachable'
   | 'explorer_request_failed'
   | 'explorer_bad_tip'
   | 'explorer_bad_txid';
@@ -21,8 +22,8 @@ export class PracticeWalletError extends Error {
   readonly code: PracticeWalletErrorCode;
   readonly params: PracticeWalletErrorParams;
 
-  constructor(code: PracticeWalletErrorCode, message: string, params: PracticeWalletErrorParams = {}) {
-    super(message);
+  constructor(code: PracticeWalletErrorCode, message: string, params: PracticeWalletErrorParams = {}, options?: ErrorOptions) {
+    super(message, options);
     this.name = 'PracticeWalletError';
     this.code = code;
     this.params = params;

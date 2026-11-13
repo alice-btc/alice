@@ -11,6 +11,7 @@
 
 import { APP_RELEASE_VERSION, WALLET_RELEASE_VERSION } from './app-release.ts';
 import { ANCHOR_CRON, ANCHOR_RUN_MS, RUN_REQUEST_BUDGET, RequestBudget, listenArkadeStream, readAnchors, refreshAnchors } from './explorer-anchors.ts';
+import { moneroPoolsResponse } from './monero-pools.ts';
 import { checkAndAlert, handleTunnelAlert } from './ops-alert.ts';
 import {
   AccountHttpError,
@@ -1041,6 +1042,14 @@ export default {
         ...cors,
         'Cache-Control': 'public, max-age=60',
       });
+    }
+
+    // The Monero pool lists, read here for every browser (monero-pools.ts):
+    // which pool found which recent block, as the pools publish it. Public
+    // data, the same answer for everyone, cached at the edge; no auth, no
+    // body, nothing about the user.
+    if (url.pathname === '/explorer/monero-pools' && request.method === 'GET') {
+      return moneroPoolsResponse(request, cors);
     }
 
     // BTCPay's callback. It carries no session and no CORS origin: it is

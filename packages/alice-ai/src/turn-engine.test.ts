@@ -33,6 +33,22 @@ function services(): TurnPreparationServices & { queries: string[]; remembered: 
   };
 }
 
+test('disabled personal memory recall is honest in a fresh chat and preserves current chat context', async () => {
+  const fixture = services();
+  fixture.getMemory = async () => ({ ...createAliceMemory(), enabled: false });
+  const question = 'What background information do you know about me?';
+  const input = { history: [{ role: 'user' as const, content: question }], userMessage: question, backendType: 'local' as const, targetLanguage: 'en' as const };
+  const fresh = await prepareAliceTurn(input, fixture);
+  assert.match(fresh.directResponse!, /Personal memory is disabled/);
+  assert.doesNotMatch(fresh.directResponse!, /nothing.*recorded|limited to.*session|databases/);
+  assert.deepEqual(fixture.queries, []);
+  const current = await prepareAliceTurn({ ...input, history: [{ role: 'user', content: 'I work with relational databases.' }, ...input.history] }, fixture);
+  assert.equal(current.directResponse, null);
+  assert.ok(current.history.some(message => message.content === 'I work with relational databases.'));
+  fixture.getMemory = async () => createAliceMemory();
+  assert.equal((await prepareAliceTurn(input, fixture)).directResponse, null);
+});
+
 test('preference statements bypass retrieval and are remembered deterministically', async () => {
   const fixture = services();
   const prepared = await prepareAliceTurn({

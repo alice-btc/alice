@@ -1,4 +1,6 @@
 import { walletActionGuardReason } from './wallet-action-guard.ts';
+import { additionalExplicitMemoryCandidates, currentMemorySourceClauses, isAdditionalExplicitMemoryDeclaration } from './alice-memory-capture.ts';
+import { walletTroubleshootingReason, type WalletTroubleshootingReason } from './wallet-troubleshooting.ts';
 import { liveNetworkValueReason } from './live-network-request.ts';
 import {
   aliceMemoryRefusalReason,
@@ -18,7 +20,7 @@ function localized(language: SupportedLanguage, texts: Record<SupportedLanguage,
 
 export type AliceTurnKind = 'question' | 'personal-statement' | 'mixed' | 'conversation';
 
-export type AliceWalletStateReason = 'balance' | 'transaction-history';
+export type AliceWalletStateReason = 'balance' | 'transaction-history' | 'wallet-inspection' | 'payment-status';
 
 /**
  * Set when the message explicitly asks the assistant itself to execute a
@@ -28,8 +30,10 @@ export type AliceWalletStateReason = 'balance' | 'transaction-history';
  * wired into chat: this field only flags the request so the caller can
  * answer deterministically instead of routing it into RAG or the model,
  * which could otherwise pretend to act on the user's funds.
+ * An explicit offer to share wallet secrets uses 'share-secret' so the same
+ * direct path also warns why those secrets must not be given to chat.
  */
-export type AliceWalletActionReason = 'send-payment' | 'review-bypass';
+export type AliceWalletActionReason = 'send-payment' | 'review-bypass' | 'share-secret';
 
 /**
  * Set when a question asks for a present network value: the fee or fee rate to
@@ -39,7 +43,7 @@ export type AliceWalletActionReason = 'send-payment' | 'review-bypass';
  * the wallet guards, after them: the models measured on 2026-10-05 either
  * ignored a capability statement or invented a figure under it.
  */
-export type AliceLiveNetworkReason = 'onchain-fee' | 'lightning-route' | 'lightning-inbound' | 'mempool';
+export type AliceLiveNetworkReason = 'onchain-fee' | 'lightning-route' | 'lightning-inbound' | 'mempool' | 'bitcoin-market-price';
 
 /**
  * Set when the message asks Alice in so many words to remember a sentence
@@ -78,6 +82,7 @@ export type AliceTurnPlan = {
    */
   walletStateReason?: AliceWalletStateReason | null;
   walletActionReason?: AliceWalletActionReason | null;
+  walletTroubleshootingReason?: WalletTroubleshootingReason | null;
   liveNetworkReason?: AliceLiveNetworkReason | null;
   requestedNote?: AliceRequestedNote | null;
 };
@@ -89,15 +94,34 @@ export function directPersonalAcknowledgement(language: SupportedLanguage): stri
   });
 }
 
-export function directWalletStateResponse(language: SupportedLanguage): string {
+/** Only a standalone request to describe known personal context, not a
+ * memorisation command or a technical question about computer memory. */
+export function directDisabledPersonalContextResponse(message: string, language: SupportedLanguage): string | null {
+  const q = message.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/’/g, "'").trim();
+  if (!/^(?:what (?:background information do you know about me|do you (?:know|remember) about me)|que (?:sais|retiens)[- ]tu (?:de|sur) moi|quelles informations (?:personnelles |sur mon parcours )?(?:connais|sais)[- ]tu (?:de|sur) moi)\s*[?.!]*$/.test(q)) return null;
+  return localized(language, {
+    fr: "La mémoire personnelle est désactivée, donc je n’utilise pas les informations de contexte enregistrées. Tu peux m’indiquer ce qui compte pour cette conversation.",
+    en: "Personal memory is disabled, so I’m not using saved background information. You can tell me what matters for this conversation.",
+  });
+}
+
+export function directWalletStateResponse(language: SupportedLanguage, reason?: AliceWalletStateReason): string {
+  if (reason === 'wallet-inspection' || reason === 'payment-status') return localized(language, {
+    fr: "Cette conversation ne peut pas ouvrir ni connecter ton portefeuille, ni vérifier en direct l’état de ton paiement. Consulte la transaction et ses confirmations dans ton application de portefeuille. Je peux t’aider à comprendre les informations publiques qu’elle affiche, sans phrase de récupération, clé privée ni mot de passe.",
+    en: "This chat cannot open or connect your wallet, or check your payment’s live status. Check the transaction and its confirmations in your wallet app. I can help explain the public information it displays, without a recovery phrase, private key, or password.",
+  });
   return localized(language, {
     fr: "Cette conversation n'a pas accès au solde ni à l'historique des transactions de ton portefeuille en temps réel. Consulte directement l'application de ton portefeuille pour voir ces informations à jour.",
     en: "This chat has no access to your wallet's current balance or transaction history. Please check your wallet app directly for that up-to-date information.",
   });
 }
 
-export function directWalletActionResponse(language: SupportedLanguage): string {
-  return localized(language, {
+export function directWalletActionResponse(language: SupportedLanguage, secretOffered = false): string {
+  const warning = secretOffered ? localized(language, {
+    fr: "Ne partage pas ta phrase de récupération, tes clés privées ni ton mot de passe ici. La phrase ou les clés peuvent donner le contrôle de tes fonds à quelqu’un d’autre. Je peux te guider dans ton propre portefeuille sans recevoir ces secrets. ",
+    en: "Do not share your recovery phrase, private keys, or password here. The phrase or keys can give someone else control of your funds. I can guide you through your own wallet without receiving these secrets. ",
+  }) : '';
+  return warning + localized(language, {
     fr: "Cette conversation ne peut pas accéder à tes comptes externes ni envoyer, signer ou diffuser des fonds en ton nom. Si tu souhaites effectuer ce paiement, utilise ton application de portefeuille et vérifie toi-même la destination, le montant et les frais avant de confirmer.",
     en: "This chat cannot access your external accounts or send, sign, or broadcast funds on your behalf. If you choose to make this payment, use your wallet app and review the destination, amount, and fees yourself before confirming.",
   });
@@ -194,7 +218,7 @@ export function requestedNoteInMessage(message: string): AliceRequestedNote | nu
 // was stripped as a personal prefix.
 const QUESTION_START = /\b(what|why|how|when|where|which|who|explain|define|tell me about|can you|could you|can i|could i|should i|do i|is it|does (?:that|this|it)|qu(?:'|e )?est[- ]ce|c(?:'|e )?est quoi|pourquoi|comment|quand|ou|où|quel(?:le)?|explique|definis|définis|peux[- ]tu|pourrais[- ]tu|puis[- ]je|dois[- ]je|peut[- ]on|est[- ]il|est[- ]elle)\b/i;
 const GREETING_ONLY = /^(hi|hello|hey|bonjour|salut|coucou|bonsoir|merci|thanks|thank you)[.!?\s]*$/i;
-const PERSONAL_STATEMENT = /\b(i am|i'm|i prefer|i like|i want|i need|i work|i build|i am building|my goal|my project|je suis|je prefere|je préfère|j aime|j'aime|je veux|j ai besoin|je travaille|je construis|mon objectif|mon projet)\b/i;
+const PERSONAL_STATEMENT = /\b(i am|i'm|i prefer|i like|i want|i need|i use|i work|i build|i am building|my goal|my project|je suis|je prefere|je préfère|j aime|j'aime|je veux|j ai besoin|j['’]utilise|je travaille|je construis|mon objectif|mon projet)\b/i;
 const LEARNING_DECLARATION = /\b(i am (?:a )?(?:beginner|new|learning|beginning)|i'm (?:a )?(?:beginner|new|learning|beginning)|i know|i understand|i am comfortable|je debute|je débute|j apprends|j'apprends|je connais|je comprends|je maitrise|je maîtrise|je suis a l aise|je suis à l aise)\b/i;
 const SHORT_TOPIC = /\b(bitcoin|btc|utxos?|lightning|ark|arkade|vtxos?|mining|proof of work|privacy|coinjoin|payjoin|multisig|miniscript|taproot|covenants?)\b/i;
 const IMAGE_REQUEST = /\b(create|generate|make|draw|show|cree|crée|generer|générer|dessine|montre)\b[\s\S]*\b(image|illustration|picture)\b/i;
@@ -235,7 +259,19 @@ const WALLET_MEMORY_PREFIX = /^(?:based on what you remember about me|d'apres ce
 function walletStateGuardReason(message: string): AliceWalletStateReason | null {
   for (const clause of message.split(/(?<=[.!?;])\s+/)) {
     const normalized = normalizedFollowUp(withoutGreeting(clause))
-      .replace(WALLET_MEMORY_PREFIX, '').replace(/^(?:and|et)[, ]+/i, '');
+      .replace(WALLET_MEMORY_PREFIX, '').replace(/^(?:and|then|et|puis)[, ]+/i, '')
+      .replace(/^(?:please|s'il te plait)[, ]+/i, '');
+    // Only requests to inspect an actual wallet/payment, never explanations
+    // of how the user can do it. The caller has no wallet connection tool.
+    const requested = normalized.replace(/^(?:(?:can|could|would) you|(?:peux|pourrais)[- ]tu|tu peux)\s+(?:please\s+)?/i, '');
+    if (/^(?:open|inspect|access|connect|look (?:at|inside)|ouvre|ouvrir|inspecte(?:r)?|accede(?:r)? a|connecte(?:r)?|regarde(?:r)?)\s+(?:my (?:bitcoin |btc )?wallet|mon (?:portefeuille|wallet)(?: bitcoin)?)(?!\s+(?:file|format|code|fichier))\b/i.test(requested)) return 'wallet-inspection';
+    const statusQuery = requested.replace(/^(?:(?:check|verify|verifie(?:r)?)\s+(?:(?:whether|if|si)\s+)?|(?:is|has|est[- ]ce que)\s+)/i, '');
+    if (statusQuery !== requested && !WALLET_HYPOTHETICAL.test(statusQuery)
+      && /\b(?:my (?:payment|transaction)|(?:payment|transaction) (?:i |that i )|mon paiement|ma transaction|(?:paiement|transaction) que j')/i.test(requested)
+      // "Is my transaction final after 6 confirmations?" states the count
+      // and asks what it means; nothing has to be looked up.
+      && !/\b\d+\s+confirmations?\b/i.test(requested)
+      && /\b(?:confirm\w*|status|statut|settled|arrived|abouti\w*)\b/i.test(requested)) return 'payment-status';
     if (WALLET_HYPOTHETICAL.test(normalized)) continue;
     if (WALLET_TRANSACTION_HISTORY.test(normalized)) return 'transaction-history';
     if (WALLET_BALANCE_HOLDINGS.test(normalized)) return 'balance';
@@ -267,11 +303,21 @@ function isMemoryClause(value: string): boolean {
   const personalRecall = /^(?:(?:do|can|could) you remember|tu te souviens|te souviens[- ]tu|te rappelles[- ]tu)\b/i.test(normalized)
     && /\b(?:i|my|je|mon|ma|mes)\b|\bj['’]/i.test(normalized);
   const personalAttribute = /^(?:what(?:'s| is| are)|quel(?:le)?(?:s)? (?:est|sont)) (?:my|mon|ma|mes) (?:favou?rite|name|preferences?|goals?|projects?|nom|prenom|preferences?|objectifs?|projets?)\b/i.test(normalized);
-  return USER_MEMORY_QUESTION.test(value) || USER_MEMORY_QUESTION.test(normalized) || MEMORY_RETENTION_REQUEST.test(normalized) || personalRecall || personalAttribute;
+  return directDisabledPersonalContextResponse(value, 'en') !== null || USER_MEMORY_QUESTION.test(value) || USER_MEMORY_QUESTION.test(normalized) || MEMORY_RETENTION_REQUEST.test(normalized) || personalRecall || personalAttribute;
 }
 
 function questionClause(message: string): string | null {
-  const opener = QUESTION_START.exec(message);
+  // "I'm learning how to ..." describes learning, not an embedded question.
+  // Keep actual interrogatives or an additional question clause on the normal path.
+  if (!message.includes('?') && !INNER_QUESTION.test(message)
+    && /^(?:i(?: am|'m) learning how to|i (?:know|understand) how to|j'apprends comment|je sais comment)\b/.test(normalizedFollowUp(message).toLowerCase())) return null;
+  // A relative "when/quand" in an exactly captured topical declaration is
+  // not an interrogative. A separate question or unsupported clause still
+  // follows ordinary extraction; no broad preference pattern short-circuits it.
+  const declaration = message.replace(/[.!]\s*$/, '');
+  if (!/[.!?]/.test(declaration) && explicitMemoryCandidates(declaration).some(candidate =>
+    candidate.category === 'background' || candidate.category === 'experience')) return null;
+  const opener = /^(?:please )?(?:walk me through|talk me through|guide me through|compare|describe|decris|décris|detaille|détaille|(?:re)?calculate|(?:re)?compute|(?:re|ré)?calcule|refais(?=\s+(?:les? |ces? )?(?:deux )?calculs?\b))\b/i.exec(message) ?? QUESTION_START.exec(message);
   if (opener) {
     const prefix = message.slice(0, opener.index);
     const isConditionalPrefix = CONDITIONAL_OPENER.test(prefix.replace(/^[\s,;:.-]+/, ''));
@@ -327,25 +373,48 @@ export function isExplicitContinuationRequest(message: string): boolean {
 }
 
 export function explicitMemoryCandidates(message: string): AliceMemoryCandidate[] {
-  const candidates: AliceMemoryCandidate[] = [];
-  if (/\b(i prefer|je prefere|je préfère)\b[\s\S]*\b(concise|short|brief|courte?s?|concis(?:e)?)\b/i.test(message)) {
+  const candidates: AliceMemoryCandidate[] = additionalExplicitMemoryCandidates(message);
+  const declaredClauses = currentMemorySourceClauses(message).filter(clause => /^(?:i\b|i['’](?:m|ve)\b|my goal\b|je\b|j['’]|mon objectif\b)/i.test(clause));
+  const positiveClauses = declaredClauses.filter(clause => !/\b(?:not|never|without|if|no|pas|jamais|sans|si|aucun\w*)\b/i.test(normalizedFollowUp(clause)));
+  if (positiveClauses.some(clause => /^(i prefer|je prefere|je préfère)\b[^.!?;]*\b(concise|short|brief|courte?s?|concis(?:e)?)\b/i.test(clause))) {
     candidates.push({ category: 'preference', text: 'Prefers concise answers' });
-  } else if (/\b(i prefer|je prefere|je préfère)\b[\s\S]*\b(detailed|in depth|long|detaillee?s?|détaillée?s?|approfondie?s?)\b/i.test(message)) {
+  } else if (positiveClauses.some(clause => /^(i prefer|je prefere|je préfère)\b[^.!?;]*\b(detailed|in depth|long|detaillee?s?|détaillée?s?|approfondie?s?)\b/i.test(clause))) {
     candidates.push({ category: 'preference', text: 'Prefers detailed answers' });
   }
 
   const factBoundary = String.raw`(?=[.!?](?:\s|$)|,\s+(?:and\s+)?(?:i|je)\b|\s+and\s+(?:i|je)\b|$)`;
-  const project = new RegExp(
-    String.raw`\b(?:i am building|i'm building|i build|i am working on|i'm working on|je construis|je travaille sur)\s+(.{3,100}?)${factBoundary}`,
+  const projectPattern = new RegExp(
+    String.raw`^(?:i am building|i'm building|i build|i am working on|i'm working on|je construis|je travaille sur)\s+(.{3,100}?)${factBoundary}`,
     'i',
-  ).exec(message);
+  );
+  const project = positiveClauses.map(clause => projectPattern.exec(clause)).find(Boolean);
   if (project) candidates.push({ category: 'project', text: `Working on ${boundedSubject(project[1])}` });
 
-  const goal = new RegExp(
-    String.raw`\b(?:my goal is|i want to|i would like to|mon objectif est|je veux|j aimerais|j'aimerais)\s+(.{3,100}?)${factBoundary}`,
+  const goalPattern = new RegExp(
+    String.raw`^(?:my goal is|i want to|i would like to|mon objectif est|je veux|j aimerais|j'aimerais)\s+(.{3,100}?)${factBoundary}`,
     'i',
-  ).exec(message);
+  );
+  const goal = positiveClauses.map(clause => goalPattern.exec(clause)).find(Boolean);
   if (goal) candidates.push({ category: 'goal', text: boundedSubject(goal[1]) });
+
+  // Bounded, first-person learning/setup declarations. Check the source before
+  // canonicalizing so private details cannot disappear into an innocent fact.
+  if (aliceMemoryRefusalReason(message) === null) {
+    const clauses = declaredClauses.map(clause => normalizedFollowUp(clause).toLowerCase());
+    for (const clause of clauses) {
+      if (/^(?:i am|i'm) (?:a )?(?:complete )?beginner (?:with|in) bitcoin(?:,? (?:with )?no technical training)?$/.test(clause)
+        || /^je (?:suis (?:un |une )?(?:grand |grande )?debutant(?:e)? (?:avec|en|sur)|debute (?:avec|en|sur)) bitcoin$/.test(clause)) {
+        candidates.push({ category: 'background', text: 'Beginner with Bitcoin' });
+      } else if (/^(?:i work with|i am familiar with|i'm familiar with) (?:relational )?databases$/.test(clause)
+        || /^je (?:travaille avec|connais|maitrise) (?:les |des )?bases de donnees(?: relationnelles)?$/.test(clause)) {
+        candidates.push({ category: 'background', text: /relational|relationnelles/.test(clause) ? 'Familiar with relational databases' : 'Familiar with databases' });
+      } else if (/^i prefer sending when (?:network )?traffic is low$/.test(clause)
+        || /^i (?:usually )?wait for low.traffic periods before sending$/.test(clause)
+        || /^je prefere envoyer quand (?:le trafic|l'activite) (?:du reseau )?est faible$/.test(clause)) {
+        candidates.push({ category: 'experience', text: /prefer/.test(clause) ? 'Prefers sending during low-traffic periods' : 'Usually waits for low-traffic periods before sending' });
+      }
+    }
+  }
 
   return candidates.slice(0, 2);
 }
@@ -378,10 +447,13 @@ export function planAliceTurn(message: string): AliceTurnPlan {
   const clauses = trimmed.split(/(?<=[.!?;])\s+/).map(withoutGreeting).filter(Boolean);
   const contentClauses = clauses.filter(clause => !SOCIAL_CLAUSE.test(normalizedFollowUp(clause)) && !GREETING_ONLY.test(clause));
   const knowledgeClauses = contentClauses.filter(clause => !isMemoryClause(clause));
-  const questions = knowledgeClauses.map(questionClause).filter((clause): clause is string => Boolean(clause));
+  const questions = knowledgeClauses
+    .filter(clause => !isAdditionalExplicitMemoryDeclaration(clause))
+    .map(questionClause).filter((clause): clause is string => Boolean(clause));
   const walletStateReason = walletStateGuardReason(trimmed);
   const walletActionReason = walletActionGuardReason(trimmed);
-  const asksAboutUserMemory = !walletStateReason && !walletActionReason && contentClauses.some(isMemoryClause) && questions.length === 0;
+  const troubleshootingReason = walletTroubleshootingReason(trimmed);
+  const asksAboutUserMemory = !walletStateReason && !walletActionReason && !troubleshootingReason && contentClauses.some(isMemoryClause) && questions.length === 0;
   const requestedCapability: AliceCapabilityId = DIAGRAM_REQUEST.test(trimmed)
     ? 'diagram-generation'
     : IMAGE_REQUEST.test(trimmed)
@@ -399,20 +471,24 @@ export function planAliceTurn(message: string): AliceTurnPlan {
     && !LEARNING_DECLARATION.test(clause)
     && cleanClause(clause).split(/\s+/).length >= 3
   ));
-  const askedQuery = asksAboutUserMemory || walletStateReason || walletActionReason ? null
+  const askedQuery = asksAboutUserMemory || walletStateReason || walletActionReason || troubleshootingReason ? null
     : [...premises, ...questions].join(' ') || (requestedCapability === 'text-generation' ? null : knowledgeClauses.join(' ') || null);
   // Wallet guards keep precedence; a present-value request is then answered
   // directly, so it never reaches retrieval or the model. It is read from the
   // knowledge clauses, not from the question clauses only: "Tell me the
   // current fee rate" has no question shape and is still a value request.
-  const liveNetworkReason = asksAboutUserMemory || walletStateReason || walletActionReason
+  const liveNetworkReason = asksAboutUserMemory || walletStateReason || walletActionReason || troubleshootingReason
     ? null
     : liveNetworkValueReason(knowledgeClauses.join(' '));
-  const guarded = Boolean(walletStateReason || walletActionReason || liveNetworkReason);
+  const guarded = Boolean(walletStateReason || walletActionReason || troubleshootingReason || liveNetworkReason);
   const retrievalQuery = liveNetworkReason ? null : askedQuery;
   const declarations = knowledgeClauses
     .filter(clause => !CONDITIONAL_OPENER.test(normalizedFollowUp(clause))).join(' ');
-  const personal = PERSONAL_STATEMENT.test(declarations);
+  const capturedCandidates = explicitMemoryCandidates(declarations);
+  const personal = currentMemorySourceClauses(declarations).some(clause => {
+    const statement = clause.replace(/^(?:keep in mind that|note that|note que)\s+/i, '');
+    return /^(?:i\b|i['’]m\b|my\b|je\b|j['’]|mon\b)/i.test(statement) && PERSONAL_STATEMENT.test(statement);
+  }) || capturedCandidates.length > 0;
   const hasExplicitLearningDeclaration = LEARNING_DECLARATION.test(declarations);
 
   return {
@@ -428,12 +504,13 @@ export function planAliceTurn(message: string): AliceTurnPlan {
     // Recall questions are not new facts; separate declarations still are.
     // A conditional clause ("if I...", "si je...") is a hypothesis, not a
     // declaration, so it never seeds a memory candidate.
-    explicitMemoryCandidates: guarded ? [] : [...explicitMemoryCandidates(declarations), ...noteCandidates],
+    explicitMemoryCandidates: guarded ? [] : [...capturedCandidates, ...noteCandidates],
     hasExplicitLearningDeclaration,
     needsConversationContext: !guarded && isContextualFollowUp(retrievalQuery ?? trimmed),
     requestedCapability,
     walletStateReason,
     walletActionReason,
+    walletTroubleshootingReason: troubleshootingReason,
     liveNetworkReason,
     requestedNote: guarded ? null : requestedNote,
   };

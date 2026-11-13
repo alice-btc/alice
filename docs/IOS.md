@@ -257,3 +257,19 @@ phone on an older iOS refuses the binary.
   the cores minus 2 (between 2 and 6), neither tuned on a device. A model is
   unloaded when the chat leaves Local mode and loaded again, from the file,
   when it comes back. Thinking cannot be enabled for the local model.
+
+
+## Account links — 0.2.9 StoreKit integration
+
+The native `account_purchase_context` command reads
+`SKPaymentQueue.defaultQueue.storefront.countryCode`. Only the `USA` storefront
+allows the account screen's external website button. A missing storefront or
+another country hides the subscription card. Device language and IP address do
+not grant access. The storefront is read again when returning to the app and
+before opening the link.
+
+StoreKit must be linked in both `gen/apple/project.yml` and the generated Xcode
+project. The Rust static library alone does not replace that Xcode dependency.
+Validate an actual storefront and the opener/browser return on an iPhone before
+distribution; a simulated Web preview and a successful Rust build cannot prove
+those behaviours.

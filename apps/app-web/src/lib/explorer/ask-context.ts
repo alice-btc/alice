@@ -33,6 +33,13 @@ const BARK_NOTES: Partial<Record<TabKind, string>> = {
   tx: `The user is on a Bitcoin transaction page of ${WHERE}, opened from the Bark network; it may be a Bark round anchoring a batch of VTXOs, which the page would mark as such.`,
 };
 
+const MONERO_NOTES: Partial<Record<TabKind, string>> = {
+  overview: `The user is on the Monero home page of ${WHERE}: the live ribbon of blocks and projected mempool blocks, the network's state (height, hashrate, fees, mempool, supply), which pools mined the latest 100 blocks (as far as the pools publish it), and the search box.`,
+  block: `The user is on a Monero block page of ${WHERE}: the block map, the block's reward, fees per byte, size, coinbase outputs, the pool that mined it when known, and its transactions (fee, size, ring size); amounts and parties are hidden by the protocol.`,
+  tx: `The user is on a Monero transaction page of ${WHERE}: its inputs (each a ring of possible spends, with their ages, and a key image), its outputs (one-time keys, amounts encrypted), its fee and the fingerprints it shows. The page can check, on the device, which outputs pay an address given a view key or a transaction key; that result is never part of this context.`,
+  address: `The user is on a Monero address page of ${WHERE}: the address decoded on the device (network, kind, public keys). A Monero address never appears on the chain, so it has no balance or history to read.`,
+};
+
 const ONCHAIN_NOUN: Record<TabKind, string> = {
   overview: 'home',
   tx: 'transaction',
@@ -48,7 +55,8 @@ const ONCHAIN_NOUN: Record<TabKind, string> = {
  * draws; a Bitcoin-like network names itself by the selector's label.
  */
 export function explorerPageNote(kind: TabKind, network: { kind: NetworkKind; label: string }): string {
-  const layered = network.kind === 'spark' ? SPARK_NOTES : network.kind === 'arkade' ? ARKADE_NOTES : network.kind === 'bark' ? BARK_NOTES : undefined;
+  const layered = network.kind === 'spark' ? SPARK_NOTES : network.kind === 'arkade' ? ARKADE_NOTES : network.kind === 'bark' ? BARK_NOTES
+    : network.kind === 'monero' ? MONERO_NOTES : undefined;
   const note = layered?.[kind];
   if (note) return note;
   if (kind === 'overview') return `The user is on the ${network.label} home page of ${WHERE}: the latest blocks and the search box.`;

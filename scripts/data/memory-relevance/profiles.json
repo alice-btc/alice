@@ -1,0 +1,1784 @@
+{
+  "purpose": "Memory selection benchmark for Alice 0.2.9, phase 1 of the personalization research. 20 invented memory profiles x 20 questions. No real user data: every profile, name-free, was written for this file on 2026-11-04.",
+  "annotation": {
+    "useful": "A memory is useful for a question when (a) its category is preference or constraint, which shape the form of every answer whatever the topic, or (b) at least one of its topic tags is among the question's topic tags. A requested-note follows rule (b) unless it carries the tag general, in which case it is useful everywhere.",
+    "irrelevant": "Any sent memory that is not useful under the rule above.",
+    "tags": "fees, utxo, lightning, ark, backup, multisig, privacy, node, mining, economics, exchange, learn, hardware, wallet, dev, general",
+    "refusedBeforeRewording": "11 texts of the first draft were refused by the capture filters of main (activity, address, secret, amount) although they describe learning facts; they were reworded and the originals are listed under refusedBeforeRewording."
+  },
+  "profiles": [
+    {
+      "id": "p01-small-beginner-fr",
+      "items": [
+        {
+          "category": "experience",
+          "text": "Débute avec Bitcoin, n'a jamais envoyé de paiement",
+          "tags": [
+            "general",
+            "wallet"
+          ]
+        },
+        {
+          "category": "preference",
+          "text": "Préfère des réponses courtes",
+          "tags": []
+        },
+        {
+          "category": "goal",
+          "text": "Veut comprendre comment garder ses bitcoins en sécurité",
+          "tags": [
+            "backup",
+            "wallet"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p02-small-lightning-en",
+      "items": [
+        {
+          "category": "setup",
+          "text": "Runs a Lightning node at home on a Raspberry Pi",
+          "tags": [
+            "lightning",
+            "node"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Interested in channel liquidity management",
+          "tags": [
+            "lightning"
+          ]
+        },
+        {
+          "category": "constraint",
+          "text": "Has a slow internet connection",
+          "tags": []
+        },
+        {
+          "category": "experience",
+          "text": "Comfortable with Lightning, has opened several channels",
+          "tags": [
+            "lightning"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p03-small-privacy-fr",
+      "items": [
+        {
+          "category": "interest",
+          "text": "S'intéresse à la confidentialité des paiements",
+          "tags": [
+            "privacy"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "A déjà fait un CoinJoin",
+          "tags": [
+            "privacy"
+          ]
+        },
+        {
+          "category": "setup",
+          "text": "Utilise Sparrow Wallet sur un ordinateur portable",
+          "tags": [
+            "wallet",
+            "privacy"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p04-small-miner-en",
+      "items": [
+        {
+          "category": "project",
+          "text": "Working on a small home mining setup with a Bitaxe",
+          "tags": [
+            "mining",
+            "hardware"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Interested in mining difficulty and the halving",
+          "tags": [
+            "mining",
+            "economics"
+          ]
+        },
+        {
+          "category": "preference",
+          "text": "Likes concrete examples with numbers",
+          "tags": []
+        }
+      ]
+    },
+    {
+      "id": "p05-small-dev-en",
+      "items": [
+        {
+          "category": "project",
+          "text": "Building a Bitcoin payment page for a web shop",
+          "tags": [
+            "dev",
+            "wallet"
+          ]
+        },
+        {
+          "category": "background",
+          "text": "Works as a web developer",
+          "tags": [
+            "dev"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Wants to accept Lightning payments on the shop",
+          "tags": [
+            "lightning",
+            "dev"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Has used Bitcoin since 2021",
+          "tags": [
+            "general"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p06-medium-saver-fr",
+      "items": [
+        {
+          "category": "goal",
+          "text": "Veut épargner chaque mois en bitcoin sur le long terme",
+          "tags": [
+            "economics",
+            "wallet"
+          ]
+        },
+        {
+          "category": "setup",
+          "text": "Utilise un portefeuille matériel Trezor",
+          "tags": [
+            "hardware",
+            "wallet",
+            "backup"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "A déjà perdu l'accès à un portefeuille par le passé",
+          "tags": [
+            "backup"
+          ]
+        },
+        {
+          "category": "constraint",
+          "text": "N'a pas d'ordinateur, seulement un téléphone",
+          "tags": []
+        },
+        {
+          "category": "interest",
+          "text": "S'intéresse au halving et à l'émission monétaire",
+          "tags": [
+            "economics",
+            "mining"
+          ]
+        },
+        {
+          "category": "preference",
+          "text": "Préfère les explications pas à pas",
+          "tags": []
+        },
+        {
+          "category": "background",
+          "text": "Travaille dans la restauration",
+          "tags": []
+        },
+        {
+          "category": "interest",
+          "text": "Curieux des frais et du mempool",
+          "tags": [
+            "fees",
+            "utxo"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "A déjà fait un retrait d'une plateforme vers son portefeuille",
+          "tags": [
+            "exchange",
+            "wallet"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p07-medium-ark-en",
+      "items": [
+        {
+          "category": "interest",
+          "text": "Interested in Ark and how VTXOs expire",
+          "tags": [
+            "ark"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Tried the Alice Playground wallet on Mutinynet",
+          "tags": [
+            "wallet",
+            "learn"
+          ]
+        },
+        {
+          "category": "setup",
+          "text": "Uses a mobile wallet on Android",
+          "tags": [
+            "wallet"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Wants to compare Ark and Lightning for small payments",
+          "tags": [
+            "ark",
+            "lightning",
+            "fees"
+          ]
+        },
+        {
+          "category": "preference",
+          "text": "Prefers detailed answers",
+          "tags": []
+        },
+        {
+          "category": "interest",
+          "text": "Reads about covenants and Taproot",
+          "tags": [
+            "dev"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Has run a pruned node once",
+          "tags": [
+            "node"
+          ]
+        },
+        {
+          "category": "background",
+          "text": "Studies computer science",
+          "tags": [
+            "dev"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p08-medium-multisig-fr",
+      "items": [
+        {
+          "category": "setup",
+          "text": "Utilise un portefeuille multisig 2 de 3 avec des clés matérielles",
+          "tags": [
+            "multisig",
+            "backup",
+            "hardware"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Veut tester la restauration de son multisig sans risque",
+          "tags": [
+            "multisig",
+            "backup"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Connaît bien les UTXO et la sélection des pièces",
+          "tags": [
+            "utxo",
+            "fees"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "S'intéresse aux descripteurs de portefeuille",
+          "tags": [
+            "multisig",
+            "wallet"
+          ]
+        },
+        {
+          "category": "constraint",
+          "text": "Ne peut pas installer de logiciel sur l'ordinateur du travail",
+          "tags": []
+        },
+        {
+          "category": "preference",
+          "text": "Veut qu'on explique les termes techniques",
+          "tags": []
+        },
+        {
+          "category": "interest",
+          "text": "Suit l'actualité du minage",
+          "tags": [
+            "mining"
+          ]
+        },
+        {
+          "category": "background",
+          "text": "Comptable de métier",
+          "tags": [
+            "economics"
+          ]
+        },
+        {
+          "category": "requested-note",
+          "text": "Je garde mes sauvegardes dans 2 lieux différents",
+          "tags": [
+            "backup"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "A déjà consolidé des UTXO quand les frais étaient bas",
+          "tags": [
+            "utxo",
+            "fees"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Veut expliquer Bitcoin à ses parents",
+          "tags": [
+            "general",
+            "learn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p09-medium-skeptic-en",
+      "items": [
+        {
+          "category": "interest",
+          "text": "Interested in whether Bitcoin is a Ponzi or a bubble",
+          "tags": [
+            "economics"
+          ]
+        },
+        {
+          "category": "background",
+          "text": "Comes from traditional finance",
+          "tags": [
+            "economics",
+            "exchange"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Has never held bitcoin",
+          "tags": [
+            "general",
+            "wallet"
+          ]
+        },
+        {
+          "category": "preference",
+          "text": "Wants sources and references",
+          "tags": []
+        },
+        {
+          "category": "interest",
+          "text": "Curious about energy use of mining",
+          "tags": [
+            "mining"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Wants to decide whether to open an account on an exchange",
+          "tags": [
+            "exchange"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Follows ETF news",
+          "tags": [
+            "economics",
+            "exchange"
+          ]
+        },
+        {
+          "category": "constraint",
+          "text": "Has 10 minutes a day to learn",
+          "tags": []
+        }
+      ]
+    },
+    {
+      "id": "p10-medium-learner-fr",
+      "items": [
+        {
+          "category": "experience",
+          "text": "A terminé le cours Le parcours de Bitcoin dans Learn",
+          "tags": [
+            "learn",
+            "general"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Veut suivre le cours sur la confidentialité",
+          "tags": [
+            "learn",
+            "privacy"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Aime les quiz pour vérifier ce qu'elle a compris",
+          "tags": [
+            "learn"
+          ]
+        },
+        {
+          "category": "preference",
+          "text": "Préfère le tutoiement et un ton simple",
+          "tags": []
+        },
+        {
+          "category": "experience",
+          "text": "A installé son premier portefeuille mobile la semaine dernière",
+          "tags": [
+            "wallet"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Veut comprendre ce qu'est un nœud",
+          "tags": [
+            "node"
+          ]
+        },
+        {
+          "category": "constraint",
+          "text": "Lit sur un petit écran de téléphone",
+          "tags": []
+        },
+        {
+          "category": "goal",
+          "text": "Veut recevoir un premier paiement d'un ami",
+          "tags": [
+            "wallet",
+            "fees"
+          ]
+        },
+        {
+          "category": "background",
+          "text": "Infirmière, pas de formation technique",
+          "tags": []
+        },
+        {
+          "category": "interest",
+          "text": "S'intéresse à l'histoire de Bitcoin",
+          "tags": [
+            "economics"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p11-medium-node-en",
+      "items": [
+        {
+          "category": "setup",
+          "text": "Runs Bitcoin Core as a full node on an old laptop",
+          "tags": [
+            "node"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Interested in mempool policy and relay rules",
+          "tags": [
+            "node",
+            "fees",
+            "utxo"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Comfortable with the command line",
+          "tags": [
+            "dev",
+            "node"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Wants to connect a mobile wallet to the home node",
+          "tags": [
+            "node",
+            "wallet",
+            "privacy"
+          ]
+        },
+        {
+          "category": "preference",
+          "text": "Prefers precise technical vocabulary",
+          "tags": []
+        },
+        {
+          "category": "interest",
+          "text": "Reads about Lightning routing",
+          "tags": [
+            "lightning"
+          ]
+        },
+        {
+          "category": "background",
+          "text": "Network engineer",
+          "tags": [
+            "dev"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Once paid fees too low and waited days for a confirmation",
+          "tags": [
+            "fees",
+            "utxo"
+          ]
+        },
+        {
+          "category": "project",
+          "text": "Working on a dashboard for the node",
+          "tags": [
+            "node",
+            "dev"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p12-medium-family-fr",
+      "items": [
+        {
+          "category": "goal",
+          "text": "Veut mettre en place un héritage de ses bitcoins pour ses enfants",
+          "tags": [
+            "backup",
+            "multisig"
+          ]
+        },
+        {
+          "category": "setup",
+          "text": "Utilise un portefeuille matériel Ledger",
+          "tags": [
+            "hardware",
+            "wallet",
+            "backup"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "S'intéresse au multisig pour la famille",
+          "tags": [
+            "multisig"
+          ]
+        },
+        {
+          "category": "constraint",
+          "text": "Ne veut aucun jargon",
+          "tags": []
+        },
+        {
+          "category": "experience",
+          "text": "A acheté ses premiers bitcoins il y a 1 an",
+          "tags": [
+            "general"
+          ]
+        },
+        {
+          "category": "background",
+          "text": "Parent de 2 enfants",
+          "tags": []
+        },
+        {
+          "category": "interest",
+          "text": "Curieux de la façon dont les frais sont calculés",
+          "tags": [
+            "fees"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Veut comprendre les risques d'une plateforme d'échange",
+          "tags": [
+            "exchange"
+          ]
+        },
+        {
+          "category": "preference",
+          "text": "Aime les analogies du quotidien",
+          "tags": []
+        },
+        {
+          "category": "interest",
+          "text": "Se demande si Bitcoin consomme trop d'énergie",
+          "tags": [
+            "mining"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "A déjà payé un commerçant en Lightning",
+          "tags": [
+            "lightning"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p13-medium-trader-en",
+      "items": [
+        {
+          "category": "experience",
+          "text": "Trades on exchanges and keeps coins there",
+          "tags": [
+            "exchange"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Wants to move coins to self-custody",
+          "tags": [
+            "wallet",
+            "backup",
+            "exchange"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Interested in why withdrawal fees differ from network fees",
+          "tags": [
+            "fees",
+            "exchange"
+          ]
+        },
+        {
+          "category": "constraint",
+          "text": "Travels a lot, often offline",
+          "tags": []
+        },
+        {
+          "category": "preference",
+          "text": "Short answers, bullet points",
+          "tags": []
+        },
+        {
+          "category": "interest",
+          "text": "Curious about KYC and what exchanges know",
+          "tags": [
+            "privacy",
+            "exchange"
+          ]
+        },
+        {
+          "category": "background",
+          "text": "Day trader",
+          "tags": [
+            "exchange",
+            "economics"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Never used a hardware wallet",
+          "tags": [
+            "hardware",
+            "wallet"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p14-medium-educator-fr",
+      "items": [
+        {
+          "category": "project",
+          "text": "Prépare un atelier Bitcoin pour un meetup",
+          "tags": [
+            "learn",
+            "general"
+          ]
+        },
+        {
+          "category": "background",
+          "text": "Enseigne l'économie au lycée",
+          "tags": [
+            "economics",
+            "learn"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Veut expliquer la preuve de travail simplement",
+          "tags": [
+            "mining",
+            "learn"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "S'intéresse aux UTXO comme modèle comptable",
+          "tags": [
+            "utxo"
+          ]
+        },
+        {
+          "category": "preference",
+          "text": "Aime les schémas et les étapes numérotées",
+          "tags": []
+        },
+        {
+          "category": "experience",
+          "text": "Utilise Bitcoin depuis 2017",
+          "tags": [
+            "general"
+          ]
+        },
+        {
+          "category": "setup",
+          "text": "Utilise Alice Desktop sur Mac",
+          "tags": [
+            "wallet",
+            "learn"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Curieuse de Lightning pour les petits paiements",
+          "tags": [
+            "lightning",
+            "fees"
+          ]
+        },
+        {
+          "category": "requested-note",
+          "text": "Je prépare l'atelier pour le 15 décembre",
+          "tags": [
+            "learn"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Veut un support de cours en français",
+          "tags": [
+            "learn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p15-medium-privacy-en",
+      "items": [
+        {
+          "category": "interest",
+          "text": "Interested in CoinJoin and PayJoin",
+          "tags": [
+            "privacy"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Wants to stop reusing the same receiving destination",
+          "tags": [
+            "privacy",
+            "wallet"
+          ]
+        },
+        {
+          "category": "setup",
+          "text": "Uses Tor for wallet connections",
+          "tags": [
+            "privacy",
+            "node"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Has used a mixing service years ago",
+          "tags": [
+            "privacy"
+          ]
+        },
+        {
+          "category": "constraint",
+          "text": "Cannot run a node at home",
+          "tags": []
+        },
+        {
+          "category": "interest",
+          "text": "Reads about silent payments",
+          "tags": [
+            "privacy",
+            "dev"
+          ]
+        },
+        {
+          "category": "preference",
+          "text": "Prefers English even for French tools",
+          "tags": []
+        },
+        {
+          "category": "background",
+          "text": "Journalist",
+          "tags": [
+            "privacy"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Curious about Ark privacy properties",
+          "tags": [
+            "ark",
+            "privacy"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p16-large-mixed-fr",
+      "items": [
+        {
+          "category": "experience",
+          "text": "Utilise Bitcoin depuis 2019",
+          "tags": [
+            "general"
+          ]
+        },
+        {
+          "category": "setup",
+          "text": "Utilise un nœud complet et un portefeuille matériel",
+          "tags": [
+            "node",
+            "hardware",
+            "wallet"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "S'intéresse à Lightning",
+          "tags": [
+            "lightning"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "S'intéresse à Ark",
+          "tags": [
+            "ark"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "S'intéresse au minage",
+          "tags": [
+            "mining"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "S'intéresse à la confidentialité",
+          "tags": [
+            "privacy"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "S'intéresse aux frais et au mempool",
+          "tags": [
+            "fees",
+            "utxo"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "S'intéresse à l'économie autrichienne",
+          "tags": [
+            "economics"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Veut ouvrir un canal Lightning",
+          "tags": [
+            "lightning"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Veut tester Ark sur un réseau de test",
+          "tags": [
+            "ark"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Veut vérifier sa sauvegarde",
+          "tags": [
+            "backup"
+          ]
+        },
+        {
+          "category": "project",
+          "text": "Monte un petit mineur à la maison",
+          "tags": [
+            "mining",
+            "hardware"
+          ]
+        },
+        {
+          "category": "project",
+          "text": "Écrit un blog sur Bitcoin",
+          "tags": [
+            "learn",
+            "general"
+          ]
+        },
+        {
+          "category": "preference",
+          "text": "Préfère les réponses détaillées",
+          "tags": []
+        },
+        {
+          "category": "constraint",
+          "text": "Peu de temps en semaine",
+          "tags": []
+        },
+        {
+          "category": "background",
+          "text": "Ingénieur en électronique",
+          "tags": [
+            "hardware",
+            "dev"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "A déjà fermé un canal de force",
+          "tags": [
+            "lightning"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "A déjà regroupé des petites sorties",
+          "tags": [
+            "utxo",
+            "fees"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Curieux des sidechains comme Liquid",
+          "tags": [
+            "dev"
+          ]
+        },
+        {
+          "category": "requested-note",
+          "text": "Je veux relire la fiche sur les sorties Ark avant de tester",
+          "tags": [
+            "ark"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p17-large-beginner-en",
+      "items": [
+        {
+          "category": "experience",
+          "text": "Complete beginner, started last month",
+          "tags": [
+            "general"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Wants to buy a first small amount safely",
+          "tags": [
+            "exchange",
+            "wallet"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Wants to understand what a wallet really stores",
+          "tags": [
+            "wallet",
+            "backup"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Wants to know why confirmations take time",
+          "tags": [
+            "fees",
+            "mining"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Heard about Lightning on a podcast",
+          "tags": [
+            "lightning"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Wonders whether Bitcoin is legal",
+          "tags": [
+            "economics"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Curious about who controls Bitcoin",
+          "tags": [
+            "economics",
+            "node",
+            "mining"
+          ]
+        },
+        {
+          "category": "setup",
+          "text": "Has only an iPhone",
+          "tags": [
+            "wallet"
+          ]
+        },
+        {
+          "category": "constraint",
+          "text": "Not a native English speaker, keep words simple",
+          "tags": []
+        },
+        {
+          "category": "preference",
+          "text": "Likes one idea at a time",
+          "tags": []
+        },
+        {
+          "category": "background",
+          "text": "Teacher",
+          "tags": [
+            "learn"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Once sent a test payment to a friend",
+          "tags": [
+            "wallet",
+            "fees"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Worried about scams",
+          "tags": [
+            "wallet",
+            "privacy"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Wants to write down the backup words correctly",
+          "tags": [
+            "backup"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Asks what happens if the phone is lost",
+          "tags": [
+            "backup",
+            "wallet"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Read the first chapters of The Bitcoin Journey",
+          "tags": [
+            "learn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p18-large-power-user-en",
+      "items": [
+        {
+          "category": "setup",
+          "text": "Runs a full node and a Lightning node",
+          "tags": [
+            "node",
+            "lightning"
+          ]
+        },
+        {
+          "category": "setup",
+          "text": "Uses a 2-of-3 multisig for savings",
+          "tags": [
+            "multisig",
+            "backup"
+          ]
+        },
+        {
+          "category": "setup",
+          "text": "Uses a mobile wallet for daily spending",
+          "tags": [
+            "wallet",
+            "lightning"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Has routed payments and rebalanced channels",
+          "tags": [
+            "lightning"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Has done CoinJoins",
+          "tags": [
+            "privacy"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Has used RBF and CPFP to unstick a stuck payment",
+          "tags": [
+            "fees",
+            "utxo"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Interested in covenants proposals",
+          "tags": [
+            "dev"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Interested in Ark security assumptions",
+          "tags": [
+            "ark"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Interested in mining pool centralization",
+          "tags": [
+            "mining"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Interested in the fee market after the subsidy ends",
+          "tags": [
+            "fees",
+            "economics",
+            "mining"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Wants to teach a friend to self-custody",
+          "tags": [
+            "learn",
+            "backup",
+            "wallet"
+          ]
+        },
+        {
+          "category": "project",
+          "text": "Contributes to an open-source wallet",
+          "tags": [
+            "dev",
+            "wallet"
+          ]
+        },
+        {
+          "category": "preference",
+          "text": "Skip the basics",
+          "tags": []
+        },
+        {
+          "category": "preference",
+          "text": "Prefers dense technical answers",
+          "tags": []
+        },
+        {
+          "category": "background",
+          "text": "Software engineer",
+          "tags": [
+            "dev"
+          ]
+        },
+        {
+          "category": "constraint",
+          "text": "Uses the app on a laptop with a small screen",
+          "tags": []
+        },
+        {
+          "category": "requested-note",
+          "text": "I am rewriting my node setup notes this month",
+          "tags": [
+            "node"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Has restored a wallet from a descriptor",
+          "tags": [
+            "multisig",
+            "backup"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Follows sidechain developments",
+          "tags": [
+            "dev"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Wants to understand dust limits precisely",
+          "tags": [
+            "utxo",
+            "fees"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Reads about Lightning splicing",
+          "tags": [
+            "lightning"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Has mined with a Bitaxe",
+          "tags": [
+            "mining",
+            "hardware"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p19-large-merchant-fr",
+      "items": [
+        {
+          "category": "project",
+          "text": "Accepte Bitcoin dans sa boulangerie",
+          "tags": [
+            "wallet",
+            "lightning",
+            "fees"
+          ]
+        },
+        {
+          "category": "setup",
+          "text": "Utilise un terminal de paiement Lightning",
+          "tags": [
+            "lightning",
+            "wallet"
+          ]
+        },
+        {
+          "category": "setup",
+          "text": "Utilise BTCPay Server hébergé par un ami",
+          "tags": [
+            "dev",
+            "node",
+            "wallet"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Veut comprendre la comptabilité des paiements en bitcoin",
+          "tags": [
+            "economics",
+            "wallet"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Veut convertir une partie des encaissements en euros",
+          "tags": [
+            "exchange"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Curieuse des frais à l'encaissement",
+          "tags": [
+            "fees",
+            "lightning"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Se demande si ses clients voient ce qu'elle a encaissé",
+          "tags": [
+            "privacy"
+          ]
+        },
+        {
+          "category": "constraint",
+          "text": "Très peu de temps, répondre vite",
+          "tags": []
+        },
+        {
+          "category": "preference",
+          "text": "Préfère le vouvoiement",
+          "tags": []
+        },
+        {
+          "category": "background",
+          "text": "Commerçante",
+          "tags": [
+            "wallet",
+            "economics"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "A reçu une centaine de paiements Lightning",
+          "tags": [
+            "lightning"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "N'a jamais fait de paiement on-chain elle-même",
+          "tags": [
+            "fees",
+            "utxo",
+            "wallet"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Veut savoir quoi faire si le terminal tombe en panne",
+          "tags": [
+            "backup",
+            "lightning"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Veut sauvegarder correctement le portefeuille de la boutique",
+          "tags": [
+            "backup"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Curieuse du minage, un client lui en a parlé",
+          "tags": [
+            "mining"
+          ]
+        },
+        {
+          "category": "requested-note",
+          "text": "Mon ami gère le serveur, je ne touche pas à la configuration",
+          "tags": [
+            "node",
+            "dev"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "S'intéresse au cours de Learn pour les entreprises",
+          "tags": [
+            "learn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p20-large-stale-en",
+      "items": [
+        {
+          "category": "interest",
+          "text": "Interested in the history of Bitcoin",
+          "tags": [
+            "economics"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Interested in Austrian economics",
+          "tags": [
+            "economics"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Interested in hyperinflation case studies",
+          "tags": [
+            "economics"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Interested in monetary policy debates",
+          "tags": [
+            "economics"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Interested in gold versus bitcoin",
+          "tags": [
+            "economics"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Wants to read the whitepaper",
+          "tags": [
+            "economics",
+            "learn"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Wants to finish the history course in Learn",
+          "tags": [
+            "learn",
+            "economics"
+          ]
+        },
+        {
+          "category": "background",
+          "text": "Retired",
+          "tags": []
+        },
+        {
+          "category": "background",
+          "text": "Former bank employee",
+          "tags": [
+            "economics",
+            "exchange"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Has never installed a wallet",
+          "tags": [
+            "wallet"
+          ]
+        },
+        {
+          "category": "experience",
+          "text": "Read 3 books about Bitcoin",
+          "tags": [
+            "learn",
+            "economics"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Follows the philosophy courses",
+          "tags": [
+            "learn",
+            "economics"
+          ]
+        },
+        {
+          "category": "preference",
+          "text": "Prefers long-form explanations",
+          "tags": []
+        },
+        {
+          "category": "constraint",
+          "text": "Poor eyesight, keep paragraphs short",
+          "tags": []
+        },
+        {
+          "category": "interest",
+          "text": "Interested in Bitcoin and the law",
+          "tags": [
+            "economics"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Interested in central bank digital currencies",
+          "tags": [
+            "economics"
+          ]
+        },
+        {
+          "category": "goal",
+          "text": "Wants to explain Bitcoin to grandchildren",
+          "tags": [
+            "learn",
+            "general"
+          ]
+        },
+        {
+          "category": "interest",
+          "text": "Curious about Satoshi's identity debates",
+          "tags": [
+            "economics"
+          ]
+        }
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "q01",
+      "lang": "fr",
+      "text": "Comment sauvegarder ma phrase de récupération ?",
+      "tags": [
+        "backup",
+        "wallet"
+      ]
+    },
+    {
+      "id": "q02",
+      "lang": "en",
+      "text": "Why is my Lightning payment failing to find a route?",
+      "tags": [
+        "lightning"
+      ]
+    },
+    {
+      "id": "q03",
+      "lang": "fr",
+      "text": "Pourquoi les frais de ma transaction sont-ils si élevés aujourd'hui ?",
+      "tags": [
+        "fees",
+        "utxo"
+      ]
+    },
+    {
+      "id": "q04",
+      "lang": "en",
+      "text": "What can an Ark operator do with my funds?",
+      "tags": [
+        "ark"
+      ]
+    },
+    {
+      "id": "q05",
+      "lang": "fr",
+      "text": "Qu'est-ce qu'un UTXO ?",
+      "tags": [
+        "utxo"
+      ]
+    },
+    {
+      "id": "q06",
+      "lang": "en",
+      "text": "How does a 2-of-3 multisig wallet get restored?",
+      "tags": [
+        "multisig",
+        "backup"
+      ]
+    },
+    {
+      "id": "q07",
+      "lang": "fr",
+      "text": "Après un CoinJoin, suis-je anonyme ?",
+      "tags": [
+        "privacy"
+      ]
+    },
+    {
+      "id": "q08",
+      "lang": "en",
+      "text": "Should I run a full node or a pruned node?",
+      "tags": [
+        "node"
+      ]
+    },
+    {
+      "id": "q09",
+      "lang": "fr",
+      "text": "Que se passe-t-il au prochain halving ?",
+      "tags": [
+        "mining",
+        "economics"
+      ]
+    },
+    {
+      "id": "q10",
+      "lang": "en",
+      "text": "Is Bitcoin a Ponzi scheme?",
+      "tags": [
+        "economics"
+      ]
+    },
+    {
+      "id": "q11",
+      "lang": "fr",
+      "text": "Quels sont les risques de laisser mes bitcoins sur une plateforme d'échange ?",
+      "tags": [
+        "exchange",
+        "wallet"
+      ]
+    },
+    {
+      "id": "q12",
+      "lang": "en",
+      "text": "Which Learn course should I start with?",
+      "tags": [
+        "learn"
+      ]
+    },
+    {
+      "id": "q13",
+      "lang": "fr",
+      "text": "Comment fonctionne la preuve de travail ?",
+      "tags": [
+        "mining"
+      ]
+    },
+    {
+      "id": "q14",
+      "lang": "en",
+      "text": "Can I cancel a Bitcoin payment I sent by mistake?",
+      "tags": [
+        "fees",
+        "utxo",
+        "wallet"
+      ]
+    },
+    {
+      "id": "q15",
+      "lang": "fr",
+      "text": "Mon portefeuille dit qu'une petite sortie n'est pas rentable à dépenser, pourquoi ?",
+      "tags": [
+        "utxo",
+        "fees"
+      ]
+    },
+    {
+      "id": "q16",
+      "lang": "en",
+      "text": "What is the difference between Lightning and Ark?",
+      "tags": [
+        "lightning",
+        "ark"
+      ]
+    },
+    {
+      "id": "q17",
+      "lang": "fr",
+      "text": "Un portefeuille matériel est-il vraiment nécessaire ?",
+      "tags": [
+        "hardware",
+        "wallet",
+        "backup"
+      ]
+    },
+    {
+      "id": "q18",
+      "lang": "en",
+      "text": "How do I accept Bitcoin payments in my shop?",
+      "tags": [
+        "wallet",
+        "lightning",
+        "dev"
+      ]
+    },
+    {
+      "id": "q19",
+      "lang": "fr",
+      "text": "C'est quoi Bitcoin, en 3 phrases ?",
+      "tags": [
+        "general"
+      ]
+    },
+    {
+      "id": "q20",
+      "lang": "en",
+      "text": "Why does address reuse hurt my privacy?",
+      "tags": [
+        "privacy",
+        "wallet"
+      ]
+    }
+  ],
+  "refusedBeforeRewording": [
+    {
+      "original": "Débute avec Bitcoin, n'a jamais envoyé de transaction",
+      "reworded": "Débute avec Bitcoin, n'a jamais envoyé de paiement"
+    },
+    {
+      "original": "S'intéresse à la confidentialité des transactions",
+      "reworded": "S'intéresse à la confidentialité des paiements"
+    },
+    {
+      "original": "Curieux des frais de transaction et du mempool",
+      "reworded": "Curieux des frais et du mempool"
+    },
+    {
+      "original": "A terminé le cours BTC101 dans Learn",
+      "reworded": "A terminé le cours Le parcours de Bitcoin dans Learn"
+    },
+    {
+      "original": "Once broadcast a transaction with fees too low and waited days",
+      "reworded": "Once paid fees too low and waited days for a confirmation"
+    },
+    {
+      "original": "Wants to avoid address reuse",
+      "reworded": "Wants to stop reusing the same receiving destination"
+    },
+    {
+      "original": "Wants to write down the recovery phrase correctly",
+      "reworded": "Wants to write down the backup words correctly"
+    },
+    {
+      "original": "Read the first chapters of BTC101",
+      "reworded": "Read the first chapters of The Bitcoin Journey"
+    },
+    {
+      "original": "Has used RBF and CPFP to unstick transactions",
+      "reworded": "Has used RBF and CPFP to unstick a stuck payment"
+    },
+    {
+      "original": "Se demande si ses clients voient son solde",
+      "reworded": "Se demande si ses clients voient ce qu'elle a encaissé"
+    },
+    {
+      "original": "N'a jamais fait de transaction on-chain elle-même",
+      "reworded": "N'a jamais fait de paiement on-chain elle-même"
+    }
+  ]
+}
