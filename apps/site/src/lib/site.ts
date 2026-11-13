@@ -25,10 +25,9 @@ export const ANDROID_VERSION = '0.2.0';
 export const ANDROID_RELEASE_URL = `${SOURCE_URL}/releases/tag/v${ANDROID_VERSION}`;
 export const ANDROID_APK_URL = `${SOURCE_URL}/releases/download/v${ANDROID_VERSION}/Alice-Wallet-beta-${ANDROID_VERSION}-v9.apk`;
 // Desktop installers ship on their own GitHub release. They track the release
-// number; the APK above does not have to follow, and the last Android build
-// published here is 0.2.0. File names are what the release workflow emits
-// (Tauri's naming), copied verbatim.
-export const DESKTOP_VERSION = '0.2.8';
+// number; the wallet APK above does not have to follow. File names are what
+// the release workflow emits (Tauri's naming), copied verbatim.
+export const DESKTOP_VERSION = '0.2.9';
 export const DESKTOP_RELEASE_URL = `${SOURCE_URL}/releases/tag/v${DESKTOP_VERSION}`;
 const DESKTOP_DOWNLOAD_BASE = `${SOURCE_URL}/releases/download/v${DESKTOP_VERSION}`;
 export const DESKTOP_MAC_URL = `${DESKTOP_DOWNLOAD_BASE}/Alice_${DESKTOP_VERSION}_universal.dmg`;
@@ -36,14 +35,14 @@ export const DESKTOP_WINDOWS_URL = `${DESKTOP_DOWNLOAD_BASE}/Alice_${DESKTOP_VER
 export const DESKTOP_LINUX_APPIMAGE_URL = `${DESKTOP_DOWNLOAD_BASE}/Alice_${DESKTOP_VERSION}_amd64.AppImage`;
 export const DESKTOP_LINUX_DEB_URL = `${DESKTOP_DOWNLOAD_BASE}/Alice_${DESKTOP_VERSION}_amd64.deb`;
 
-// Companion beta distribution. These are separate from the old Wallet APK.
-// TestFlight was approved for external testing; its current build can still
-// precede the source version. Only set the APK pair after its signed asset and
-// checksum page are publicly available. Preparing a release must not enable a
-// broken download or silently replace it with the wallet APK.
+// Companion beta distribution, separate from the wallet APK. The TestFlight
+// build can be older than the version in this repository. The APK is signed
+// with its own key, not Google Play's: it cannot be installed over the Play
+// version. Point the APK pair only at a published release, never at a draft.
 export const IOS_TESTFLIGHT_URL = 'https://testflight.apple.com/join/SgUry7w6';
-export const COMPANION_ANDROID_APK_URL: string | undefined = undefined;
-export const COMPANION_ANDROID_RELEASE_URL: string | undefined = undefined;
+const COMPANION_ANDROID_VERSION = '0.2.9';
+export const COMPANION_ANDROID_APK_URL: string | undefined = `${SOURCE_URL}/releases/download/v${COMPANION_ANDROID_VERSION}/Alice_${COMPANION_ANDROID_VERSION}_android.apk`;
+export const COMPANION_ANDROID_RELEASE_URL: string | undefined = `${SOURCE_URL}/releases/tag/v${COMPANION_ANDROID_VERSION}`;
 
 // Shown under "Alice Wallet" in the download menu. The wallet is a beta that
 // holds real bitcoin on mainnet, and the person choosing a download is the
