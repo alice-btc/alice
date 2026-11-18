@@ -1,12 +1,14 @@
 // The tab model for Explorer's browser-like workspace. Each exploration
 // (a transaction, an address, a block, an xpub) is a tab. `overview` is the
-// home tab with the search and, later, the live block ribbon.
+// home tab with the search and, later, the live block ribbon. `mempool` is a
+// projected block, not mined yet: its query is its place in the queue, "0"
+// for the next block.
 //
 // Pure data and helpers only: no React, no storage. The panel owns the array.
 
 import { t } from '../../i18n/translate.ts';
 
-export type TabKind = 'overview' | 'tx' | 'address' | 'block' | 'xpub' | 'vtxo';
+export type TabKind = 'overview' | 'tx' | 'address' | 'block' | 'mempool' | 'xpub' | 'vtxo';
 
 export type Tab = {
   id: string;
@@ -33,6 +35,7 @@ function newId(): string {
 export function shortLabel(kind: TabKind, query?: string): string {
   if (!query) return t('explorer.tabs.home');
   if (kind === 'block') return t('explorer.tabs.block', { block: /^\d+$/.test(query) ? query : `${query.slice(0, 8)}...` });
+  if (kind === 'mempool') return query === '0' ? t('explorer.tabs.nextBlock') : t('explorer.tabs.pendingBlock', { position: Number(query) + 1 });
   if (kind === 'vtxo') {
     const id = /^([0-9a-f]{64}):(\d+)$/i.exec(query);
     if (id) return `${id[1].slice(0, 6)}...${id[1].slice(-4)}:${id[2]}`;

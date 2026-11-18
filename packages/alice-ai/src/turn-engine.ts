@@ -30,7 +30,7 @@ import {
 import { liveNetworkValueResponse } from './live-network-request.ts';
 import { directWalletTroubleshootingResponse } from './wallet-troubleshooting.ts';
 
-import type { LearnSource } from './learn-context';
+import { tutorialChoicesIn, type LearnSource } from './learn-context.ts';
 
 /** How the answer language was chosen. Never carries text from the turn. */
 export type TurnLanguageDiagnostics = {
@@ -92,6 +92,62 @@ export type VerifiedReferenceId =
  */
 export function verifiedReferenceBlock(text: string): string {
   return `[Verified reference on this subject]\n${text}\n\nThe reference above was checked against primary sources. Answer the user's actual question in your own words and in the answer language. Use the facts that bear on the question, leave out the rest, add nothing that contradicts them, and do not mention that a reference was provided.`;
+}
+
+/**
+ * A question that no checked note, Learn excerpt or reference speaks to is
+ * answered from the model's own recall, where menu names and procedures of a
+ * product are the first thing it gets wrong. The model is told, and asked to
+ * tell the reader.
+ */
+export function unsourcedAnswerBlock(): string {
+  return `[No checked source on this question]\nAlice's checked notes and the Learn library returned nothing on this question, so the answer can only come from general recall. Open the answer with one short sentence, in the answer language, saying that it is given from memory, without a checked source, and may be inexact or out of date. For a named product or tool, do not present menu names, button labels, settings, version numbers or step-by-step procedures as established: describe the general approach and send the reader to the tool's official documentation. For a greeting, small talk or a question unrelated to Bitcoin, money, security or a tool, ignore this block.`;
+}
+
+/**
+ * A turn whose Learn excerpt quotes a tutorial's walkthrough (the provider
+ * says so in the excerpt, turn-context-score.ts) is asked to stay inside it.
+ * The excerpt's own heading already says so in English; the on-device model
+ * follows the turn's intent line, in the answer language, far better (it
+ * invented a PIN length and a step beside the quoted ones on 2026-11-18).
+ */
+export function walkthroughDirective(learnContext: string | null | undefined, language: 'fr' | 'en'): string {
+  if (!learnContext) return '';
+  const partial = /^Quoted below, from the start of the walkthrough/m.test(learnContext);
+  if (!partial && !/^The walkthrough is quoted below in full/m.test(learnContext)) return '';
+  // "All the steps, numbered" and "no title of an unquoted section": asked only
+  // to stay inside the excerpt, Private Cloud detailed its first section and
+  // listed the tutorial's other headings as empty bullets (2026-11-18).
+  if (language === 'fr') {
+    return `L'extrait Learn cite ${partial ? 'le début du' : 'le'} pas-à-pas d'un tutoriel. Donne toutes les étapes qu'il contient, dans son ordre, en liste numérotée, à l'impératif et en tutoyant (« vérifie », « ouvre »), avec ses noms de menus, de boutons et ses valeurs. N'ajoute aucune étape, aucun réglage ni aucun chiffre qui n'y figure pas${partial ? ", et n'écris pas les titres des sections qu'il ne cite pas. Termine par 1 phrase qui dit ce que la suite couvre et qu'elle se trouve dans le tutoriel listé sous la réponse." : '.'}`;
+  }
+  return `The Learn excerpt quotes ${partial ? 'the start of ' : ''}a tutorial's walkthrough. Give every step it contains, in its order, as a numbered list, with its menu names, button labels and values. Add no step, setting or figure that is not in it${partial ? ', and do not write the titles of the sections it does not quote. End with one sentence saying what the rest covers and that it is in the tutorial listed under the reply.' : '.'}`;
+}
+
+/**
+ * A name the Learn library cannot pin on one thing: several tutorials carry
+ * it ("Trezor"), or it is only part of a tutorial's title and a word of its
+ * own ("Mint" and "Linux Mint"). The provider says so in the excerpt
+ * (turn-context.ts). The turn then asks which one is meant instead of
+ * choosing. One short instruction of its own: folded into the instruction for
+ * a name on its own as a condition, the on-device model described the brand
+ * and asked nothing (2026-11-18).
+ */
+export function ambiguousNameDirective(learnContext: string | null | undefined, language: 'fr' | 'en'): string {
+  if (!learnContext) return '';
+  // Numbered sentences: the on-device model follows a shape it can count
+  // better than a condition it has to weigh.
+  if (tutorialChoicesIn(learnContext).length > 1) {
+    return language === 'fr'
+      ? "Plusieurs tutoriels portent ce nom. Réponds en 3 phrases au plus. Phrase 1 : la marque ou l'outil que ce nom désigne. Phrase 2, seulement si le contexte fourni donne aussi un autre sens à ce mot : cet autre sens. Dernière phrase : une question courte qui demande lequel intéresse l'utilisateur. Ne cite pas les tutoriels : l'application affiche leur liste juste sous ta question. N'ajoute rien que le contexte fourni ne soutient pas."
+      : 'Several tutorials carry this name. Answer in 3 sentences at most. Sentence 1: the brand or tool the name stands for. Sentence 2, only if the provided context also gives the word another meaning: that other meaning. Last sentence: a short question asking which one the user is interested in. Do not name the tutorials: the app shows their list right under your question. Add nothing the provided context does not support.';
+  }
+  const part = /^The message is only part of this tutorial's name \("([^"\n]{1,80})"(?:, ([^\n]{1,200}?))?\):/m.exec(learnContext);
+  if (!part) return '';
+  const tutorial = part[2] ? `${part[1]} » (${part[2]})` : `${part[1]} »`;
+  return language === 'fr'
+    ? `Ce mot est aussi une partie du nom d'un tutoriel. Réponds en 3 phrases. Phrase 1 : ce que ce mot veut dire seul, d'après le contexte fourni. Phrase 2 : il existe aussi le tutoriel « ${tutorial}. Phrase 3 : une question qui demande lequel des 2 intéresse l'utilisateur. N'ajoute rien que le contexte fourni ne soutient pas.`
+    : `This word is also part of a tutorial's name. Answer in 3 sentences. Sentence 1: what the word means on its own, from the provided context. Sentence 2: there is also the tutorial "${part[2] ? `${part[1]}" (${part[2]})` : `${part[1]}"`}. Sentence 3: a question asking which of the 2 the user is interested in. Add nothing the provided context does not support.`;
 }
 
 /**
@@ -310,6 +366,14 @@ export async function prepareAliceTurn(input: {
   const arithmeticEvidence = onDevice
     ? [coinbaseArithmeticEvidence(input.userMessage, input.targetLanguage, answerRuleNoteIds, coinbaseArithmeticAntecedent(previousUserTurns.map(turn => turn.content))), utxoArithmeticEvidence(input.userMessage, input.targetLanguage, answerRuleNoteIds, previousUserTurns.at(-1)?.content ?? '')].filter(Boolean).join('\n\n')
     : '';
+  // A follow-up leans on the conversation, and a diagram or image request is
+  // not a factual answer: neither is announced as unsourced.
+  const unsourced = Boolean(retrievalQuery)
+    && (plan.kind === 'question' || plan.kind === 'mixed')
+    && plan.requestedCapability === 'text-generation'
+    && !plan.needsConversationContext
+    && !retrieval.value.ragContext && !retrieval.value.learnContext && !retrieval.value.localContext
+    && !verifiedReference && !arithmeticEvidence;
   const history = composeGenerationHistory(
     input.history,
     retrieval.value,
@@ -326,11 +390,16 @@ export async function prepareAliceTurn(input: {
     // remain on-device, inspectable and erasable in "What Alice knows".
     selectedMemoryContext,
     memory.value.enabled ? services.memoryCaptureInstruction : '',
-    turnResponseDirective(plan, input.targetLanguage),
+    [
+      // A name the library cannot pin on one thing is asked about, not described.
+      ambiguousNameDirective(retrieval.value.learnContext, input.targetLanguage) || turnResponseDirective(plan, input.targetLanguage),
+      walkthroughDirective(retrieval.value.learnContext, input.targetLanguage),
+    ].filter(Boolean).join(' '),
     [
       answerRulesBlock(answerRuleNoteIds, input.targetLanguage, undefined, input.userMessage),
       arithmeticEvidence,
       verifiedReference && !fixedOnDevice ? verifiedReferenceBlock(verifiedReference.text) : '',
+      unsourced ? unsourcedAnswerBlock() : '',
     ].filter(Boolean).join('\n\n'),
   );
 

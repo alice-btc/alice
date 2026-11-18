@@ -89,13 +89,28 @@ export function formatBytes(bytes: number, locale: Locale = currentLocale()): st
   return translate(locale, 'explorerBlocks.bytes.mb', { value: formatFixed(bytes / (1024 * 1024), 2, locale) });
 }
 
+/**
+ * A fee rate at the precision its size calls for: whole from 10 sat/vB, one
+ * decimal under 10, two under 1. A quiet mempool clears well under 1 sat/vB,
+ * where a whole number would read "0" and 0.1 and 0.19 would look the same.
+ */
+export function feeRateValue(rate: number): number {
+  if (rate >= 10) return Math.round(rate);
+  if (rate >= 1) return Math.round(rate * 10) / 10;
+  return Math.round(rate * 100) / 100;
+}
+
+/** "12 sat/vB", "4,6 sat/vB", "0,12 sat/vB". */
+export function formatFeeRate(rate: number, locale: Locale = currentLocale()): string {
+  return `${formatPlain(feeRateValue(rate), locale)} sat/vB`;
+}
+
 // A block's fee spread as "low - high sat/vB", from the feeRange percentiles.
 export function formatFeeRange(feeRange?: number[], locale: Locale = currentLocale()): string | null {
   if (!feeRange || feeRange.length === 0) return null;
-  const lo = feeRange[0];
-  const hi = feeRange[feeRange.length - 1];
-  const r = (n: number) => formatPlain(n >= 10 ? Math.round(n) : Math.round(n * 10) / 10, locale);
-  return lo === hi ? `${r(hi)} sat/vB` : `${r(lo)} - ${r(hi)} sat/vB`;
+  const lo = feeRateValue(feeRange[0]);
+  const hi = feeRateValue(feeRange[feeRange.length - 1]);
+  return lo === hi ? formatFeeRate(hi, locale) : `${formatPlain(lo, locale)} - ${formatFeeRate(hi, locale)}`;
 }
 
 /** How a chain's ribbon and block map read fees and size: Bitcoin in sat/vB
@@ -121,7 +136,7 @@ export type ChainScale = {
 };
 
 export const BITCOIN_SCALE: ChainScale = {
-  rate: n => `${Math.round(n)} sat/vB`,
+  rate: n => formatFeeRate(n),
   range: formatFeeRange,
   color: feeColor,
   colorHex: feeColorHex,

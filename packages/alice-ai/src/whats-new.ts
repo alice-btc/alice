@@ -18,6 +18,27 @@ export const RELEASE_NOTES_URL = 'https://github.com/alice-btc/alice/releases';
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: '0.2.10',
+    highlights: [
+      'Ask Alice how to use a tool, a Coldcard or Sparrow for example: the answer follows the steps of its Plan ₿ Academy tutorial, and a security warning from that tutorial is shown first.',
+      'Type a name on its own, such as “Trezor”: Alice says what it is and, when several tutorials carry that name, asks which one you mean.',
+      'Explorer opens the blocks still waiting: choose a pending block in the ribbon to see its transactions, live.',
+      'Course images in Learn zoom: pinch, drag, or use the + and − buttons.',
+      'On a computer, 3 Gemma 4 models join the list of local models, as alternatives to Qwen, which remains the recommended choice.',
+      'Alice no longer sends any usage counter: the app counts neither how often it is opened nor your answers.',
+    ],
+    translations: {
+      fr: [
+        'Demandez à Alice comment utiliser un outil, une Coldcard ou Sparrow par exemple : la réponse suit les étapes de son tutoriel Plan ₿ Academy, et l’avis de sécurité de ce tutoriel s’affiche en premier.',
+        'Écrivez un nom seul, comme « Trezor » : Alice dit ce que c’est et, quand plusieurs tutoriels portent ce nom, demande lequel vous intéresse.',
+        'L’Explorer ouvre les blocs encore en attente : choisissez un bloc en attente dans le ruban pour voir ses transactions, en direct.',
+        'Les images des cours de Learn se zooment : pincez, faites glisser, ou utilisez les boutons + et −.',
+        'Sur ordinateur, 3 modèles Gemma 4 rejoignent la liste des modèles locaux, en alternative à Qwen qui reste le choix recommandé.',
+        'Alice n’envoie plus aucun compteur d’usage : l’app ne compte ni ses ouvertures ni vos réponses.',
+      ],
+    },
+  },
+  {
     version: '0.2.9',
     highlights: [
       'Improved reasoning and answers from Alice.',

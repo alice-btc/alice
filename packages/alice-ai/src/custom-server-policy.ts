@@ -75,13 +75,16 @@ export function fitCustomServerMessages(messages: Message[], modelHint: string):
  * How to keep a thinking model from spending its budget on a <think> block:
  * the /no_think soft switch in the prompt, plus the request field each API
  * understands. Nothing for a family without a thinking mode, so a server
- * strict about unknown fields never sees them.
+ * strict about unknown fields never sees them. Gemma 4 gets the switch on the
+ * OpenAI API only, where llama-server was seen to turn its reasoning on by
+ * default; an Ollama server keeps its own default, not measured.
  */
 export function customThinkingSwitch(modelHint: string, protocol: CustomServerProtocol): {
   promptSuffix: string;
   payload: Record<string, unknown>;
 } {
   if (!usesAnswerOnlyLocalMode(modelHint)) return { promptSuffix: '', payload: {} };
+  if (localModelFamily(modelHint) === 'gemma4' && protocol !== 'openai') return { promptSuffix: '', payload: {} };
   return {
     promptSuffix: ' /no_think',
     payload: protocol === 'openai' ? { chat_template_kwargs: { enable_thinking: false } } : { think: false },

@@ -77,6 +77,19 @@ export function youTubeWatchUrl(youtubeId: string, startSeconds = 0): string {
   return `https://www.youtube.com/watch?v=${youtubeId}${startSeconds > 0 ? `&t=${startSeconds}s` : ''}`;
 }
 
+/**
+ * French sets a space before ? ! : ; and inside « ». A plain space lets the
+ * mark wrap to the next line on its own, so it becomes a no-break space.
+ */
+export function attachPunctuation(text: string): string {
+  return text.replace(/ ([?!:;»])/g, '\u00A0$1').replace(/« /g, '«\u00A0');
+}
+
+/** The closing marks a text opens with: the "." or ")" right after a link. */
+export function leadingClosingMarks(text: string): string {
+  return /^[.,;:!?)\]»”’…]+/.exec(text)?.[0] ?? '';
+}
+
 export function parseInline(text: string): LearnInline[] {
   const nodes: LearnInline[] = [];
   let last = 0;

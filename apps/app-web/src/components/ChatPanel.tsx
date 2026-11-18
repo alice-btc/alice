@@ -6,8 +6,6 @@ import {
   getCustomServer,
   hasLocalEngine,
   isTauriDesktop,
-  flushProductEvents,
-  trackProductEvent,
 } from '@alice-wallet/alice-ai';
 import { useAutoScroll } from '@/hooks/use-auto-scroll';
 import { useQuestionParam } from '@/hooks/use-question-param';
@@ -23,7 +21,7 @@ import { LocalModelNudge, localModelInstalled, recordCloudSend } from '@/compone
 import { ModelSelector } from '@/components/ModelSelector';
 import { Sidebar, SIDEBAR_ICON_SVG } from '@/components/Sidebar';
 import { SvgIcon } from '@/components/SvgIcon';
-import { PLUS_ICON, SETTINGS_ICON } from '@/lib/atelier-icons';
+import { CHAT_ICON, SETTINGS_ICON } from '@/lib/atelier-icons';
 import { AliceRabbit } from '@/components/AliceRabbit';
 import { useChatRabbit } from '@/hooks/use-chat-rabbit';
 import { useOpenSettings } from '@/lib/settings-url';
@@ -116,15 +114,6 @@ export function ChatPanel() {
   useEffect(() => {
     if (messages.length === 0) showGreeting();
     getCustomServer().then((cs) => setHasCustomServer(!!cs?.url)).catch(() => {});
-    trackProductEvent('app_opened');
-    trackProductEvent('chat_opened');
-    // Send whatever is still queued before the tab goes away, rather than
-    // losing it. visibilitychange is the reliable signal here; unload is not.
-    const flushOnHide = () => {
-      if (document.visibilityState === 'hidden') void flushProductEvents();
-    };
-    document.addEventListener('visibilitychange', flushOnHide);
-    return () => document.removeEventListener('visibilitychange', flushOnHide);
   }, []);
 
   const hasUserMessages = messages.some((m) => m.role === 'user');
@@ -199,7 +188,7 @@ export function ChatPanel() {
           <SvgIcon svg={SIDEBAR_ICON_SVG} size={20} color="var(--alice-muted)" />
         </button>
         <button onClick={() => { clearMessages(); setAskHandoff(null); }} className="alice-control alice-control--tool atelier-mobile-new md:hidden" aria-label={t('sidebar.newChatLabel')} disabled={busy || !hasUserMessages}>
-          <SvgIcon svg={PLUS_ICON} size={20} color="var(--alice-muted)" />
+          <SvgIcon svg={CHAT_ICON} size={20} color="var(--alice-muted)" />
         </button>
         <div className="atelier-conversation">
           <div className={inlineRabbit ? 'atelier-stage atelier-stage--inline' : 'atelier-stage'}>

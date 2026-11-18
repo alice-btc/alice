@@ -69,6 +69,25 @@ export function learnIntent(query: string): LearnRelation {
   return 'explains';
 }
 
+// How a reader asks to operate a tool. With the tool's own name in the
+// question, these words say its tutorial is wanted.
+const TOOL_SETUP = /\b(?:install\w*|configur\w*|parametr\w*|utilis\w*|use|using|set ?up|demarr\w*|start(?:ing)?|commenc\w*|debut\w*)\b/g;
+const TOOL_ACTION = /\b(?:connect\w*|reli(?:er|e|es|ez)|branch(?:er|e|es|ez)|link(?:ing)?|restaur\w*|restor\w*|recover\w*|recuper\w*|sauvegard\w*|back ?up|import\w*|export\w*|verif\w*|sign(?:er|e|ez|ing)?|updat\w*|mettre a jour|mise a jour|ajout\w*|add(?:ing)?|activ\w*|enabl\w*|envoy\w*|send(?:ing)?|recev\w*|receiv\w*)\b/;
+
+export function asksToolUsage(query: string): boolean {
+  const text = normalizeConceptText(query);
+  return text.search(TOOL_SETUP) >= 0 || TOOL_ACTION.test(text);
+}
+
+/**
+ * The normalized question without its setup words. "Install" and "use" ask
+ * for the tool as a whole; "connect" or "receive" stay, a tutorial has a
+ * section for them.
+ */
+export function withoutToolSetup(query: string): string {
+  return normalizeConceptText(query).replace(TOOL_SETUP, ' ');
+}
+
 /** Relations adjust a relevant candidate, never make an unrelated one relevant. */
 export function conceptAffinity(query: string, edges: readonly LearnConceptEdge[]): { direct: number; related: number; score: number } {
   const requested = conceptsIn(query);

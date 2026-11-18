@@ -1,7 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
-import { trackProductEvent } from '@alice-wallet/alice-ai';
 import { SvgIcon } from '@/components/SvgIcon';
 import { useT } from '@/i18n';
 import { SETTINGS_TABS, type SettingsTab } from './tabs';
@@ -56,9 +54,6 @@ export function SettingsPanel({
   onSelectTab: (id: string) => void;
 }) {
   const t = useT();
-  useEffect(() => {
-    trackProductEvent('settings_opened');
-  }, []);
 
   const active = SETTINGS_TABS.find(tab => tab.id === activeTab) ?? SETTINGS_TABS[0];
   const ActiveComponent = active.Component;

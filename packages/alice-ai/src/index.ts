@@ -266,7 +266,7 @@ export {
 } from './app-update';
 export { isNewerVersion } from './app-update-format';
 export { RELEASE_NOTES_URL, WHATS_NEW, whatsNewFor, whatsNewHighlights, type WhatsNewEntry } from './whats-new';
-export { registerLearnContextProvider, type LearnSource, type LearnTurnContext } from './learn-context';
+export { markSecurityNotice, markTutorialChoices, registerKnownTopicNames, registerLearnContextProvider, type LearnSource, type LearnTurnContext } from './learn-context';
 export {
   registerPack,
   unregisterPack,
@@ -340,13 +340,6 @@ export {
   aliceClientHeaders,
   type AlicePlatform,
 } from './client-info';
-export {
-  ALICE_PRODUCT_EVENTS,
-  trackProductEvent,
-  flushProductEvents,
-  setProductEventsEnabled,
-  type AliceProductEvent,
-} from './product-events';
 
 export { pendingWhatsNew, acknowledgeWhatsNew } from './whats-new-state';
 

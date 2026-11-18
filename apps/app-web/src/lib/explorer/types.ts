@@ -113,7 +113,9 @@ export type ProjectedBlock = {
 // block it is expected to land in (chosen by fee rate).
 export type RibbonFocus =
   | { kind: 'height'; height: number }
-  | { kind: 'pending'; feeRate: number | null };
+  | { kind: 'pending'; feeRate: number | null }
+  // The projected block whose own page is open, by its place in the queue.
+  | { kind: 'projected'; index: number };
 
 // One transaction's lightweight summary within a block, from mempool's
 // /block/:hash/summary. Enough to size and colour it in the treemap without

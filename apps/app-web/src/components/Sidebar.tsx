@@ -9,7 +9,7 @@ import {
   isTauriApp,
   isTauriDesktop,
 } from '@alice-wallet/alice-ai';
-import { MENU_ICON, PLUS_ICON, EXPLORE_ICON, LEARN_ICON, PLAY_ICON, SEARCH_ICON, DELETE_ICON, CLOSE_ICON } from '@/lib/atelier-icons';
+import { MENU_ICON, CHAT_ICON, EXPLORE_ICON, LEARN_ICON, PLAY_ICON, SEARCH_ICON, DELETE_ICON, CLOSE_ICON } from '@/lib/atelier-icons';
 import { AliceLogo } from '@/components/AliceLogo';
 import { SvgIcon } from '@/components/SvgIcon';
 import { ConfirmDialog } from '@/components/settings/ui';
@@ -23,7 +23,7 @@ import appWebPackage from '../../package.json';
 import appDesktopPackage from '../../../app-desktop/package.json';
 
 export const SIDEBAR_ICON_SVG = MENU_ICON;
-const CHAT_ICON_SVG = PLUS_ICON;
+const CHAT_ICON_SVG = CHAT_ICON;
 
 const SEARCH_ICON_SVG = SEARCH_ICON;
 

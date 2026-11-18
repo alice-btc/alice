@@ -3,13 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChainDataProvider } from '@/lib/explorer/provider';
 import type { BlockAudit, BlockTxSummary } from '@/lib/explorer/types';
-import { packBlockGrid } from '@/lib/explorer/treemap';
+import { packBlockSquare } from '@/lib/explorer/treemap';
 import { BITCOIN_SCALE, formatFixed, type ChainScale } from '@/lib/explorer/blocks';
 import { useT } from '@/i18n';
 import { formatAmount, useAmountState, WithBitcoinGlyph } from '@/components/AmountDisplay';
-import { Skeleton } from '@/components/ExplorerUI';
 
-const MAX_PX = 440; // the map never grows past this, so it stays compact
+const MAX_PX = 440; // the map never grows past this, so it stays compact (a phone caps it lower, in CSS)
 const RESOLUTION = 80;
 
 type Placed = { px: number; py: number; pside: number; tx: BlockTxSummary };
@@ -35,9 +34,14 @@ export function ExplorerBlockTreemap({
   onSelectTx,
   highlights,
   scale = BITCOIN_SCALE,
+  transactions,
 }: {
   hash: string;
   provider: Pick<ChainDataProvider, 'getBlockSummary' | 'getBlockAudit'>;
+  /** The transactions to draw, when the caller already holds them: a
+   *  projected block, fed live. The map then fetches nothing, and a new list
+   *  redraws in place without going back to the loading state. */
+  transactions?: BlockTxSummary[] | null;
   onOpenTx: (txid: string) => void;
   selectedTxid: string | null;
   onSelectTx: (txid: string) => void;
@@ -65,6 +69,12 @@ export function ExplorerBlockTreemap({
   const baseRef = useRef<ImageData | null>(null);
 
   useEffect(() => {
+    if (transactions !== undefined) {
+      setAudit(null); setView('actual');
+      setActual(transactions);
+      setStatus(transactions ? 'ready' : 'loading');
+      return;
+    }
     let cancelled = false;
     const controller = new AbortController();
     if (typeof provider.getBlockSummary !== 'function') { setStatus('unsupported'); return; }
@@ -78,7 +88,7 @@ export function ExplorerBlockTreemap({
       provider.getBlockAudit(hash, { signal: controller.signal }).then(a => { if (!cancelled) setAudit(a); }).catch(() => {});
     }
     return () => { cancelled = true; controller.abort(); };
-  }, [hash, provider]);
+  }, [hash, provider, transactions]);
 
   // Available width, capped, so the map is compact and square-ish.
   useEffect(() => {
@@ -93,18 +103,19 @@ export function ExplorerBlockTreemap({
 
   const txs = view === 'expected' && audit ? audit.template : actual;
 
-  const grid = useMemo(() => (txs ? packBlockGrid(txs.map(t => t.vsize), RESOLUTION, scale.capacity) : null), [txs, scale]);
+  const grid = useMemo(() => (txs ? packBlockSquare(txs.map(t => t.vsize), RESOLUTION, scale.capacity) : null), [txs, scale]);
 
   useEffect(() => {
     if (!txs || !grid || boxSize === 0) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const cell = boxSize / grid.gridWidth;
+    // The map is always SQUARE: the transactions settle at the bottom and the
+    // unused capacity shows as empty space above. The grid is refined to hold
+    // a crowded block; one that still ran past it would be scaled down to fit
+    // rather than stretch the map.
+    const cell = boxSize / Math.max(grid.gridWidth, grid.rows);
     const pxW = boxSize;
-    // Keep the map SQUARE (R x R): the transactions settle at the bottom and the
-    // unused capacity shows as empty space above. Only a block that somehow
-    // overflows the grid grows taller than the square.
-    const pxH = Math.max(boxSize, grid.rows * cell);
+    const pxH = boxSize;
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     canvas.width = Math.round(pxW * dpr);
     canvas.height = Math.round(pxH * dpr);
@@ -193,12 +204,12 @@ export function ExplorerBlockTreemap({
   const canToggle = audit !== null;
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="alice-block-map-frame flex flex-col gap-2">
       {status === 'loading' && (
         // The map's square holds its place while the summary loads, with the
         // label below where it will stay, so nothing shifts when it lands.
         <>
-          <Skeleton width={300} height={300} style={{ maxWidth: '100%' }} />
+          <div className="rh-skeleton alice-block-map-loading" aria-hidden />
           <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>{t('explorerBlocks.map.title')}</span>
         </>
       )}
@@ -208,7 +219,7 @@ export function ExplorerBlockTreemap({
 
       {status === 'ready' && (
         <>
-        <div ref={wrapRef} className="relative w-full rh-fade-in">
+        <div ref={wrapRef} className="alice-block-map relative w-full rh-fade-in">
           <canvas
             ref={canvasRef}
             tabIndex={0}
@@ -270,7 +281,7 @@ export function ExplorerBlockTreemap({
 
         {/* Label and the actual/expected toggle sit BELOW the map, so the map's
             top edge lines up with the block details panel beside it. */}
-        <div className="flex items-center justify-between">
+        <div className="alice-block-map-legend flex items-center justify-between">
           <span className="font-pixel tracking-widest" style={{ fontSize: 10, color: 'var(--alice-muted)' }}>
             {view === 'expected' ? t('explorerBlocks.map.expectedTitle') : t('explorerBlocks.map.title')}
           </span>

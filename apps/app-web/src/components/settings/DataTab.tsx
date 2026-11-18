@@ -24,7 +24,6 @@ export function DataTab() {
   const [confirmChatCleanup, setConfirmChatCleanup] = useState<ChatCleanupMode | null>(null);
   const [cleaningChat, setCleaningChat] = useState(false);
   const [cleanupNotice, setCleanupNotice] = useState('');
-
   useEffect(() => {
     chat.getSessionStorageSummary()
       .then(setChatStorage)

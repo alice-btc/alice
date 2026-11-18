@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { acceptsOnlyLeadingSystemMessage, fitLocalModelRoles, usesAnswerOnlyLocalMode, localModelFamily, withLocalAnswerLanguageLine } from './local-model-message-policy.ts';
+import { acceptsOnlyLeadingSystemMessage, fitLocalModelRoles, prefillsEmptyThinkBlock, usesAnswerOnlyLocalMode, localModelFamily, withLocalAnswerLanguageLine } from './local-model-message-policy.ts';
 
 test('SmolLM3 retains transient context without promoting source text into template-control system text', () => {
   const messages = [
@@ -46,11 +46,13 @@ test('custom Hugging Face files of a known family get that family\'s template ru
   const qwen35 = 'custom:unsloth/Qwen3.5-2B-GGUF/Qwen3.5-2B-Q4_K_M.gguf';
   const qwen3 = 'custom:bartowski/Qwen_Qwen3-4B-GGUF/Qwen_Qwen3-4B-Q4_K_M.gguf';
   const smol = 'custom:unsloth/SmolLM3-3B-GGUF/SmolLM3-3B-Q4_K_M.gguf';
-  const other = 'custom:bartowski/gemma-4-E2B-it-GGUF/gemma-4-E2B-it-Q4_K_M.gguf';
+  const gemma4 = 'custom:bartowski/gemma-4-E2B-it-GGUF/gemma-4-E2B-it-Q4_K_M.gguf';
+  const other = 'custom:bartowski/Llama-3.2-3B-Instruct-GGUF/Llama-3.2-3B-Instruct-Q4_K_M.gguf';
   assert.equal(localModelFamily(qwen35), 'qwen3.5');
   assert.equal(localModelFamily(qwen3), 'qwen3');
   assert.equal(localModelFamily(smol), 'smollm3');
   assert.equal(localModelFamily(other), 'other');
+  assert.equal(localModelFamily(gemma4), 'gemma4');
   assert.equal(localModelFamily('qwen3.5-9b'), 'qwen3.5');
   assert.equal(localModelFamily('qwen3-0.6b'), 'qwen3');
   assert.equal(localModelFamily('granite-3.3-2b'), 'other');
@@ -64,6 +66,21 @@ test('custom Hugging Face files of a known family get that family\'s template ru
     { role: 'user', content: 'Question' },
   ], qwen35);
   assert.deepEqual(carried.map(message => message.role), ['system', 'user', 'user']);
+});
+
+test('Gemma 4 gets the llama-server thinking switch and leading-system shape it was measured with, never the <think> block', () => {
+  for (const id of ['gemma-4-e4b', 'gemma4:e4b', 'custom:unsloth/gemma-4-12b-it-GGUF/gemma-4-12b-it-Q4_K_M.gguf']) {
+    assert.equal(localModelFamily(id), 'gemma4', id);
+    assert.equal(usesAnswerOnlyLocalMode(id), true, id);
+    assert.equal(acceptsOnlyLeadingSystemMessage(id), true, id);
+    assert.equal(prefillsEmptyThinkBlock(id), false, id);
+  }
+  // Earlier Gemma generations keep the generic path.
+  for (const id of ['custom:unsloth/gemma-3-4b-it-GGUF/gemma-3-4b-it-Q4_K_M.gguf', 'custom:unsloth/gemma-3n-E4B-it-GGUF/gemma-3n-E4B-it-Q4_K_M.gguf', 'gemma3:4b']) {
+    assert.equal(localModelFamily(id), 'other', id);
+  }
+  for (const id of ['qwen3.5-4b', 'qwen3-4b', 'smollm3-3b']) assert.equal(prefillsEmptyThinkBlock(id), true, id);
+  assert.equal(prefillsEmptyThinkBlock('granite-3.3-2b'), false);
 });
 
 test('the language line closes the last user turn sent to a local model, never the persisted history', () => {

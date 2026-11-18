@@ -102,3 +102,14 @@ test('a bubble whose language is unclear carries no lang attribute', async () =>
   assert.match(markup, />ok</);
   assert.doesNotMatch(markup, / lang="/);
 });
+
+test('a word between single asterisks is emphasis, and a lone asterisk stays text', async () => {
+  const render = await chatMessage;
+  const markup = render({
+    lang: 'fr',
+    message: { id: 'a2', role: 'assistant', content: 'Ouvre Sparrow → *Paramètres* → **Réseau**. Le calcul 2 * 3 * 4 reste tel quel, comme a*b*c.', time: new Date() },
+  });
+  assert.match(markup, /<em>Paramètres<\/em>/);
+  assert.match(markup, /<strong>Réseau<\/strong>/);
+  assert.match(markup, /2 \* 3 \* 4 reste tel quel, comme a\*b\*c\./);
+});

@@ -2,18 +2,23 @@ import {
   LEARN_COURSES,
   LEARN_TUTORIALS,
 } from '@alice-wallet/alice-content/src/generated/planb-learn-catalog';
-import { registerLearnContextProvider, type LearnTurnContext } from '@alice-wallet/alice-ai';
+import { markSecurityNotice, markTutorialChoices, registerKnownTopicNames, registerLearnContextProvider, type LearnTurnContext } from '@alice-wallet/alice-ai';
 import { currentLocale } from '../../i18n/translate.ts';
-import { definitionExcerpt, matchDictionaryTerm } from './dictionary';
-import { dictionaryAttribution, dictionaryLanguage, fetchDefinition, fetchDictionaryIndex, prefetchDictionaryIndex } from './dictionary-packs';
+import { definitionExcerpt, isDictionaryTerm, matchDictionaryTerm } from './dictionary';
+import { dictionaryAttribution, dictionaryLanguage, fetchDefinition, fetchDictionaryIndex, prefetchDictionaryIndex, type DictionaryLang } from './dictionary-packs';
 import { fetchCoursePack, fetchTutorialPack } from './packs';
 import { defaultLearnLanguage, isWhitelistedLang, loadLearnLanguage } from './language';
-import { firstRelevantLearnContext, rankLearnCandidates, type LearnCandidate } from './learn-candidates';
-import { excerptOf, pickChapter, relevantExcerpt } from './turn-context-score';
+import { ambiguousToolTutorials, firstRelevantLearnContext, namesTutorialTool, rankLearnCandidates, tutorialsNamedBy, type LearnCandidate } from './learn-candidates';
+import { excerptOf, pickChapter, relevantExcerpt, toolTutorialExcerpt } from './turn-context-score';
 import { mergeLearnContexts, PLANB_ATTRIBUTION } from './learn-sources';
-import { conceptAffinity, describeLearnResource, learnIntent, type LearnConceptEdge } from './concept-map';
+import { asksToolUsage, conceptAffinity, describeLearnResource, learnIntent, type LearnConceptEdge } from './concept-map';
 
-type MappedLearnContext = LearnTurnContext & { conceptEdges: LearnConceptEdge[] };
+type MappedLearnContext = LearnTurnContext & {
+  conceptEdges: LearnConceptEdge[];
+  /** A tutorial picked by its tool's name for a question on using the tool:
+   *  it is what the question asks for, whatever else names the tool. */
+  answersUsage?: boolean;
+};
 
 
 // Feeds the chat turn with the text of the course a question points at (see
@@ -32,8 +37,39 @@ async function courseContext(query: string, options?: { targetLanguage?: 'fr' | 
   // Reading preferences choose the reader UI, not the language of a chat
   // excerpt. The resolved conversation language takes precedence here.
   const lang = options?.targetLanguage ?? learnLanguage();
+  const family = toolFamilyContext(query, lang);
+  if (family) return family;
   const candidates = rankLearnCandidates(query, [lang, 'fr', 'en'], LEARN_COURSES, LEARN_TUTORIALS);
   return firstRelevantLearnContext(candidates, (candidate, signal) => candidateContext(query, lang, candidate, signal));
+}
+
+const MAX_FAMILY_TUTORIALS = 8;
+
+/**
+ * A name that several tutorials carry ("Trezor": the Model One, the Safe 3,
+ * the Safe 5, a passphrase guide...) is not one tutorial's subject. The turn
+ * gets their titles and what each covers, so the answer can say what the name
+ * stands for and ask which one is meant; the reply lists them all to open.
+ */
+function toolFamilyContext(query: string, lang: string): MappedLearnContext | null {
+  if (asksToolUsage(query)) return null;
+  const tutorials = ambiguousToolTutorials(query, LEARN_TUTORIALS).slice(0, MAX_FAMILY_TUTORIALS);
+  if (tutorials.length < 2) return null;
+  const lines = tutorials.map(tutorial => {
+    const meta = tutorial.i18n[lang] ?? tutorial.i18n.en ?? Object.values(tutorial.i18n)[0];
+    return { tutorial, name: meta?.name ?? tutorial.slug, description: meta?.description ?? '' };
+  });
+  return {
+    label: 'Plan ₿ Academy tutorials that carry this name',
+    excerpt: markTutorialChoices(lines),
+    conceptEdges: [],
+    sources: lines.map(line => ({
+      kind: 'tutorial' as const,
+      label: line.name,
+      path: `/learn/?tutorial=${line.tutorial.category}/${line.tutorial.slug}`,
+      attribution: PLANB_ATTRIBUTION,
+    })),
+  };
 }
 
 async function candidateContext(query: string, lang: string, suggestion: LearnCandidate, signal: AbortSignal): Promise<MappedLearnContext | null> {
@@ -42,12 +78,21 @@ async function candidateContext(query: string, lang: string, suggestion: LearnCa
     const packLang = tutorial?.languages.includes(lang) ? lang : 'en';
     if (!isWhitelistedLang(packLang)) return null;
     const pack = await fetchTutorialPack(packLang, suggestion.category, suggestion.slug, signal);
-    const excerpt = relevantExcerpt(query, pack.name, pack.markdown);
-    if (!excerpt) return null;
+    const found = (suggestion.toolNames?.length ? toolTutorialExcerpt(query, pack.name, pack.markdown, markSecurityNotice) : null)
+      ?? relevantExcerpt(query, pack.name, pack.markdown);
+    if (!found) return null;
+    // "Mint" finds "Linux Mint" and is also a word of its own: the turn is
+    // told the name is only part of the title, so it can give both readings.
+    const partOfName = tutorialsNamedBy(query, LEARN_TUTORIALS).part.some(item => item.slug === suggestion.slug && item.category === suggestion.category);
+    const about = tutorial?.i18n[packLang]?.description ?? tutorial?.i18n.en?.description ?? '';
+    const excerpt = partOfName
+      ? `The message is only part of this tutorial's name ("${pack.name}"${about ? `, ${about}` : ''}): the word may also mean something else.\n\n${found}`
+      : found;
     const label = `${pack.name} (Plan ₿ Academy tutorial)`;
     return {
       label,
       excerpt,
+      ...(suggestion.toolNames?.length && asksToolUsage(query) ? { answersUsage: true } : {}),
       conceptEdges: describeLearnResource(suggestion.code, suggestion.relation, { title: pack.name, excerpt }),
       sources: [{ kind: 'tutorial', label: pack.name, path: `/learn/?tutorial=${suggestion.category}/${suggestion.slug}`, attribution: PLANB_ATTRIBUTION }],
     };
@@ -134,14 +179,39 @@ async function learnContext(query: string, options?: { targetLanguage?: 'fr' | '
   // Prefer the purpose requested by the user when both sources have direct
   // concept evidence. Unknown subjects keep the established definition-first
   // order, and both sources retain their authorship and Learn links.
-  if (course && definition && learnIntent(query) !== 'defines' && conceptAffinity(query, course.conceptEdges).score > conceptAffinity(query, definition.conceptEdges).score) {
+  // A question on using a tool reads its tutorial first: were the excerpt cut,
+  // the definition's end would go, not the walkthrough's steps.
+  if (course && definition && (course.answersUsage
+    || learnIntent(query) !== 'defines' && conceptAffinity(query, course.conceptEdges).score > conceptAffinity(query, definition.conceptEdges).score)) {
     return mergeLearnContexts(course, definition);
   }
   return mergeLearnContexts(definition, course);
 }
 
+// The planner asks, without waiting, whether a short message names a subject
+// Learn covers. Tutorials are in the bundled catalog; the dictionary index is
+// read once it is in memory, and asked for on the first call.
+type DictionaryEntries = Awaited<ReturnType<typeof fetchDictionaryIndex>>['entries'];
+const loadedDictionaries = new Map<DictionaryLang, DictionaryEntries>();
+const requestedDictionaries = new Set<DictionaryLang>();
+
+function namesLearnTopic(message: string): boolean {
+  if (namesTutorialTool(message, LEARN_TUTORIALS)) return true;
+  const lang = dictionaryLanguage(currentLocale());
+  if (!requestedDictionaries.has(lang)) {
+    requestedDictionaries.add(lang);
+    fetchDictionaryIndex(lang).then(
+      index => { loadedDictionaries.set(lang, index.entries); },
+      () => { requestedDictionaries.delete(lang); },
+    );
+  }
+  const entries = loadedDictionaries.get(lang);
+  return entries ? isDictionaryTerm(entries, message, lang) : false;
+}
+
 /** Wire the provider once, from the app shell. */
 export function registerLearnTurnContext(): void {
   registerLearnContextProvider(learnContext);
+  registerKnownTopicNames(namesLearnTopic);
   prefetchDictionaryIndex();
 }

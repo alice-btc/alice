@@ -65,7 +65,12 @@ import {
   adminSiteAnalytics,
   adminSuspendAccount,
   adminTestWalletFaucet,
-  recordProductEvents,
+  adminUnlockWrites,
+  adminCreateAnnotation,
+  adminDeleteAnnotation,
+  adminListAnnotations,
+  discardProductEvents,
+  recordSiteDownloadClick,
   recordTechnicalEvent,
   redeemPromoCode,
 } from './admin.ts';
@@ -86,6 +91,17 @@ import {
   type Plan,
 } from './billing.ts';
 import { refreshSatPrice } from './sat-price.ts';
+import {
+  adminErrors,
+  adminGithub,
+  adminGrowth,
+  adminHealth,
+  adminMoney,
+  adminPlatform,
+  adminVenice,
+  adminVersions,
+} from './admin-insights.ts';
+import { trackCron } from './cron-runs.ts';
 import { ADMIN_DASHBOARD_HTML } from './admin-dashboard-html.ts';
 import { lookupEntities } from './entities.ts';
 import { claimTestWalletFaucet } from './test-wallet-faucet.ts';
@@ -123,6 +139,41 @@ export type Env = Omit<CloudflareEnv, 'AUTH_EMAIL_PROVIDER' | 'EMAIL'> & {
   CF_WEB_ANALYTICS_SITE_TAG?: string;
   /** Optional: the host to look the site up by. Defaults to alicebtc.com. */
   CF_WEB_ANALYTICS_HOST?: string;
+  /**
+   * Local console only, like the CF_* above. Which Worker and which database
+   * the Infrastructure page reads from Cloudflare's analytics; the launcher
+   * fills both from wrangler.toml. Without the database id the D1 figures
+   * cover every database of the account, and the page says so.
+   */
+  CF_WORKER_SCRIPT_NAME?: string;
+  CF_D1_DATABASE_ID?: string;
+  /**
+   * Local console only. A Venice key allowed to read the account's balance
+   * and billing history, for the Venice cost page. Falls back to
+   * VENICE_API_KEY, which in .dev.vars is usually a placeholder.
+   */
+  VENICE_BILLING_API_KEY?: string;
+  /** Local console only. Below this many USD of Venice credit, the console warns. */
+  ADMIN_ALERT_VENICE_USD?: string;
+  /**
+   * Local console only, set by the launcher: the branch and commit the
+   * console runs from, and the migration files present in the checkout, so
+   * the Versions page can say what is not applied yet.
+   */
+  CONSOLE_GIT_BRANCH?: string;
+  CONSOLE_GIT_COMMIT?: string;
+  CONSOLE_MIGRATION_FILES?: string;
+  /**
+   * Local console only, optional. A GitHub token with read access to the
+   * Administration permission of the two public repositories, which is what
+   * GitHub asks for to read their traffic. Without it the console still
+   * reads the public download counters.
+   */
+  GITHUB_TRAFFIC_TOKEN?: string;
+  /** Local console only, optional: reads the site's last Vercel deployment. */
+  VERCEL_API_TOKEN?: string;
+  VERCEL_PROJECT_ID?: string;
+  VERCEL_TEAM_ID?: string;
   /**
    * Wrangler secret, set once. Lets the first authenticated Alice account
    * promote itself to admin via POST /admin/api/bootstrap. Generate with:
@@ -254,6 +305,7 @@ const CHAT_REQUESTS_PER_HOUR = 240;
 const PUBLIC_REQUESTS_PER_HOUR = {
   pccs: 600,
   explorer_entities: 600,
+  site_events: 60,
   ops_tunnel_alert: 30,
 } as const;
 
@@ -808,7 +860,7 @@ async function accountRoute(
     return json(await redeemPromoCode(request, env), 200, cors);
   }
   if (url.pathname === '/account/events' && request.method === 'POST') {
-    return json(await recordProductEvents(request, env), 200, cors);
+    return json(discardProductEvents(), 200, cors);
   }
   if (url.pathname === '/billing/plans' && request.method === 'GET') {
     // Public: a price list is of no use behind a login, and someone deciding
@@ -861,6 +913,42 @@ async function adminRoute(
   }
   if (path === '/overview' && request.method === 'GET') {
     return json(await adminOverview(request, env), 200, cors);
+  }
+  if (path === '/unlock' && request.method === 'POST') {
+    return json(await adminUnlockWrites(request, env), 200, cors);
+  }
+  if (path === '/health' && request.method === 'GET') {
+    return json(await adminHealth(request, env), 200, cors);
+  }
+  if (path === '/growth' && request.method === 'GET') {
+    return json(await adminGrowth(request, env), 200, cors);
+  }
+  if (path === '/money' && request.method === 'GET') {
+    return json(await adminMoney(request, env), 200, cors);
+  }
+  if (path === '/venice' && request.method === 'GET') {
+    return json(await adminVenice(request, env), 200, cors);
+  }
+  if (path === '/platform' && request.method === 'GET') {
+    return json(await adminPlatform(request, env), 200, cors);
+  }
+  if (path === '/errors' && request.method === 'GET') {
+    return json(await adminErrors(request, env), 200, cors);
+  }
+  if (path === '/versions' && request.method === 'GET') {
+    return json(await adminVersions(request, env), 200, cors);
+  }
+  if (path === '/github' && request.method === 'GET') {
+    return json(await adminGithub(request, env), 200, cors);
+  }
+  if (path === '/annotations' && request.method === 'GET') {
+    return json(await adminListAnnotations(request, env), 200, cors);
+  }
+  if (path === '/annotations' && request.method === 'POST') {
+    return json(await adminCreateAnnotation(request, env), 200, cors);
+  }
+  if (segments[0] === 'annotations' && segments.length === 2 && request.method === 'DELETE') {
+    return json(await adminDeleteAnnotation(request, env, decodeURIComponent(segments[1])), 200, cors);
   }
   if (path === '/analytics' && request.method === 'GET') {
     return json(await adminAnalytics(request, env), 200, cors);
@@ -1032,6 +1120,18 @@ export default {
       return json(await lookupEntities(request, env), 200, cors);
     }
 
+    // A click on one of the site's Download buttons: one counter by platform,
+    // no session, nothing about the visitor. See recordSiteDownloadClick.
+    if (url.pathname === '/site/events' && request.method === 'POST') {
+      if (!env.ACCOUNT_DB) return json({ accepted: 0 }, 200, cors);
+      try {
+        await limitPublicRoute(request, env, 'site_events');
+        return json(await recordSiteDownloadClick(request, env), 200, cors);
+      } catch (error) {
+        return accountErrorResponse(error, cors, env);
+      }
+    }
+
     // Explorer settlement anchors: the newest Arkade commitment the Worker's
     // own walk of the operator's wallet has reached, and the newest Bark round
     // the server reported (explorer-anchors.ts), so a browser starts from the
@@ -1152,9 +1252,9 @@ export default {
             // no font-src, 'default-src none' blocked them outright and the
             // page rendered with the fallback OS font instead of Alice's.
             "font-src data:",
-            // GitHub's public API is the one external call: the download
-            // counters of the released APKs, read-only and unauthenticated.
-            "connect-src 'self' https://api.github.com",
+            // The page talks to this Worker and to nothing else. GitHub,
+            // Cloudflare and Venice are asked by the Worker, never by the page.
+            "connect-src 'self'",
             "frame-ancestors 'none'",
             "form-action 'none'",
             "base-uri 'none'",
@@ -1239,45 +1339,67 @@ export default {
       // One request budget for the whole run: the walk stops short of it so
       // the listener and the candidates can still ask the chain.
       const budget = new RequestBudget(RUN_REQUEST_BUDGET);
-      const reports = await refreshAnchors(env, { budget });
-      for (const [network, r] of Object.entries(reports)) {
+      await trackCron(env, 'explorer_anchors', async () => {
+        const reports = await refreshAnchors(env, { budget });
+        for (const [network, r] of Object.entries(reports)) {
+          logTechnical({
+            route: `anchors/${network}`,
+            status: r.interrupted ? 503 : r.anchor ? 200 : 204,
+            durationMs: Date.now() - started,
+            model: '',
+            approxBytes: r.hops,
+            detail: [r.anchor ? `height ${r.anchor.height}, found ${r.found}` : `found ${r.found}`, r.failure ? `failed: ${r.failure}` : ''].filter(Boolean).join('; '),
+          });
+        }
+        // Then the run listens to the Arkade operator's stream until the next
+        // one is due, for the commitments the walk cannot reach, and logs one
+        // line: how many it heard, how many confirmed ones it adopted, how many
+        // times it had to reopen the stream.
+        const stream = await listenArkadeStream(env, started + ANCHOR_RUN_MS, { budget });
         logTechnical({
-          route: `anchors/${network}`,
-          status: r.interrupted ? 503 : r.anchor ? 200 : 204,
+          route: 'anchors/arkade-stream',
+          status: stream.failure ? 503 : 200,
           durationMs: Date.now() - started,
           model: '',
-          approxBytes: r.hops,
-          detail: [r.anchor ? `height ${r.anchor.height}, found ${r.found}` : `found ${r.found}`, r.failure ? `failed: ${r.failure}` : ''].filter(Boolean).join('; '),
+          approxBytes: stream.heard,
+          detail: [`heard ${stream.heard}, adopted ${stream.adopted}, reconnects ${stream.reconnects}, requests left ${budget.left}`, stream.failure ? `failed: ${stream.failure}` : ''].filter(Boolean).join('; '),
         });
-      }
-      // Then the run listens to the Arkade operator's stream until the next
-      // one is due, for the commitments the walk cannot reach, and logs one
-      // line: how many it heard, how many confirmed ones it adopted, how many
-      // times it had to reopen the stream.
-      const stream = await listenArkadeStream(env, started + ANCHOR_RUN_MS, { budget });
-      logTechnical({
-        route: 'anchors/arkade-stream',
-        status: stream.failure ? 503 : 200,
-        durationMs: Date.now() - started,
-        model: '',
-        approxBytes: stream.heard,
-        detail: [`heard ${stream.heard}, adopted ${stream.adopted}, reconnects ${stream.reconnects}, requests left ${budget.left}`, stream.failure ? `failed: ${stream.failure}` : ''].filter(Boolean).join('; '),
-      });
+        return { reports, stream };
+      }, ({ reports, stream }) => {
+        const interrupted = Object.entries(reports).filter(([, r]) => r.interrupted).map(([network]) => network);
+        return {
+          ok: interrupted.length === 0 && !stream.failure,
+          detail: [
+            ...Object.entries(reports).map(([network, r]) =>
+              `${network} ${r.interrupted ? 'interrupted' : r.anchor ? `height ${r.anchor.height}` : 'no anchor'}`),
+            `stream heard ${stream.heard}${stream.failure ? `, failed: ${stream.failure}` : ''}`,
+          ].join('; '),
+        };
+      }).catch(() => {});
       return;
     }
-    ctx.waitUntil(cleanupExpiredAccountData(env));
-    ctx.waitUntil(cleanupBillingData(env));
+    // Each task runs through trackCron, which writes when it last ran and
+    // whether it worked, so the console can tell a cron that stopped.
+    ctx.waitUntil(trackCron(env, 'account_cleanup', () => cleanupExpiredAccountData(env)));
+    ctx.waitUntil(trackCron(env, 'billing_cleanup', () => cleanupBillingData(env)));
     // Bitcoin cannot direct-debit, so an expiring plan is a decision the user
     // has to make. These are the only two mails Alice sends unprompted, and
     // only to an address the account holder added for exactly this.
-    ctx.waitUntil(sendExpiryReminders(env).then(() => {}).catch(() => {}));
+    ctx.waitUntil(trackCron(
+      env, 'expiry_reminders', () => sendExpiryReminders(env),
+      sent => ({ ok: true, detail: `${sent} sent` }),
+    ).then(() => {}).catch(() => {}));
     // The only place the satoshi price is allowed to move. Doing it here and
     // not in the request path is what keeps a quote from ticking while
     // somebody is reading it.
-    ctx.waitUntil(refreshSatPrice(env).catch(() => {}));
+    ctx.waitUntil(trackCron(env, 'sat_price', () => refreshSatPrice(env)).catch(() => {}));
     // The payment host is a separate service. Nothing else notices when it
     // stops answering: the app keeps working and only the checkout fails,
-    // silently, on the one screen where money was about to move.
-    ctx.waitUntil(checkAndAlert(env, 'cron').then(() => {}).catch(() => {}));
+    // silently, on the one screen where money was about to move. The check
+    // itself worked whatever it found; what it found is the detail.
+    ctx.waitUntil(trackCron(
+      env, 'btcpay_probe', () => checkAndAlert(env, 'cron'),
+      diagnosis => ({ ok: true, detail: diagnosis.reachable ? 'BTCPay answering' : `BTCPay down: ${diagnosis.detail}` }),
+    ).then(() => {}).catch(() => {}));
   },
 };

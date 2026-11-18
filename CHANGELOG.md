@@ -3,7 +3,8 @@
 Alice ships as three surfaces from one repository, and they are versioned
 together: a single number means a tester and a log line refer to the same code.
 
-- `0.2.9`, current release
+- `0.2.10`, current release
+- `0.2.9`, previous release
 - `0.2.8`, previous release
 - `0.2.7`, previous release
 - `0.2.6`, previous release
@@ -16,6 +17,119 @@ together: a single number means a tester and a log line refer to the same code.
 - `0.1.0`, previous closed beta
 - `0.0.1`, first public baseline
 - `1.0.0`, public launch, planned
+
+## 0.2.10
+
+### AI answers
+
+- A question on a tool that has a Plan ₿ Academy tutorial is answered from
+  that tutorial. Alice finds it by the tool's name, in a question ("How do I
+  set up my Coldcard?") or typed on its own, and gives the steps of its
+  walkthrough in their order, as a numbered list, without adding any.
+- When a tutorial opens on a security warning, the app shows it above the
+  answer, in the tutorial's own words.
+- A name typed on its own gets a short answer: what it is and what it is
+  for. When several tutorials carry the name ("Trezor", "Ledger"), Alice
+  says what it stands for and asks which one is meant, and the app lists
+  those tutorials under the question and under the reply. When the name is
+  only part of a tutorial's title and a word of its own ("Mint" and "Linux
+  Mint"), Alice gives both and asks.
+- When neither a reference note nor a course covers a question, Alice says
+  that it answers from memory.
+- Alice no longer suggests connecting a hardware wallet or another wallet to
+  Alice App, which connects to none.
+- In French, Alice keeps to "tu" in its answers. A short French question
+  written without accents is answered in French when the interface is in
+  English.
+- `*Emphasis*` in an answer is set in italics, and a quoted line as a
+  quotation.
+
+### Local models
+
+- On a computer, 3 Gemma 4 models (E2B, E4B, 12B) join the list of local
+  models, after the Qwen series. Qwen3.5 4B remains the default and the
+  recommended choice. Gemma 4 E4B was measured against Qwen3.5 4B on a Mac;
+  the 2 others are listed without having been measured. None is offered on a
+  phone.
+
+### Learn
+
+- Course images zoom: pinch on a trackpad or a touch screen, drag to move,
+  or use the + and − buttons, up to 6 times.
+- "Explain the selection" keeps the selected passage when its chapter
+  finishes loading.
+- A punctuation mark no longer wraps to the next line without its word.
+
+### Explorer
+
+- A pending block of the ribbon opens like a mined one, on Bitcoin: its
+  transactions are drawn as a map and follow the mempool live.
+- The ribbon and the page of a pending block read one live feed, so their
+  figures agree. Before, the page could lag a few seconds behind the ribbon
+  or read a backup instance.
+- The ribbon opens on the 2 next pending blocks, 1 on a phone, and scrolls to
+  the others.
+- The map of a block is always a square, smaller on a phone and centred.
+- A fee rate under 1 sat/vB is written with 2 decimals instead of
+  "~0 sat/vB".
+
+### Chat
+
+- The floating "Ask Alice" button and "New conversation" share one icon, a
+  chat bubble.
+- In a narrow window, the "+" of the chat no longer covers the menu button.
+- In the model menu, the detail of a model sits under its name instead of
+  being cut beside it.
+
+### Dependencies
+
+- `node-forge` is updated to 1.4.3.
+
+### Privacy
+
+- Alice no longer sends usage counters. Up to 0.2.9 the app counted, as
+  daily totals with no account attached, how often it and some of its
+  screens were opened and when a local model was downloaded. The app sends
+  nothing of the kind any more, the server discards what older versions
+  still send, and the totals already stored are deleted.
+- The site counts clicks on its Download buttons by platform, on Alice's own
+  server, with no cookie and nothing about the visitor. It is the only
+  usage counter kept.
+- The privacy notice in the app and the privacy page of the site say so.
+
+### Admin console
+
+The console still runs only on the operator's machine.
+
+- It is organised in 4 sections (Today, Growth, Money, Accounts) instead of
+  11 tabs, with a period selector for 24 hours, 7, 30 or 90 days, each
+  figure against the period before.
+- Labels, axes and tables are set in a readable face. The pixel face is kept
+  for titles.
+- It opens read-only. Writing takes the admin password once and stays open
+  10 minutes. Deleting an account and changing who is an admin still ask for
+  the password every time.
+- It opens on the key figures at a glance: people, money, reach and
+  quality, each against the period before, with a link to its page.
+- The Pulse page shows one light per dependency with the reason for its
+  colour, and what changed since the last visit.
+- New pages: revenue, subscriptions and usage from the billing tables, what
+  Private Cloud costs at Venice, the Worker and the database as Cloudflare
+  measures them, errors explained in plain words, BTCPay outages, and the
+  versions in place.
+- Retention is shown by week of first use.
+- Tables sort on a click and export as CSV. Accounts filter by plan, status
+  and creation date.
+- Each scheduled task records when it last ran and whether it worked, and
+  the console shows a task that stopped.
+- Downloads are shown per day, and the history is kept in the database
+  instead of one browser. With a GitHub token, repository traffic is kept
+  beyond GitHub's 14 days.
+- Public releases and the operator's own notes are flagged on every daily
+  curve.
+- Unlocking writes is written to the audit log.
+- None of this collects anything new. The new pages read rows Alice already
+  stores and counters Cloudflare and Venice already keep.
 
 ## 0.2.9
 

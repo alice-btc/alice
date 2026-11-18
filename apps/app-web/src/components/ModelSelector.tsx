@@ -377,35 +377,12 @@ function MenuItem({
       aria-pressed={active}
       className="alice-control alice-control--option w-full text-left"
     >
-      <span
-        className="font-numbers"
-        style={{
-          fontSize: 15,
-          minWidth: 0,
-          flex: 1,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {label}
+      {/* The detail sits under the label: side by side, a French or German
+          detail was cut to "Modèle plus gran…" in a menu this narrow. */}
+      <span className="font-numbers" style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
+        <span style={{ fontSize: 15, overflowWrap: 'anywhere' }}>{label}</span>
+        {detail && <span style={{ fontSize: 11, letterSpacing: 0, color: 'var(--alice-muted)', overflowWrap: 'anywhere' }}>{detail}</span>}
       </span>
-      {detail && (
-        <span
-          className="font-numbers shrink-0"
-          style={{
-            fontSize: 11,
-            opacity: 1,
-            letterSpacing: 0,
-            maxWidth: 110,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {detail}
-        </span>
-      )}
       {active && <SvgIcon svg={CHECK_ICON} size={16} />}
     </button>
   );

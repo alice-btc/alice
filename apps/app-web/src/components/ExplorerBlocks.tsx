@@ -7,6 +7,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { ChainDataProvider } from '@/lib/explorer/provider';
 import type { NormalizedBlock, ProjectedBlock, RibbonFocus } from '@/lib/explorer/types';
 import { formatBlockAgeOrDate, formatCount, formatDateTime, BITCOIN_SCALE, type ChainScale } from '@/lib/explorer/blocks';
+import { watchMempoolQueue } from '@/lib/explorer/mempool-live';
 import { pageVisible } from '@/lib/explorer/use-live-refresh';
 import { useT } from '@/i18n';
 /** What the ribbon reads: Bitcoin's provider, or a chain's own source with
@@ -15,6 +16,8 @@ export type RibbonSource = Pick<ChainDataProvider, 'getRecentBlocks' | 'getMempo
 
 const POLL_MS = 20_000;
 const BLOCK_W = 122;
+/** The row's side padding (px-5), kept beside the first card in view. */
+const ROW_PAD = 20;
 const ARRIVAL_MS = 700;
 
 /** The FLIP key of a ribbon card: `c<height>` confirmed, `p<index>` pending. */
@@ -58,6 +61,7 @@ function ConfirmedBlock({ block, scale, now, focused, marked, markColor, markSub
   // inverted: the accent as its background, the page background as its ink,
   // so it stands out along the row at a glance.
   const ink = focused ? 'var(--alice-bg)' : undefined;
+  const edge = marked && markColor ? markColor : focused ? 'var(--alice-primary)' : 'var(--alice-border)';
   return (
     <button
       type="button"
@@ -67,8 +71,12 @@ function ConfirmedBlock({ block, scale, now, focused, marked, markColor, markSub
       style={{
         width: BLOCK_W,
         padding: '8px 10px',
-        border: `1px solid ${marked && markColor ? markColor : focused ? 'var(--alice-primary)' : 'var(--alice-border)'}`,
-        borderTop: `3px solid ${marked && markColor ? markColor : color}`,
+        // Per-side values, as on a projected card: the edge colour changes
+        // with the focus, and a shorthand must not be updated beside its own
+        // longhand.
+        borderStyle: 'solid',
+        borderWidth: '3px 1px 1px',
+        borderColor: `${marked && markColor ? markColor : color} ${edge} ${edge}`,
         borderRadius: 3,
         backgroundColor: focused ? 'var(--alice-primary)' : 'var(--alice-bg-soft)',
       }}
@@ -94,7 +102,14 @@ function ConfirmedBlock({ block, scale, now, focused, marked, markColor, markSub
   );
 }
 
-function PendingBlock({ block, scale, index, focused }: { block: ProjectedBlock; scale: ChainScale; index: number; focused: boolean }) {
+function PendingBlock({ block, scale, index, focused, onOpen }: {
+  block: ProjectedBlock;
+  scale: ChainScale;
+  index: number;
+  focused: boolean;
+  /** Opens the block's own page; without it the card is only a reading. */
+  onOpen?: () => void;
+}) {
   const t = useT();
   const color = scale.color(block.medianFee);
   const range = scale.range(block.feeRange);
@@ -103,19 +118,25 @@ function PendingBlock({ block, scale, index, focused }: { block: ProjectedBlock;
     : t('explorerBlocks.ribbon.inMinutes', { minutes: (index + 1) * scale.blockMinutes }));
   // Inverted when focused, like a confirmed block.
   const ink = focused ? 'var(--alice-bg)' : undefined;
+  const Card = onOpen ? 'button' : 'div';
   return (
-    <div
-      className="shrink-0"
+    <Card
+      {...(onOpen ? { type: 'button' as const, onClick: onOpen } : {})}
+      className={onOpen ? 'shrink-0 text-left cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2' : 'shrink-0'}
       data-pending-index={index}
       style={{
         width: BLOCK_W,
         padding: '8px 10px',
-        border: `1px dashed ${focused ? 'var(--alice-primary)' : 'var(--alice-border)'}`,
-        borderTop: `3px solid ${color}`,
+        // Per-side values rather than `border` with `borderTop`: the edge
+        // colour changes when the card takes the focus, and React warns when
+        // a shorthand is updated beside its own longhand.
+        borderStyle: 'solid dashed dashed',
+        borderWidth: '3px 1px 1px',
+        borderColor: `${color} ${focused ? 'var(--alice-primary)' : 'var(--alice-border)'} ${focused ? 'var(--alice-primary)' : 'var(--alice-border)'}`,
         borderRadius: 3,
-        backgroundColor: focused ? 'var(--alice-primary)' : undefined,
+        backgroundColor: focused ? 'var(--alice-primary)' : 'transparent',
       }}
-      title={focused ? t('explorerBlocks.ribbon.pendingFocused') : t('explorerBlocks.ribbon.pending')}
+      title={focused && !onOpen ? t('explorerBlocks.ribbon.pendingFocused') : onOpen ? t('explorerBlocks.ribbon.pendingOpen') : t('explorerBlocks.ribbon.pending')}
     >
       <div className="font-pixel" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)' }}>{eta}</div>
       <div className="font-numbers" style={{ fontSize: 12, color: ink ?? color, marginTop: 3 }}>~{scale.rate(block.medianFee)}</div>
@@ -123,7 +144,7 @@ function PendingBlock({ block, scale, index, focused }: { block: ProjectedBlock;
       <div className="font-numbers" style={{ fontSize: 10, color: ink ?? 'var(--alice-muted)', marginTop: 3 }}>
         {t('explorerBlocks.txCount', { count: formatCount(block.txCount, t.locale) })}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -158,18 +179,28 @@ type Orientation = 'confirmed-right' | 'confirmed-left';
 
 // The live "blockchain": full width, mempool blocks and confirmed blocks meeting
 // at a central divider, scrollable, with a button to flip which side is which.
-// Polls every 20s. Renders nothing when the provider has no blocks endpoint.
+// Polls every 20s, and follows the instance's live feed when it has one.
+// Renders nothing when the provider has no blocks endpoint.
 export function ExplorerBlocks({
   provider,
   onOpenBlock,
+  onOpenPending,
   focus,
   highlight,
   scale = BITCOIN_SCALE,
+  liveBaseUrl,
 }: {
   provider: RibbonSource;
+  /** The API address of a mempool instance, when the provider is one: the
+   *  ribbon then also follows the instance's live feed. */
+  liveBaseUrl?: string;
   onOpenBlock: (height: string) => void;
+  /** Opens the page of a projected block, by its place in the queue. Absent
+   *  on a chain whose projected blocks have no page. */
+  onOpenPending?: (index: number) => void;
   /** What to spotlight: a confirmed block by height, or the projected block an
-   *  unconfirmed transaction is expected in. Absent means centre on the divider. */
+   *  unconfirmed transaction is expected in. Absent means the default view:
+   *  the mined blocks, with the next projected ones at the edge. */
   focus?: RibbonFocus;
   /** Blocks to mark permanently (on Arkade: the ones carrying a settlement;
    *  on Bark: a round), with the accent colour they get. Independent of the
@@ -227,11 +258,32 @@ export function ExplorerBlocks({
 
   const supported = typeof provider.getRecentBlocks === 'function';
 
+  // Whether the queue is being read from the live feed rather than polled.
+  const liveQueue = useRef(false);
+
+  // Confirmed blocks coming in, from the poll or from the live feed. A new tip
+  // records where every card sat, for the arrival to play from.
+  const receiveBlocks = useCallback((incoming: NormalizedBlock[]) => {
+    const prevTip = blocksRef.current[0]?.height;
+    const newTip = incoming.reduce((max, x) => Math.max(max, x.height), -1);
+    if (prevTip !== undefined && newTip > prevTip && scrollRef.current) {
+      arrival.current = {
+        from: cardPositions(scrollRef.current),
+        prevTip,
+        dividerX: dividerRef.current?.getBoundingClientRect().left,
+      };
+    }
+    setBlocks(prev => mergeBlocks(prev, incoming));
+    setNow(Math.floor(Date.now() / 1000));
+  }, []);
+
   // Which projected block an unconfirmed tx lands in: the first whose fee floor
   // its fee rate clears (mempool orders projected blocks highest-fee first), or
   // the last one if its fee is below them all.
   const pendingFocusIndex = (() => {
-    if (focus?.kind !== 'pending' || pending.length === 0) return -1;
+    if (pending.length === 0) return -1;
+    if (focus?.kind === 'projected') return Math.min(focus.index, pending.length - 1);
+    if (focus?.kind !== 'pending') return -1;
     const f = focus.feeRate;
     if (f == null) return 0;
     const i = pending.findIndex(p => p.feeRange.length > 0 && f >= p.feeRange[0]);
@@ -262,7 +314,7 @@ export function ExplorerBlocks({
   // never on every block list change, so paging older keeps the scroll put.
   const focusPresent = focus?.kind === 'height'
     ? blocks.some(b => b.height === focus.height)
-    : focus?.kind === 'pending'
+    : focus?.kind === 'pending' || focus?.kind === 'projected'
       ? pendingFocusIndex >= 0
       : true;
 
@@ -281,25 +333,17 @@ export function ExplorerBlocks({
       inFlight = true;
       lastPoll = Date.now();
       try {
+        // While the instance's own feed is live the queue comes from it, and
+        // is not asked for a second time here.
         const [b, p] = await Promise.all([
           provider.getRecentBlocks!(undefined, { signal: controller.signal }),
-          provider.getMempoolBlocks
+          provider.getMempoolBlocks && !liveQueue.current
             ? provider.getMempoolBlocks({ signal: controller.signal })
-            : Promise.resolve([]),
+            : Promise.resolve(null),
         ]);
         if (cancelled) return;
-        const prevTip = blocksRef.current[0]?.height;
-        const newTip = b.reduce((max, x) => Math.max(max, x.height), -1);
-        if (prevTip !== undefined && newTip > prevTip && scrollRef.current) {
-          arrival.current = {
-            from: cardPositions(scrollRef.current),
-            prevTip,
-            dividerX: dividerRef.current?.getBoundingClientRect().left,
-          };
-        }
-        setBlocks(prev => mergeBlocks(prev, b));
-        setPending(p);
-        setNow(Math.floor(Date.now() / 1000));
+        receiveBlocks(b);
+        if (p && !liveQueue.current) setPending(p);
         setErrored(false);
         setReady(true);
       } catch {
@@ -322,7 +366,21 @@ export function ExplorerBlocks({
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
     };
-  }, [provider, supported]);
+  }, [provider, supported, receiveBlocks]);
+
+  // The instance's live feed, when it has one: the queue as it moves and each
+  // block the moment it is mined, on the connection an open projected block's
+  // page reads its transactions from. Without it (a node with no such feed, a
+  // dropped connection) the poll above carries on alone.
+  useEffect(() => {
+    if (!supported || !liveBaseUrl) return;
+    const stop = watchMempoolQueue(liveBaseUrl, {
+      onBlocks: (queue) => { liveQueue.current = true; setPending(queue); },
+      onMined: (block) => receiveBlocks([block]),
+      onStatus: (status) => { if (status !== 'live') liveQueue.current = false; },
+    });
+    return () => { liveQueue.current = false; stop(); };
+  }, [liveBaseUrl, supported, receiveBlocks]);
 
   // Play the arrival recorded by the poll, once the new row is laid out.
   useLayoutEffect(() => {
@@ -352,9 +410,10 @@ export function ExplorerBlocks({
     }
   }, [blocks]);
 
-  // Centre the viewport on first data and when the sides flip: on a block page,
-  // on the focused block; otherwise on the pending/confirmed divider. Not on
-  // polls, so the view never jumps under the user.
+  // Place the viewport on first data and when the sides flip: on a block page,
+  // centred on the focused block; otherwise opened on the mined blocks with
+  // the next projected ones at the edge. Not on polls, so the view never
+  // jumps under the user.
   useLayoutEffect(() => {
     if (!ready) return;
     const centre = () => {
@@ -363,9 +422,21 @@ export function ExplorerBlocks({
       let target: HTMLElement | null;
       if (focus?.kind === 'height') {
         target = sc.querySelector<HTMLElement>(`[data-block-height="${focus.height}"]`);
-      } else if (focus?.kind === 'pending' && pendingFocusIndex >= 0) {
+      } else if (pendingFocusIndex >= 0) {
         target = sc.querySelector<HTMLElement>(`[data-pending-index="${pendingFocusIndex}"]`);
       } else {
+        // Nothing to spotlight: the row opens on the mined blocks, with only
+        // the next projected ones in view beside the divider (2, or 1 on a
+        // phone). The rest of the queue is a scroll away.
+        const queued = sc.querySelectorAll('[data-pending-index]').length;
+        const shown = Math.min(queued, window.matchMedia('(max-width: 767px)').matches ? 1 : 2);
+        const edge = shown > 0 ? sc.querySelector<HTMLElement>(`[data-pending-index="${shown - 1}"]`) : null;
+        if (edge) {
+          sc.scrollLeft = orientation === 'confirmed-right'
+            ? edge.offsetLeft - ROW_PAD
+            : edge.offsetLeft + edge.offsetWidth + ROW_PAD - sc.clientWidth;
+          return;
+        }
         target = dividerRef.current;
       }
       if (target) sc.scrollLeft = target.offsetLeft - sc.clientWidth / 2 + target.offsetWidth / 2;
@@ -508,7 +579,7 @@ export function ExplorerBlocks({
   ) : null;
 
   const pendingCards = pending.map((p, i) => (
-    <PendingBlock key={`p${p.medianFee}-${i}`} block={p} scale={scale} index={i} focused={i === pendingFocusIndex} />
+    <PendingBlock key={`p${p.medianFee}-${i}`} block={p} scale={scale} index={i} focused={i === pendingFocusIndex} onOpen={onOpenPending ? () => onOpenPending(i) : undefined} />
   ));
 
   // Placeholder cards beside a block whose neighbours are still loading.

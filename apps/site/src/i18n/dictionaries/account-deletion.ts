@@ -61,7 +61,7 @@ const en: AccountDeletionCopy = {
   kept: {
     heading: 'What is kept',
     rows: [
-      { title: 'Day-level counters', body: 'An event, a platform and a version, counted per day. They never carried a user id, so there is nothing in them to delete.' },
+      { title: 'Download clicks on the site', body: 'A button and a day. They do not come from the app and never carried an identifier, so there is nothing in them to delete.' },
       { title: 'Technical error records', body: 'Kept with the link to the account removed.' },
       { title: '1 line in the operator log', body: 'The date of the deletion and the deleted username, to show that the request was handled.' },
       { title: 'Database backups', body: 'Automatic restore copies of the database expire after 30 days at most.' },
@@ -118,7 +118,7 @@ const fr: AccountDeletionCopy = {
   kept: {
     heading: 'Ce qui est gardé',
     rows: [
-      { title: 'Compteurs par jour', body: 'Un événement, une plateforme et une version, comptés par jour. Ils n’ont jamais contenu d’identifiant d’utilisateur, il n’y a donc rien à y effacer.' },
+      { title: 'Clics de téléchargement du site', body: 'Un bouton et un jour. Ils ne viennent pas de l’app et n’ont jamais contenu d’identifiant, il n’y a donc rien à y effacer.' },
       { title: 'Erreurs techniques', body: 'Gardées, avec le lien vers le compte retiré.' },
       { title: '1 ligne dans le journal de l’opérateur', body: 'La date de la suppression et le nom d’utilisateur supprimé, pour prouver que la demande a été traitée.' },
       { title: 'Sauvegardes de la base', body: 'Les copies de restauration automatiques de la base expirent au bout de 30 jours au plus.' },

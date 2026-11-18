@@ -199,3 +199,28 @@ test('short explanation imperatives keep their language beside shared technical 
   for (const message of ['Lightning', 'UTXO', 'Bitcoin']) assert.equal(detectTextLanguage(message), null);
   assert.equal(detectTextLanguage('What does "explique Lightning" mean in this example?')?.language, 'en');
 });
+
+test('a short French how-to without accents is French in an English app', () => {
+  for (const message of [
+    'Comment configurer mon Coldcard Mk4 ?',
+    'Comment installer Sparrow Wallet ?',
+    'Je veux installer Sparrow',
+    'Ma transaction est en attente',
+    'Comment ouvrir un canal Lightning ?',
+    'Quel wallet choisir ?',
+  ]) {
+    assert.deepEqual(
+      { ...resolveResponseLanguage({ message, appLanguage: 'en' }), confidence: 0 },
+      { targetLanguage: 'fr', source: 'message', confidence: 0 },
+      message,
+    );
+  }
+});
+
+test('English that shares a word with French stays English, and a lone name stays undecided', () => {
+  assert.equal(detectTextLanguage('Can you comment on this transaction?')?.language, 'en');
+  assert.equal(detectTextLanguage('Download the installer from the de facto mirror.')?.language, 'en');
+  assert.equal(detectTextLanguage('Run the installer.'), null);
+  assert.equal(detectTextLanguage('Ledger'), null);
+  assert.equal(detectTextLanguage('Un UTXO ?'), null);
+});

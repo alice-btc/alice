@@ -8,7 +8,7 @@ import { overviewTab, type Tab, type TabKind } from './tabs.ts';
 import { localVault } from '../local-vault.ts';
 
 const KEY = 'explorer.tabs.v1';
-const KINDS: TabKind[] = ['overview', 'tx', 'address', 'block', 'xpub', 'vtxo'];
+const KINDS: TabKind[] = ['overview', 'tx', 'address', 'block', 'mempool', 'xpub', 'vtxo'];
 
 function isValidTab(value: unknown): value is Tab {
   if (typeof value !== 'object' || value === null) return false;
@@ -75,6 +75,8 @@ const OPENABLE: TabKind[] = ['tx', 'address', 'block', 'xpub', 'vtxo'];
 const URL_SUBJECT_SHAPE: Record<Exclude<TabKind, 'overview'>, RegExp> = {
   tx: /^[0-9a-f]{64}$/i,
   block: /^(?:[0-9a-f]{64}|\d{1,9})$/i,
+  // Never opened from a URL (not in OPENABLE): a place in a queue that moves.
+  mempool: /^\d{1,2}$/,
   address: /^[a-z0-9]{14,120}$/i,
   xpub: /^[a-z0-9]{60,160}$/i,
   // A Bark coin by id only: an export is far too long for a URL.

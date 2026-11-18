@@ -7,6 +7,7 @@ import { groundedModelMemoryCandidates } from './alice-memory-capture.ts';
 import { withLiveValueCaveat } from './live-value-caveat.ts';
 import { answerRepairHistory, ANSWER_REPAIR_FAILURE } from './answer-repair.ts';
 import { answerRuleNoteIdsInMessages, answerRuleNoteIdsOnSubject, answerRuleViolationsIn, withAnswerRuleCorrections } from './answer-rules.ts';
+import { securityNoticeIn, tutorialChoicesInTurn, withoutClosingList, withoutRestatedNotice } from './learn-context.ts';
 import {
   detectTextLanguage,
   isResponseLanguageAcceptable,
@@ -27,6 +28,8 @@ export const LANGUAGE_CHECKED_ATTEMPTS = 2;
 export const GROUNDED_TEMPERATURE_CAP = 0.3;
 const RETRY_TEMPERATURE = 0.1;
 const RETRIEVED_KNOWLEDGE_HEADER = '[Retrieved knowledge]';
+/** The head of a Learn block (generation-context.ts): quoted course or tutorial text. */
+const LEARN_EXCERPT_HEADER = /\[(?:Learn excerpts?|Course excerpt),/;
 
 function now(): number {
   return globalThis.performance?.now?.() ?? Date.now();
@@ -90,7 +93,18 @@ export async function generateLanguageChecked(input: {
   // with targeted feedback before it is displayed. Private Cloud keeps
   // its preset and its appended corrections: it is billed per generation and
   // was not part of these measurements.
-  const grounded = input.history.some(message => message.role !== 'assistant' && message.content.includes(RETRIEVED_KNOWLEDGE_HEADER));
+  // A quoted tutorial grounds a turn as a retrieved note does: the walkthrough
+  // it carries is to be followed, not embroidered.
+  const grounded = input.history.some(message => message.role !== 'assistant'
+    && (message.content.includes(RETRIEVED_KNOWLEDGE_HEADER) || LEARN_EXCERPT_HEADER.test(message.content)));
+  // A tutorial's opening security warning leads the answer in its own words,
+  // whatever the model made of it (learn-context.ts).
+  const securityNotice = securityNoticeIn(input.history);
+  const lead = securityNotice ? `> ${securityNotice}\n\n` : '';
+  // The tutorials a name stands for follow the answer, all of them and under
+  // their own titles (learn-context.ts).
+  const tutorialChoices = tutorialChoicesInTurn(input.history);
+  const choiceList = tutorialChoices.length > 1 ? `\n\n${tutorialChoices.map(name => `- ${name}`).join('\n')}` : '';
   const ruleRetryAllowed = input.backend.type !== 'cloud';
   let firstDisplayMs: number | undefined;
   let retry: 'language' | 'rules' | null = null;
@@ -113,7 +127,7 @@ export async function generateLanguageChecked(input: {
         released = true;
         firstDisplayMs ??= now() - started;
       }
-      input.onText(visible);
+      input.onText(lead + visible);
     };
     let result: GenerationOutcome;
     try {
@@ -188,8 +202,11 @@ export async function generateLanguageChecked(input: {
     // Output guard: a present-tense network figure or state is invented,
     // since no such feed exists; the caveat rides with the final text on
     // every backend, streamed or buffered.
-    const visibleText = withLiveValueCaveat(correctedText, input.targetLanguage);
-    if (input.onText && visibleText && (!released || visibleText !== streamedText)) {
+    // The warning is already on screen: a paragraph that says it again goes.
+    const unrepeated = securityNotice ? withoutRestatedNotice(correctedText, securityNotice) : correctedText;
+    const answered = choiceList ? withoutClosingList(unrepeated) : unrepeated;
+    const visibleText = lead + withLiveValueCaveat(answered, input.targetLanguage) + choiceList;
+    if (input.onText && visibleText && (!released || visibleText !== lead + streamedText)) {
       firstDisplayMs ??= now() - started;
       input.onText(visibleText);
     }

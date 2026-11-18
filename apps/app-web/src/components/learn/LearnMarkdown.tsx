@@ -1,13 +1,15 @@
 'use client';
 
 import { SvgIcon } from '@/components/SvgIcon';
-import { NEXT_ICON, EXTERNAL_ICON } from '@/lib/atelier-icons';
+import { CLOSE_ICON, NEXT_ICON, EXTERNAL_ICON, MINUS_ICON, PLUS_ICON } from '@/lib/atelier-icons';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useT, type Translator } from '@/i18n';
 import { useLearnT } from './learn-locale';
 import type { LearnBlock, LearnInline } from '@/lib/learn/markdown';
-import { normalizeLinkHref, parseMarkdown, resolveAssetUrl, youTubeWatchUrl } from '@/lib/learn/markdown';
+import { attachPunctuation, leadingClosingMarks, normalizeLinkHref, parseMarkdown, resolveAssetUrl, youTubeWatchUrl } from '@/lib/learn/markdown';
+import { clampView, fitView, fittedSize, MAX_ZOOM, MIN_ZOOM, panBy, zoomAt, ZOOM_STEP, type Point, type Size, type ZoomView } from '@/lib/learn/image-zoom';
 import { openExternalUrl } from '@/lib/open-external';
 
 type AnchorClick = (anchorId: string) => void;
@@ -41,36 +43,45 @@ export function useOnline(): boolean {
 
 function InlineNodes({ nodes, assetBase, onAnchorClick }: { nodes: LearnInline[]; assetBase: string; onAnchorClick?: AnchorClick }) {
   const t = useMarkdownT();
+  // A link and an anchor end on an icon, a box the browser may break after:
+  // the "." that follows would start the next line alone. The marks that
+  // follow are taken from the next text and kept on the line of the icon.
+  const closing = nodes.map((node, i) => {
+    const next = nodes[i + 1];
+    return (node.kind === 'link' || node.kind === 'anchor') && next?.kind === 'text' ? leadingClosingMarks(next.text) : '';
+  });
   return (
     <>
       {nodes.map((node, i) => {
         switch (node.kind) {
           case 'anchor':
             return (
-              <button
-                key={i}
-                onClick={() => onAnchorClick?.(node.anchorId)}
-                className="alice-control alice-control--link"
-                title={t('learn.markdown.seeInExplorer')}
-                style={{
-                  background: 'none',
-                  display: 'inline',
-                  minHeight: 0,
-                  border: 0,
-                  padding: 0,
-                  font: 'inherit',
-                  color: 'var(--alice-primary)',
-                  borderBottom: '2px dotted var(--alice-primary)',
-                }}
-              >
-                {node.text}
-                <span aria-hidden="true" style={{ display: 'inline-flex', marginLeft: 3, verticalAlign: 'middle' }}><SvgIcon svg={NEXT_ICON} size={16} /></span>
-              </button>
+              <span key={i} style={{ whiteSpace: 'nowrap' }}>
+                <button
+                  onClick={() => onAnchorClick?.(node.anchorId)}
+                  className="alice-control alice-control--link"
+                  title={t('learn.markdown.seeInExplorer')}
+                  style={{
+                    background: 'none',
+                    display: 'inline',
+                    minHeight: 0,
+                    border: 0,
+                    padding: 0,
+                    font: 'inherit',
+                    color: 'var(--alice-primary)',
+                    borderBottom: '2px dotted var(--alice-primary)',
+                  }}
+                >
+                  {node.text}
+                  <span aria-hidden="true" style={{ display: 'inline-flex', marginLeft: 3, verticalAlign: 'middle' }}><SvgIcon svg={NEXT_ICON} size={16} /></span>
+                </button>
+                {closing[i]}
+              </span>
             );
           case 'bold':
-            return <strong key={i}>{node.text}</strong>;
+            return <strong key={i}>{attachPunctuation(node.text)}</strong>;
           case 'italic':
-            return <em key={i}>{node.text}</em>;
+            return <em key={i}>{attachPunctuation(node.text)}</em>;
           case 'code':
             return (
               <code
@@ -92,6 +103,9 @@ function InlineNodes({ nodes, assetBase, onAnchorClick }: { nodes: LearnInline[]
             // normalized first (the corpus has protocol-less domains that
             // would otherwise navigate the app itself).
             const href = normalizeLinkHref(node.href, assetBase);
+            // The last word, the icon and the closing marks stay together;
+            // the rest of a long link still wraps.
+            const lastWord = node.text.lastIndexOf(' ') + 1;
             return (
               <a
                 key={i}
@@ -104,12 +118,16 @@ function InlineNodes({ nodes, assetBase, onAnchorClick }: { nodes: LearnInline[]
                 }}
                 style={{ color: 'var(--alice-primary)', textDecoration: 'underline' }}
               >
-                {node.text} <span aria-hidden="true" style={{ display: 'inline-flex', verticalAlign: 'middle' }}><SvgIcon svg={EXTERNAL_ICON} size={16} /></span>
+                {node.text.slice(0, lastWord)}
+                <span style={{ whiteSpace: 'nowrap' }}>
+                  {node.text.slice(lastWord)} <span aria-hidden="true" style={{ display: 'inline-flex', verticalAlign: 'middle' }}><SvgIcon svg={EXTERNAL_ICON} size={16} /></span>
+                  {closing[i] && <span style={{ display: 'inline-block', color: 'var(--alice-text)' }}>{closing[i]}</span>}
+                </span>
               </a>
             );
           }
           default:
-            return <span key={i}>{node.text}</span>;
+            return <span key={i}>{attachPunctuation(node.text.slice(i > 0 ? closing[i - 1].length : 0))}</span>;
         }
       })}
     </>
@@ -118,15 +136,195 @@ function InlineNodes({ nodes, assetBase, onAnchorClick }: { nodes: LearnInline[]
 
 function CourseImage({ src, alt }: { src: string; alt: string }) {
   const [failed, setFailed] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
   const t = useMarkdownT();
   if (failed) return <OfflineMediaCard title={t('learn.markdown.imageUnavailable')} label={alt || t('learn.markdown.imageFailed')} />;
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} style={{
-      maxWidth: '100%', display: 'block', margin: '16px auto',
-      border: '1px solid var(--alice-border)', borderRadius: 'var(--alice-radius-control)',
-      background: 'var(--alice-illustration-bg)',
-    }} />
+    <>
+      <button
+        type="button"
+        onClick={() => setZoomed(true)}
+        aria-label={t('learn.markdown.imageZoom')}
+        title={t('learn.markdown.imageZoom')}
+        style={{ display: 'block', maxWidth: '100%', margin: '16px auto', padding: 0, border: 0, background: 'none', cursor: 'zoom-in' }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} style={{
+          maxWidth: '100%', display: 'block',
+          border: '1px solid var(--alice-border)', borderRadius: 'var(--alice-radius-control)',
+          background: 'var(--alice-illustration-bg)',
+        }} />
+      </button>
+      {zoomed && <ImageZoom src={src} alt={alt} onClose={() => setZoomed(false)} />}
+    </>
+  );
+}
+
+// A course diagram read closely: the image over the page, whole at first,
+// then enlarged as far as the reader wants. A pinch (touch screen or trackpad),
+// the + and - buttons or a click zoom; a drag or a two-finger scroll moves the
+// enlarged image. Escape, the close button or a click beside the image leaves.
+function ImageZoom({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  const t = useMarkdownT();
+  const stageRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const [stage, setStage] = useState<Size>({ width: 0, height: 0 });
+  const [natural, setNatural] = useState<Size>({ width: 0, height: 0 });
+  const [view, setView] = useState<ZoomView>({ scale: MIN_ZOOM, x: 0, y: 0 });
+  const fitted = fittedSize(natural, stage);
+  // Gestures read the latest geometry without re-binding their listeners.
+  const geometry = useRef({ fitted, stage });
+  geometry.current = { fitted, stage };
+  const change = useCallback((next: (view: ZoomView, fitted: Size, stage: Size) => ZoomView) => {
+    setView(current => next(current, geometry.current.fitted, geometry.current.stage));
+  }, []);
+  const centre = (): Point => ({ x: geometry.current.stage.width / 2, y: geometry.current.stage.height / 2 });
+
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const measure = () => setStage({ width: el.clientWidth, height: el.clientHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  // A new stage or a freshly loaded image: the view is brought back inside.
+  useEffect(() => { change(clampView); }, [change, fitted.width, fitted.height, stage.width, stage.height]);
+
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+      else if (event.key === '+' || event.key === '=') change((v, f, s) => zoomAt(v, ZOOM_STEP, centre(), f, s));
+      else if (event.key === '-') change((v, f, s) => zoomAt(v, 1 / ZOOM_STEP, centre(), f, s));
+      else if (event.key === '0') change((_, f, s) => fitView(f, s));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose, change]);
+
+  // Wheel and trackpad. A pinch reaches the page as a wheel event with the
+  // Control key (Chromium, Firefox) or as a gesture event (WebKit, so the
+  // desktop app); a two-finger scroll moves the enlarged image. Bound by hand:
+  // React's wheel listener is passive and could not stop the page zooming.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const at = (event: { clientX: number; clientY: number }): Point => {
+      const box = el.getBoundingClientRect();
+      return { x: event.clientX - box.left, y: event.clientY - box.top };
+    };
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      if (event.ctrlKey || event.metaKey) change((v, f, s) => zoomAt(v, Math.exp(-event.deltaY * 0.012), at(event), f, s));
+      else change((v, f, s) => panBy(v, -event.deltaX, -event.deltaY, f, s));
+    };
+    let pinchFrom = 1;
+    type Gesture = Event & { scale: number; clientX: number; clientY: number };
+    const onGestureStart = (event: Event) => { event.preventDefault(); pinchFrom = 1; };
+    const onGestureChange = (event: Event) => {
+      event.preventDefault();
+      const gesture = event as Gesture;
+      const factor = gesture.scale / pinchFrom;
+      pinchFrom = gesture.scale;
+      if (Number.isFinite(factor) && factor > 0) change((v, f, s) => zoomAt(v, factor, at(gesture), f, s));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('gesturestart', onGestureStart);
+    el.addEventListener('gesturechange', onGestureChange);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('gesturestart', onGestureStart);
+      el.removeEventListener('gesturechange', onGestureChange);
+    };
+  }, [change]);
+
+  // Mouse and fingers: one pointer drags, two pinch around their middle. A
+  // press released where it started is a click: on the image it enlarges or
+  // comes back to the whole image, beside it it closes.
+  const pointers = useRef(new Map<number, Point>());
+  const press = useRef<{ at: Point; moved: boolean; onImage: boolean } | null>(null);
+  const local = (event: React.PointerEvent): Point => {
+    const box = event.currentTarget.getBoundingClientRect();
+    return { x: event.clientX - box.left, y: event.clientY - box.top };
+  };
+  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || (event.target as HTMLElement).closest('button')) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const point = local(event);
+    pointers.current.set(event.pointerId, point);
+    press.current = pointers.current.size === 1
+      ? { at: point, moved: false, onImage: (event.target as HTMLElement).tagName === 'IMG' }
+      : null;
+  };
+  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const before = pointers.current.get(event.pointerId);
+    if (!before) return;
+    const point = local(event);
+    const others = [...pointers.current.entries()].filter(([id]) => id !== event.pointerId).map(([, p]) => p);
+    pointers.current.set(event.pointerId, point);
+    if (others.length === 0) {
+      if (press.current && Math.hypot(point.x - press.current.at.x, point.y - press.current.at.y) > 4) press.current.moved = true;
+      if (press.current?.moved) change((v, f, s) => panBy(v, point.x - before.x, point.y - before.y, f, s));
+      return;
+    }
+    const other = others[0];
+    const was = Math.hypot(before.x - other.x, before.y - other.y);
+    const now = Math.hypot(point.x - other.x, point.y - other.y);
+    const middle = { x: (point.x + other.x) / 2, y: (point.y + other.y) / 2 };
+    change((v, f, s) => {
+      const moved = panBy(v, (point.x - before.x) / 2, (point.y - before.y) / 2, f, s);
+      return was > 0 && now > 0 ? zoomAt(moved, now / was, middle, f, s) : moved;
+    });
+  };
+  const onPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!pointers.current.delete(event.pointerId)) return;
+    const pressed = press.current;
+    press.current = null;
+    if (!pressed || pressed.moved || event.type === 'pointercancel') return;
+    if (!pressed.onImage) { onClose(); return; }
+    change((v, f, s) => (v.scale > MIN_ZOOM ? fitView(f, s) : zoomAt(v, ZOOM_STEP, pressed.at, f, s)));
+  };
+
+  const enlarged = view.scale > MIN_ZOOM;
+  return createPortal(
+    <div role="dialog" aria-modal="true" aria-label={alt || t('learn.markdown.imageZoom')} className="alice-image-zoom">
+      <div
+        ref={stageRef}
+        className="alice-image-zoom-stage"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={alt}
+          draggable={false}
+          onLoad={(event) => setNatural({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })}
+          style={{
+            left: view.x, top: view.y,
+            width: fitted.width * view.scale, height: fitted.height * view.scale,
+            visibility: fitted.width > 0 ? 'visible' : 'hidden',
+            cursor: enlarged ? 'grab' : 'zoom-in',
+          }}
+        />
+      </div>
+      <div className="alice-image-zoom-tools">
+        <button type="button" onClick={() => change((v, f, s) => zoomAt(v, 1 / ZOOM_STEP, centre(), f, s))} disabled={!enlarged} aria-label={t('learn.markdown.zoomOut')} title={t('learn.markdown.zoomOut')} className="alice-control alice-control--tool">
+          <SvgIcon svg={MINUS_ICON} size={16} />
+        </button>
+        <button type="button" onClick={() => change((v, f, s) => zoomAt(v, ZOOM_STEP, centre(), f, s))} disabled={view.scale >= MAX_ZOOM} aria-label={t('learn.markdown.zoomIn')} title={t('learn.markdown.zoomIn')} className="alice-control alice-control--tool">
+          <SvgIcon svg={PLUS_ICON} size={16} />
+        </button>
+        <button ref={closeRef} type="button" onClick={onClose} aria-label={t('common.close')} title={t('common.close')} className="alice-control alice-control--tool">
+          <SvgIcon svg={CLOSE_ICON} size={16} />
+        </button>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

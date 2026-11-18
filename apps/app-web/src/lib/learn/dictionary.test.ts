@@ -5,6 +5,7 @@ import {
   definitionExcerpt,
   entriesForLetter,
   indexLetters,
+  isDictionaryTerm,
   letterOfSlug,
   matchDictionaryTerm,
   normalizeTerm,
@@ -164,4 +165,13 @@ it('keeps French equivalents when the original dictionary title is already Engli
   const entry = { slug: 'address-spoofing', title: 'ADDRESS SPOOFING', letter: 'a', category: 'PRIVACY', french: 'ADDRESS SPOOFING', frenchAliases: ["USURPATION D'ADRESSE"] };
   assert.equal(matchDictionaryTerm([entry], "What is usurpation d'adresse?")?.entry.slug, entry.slug);
   assert.deepEqual(otherLanguageName(entry, 'en'), { lang: 'fr', name: "USURPATION D'ADRESSE" });
+});
+
+it('tells a message that is a term from one that only contains it', () => {
+  assert.equal(isDictionaryTerm(ENTRIES, 'UTXO'), true);
+  assert.equal(isDictionaryTerm(ENTRIES, 'utxo set'), true);
+  assert.equal(isDictionaryTerm(ENTRIES, 'Merkle root', 'en'), true);
+  assert.equal(isDictionaryTerm(ENTRIES, 'mon UTXO est bloqué'), false);
+  assert.equal(isDictionaryTerm(ENTRIES, 'ok'), false);
+  assert.equal(isDictionaryTerm(ENTRIES, 'bitcoin'), false);
 });

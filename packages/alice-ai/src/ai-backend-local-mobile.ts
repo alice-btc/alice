@@ -86,7 +86,7 @@ export class LocalMobileAIBackend implements AIBackend {
         messages: prepared.messages,
         temperature: prepared.temperature,
         maxTokens: prepared.maxTokens,
-        disableThinking: prepared.disableThinking,
+        disableThinking: prepared.emptyThinkBlock,
       },
       onPiece,
     });

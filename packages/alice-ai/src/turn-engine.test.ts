@@ -3,8 +3,9 @@ import test from 'node:test';
 import { createAliceMemory } from './alice-memory-core.ts';
 import type { Message } from './llm.ts';
 import { createPedagogicalProfile } from './pedagogical-profile-core.ts';
+import { markTutorialChoices } from './learn-context.ts';
 import { MAX_REWRITTEN_QUERY_CHARS } from './rag-query-rewrite.ts';
-import { prepareAliceTurn, type TurnPreparationServices } from './turn-engine.ts';
+import { ambiguousNameDirective, prepareAliceTurn, unsourcedAnswerBlock, walkthroughDirective, type TurnPreparationServices } from './turn-engine.ts';
 
 function services(): TurnPreparationServices & { queries: string[]; remembered: string[] } {
   const queries: string[] = [];
@@ -937,4 +938,73 @@ test('the diagnostics say how the answer language was chosen, without any text o
   }, services());
   assert.deepEqual(prepared.diagnostics.language, { target: 'en', source: 'app', attempts: 0 });
   assert.doesNotMatch(JSON.stringify(prepared.diagnostics.language), /Lightning/);
+});
+
+function unsourcedServices(context: { ragContext?: string; learnContext?: string } = {}) {
+  const fixture = services();
+  fixture.retrieveKnowledge = async query => {
+    fixture.queries.push(query);
+    return { ragContext: context.ragContext ?? null, localContext: null, learnContext: context.learnContext ?? null, diagnostics: [] };
+  };
+  return fixture;
+}
+const systemContext = (history: Message[]) => history.filter(message => message.role === 'system').map(message => message.content).join('\n');
+
+test('a question nothing was retrieved for tells the model to say it answers from memory', async () => {
+  const question = 'Comment configurer mon Coldcard ?';
+  for (const backendType of ['local', 'cloud', 'custom'] as const) {
+    const prepared = await prepareAliceTurn({ history: [{ role: 'user', content: question }], userMessage: question, backendType, targetLanguage: 'fr' }, unsourcedServices());
+    assert.ok(systemContext(prepared.history).includes(unsourcedAnswerBlock()), backendType);
+    assert.equal(prepared.directResponse, null);
+  }
+});
+
+test('a retrieved note or a Learn excerpt is a source, and the answer is not announced as unsourced', async () => {
+  const question = 'Comment configurer mon Coldcard ?';
+  const input = { history: [{ role: 'user' as const, content: question }], userMessage: question, backendType: 'cloud' as const, targetLanguage: 'fr' as const };
+  for (const context of [{ ragContext: 'Une fiche.' }, { learnContext: 'COLDCARD Q (Plan ₿ Academy tutorial)\nUn extrait.' }]) {
+    const prepared = await prepareAliceTurn(input, unsourcedServices(context));
+    assert.doesNotMatch(systemContext(prepared.history), /No checked source/);
+  }
+});
+
+test('a follow-up, a greeting and a personal statement are never announced as unsourced', async () => {
+  const followUp = await prepareAliceTurn({
+    history: [
+      { role: 'user', content: 'Comment fonctionne le halving ?' },
+      { role: 'assistant', content: 'La subvention de bloc est divisée par 2.' },
+      { role: 'user', content: 'Pourquoi ?' },
+    ],
+    userMessage: 'Pourquoi ?', backendType: 'cloud', targetLanguage: 'fr',
+  }, unsourcedServices());
+  assert.doesNotMatch(systemContext(followUp.history), /No checked source/);
+  for (const message of ['Salut !', 'Je préfère les réponses courtes.']) {
+    const prepared = await prepareAliceTurn({ history: [{ role: 'user', content: message }], userMessage: message, backendType: 'cloud', targetLanguage: 'fr' }, unsourcedServices());
+    assert.doesNotMatch(systemContext(prepared.history), /No checked source/, message);
+  }
+});
+
+test('a quoted walkthrough asks the turn to stay inside its steps, in the answer language', () => {
+  const partial = 'COLDCARD Q (Plan ₿ Academy tutorial)\nTutorial sections: A ; B ; C\n\nQuoted below, from the start of the walkthrough: A. The other sections are not quoted here.\n\n## A\n\nStep.';
+  const whole = 'Sparrow (Plan ₿ Academy tutorial)\nTutorial sections: A\n\nThe walkthrough is quoted below in full.\n\n## A\n\nStep.';
+  assert.match(walkthroughDirective(partial, 'fr'), /^L'extrait Learn cite le début du pas-à-pas d'un tutoriel\. Donne toutes les étapes qu'il contient, dans son ordre, en liste numérotée, à l'impératif et en tutoyant.*N'ajoute aucune étape.*n'écris pas les titres des sections qu'il ne cite pas\. Termine par 1 phrase qui dit ce que la suite couvre et qu'elle se trouve dans le tutoriel listé sous la réponse\.$/);
+  assert.match(walkthroughDirective(partial, 'en'), /Add no step, setting or figure that is not in it, and do not write the titles of the sections it does not quote\. End with one sentence saying what the rest covers and that it is in the tutorial listed under the reply\.$/);
+  assert.match(walkthroughDirective(whole, 'fr'), /^L'extrait Learn cite le pas-à-pas d'un tutoriel\..*N'ajoute aucune étape, aucun réglage ni aucun chiffre qui n'y figure pas\.$/);
+  assert.equal(walkthroughDirective('BTC101 · Chapter (Plan ₿ Academy)\nA course paragraph about a walkthrough.', 'fr'), '');
+  assert.equal(walkthroughDirective(null, 'fr'), '');
+});
+
+test('a name the Learn library cannot pin on one thing is asked about', () => {
+  const family = `Plan ₿ Academy tutorials that carry this name\n${markTutorialChoices([
+    { name: 'Trezor Model One', description: 'Configurer' }, { name: 'Trezor Safe 3', description: 'Configurer' }, { name: 'Trezor Safe 5' },
+  ])}`;
+  assert.match(ambiguousNameDirective(family, 'fr'), /^Plusieurs tutoriels portent ce nom\. Réponds en 3 phrases au plus\..*Dernière phrase : une question courte qui demande lequel intéresse l'utilisateur\. Ne cite pas les tutoriels : l'application affiche leur liste juste sous ta question\./);
+  assert.match(ambiguousNameDirective(family, 'en'), /Do not name the tutorials: the app shows their list right under your question\./);
+  // A list the budget cut is not announced: the app would show nothing.
+  assert.equal(ambiguousNameDirective(family.slice(0, family.lastIndexOf('[End')), 'fr'), '');
+  const part = 'Linux Mint (Plan ₿ Academy tutorial)\nThe message is only part of this tutorial\'s name ("Linux Mint", Installer un système sain): the word may also mean something else.\n\nTexte.';
+  assert.match(ambiguousNameDirective(part, 'fr'), /Phrase 2 : il existe aussi le tutoriel « Linux Mint » \(Installer un système sain\)\. Phrase 3 : une question qui demande lequel des 2 intéresse l'utilisateur\./);
+  assert.match(ambiguousNameDirective(part.replace(', Installer un système sain', ''), 'en'), /there is also the tutorial "Linux Mint"\. Sentence 3/);
+  assert.equal(ambiguousNameDirective('Sparrow Wallet (Plan ₿ Academy tutorial)\nSparrow est un logiciel.', 'fr'), '');
+  assert.equal(ambiguousNameDirective(null, 'fr'), '');
 });

@@ -7,7 +7,7 @@ import { LocalModelError, isAllowedModelDownloadUrl, modelDownloadRefusalError, 
 
 export type AIPreset = 'fast' | 'balanced' | 'deep';
 /** Ids of the default catalog; a legacy or custom entry carries any other string. */
-export type CatalogModelId = 'qwen3.5-0.8b' | 'qwen3.5-2b' | 'qwen3.5-4b' | 'qwen3.5-9b';
+export type CatalogModelId = 'qwen3.5-0.8b' | 'qwen3.5-2b' | 'qwen3.5-4b' | 'qwen3.5-9b' | 'gemma-4-e2b' | 'gemma-4-e4b' | 'gemma-4-12b';
 export type LocalModelId = CatalogModelId | (string & {});
 export const DEFAULT_LOCAL_MODEL_ID: CatalogModelId = 'qwen3.5-4b';
 
@@ -41,7 +41,8 @@ export const CLOUD_PRESETS: Record<AIPreset, PresetParams> = {
 
 export const ALL_PRESETS: AIPreset[] = ['fast', 'balanced', 'deep'];
 
-// The default catalog: the models Alice proposes and has measured. Every
+// The default catalog: the models Alice proposes. The Qwen series and Gemma 4
+// E4B were measured; the two other Gemma files were not (see their note). Every
 // other file (previous catalog entries still on disk, custom Hugging Face
 // downloads) stays usable through the registry below.
 export const MODEL_CATALOG: ModelEntry[] = [
@@ -109,6 +110,60 @@ export const MODEL_CATALOG: ModelEntry[] = [
     ramNeeded: '12 GB',
     source: 'catalog',
     recommendation: 'For desktop computers and phones with 12 GB of memory or more. Best local quality, slowest responses, 5.7 GB to download.',
+  },
+  // Gemma 4 (Google, Apache 2.0), unsloth GGUF files pinned like the Qwen
+  // ones. Offered after Qwen as another publisher's series, never as the
+  // default (decision of 2026-11-18). The "E" sizes are effective sizes: the
+  // parameter counts below are the real ones, which also keeps the series off
+  // phones (mobileModelRefusal) until it is measured there.
+  // Only the E4B was measured, against Qwen3.5 4B on 2026-11-18 (MacBook Air
+  // M3, same requests, 32 unseen questions, 3 seeds, blind review): same
+  // speed, 53 compliant answers of 84 against 43, 4.9 GB of memory against 3.4.
+  // The E2B and the 12B were listed without being downloaded or run: their
+  // sizes and hashes come from the Hugging Face LFS metadata, their speed and
+  // memory figures are estimates from the file size, and their texts claim
+  // nothing about answer quality.
+  {
+    id: 'gemma-4-e2b',
+    parameters: 5.1,
+    name: 'Gemma 4 E2B',
+    filename: 'gemma-4-E2B-it-Q4_K_M.gguf',
+    sizeBytes: 3_106_738_272,
+    sha256: '740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8',
+    url: 'https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/0314792d7f1f7e229411f620751375812bb9faf2/gemma-4-E2B-it-Q4_K_M.gguf',
+    description: 'The Google alternative to Qwen3.5 2B, for computers. Heavier download.',
+    speed: 'Fast',
+    ramNeeded: '6 GB',
+    source: 'catalog',
+    recommendation: 'For computers. A small model from another publisher, 3.1 GB to download. Qwen3.5 4B remains the recommended choice.',
+  },
+  {
+    id: 'gemma-4-e4b',
+    parameters: 7.5,
+    name: 'Gemma 4 E4B',
+    filename: 'gemma-4-E4B-it-Q4_K_M.gguf',
+    sizeBytes: 4_977_171_584,
+    sha256: '85a896a047553e842f25297ee5b031d64ff30147d9c4af17b1e4b394cd1fab87',
+    url: 'https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/bfc15c382204943c3a8fff0c750b94ae2364d7a3/gemma-4-E4B-it-Q4_K_M.gguf',
+    description: 'The Google alternative to Qwen3.5 4B, for computers. Same speed, heavier download.',
+    speed: 'Medium',
+    ramNeeded: '8 GB',
+    source: 'catalog',
+    recommendation: 'For computers. Comparable to Qwen3.5 4B in the Alice tests, 5.0 GB to download. Qwen3.5 4B remains the recommended choice.',
+  },
+  {
+    id: 'gemma-4-12b',
+    parameters: 12,
+    name: 'Gemma 4 12B',
+    filename: 'gemma-4-12b-it-Q4_K_M.gguf',
+    sizeBytes: 7_121_861_440,
+    sha256: '0a270ec9fe6b34f4a0d33992b6135117b484ebc4766ab76b51d4ae8c457e4c42',
+    url: 'https://huggingface.co/unsloth/gemma-4-12b-it-GGUF/resolve/fc034cfff751157913579611efad8462ac1be606/gemma-4-12b-it-Q4_K_M.gguf',
+    description: 'The Google alternative to Qwen3.5 9B, for computers with a lot of memory. Heavier download.',
+    speed: 'Slow',
+    ramNeeded: '16 GB',
+    source: 'catalog',
+    recommendation: 'For computers with 16 GB of memory or more. A large model from another publisher, 7.1 GB to download. Qwen3.5 4B remains the recommended choice.',
   },
 ];
 

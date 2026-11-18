@@ -11,7 +11,7 @@ import { assertAnswerRepairContext } from './answer-repair-context.ts';
 import { getActiveModelId, getAliceInstructions, getPreset, PRESETS } from './ai-preferences';
 import { groundedAnswerPolicy, buildAliceLocalSystemPrompt, buildAliceSystemPrompt, requiresBufferedAliceResponse, withAliceInstructionReminder } from './ai-system-prompt';
 import { fitMessagesToEstimatedLocalContext } from './local-context-budget';
-import { fitLocalModelRoles, usesAnswerOnlyLocalMode, withLocalAnswerLanguageLine } from './local-model-message-policy';
+import { fitLocalModelRoles, prefillsEmptyThinkBlock, usesAnswerOnlyLocalMode, withLocalAnswerLanguageLine } from './local-model-message-policy';
 
 export type PreparedLocalRequest = {
   messages: Message[];
@@ -22,9 +22,11 @@ export type PreparedLocalRequest = {
    * whole token budget, truncating the visible answer mid-sentence. The
    * prompt already carries the /no_think soft switch; the engine adds its own
    * channel (the chat-template kwarg on llama-server, an empty think block
-   * in the app engine).
+   * in the app engine). Gemma 4 takes the same switch on llama-server.
    */
   disableThinking: boolean;
+  /** Whether the app engine starts the answer after an empty <think> block. */
+  emptyThinkBlock: boolean;
   /** Alice's custom instructions, applied to the finished answer. */
   instructions: string;
   /** The answer is shown only once complete, for instructions that need the whole text. */
@@ -64,6 +66,7 @@ export async function prepareLocalRequest(
     temperature: effectiveTemperature(params.temperature, options),
     maxTokens: fitted.responseTokens,
     disableThinking,
+    emptyThinkBlock: disableThinking && prefillsEmptyThinkBlock(activeModelId),
     instructions,
     buffered: requiresBufferedAliceResponse(instructions),
   };

@@ -27,6 +27,13 @@ const FRENCH_WORDS = new Set([
   'repondre', 'reponse', 'reponses', 'compris', 'concis', 'concise', 'vais', 'aider', 'accord',
   'sans', 'sur', 'tu', 'une', 'vous', 'quoi', 'bitcoin',
   'explique', 'expliquez', 'expliquer', 'fonctionne', 'fonctionnent', 'fonctionnement',
+  // A short question often has no accent and one question word: "Comment
+  // configurer mon Coldcard ?". Determiners and the verbs of a how-to settle it.
+  'mon', 'ma', 'mes', 'un', 'du', 'de', 'au', 'aux', 'en', 'cette', 'cet', 'quand', 'quels', 'quelles',
+  'peut', 'dois', 'doit', 'faut', 'veux', 'veut', 'suis', 'sont',
+  'installer', 'configurer', 'utiliser', 'relier', 'connecter', 'envoyer', 'recevoir', 'sauvegarder',
+  'creer', 'verifier', 'ajouter', 'ouvrir', 'fermer', 'choisir', 'acheter', 'vendre', 'mettre',
+  'portefeuille', 'adresse', 'cle', 'cles', 'noeud', 'frais', 'attente', 'reseau',
 ]);
 
 const ENGLISH_WORDS = new Set([
