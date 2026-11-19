@@ -9,7 +9,7 @@ import { ChainDataError } from '@/lib/explorer/provider';
 import type { NormalizedBlock, NormalizedTransaction } from '@/lib/explorer/types';
 import { buildBlockContext, buildFullBlockDescription, type PrivacySignal } from '@/lib/explorer/signals';
 import type { FullContext } from '@/lib/explorer/ask-alice';
-import { feeColor, formatBlockAge, formatBytes, formatCount, formatDateTime, formatFeeRange } from '@/lib/explorer/blocks';
+import { feeColor, formatBlockAge, formatBytes, formatCount, formatDateTime, formatFeeRange, formatFeeRate } from '@/lib/explorer/blocks';
 import { useT } from '@/i18n';
 import { ExplorerBlockTreemap } from '@/components/ExplorerBlockTreemap';
 import { SectionPanel, Skeleton, SkeletonLines } from '@/components/ExplorerUI';
@@ -212,7 +212,7 @@ export function ExplorerBlockTab({
     return (
       <div className="flex flex-col gap-4" aria-label={t('explorerBlocks.tab.reading', { source: provider.source.name })}>
         <div className="flex flex-col md:flex-row gap-4 md:items-start">
-          <Skeleton width={300} height={300} style={{ maxWidth: '100%' }} />
+          <div className="rh-skeleton alice-block-map-loading" aria-hidden />
           <div className="flex-1 flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3, backgroundColor: 'transparent' }}>
             <Skeleton width="40%" height={18} />
             <SkeletonLines lines={4} />
@@ -282,7 +282,7 @@ export function ExplorerBlockTab({
             <Metric label={t('explorerBlocks.tab.transactions')} value={formatCount(b.txCount, t.locale)} />
             <Metric label={t('explorerBlocks.tab.size')} value={formatBytes(b.size, t.locale)} />
             <Metric label={t('explorerBlocks.tab.weight')} value={`${(b.weight / 1000).toFixed(0)} KWU`} />
-            {b.medianFee !== undefined && <Metric label={t('explorerBlocks.tab.medianFee')} value={`${Math.round(b.medianFee)} sat/vB`} />}
+            {b.medianFee !== undefined && <Metric label={t('explorerBlocks.tab.medianFee')} value={formatFeeRate(b.medianFee, t.locale)} />}
             {range && <Metric label={t('explorerBlocks.tab.feeRange')} value={range} />}
             {/* Fees stay in sats whatever the display unit. */}
             {b.totalFees !== undefined && <Metric label={t('explorerBlocks.tab.totalFees')} value={`${formatCount(b.totalFees, t.locale)} sats`} />}

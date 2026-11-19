@@ -354,7 +354,7 @@ export function ExplorerMoneroBlockTab({ heightOrHash, source, onOpenTx, onFocus
     return (
       <div className="flex flex-col gap-4" aria-label={tr('explorerMonero.blockReading')}>
         <div className="flex flex-col md:flex-row gap-4 md:items-start">
-          <Skeleton width={300} height={300} style={{ maxWidth: '100%' }} />
+          <div className="rh-skeleton alice-block-map-loading" aria-hidden />
           <div className="flex-1 flex flex-col gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--alice-border)', borderRadius: 3 }}>
             <Skeleton width="40%" height={18} />
             <SkeletonLines lines={4} />

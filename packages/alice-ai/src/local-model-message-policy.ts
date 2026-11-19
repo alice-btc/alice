@@ -1,11 +1,11 @@
 import type { Message } from './llm';
 import { languageDefinition, type SupportedLanguage } from './languages.ts';
 
-type LocalModelFamily = 'qwen3.5' | 'qwen3' | 'smollm3' | 'other';
+type LocalModelFamily = 'qwen3.5' | 'qwen3' | 'smollm3' | 'gemma4' | 'other';
 
 /**
  * The family a model id belongs to, read from the id itself: catalog and
- * legacy ids ("qwen3.5-4b", "smollm3-3b") and custom ids, which carry the
+ * legacy ids ("qwen3.5-4b", "gemma-4-e4b", "smollm3-3b") and custom ids, which carry the
  * repository and file name ("custom:unsloth/Qwen3.5-2B-GGUF/Qwen3.5-2B-Q4_K_M.gguf").
  * A custom file of a known family gets that family's template rules; any
  * other file keeps the generic prompt path.
@@ -15,11 +15,26 @@ export function localModelFamily(modelId: string): LocalModelFamily {
   if (/qwen3[._-]?5\b/.test(id)) return 'qwen3.5';
   if (/qwen3\b/.test(id)) return 'qwen3';
   if (/smollm3/.test(id)) return 'smollm3';
+  // "gemma-4-e4b", "gemma4:e4b"; not Gemma 3 ("gemma-3-4b", "gemma-3n-e4b").
+  if (/gemma[._-]?4(?![0-9b])/.test(id)) return 'gemma4';
   return 'other';
 }
 
 export function usesAnswerOnlyLocalMode(modelId: string): boolean {
-  // Qwen3 and Qwen3.5 share the thinking switch; SmolLM3 has its own.
+  // Qwen3 and Qwen3.5 share the thinking switch; SmolLM3 has its own. Gemma 4
+  // reasons only when its template is asked to, and llama-server asks by
+  // default (it renders <|think|> unless enable_thinking is false).
+  const family = localModelFamily(modelId);
+  return family === 'qwen3.5' || family === 'qwen3' || family === 'smollm3' || family === 'gemma4';
+}
+
+/**
+ * The engine inside the phone apps applies the template without its
+ * arguments and switches reasoning off by starting the answer after an empty
+ * <think> block. Only the families whose templates render that block get it:
+ * Gemma 4 has no such block and does not reason unless asked.
+ */
+export function prefillsEmptyThinkBlock(modelId: string): boolean {
   const family = localModelFamily(modelId);
   return family === 'qwen3.5' || family === 'qwen3' || family === 'smollm3';
 }
@@ -30,10 +45,12 @@ export function usesAnswerOnlyLocalMode(modelId: string): boolean {
  * subsequent system turns; the Qwen3.5 template raises
  * "System message must be at the beginning", which llama.cpp turns into a 400
  * for every request that carries application context as a later system turn.
+ * The Gemma 4 template renders later system turns as such; Alice was measured
+ * on Gemma 4 with the context carried in user turns, so it keeps that shape.
  */
 export function acceptsOnlyLeadingSystemMessage(modelId: string): boolean {
   const family = localModelFamily(modelId);
-  return family === 'smollm3' || family === 'qwen3.5';
+  return family === 'smollm3' || family === 'qwen3.5' || family === 'gemma4';
 }
 
 /**

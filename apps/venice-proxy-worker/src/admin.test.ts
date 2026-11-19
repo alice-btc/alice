@@ -430,7 +430,7 @@ describe('promo codes', () => {
     const user = await registerAccount('promo-user');
 
     const create = await worker.fetch(
-      jsonRequest('/admin/api/promo-codes', { code: 'ALICE-TEST', credits: 5, max_redemptions: 5 }, bearer(admin.access_token)),
+      jsonRequest('/admin/api/promo-codes', { admin_password: ADMIN_PASSWORD, code: 'ALICE-TEST', credits: 5, max_redemptions: 5 }, bearer(admin.access_token)),
       env,
     );
     assert.equal(create.status, 200);
@@ -454,11 +454,11 @@ describe('promo codes', () => {
     const admin = await bootstrapAdmin('promo-admin-2');
     const user = await registerAccount('promo-user-2');
     await worker.fetch(
-      jsonRequest('/admin/api/promo-codes', { code: 'ALICE-DIS', credits: 5, max_redemptions: 5 }, bearer(admin.access_token)),
+      jsonRequest('/admin/api/promo-codes', { admin_password: ADMIN_PASSWORD, code: 'ALICE-DIS', credits: 5, max_redemptions: 5 }, bearer(admin.access_token)),
       env,
     );
     await worker.fetch(
-      jsonRequest('/admin/api/promo-codes/ALICE-DIS/disable', {}, bearer(admin.access_token)),
+      jsonRequest('/admin/api/promo-codes/ALICE-DIS/disable', { admin_password: ADMIN_PASSWORD }, bearer(admin.access_token)),
       env,
     );
     const redeem = await worker.fetch(
@@ -473,7 +473,7 @@ describe('promo codes', () => {
     const first = await registerAccount('promo-race-1');
     const second = await registerAccount('promo-race-2');
     await worker.fetch(
-      jsonRequest('/admin/api/promo-codes', { code: 'ALICE-LAST', credits: 5, max_redemptions: 1 }, bearer(admin.access_token)),
+      jsonRequest('/admin/api/promo-codes', { admin_password: ADMIN_PASSWORD, code: 'ALICE-LAST', credits: 5, max_redemptions: 1 }, bearer(admin.access_token)),
       env,
     );
     const responses = await Promise.all([first, second].map(user => worker.fetch(
@@ -749,15 +749,15 @@ describe('site analytics', () => {
       const body = await res.json() as {
         configured: boolean;
         daily: { key: string; visits: number; page_views: number }[];
-        top_paths_7d: { key: string }[];
-        countries_7d: { key: string }[];
-        referers_7d: { key: string }[];
+        top_paths: { key: string }[];
+        countries: { key: string }[];
+        referers: { key: string }[];
       };
       assert.equal(body.configured, true);
       assert.deepEqual(body.daily[1], { key: '2026-10-26', visits: 11, page_views: 30 });
-      assert.equal(body.top_paths_7d[0].key, '/');
-      assert.equal(body.countries_7d[0].key, 'LT');
-      assert.equal(body.referers_7d[0].key, 'x.com');
+      assert.equal(body.top_paths[0].key, '/');
+      assert.equal(body.countries[0].key, 'LT');
+      assert.equal(body.referers[0].key, 'x.com');
 
       assert.ok(calls.every(call => call.auth === 'Bearer cf-token-test'));
       const graphql = calls.find(call => call.url.endsWith('/graphql'));
@@ -834,65 +834,29 @@ describe('site analytics', () => {
   });
 });
 
-describe('product events', () => {
-  it('counts allowlisted events and silently drops everything else', async () => {
+describe('download clicks in the console', () => {
+  it('reports the site clicks and nothing an app posted', async () => {
     const admin = await bootstrapAdmin('events-admin');
     const user = await registerAccount('events-user');
-
-    const post = await worker.fetch(
-      jsonRequest('/account/events', {
-        events: [
-          'app_opened',
-          'app_opened',
-          'download_completed',
-          // Not on the allowlist: a client trying to smuggle content through.
-          'search:how do I move my bitcoin',
-          'wallet_created',
-        ],
-      }, { ...bearer(user.access_token), 'x-alice-platform': 'android', 'x-alice-app-version': '2.0.0' }),
+    await worker.fetch(
+      jsonRequest('/account/events', { events: ['app_opened', 'chat_opened'] },
+        { ...bearer(user.access_token), 'x-alice-platform': 'android', 'x-alice-app-version': '0.2.9' }),
       env,
     );
-    assert.equal(post.status, 200);
-    assert.deepEqual(await post.json(), { accepted: 2 });
+    await worker.fetch(new Request('https://proxy.test/site/events', {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain', 'cf-connecting-ip': '198.51.100.21' },
+      body: JSON.stringify({ platform: 'desktop-macos' }),
+    }), env);
 
     const res = await worker.fetch(
       jsonRequest('/admin/api/events', {}, bearer(admin.access_token), 'GET'),
       env,
     );
-    const body = await res.json() as {
-      totals: { event_name: string; platform: string; count: number }[];
-    };
-    const opened = body.totals.find(t => t.event_name === 'app_opened');
-    assert.equal(opened?.count, 2);
-    assert.equal(opened?.platform, 'android');
-    // The smuggled string never reached storage.
-    const text = JSON.stringify(body.totals);
-    assert.doesNotMatch(text, /how do I move my bitcoin/);
-    assert.doesNotMatch(text, /wallet_created/);
-  });
-
-  it('stores no user or session identifier alongside an event', async () => {
-    const user = await registerAccount('events-anon');
-    await worker.fetch(
-      jsonRequest('/account/events', { events: ['chat_opened'] }, bearer(user.access_token)),
-      env,
-    );
-    const rows = await db.prepare('SELECT * FROM events_daily').all();
-    assert.ok(rows.results.length > 0);
-    for (const row of rows.results) {
-      assert.deepEqual(
-        Object.keys(row).sort(),
-        ['app_version', 'count', 'day', 'event_name', 'platform'],
-      );
-    }
-  });
-
-  it('requires a session to submit events', async () => {
-    const res = await worker.fetch(
-      jsonRequest('/account/events', { events: ['app_opened'] }),
-      env,
-    );
-    assert.equal(res.status, 401);
+    const body = await res.json() as { totals: { platform: string; count: number }[]; by_day: unknown[] };
+    assert.deepEqual(body.totals, [{ platform: 'desktop-macos', count: 1 }]);
+    assert.equal(body.by_day.length, 1);
+    assert.deepEqual(Object.keys(body).sort(), ['by_day', 'totals']);
   });
 });
 
@@ -1117,6 +1081,21 @@ const EVERY_ADMIN_ROUTE: [string, string][] = [
   ['GET', '/admin/api/promo-codes'],
   ['POST', '/admin/api/promo-codes'],
   ['POST', '/admin/api/promo-codes/ALICE-X/disable'],
+  ['POST', '/admin/api/unlock'],
+  ['GET', '/admin/api/launch'],
+  ['GET', '/admin/api/site-analytics'],
+  ['GET', '/admin/api/test-wallet-faucet'],
+  ['GET', '/admin/api/health'],
+  ['GET', '/admin/api/growth'],
+  ['GET', '/admin/api/money'],
+  ['GET', '/admin/api/venice'],
+  ['GET', '/admin/api/platform'],
+  ['GET', '/admin/api/errors'],
+  ['GET', '/admin/api/versions'],
+  ['GET', '/admin/api/github'],
+  ['GET', '/admin/api/annotations'],
+  ['POST', '/admin/api/annotations'],
+  ['DELETE', '/admin/api/annotations/some-id'],
 ];
 
 describe('the password is the real gate', () => {

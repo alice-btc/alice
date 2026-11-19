@@ -25,6 +25,7 @@ import {
 } from '@/components/icons';
 import { externalLinkProps } from '@/lib/links';
 import type { CommonCopy } from '@/i18n/dictionaries/common';
+import { countDownloadClick, type DownloadClickPlatform } from '@/lib/download-click';
 
 type CtaCopy = CommonCopy['ctas'];
 type NoticeCopy = CommonCopy['downloadNotice'];
@@ -44,6 +45,8 @@ export type PlatformItem = {
   notice?: DownloadPlatform;
   /** Release page for this installer, never the separate Wallet release. */
   verifyHref?: string;
+  /** Set on installers: a click adds 1 to that platform's daily total. */
+  platform?: DownloadClickPlatform;
 };
 
 // Companion platforms shared by the desktop and mobile download menus.
@@ -53,21 +56,22 @@ export function appPlatformItems(copy: CtaCopy): PlatformItem[] {
     // The Mac build is signed with a Developer ID and notarised since 0.2.5, so
     // macOS only asks the standard "downloaded from the Internet" question that
     // every app outside the App Store gets; nothing worth a notice.
-    { icon: <AppleGlyph size={18} />, label: copy.mac, href: DESKTOP_MAC_URL },
-    { icon: <WindowsGlyph size={16} />, label: copy.windows, href: DESKTOP_WINDOWS_URL, notice: 'windows' },
+    { icon: <AppleGlyph size={18} />, label: copy.mac, href: DESKTOP_MAC_URL, platform: 'desktop-macos' },
+    { icon: <WindowsGlyph size={16} />, label: copy.windows, href: DESKTOP_WINDOWS_URL, notice: 'windows', platform: 'desktop-windows' },
     // Desktop rows carry no version: every installer on the release page is the
     // same version, and the app updates itself from there. The APK keeps its
     // number because a sideloaded file is chosen by hand, with no update channel.
     // Linux raises no platform warning, so both packages link straight through.
-    { icon: <LinuxGlyph size={18} />, label: copy.linuxAppImage, href: DESKTOP_LINUX_APPIMAGE_URL },
-    { icon: <LinuxGlyph size={18} />, label: copy.linuxDebian, href: DESKTOP_LINUX_DEB_URL },
-    { icon: <AppleGlyph size={18} />, label: copy.iosTestFlight, href: IOS_TESTFLIGHT_URL },
+    { icon: <LinuxGlyph size={18} />, label: copy.linuxAppImage, href: DESKTOP_LINUX_APPIMAGE_URL, platform: 'desktop-linux' },
+    { icon: <LinuxGlyph size={18} />, label: copy.linuxDebian, href: DESKTOP_LINUX_DEB_URL, platform: 'desktop-linux' },
+    { icon: <AppleGlyph size={18} />, label: copy.iosTestFlight, href: IOS_TESTFLIGHT_URL, platform: 'ios' },
     {
       icon: <AndroidGlyph size={18} />,
       label: copy.androidApk,
       href: COMPANION_ANDROID_RELEASE_URL ? COMPANION_ANDROID_APK_URL : undefined,
       notice: 'android',
       verifyHref: COMPANION_ANDROID_RELEASE_URL,
+      platform: 'android',
     },
     { icon: <DownloadIcon size={18} />, label: copy.release, href: DESKTOP_RELEASE_URL },
   ];
@@ -92,6 +96,7 @@ export function PlatformRow({
   href,
   notice,
   verifyHref,
+  platform,
   compact,
   comingSoon,
   noticeCopy,
@@ -123,7 +128,10 @@ export function PlatformRow({
       <>
         <button
           type="button"
-          onClick={() => setShowNotice(true)}
+          onClick={() => {
+            if (platform) countDownloadClick(platform);
+            setShowNotice(true);
+          }}
           className={`${box} w-full cursor-pointer bg-transparent text-left transition-colors hover:bg-[var(--alice-bg)]`}
         >
           {inner}
@@ -145,6 +153,7 @@ export function PlatformRow({
       <a
         href={href}
         {...externalLinkProps(href)}
+        onClick={platform ? () => countDownloadClick(platform) : undefined}
         className={`${box} transition-colors hover:bg-[var(--alice-bg)]`}
       >
         {inner}

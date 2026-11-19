@@ -5,7 +5,7 @@ import { findRawIdentifiersInText } from './route.ts';
 import type { TabKind } from './tabs.ts';
 import type { NetworkKind } from './networks.ts';
 
-const KINDS: TabKind[] = ['overview', 'tx', 'address', 'block', 'xpub', 'vtxo'];
+const KINDS: TabKind[] = ['overview', 'tx', 'address', 'block', 'mempool', 'xpub', 'vtxo'];
 const NETWORKS: { kind: NetworkKind; label: string }[] = [
   { kind: 'bitcoin', label: 'Bitcoin' }, { kind: 'bitcoin', label: 'Mutinynet' }, { kind: 'liquid', label: 'Liquid' },
   { kind: 'arkade', label: 'Arkade' }, { kind: 'bark', label: 'Bark' }, { kind: 'spark', label: 'Spark' },
@@ -58,4 +58,9 @@ describe('askContextLabel', () => {
     // A 64-hex id on Spark is a token transaction or a Bitcoin one.
     assert.equal(askContextLabel('tx', 'f'.repeat(64), 'spark'), 'Transaction ...fffff');
   });
+});
+
+it('tells Alice a projected block is not mined, and labels its chip without a number', () => {
+  assert.match(explorerPageNote('mempool', { kind: 'bitcoin', label: 'Bitcoin' }), /Bitcoin projected block \(transactions waiting in the mempool, not mined yet\) page/);
+  assert.equal(askContextLabel('mempool', '0', 'bitcoin'), 'A pending block');
 });

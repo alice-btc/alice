@@ -158,6 +158,12 @@ export function matchDictionaryTerm<T extends DictionaryIndexEntry>(entries: rea
   return best;
 }
 
+/** True when the whole text is the name of a term: "Halving", "clé privée". */
+export function isDictionaryTerm(entries: readonly DictionaryIndexEntry[], text: string, lang: 'en' | 'fr' = 'fr'): boolean {
+  const match = matchDictionaryTerm(entries, text, lang);
+  return match !== null && termKey(match.name) === termKey(text);
+}
+
 /**
  * A definition body as plain prose for the model: images, formulas and
  * formatting out, cut at a sentence end under the limit.

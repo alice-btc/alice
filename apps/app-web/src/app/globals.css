@@ -497,6 +497,26 @@ body, .font-numbers { font-family: var(--alice-font-reading); }
   .alice-definition-backdrop { align-items: center; padding: 24px; }
   .alice-definition-peek { border: 1px solid var(--alice-border); border-radius: 12px; }
 }
+/* The block map. On a phone it is capped well under the screen's width: at
+   full width it took more than half the screen before the block's details.
+   Narrower than its column there, it sits in the middle of it, with its
+   legend. */
+.alice-block-map-loading { width: 300px; height: 300px; max-width: 100%; }
+@media (max-width: 767px) {
+  .alice-block-map { max-width: 220px; }
+  .alice-block-map-loading { width: 220px; height: 220px; margin-inline: auto; }
+  .alice-block-map-frame { align-items: center; }
+  .alice-block-map-legend { flex-wrap: wrap; justify-content: center; column-gap: 12px; }
+  .alice-block-map-caption { text-align: center; }
+}
+/* The image viewer of a course (LearnMarkdown): a stage that takes every
+   gesture itself, so a pinch enlarges the image and never the page. */
+.alice-image-zoom { position: fixed; inset: 0; z-index: 70; background: var(--alice-bg); }
+.alice-image-zoom-stage { position: absolute; inset: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom)); overflow: hidden; touch-action: none; overscroll-behavior: contain; user-select: none; -webkit-user-select: none; }
+.alice-image-zoom-stage img { position: absolute; max-width: none; border: 1px solid var(--alice-border); border-radius: var(--alice-radius-control); background: var(--alice-illustration-bg); -webkit-user-drag: none; }
+.alice-image-zoom-stage img:active { cursor: grabbing; }
+.alice-image-zoom-tools { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 12px; display: flex; gap: 6px; }
+.alice-image-zoom-tools .alice-control { background: var(--alice-bg-soft); border-color: var(--alice-control-border); }
 @media (pointer: coarse), (max-width: 767px) {
   .alice-control { min-height: 44px; }
   .alice-control--tool, .alice-control--send { width: 44px; }
@@ -572,6 +592,25 @@ body, .font-numbers { font-family: var(--alice-font-reading); }
 
 /* Explicit specificity keeps the mobile trigger out of the desktop toolbar. */
 @media (min-width: 768px) { .alice-control.atelier-mobile-menu { display: none; } }
+/* A quoted line in a reply (ChatMessage): a side rule in the accent colour. */
+.alice-chat-quote { padding: 2px 0 2px 12px; border-left: 3px solid var(--alice-primary); }
+
+/* The "Ask Alice" opener of the Explorer, Learn and the Playground: a framed
+   speech bubble over the page's bottom-right corner. Opaque, so what scrolls
+   under it never reads through. The mobile apps round it (data-shell, below). */
+.alice-control.alice-ask-fab {
+  position: fixed; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 40;
+  width: 44px; height: 44px; min-height: 44px; padding: 0;
+  border: 1px solid var(--alice-control-border); border-radius: var(--alice-radius-control);
+  background: var(--alice-bg-soft); color: var(--alice-text); cursor: pointer;
+}
+.alice-control.alice-ask-fab:hover:not(:disabled) { background: var(--alice-bg-soft); border-color: var(--alice-primary); color: var(--alice-primary); }
+
+/* The chat's own "new conversation" button belongs to the Android and iOS
+   apps, which place it at the top right (data-shell, below). Anywhere else the
+   sidebar has that action, and the button, left in the flow, landed on the
+   menu trigger. */
+.alice-control.atelier-mobile-new { display: none; }
 @media (max-width: 767px) {
   .atelier-mobile-menu, .workspace-mobile-header > button { transition: opacity 120ms ease; }
   .atelier-mobile-menu[aria-expanded=true], .workspace-mobile-header > button[aria-expanded=true] { opacity: 0; pointer-events: none; }
@@ -632,6 +671,7 @@ body, .font-numbers { font-family: var(--alice-font-reading); }
   html[data-shell] .alice-app-frame { height: var(--alice-viewport-height, 100dvh); }
   html[data-shell] .atelier-mobile-menu,
   html[data-shell] .atelier-mobile-new,
+  html[data-shell] .alice-ask-fab,
   html[data-shell] .workspace-mobile-header > button,
   html[data-shell] .workspace-mobile-actions > .alice-control--tool {
     width: 44px; height: 44px; min-height: 44px; padding: 0;
@@ -668,6 +708,7 @@ body, .font-numbers { font-family: var(--alice-font-reading); }
 @media (max-width: 767px) {
   html[data-shell=ios] .atelier-mobile-menu,
   html[data-shell=ios] .atelier-mobile-new,
+  html[data-shell=ios] .alice-ask-fab,
   html[data-shell=ios] .workspace-mobile-header > button,
   html[data-shell=ios] .workspace-mobile-actions > .alice-control--tool,
   html[data-shell=ios] .atelier-conversation .chat-composer {

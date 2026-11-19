@@ -13,7 +13,7 @@ import { useT } from '@/i18n';
 // A glyph per tab kind, so a tab's type is legible at a glance and not carried
 // by colour alone (item 11 / item 5).
 const TAB_GLYPH: Record<TabKind, string> = {
-  overview: EXPLORE_ICON, tx: NETWORK_ICON, address: WALLET_ICON, block: DATA_ICON, xpub: WALLET_ICON, vtxo: LINK_ICON,
+  overview: EXPLORE_ICON, tx: NETWORK_ICON, address: WALLET_ICON, block: DATA_ICON, mempool: DATA_ICON, xpub: WALLET_ICON, vtxo: LINK_ICON,
 };
 
 // Standalone network button: it only opens the explorer dropdown, it is not a

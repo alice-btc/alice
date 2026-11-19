@@ -20,3 +20,19 @@ test('every catalog model is pinned to a commit with its SHA-256, the previous c
     assert.ok(runtime.modelDownloadRefusal(entry), entry.id);
   }
 });
+
+test('Gemma is offered after Qwen, on computers only, and never as the default', async () => {
+  const runtime = await loadRagEvaluationRuntime(`
+    export { MODEL_CATALOG, DEFAULT_LOCAL_MODEL_ID } from './packages/alice-ai/src/ai-preferences.ts';
+    export { mobileModelRefusal } from './packages/alice-ai/src/local-model-memory.ts';
+  `, { evaluationPreferences: {} });
+  const ids: string[] = runtime.MODEL_CATALOG.map((entry: { id: string }) => entry.id);
+  const gemma = ids.filter(id => id.startsWith('gemma-'));
+  assert.ok(gemma.length > 0);
+  assert.equal(runtime.DEFAULT_LOCAL_MODEL_ID, 'qwen3.5-4b');
+  assert.ok(ids.indexOf(gemma[0]) > ids.indexOf('qwen3.5-9b'), 'Gemma comes after the Qwen series');
+  for (const entry of runtime.MODEL_CATALOG) {
+    if (entry.id.startsWith('gemma-')) assert.ok(runtime.mobileModelRefusal(entry), `${entry.id} is not offered on a phone`);
+  }
+});
+

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildQuizAsk, buildSelectionAsk, consumeLearnAsk, requestLearnAsk } from './ask.ts';
+import { buildQuizAsk, buildSelectionAsk, consumeLearnAsk, learnAskPageKey, requestLearnAsk } from './ask.ts';
 
 describe('buildQuizAsk', () => {
   it('carries question, picked wrong answer and correct answer in the context', () => {
@@ -35,5 +35,21 @@ describe('requestLearnAsk / consumeLearnAsk', () => {
     requestLearnAsk(request);
     assert.deepEqual(consumeLearnAsk(), request);
     assert.equal(consumeLearnAsk(), null);
+  });
+});
+
+describe('learnAskPageKey', () => {
+  it('stays the same on one chapter, whatever its title has loaded to', () => {
+    const view = { kind: 'chapter', code: 'btc101', chapterId: 'abc' } as const;
+    assert.equal(learnAskPageKey(view, 'fr'), learnAskPageKey({ ...view }, 'fr'));
+  });
+
+  it('changes with the chapter, the course and the reading language', () => {
+    const chapter = { kind: 'chapter', code: 'btc101', chapterId: 'abc' } as const;
+    const key = learnAskPageKey(chapter, 'fr');
+    assert.notEqual(key, learnAskPageKey({ ...chapter, chapterId: 'def' }, 'fr'));
+    assert.notEqual(key, learnAskPageKey({ ...chapter, code: 'btc204' }, 'fr'));
+    assert.notEqual(key, learnAskPageKey(chapter, 'en'));
+    assert.notEqual(key, learnAskPageKey({ kind: 'course', code: 'btc101' }, 'fr'));
   });
 });

@@ -73,10 +73,17 @@ function sourceRecommendation(source: LearnSource, t: Translator, open: (path: s
   };
 }
 
+// The prompt asks for **bold** only, and models still write *emphasis*. A
+// lone asterisk with a space beside it ("2 * 3") or inside a word stays text.
+const INLINE_MARKDOWN = /(\*\*.+?\*\*|`[^`]+`|(?<![\w*])\*(?!\s)[^*\n]+?(?<!\s)\*(?![\w*]))/g;
+
 function renderInlineMarkdown(text: string, link?: (plain: string) => ReactNode): React.ReactNode[] {
-  return text.split(/(\*\*.+?\*\*|`[^`]+`)/g).map((part, index) => {
+  return text.split(INLINE_MARKDOWN).map((part, index) => {
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
       return <strong key={index}>{link ? link(part.slice(2, -2)) : part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+      return <em key={index}>{link ? link(part.slice(1, -1)) : part.slice(1, -1)}</em>;
     }
     if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
       return (
@@ -197,6 +204,15 @@ function ChatMarkdownText({ content, streaming = false, terms }: { content: stri
               <span className="w-3 text-center shrink-0">&bull;</span>
               <span className="flex-1">{inline(bullet[1])}{lineCursor}</span>
             </div>
+          );
+        }
+        // A quoted line: a tutorial's security warning shown by the app, or a
+        // "to remember" a model sets apart. Drawn as a side rule, not a ">".
+        const quoted = line.match(/^\s*>\s?(.*)$/);
+        if (quoted) {
+          if (!quoted[1].trim()) return <div key={index} className="h-1.5" />;
+          return (
+            <p key={index} className="alice-chat-quote m-0">{inline(quoted[1])}{lineCursor}</p>
           );
         }
         if (!line.trim()) return <div key={index} className="h-1.5" />;

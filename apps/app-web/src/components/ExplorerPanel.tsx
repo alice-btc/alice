@@ -12,6 +12,7 @@ import { ExplorerTabBar, NetworkButton } from '@/components/ExplorerTabBar';
 import { ExplorerOverviewTab } from '@/components/ExplorerOverviewTab';
 import { ExplorerTxTab } from '@/components/ExplorerTxTab';
 import { ExplorerBlockTab } from '@/components/ExplorerBlockTab';
+import { ExplorerPendingBlockTab } from '@/components/ExplorerPendingBlockTab';
 import { ExplorerAddressTab } from '@/components/ExplorerAddressTab';
 import { ExplorerXpubTab } from '@/components/ExplorerXpubTab';
 import { ARKADE_ACCENT, ARKADE_ACCENT_SOFT, ExplorerArkadeAddressTab, SettlementBadge } from '@/components/ExplorerArkade';
@@ -354,6 +355,18 @@ function ExplorerWorkspace() {
     setActiveId(tab.id);
   }
 
+  // A projected block is a place in the queue, not a subject: opening the
+  // same place twice returns to its tab.
+  function openPendingBlock(index: number) {
+    const networkId = getNetwork(activeNetworkId).kind === 'bark' ? DEFAULT_NETWORK_ID : activeNetworkId;
+    const open = tabs.find(tab => tab.kind === 'mempool' && tab.query === String(index) && tab.networkId === networkId);
+    if (open) { setActiveId(open.id); return; }
+    freshAskConversation('mempool', String(index));
+    const tab = makeTab('mempool', String(index), networkId);
+    setTabs(prev => addTab(prev, tab, activeId));
+    setActiveId(tab.id);
+  }
+
   // An ark1… address belongs to the implementation its version names, whatever
   // Ark network it was searched from; a spark1… address to Spark; an on-chain
   // address searched from Bark is a Bitcoin subject.
@@ -450,6 +463,7 @@ function ExplorerWorkspace() {
       return /^\d+$/.test(active.query) ? { kind: 'height', height: Number(active.query) } : focusByTab[active.id] ?? undefined;
     }
     if (active.kind === 'tx') return focusByTab[active.id] ?? undefined;
+    if (active.kind === 'mempool' && active.query) return { kind: 'projected', index: Number(active.query) };
     return undefined;
   }, [active.kind, active.query, active.id, focusByTab]);
 
@@ -590,8 +604,10 @@ function ExplorerWorkspace() {
         <ExplorerBlocks
           key={isMonero ? 'monero' : dataNetworkId(activeNetworkId)}
           provider={isMonero ? moneroSource : provider}
+          liveBaseUrl={isMonero ? undefined : provider.source.baseUrl}
           scale={isMonero ? MONERO_SCALE : undefined}
           onOpenBlock={openBlock}
+          onOpenPending={isMonero ? undefined : openPendingBlock}
           focus={focus}
           highlight={isArkade ? {
             heights: arkSettlements.heights,
@@ -746,6 +762,16 @@ function ExplorerWorkspace() {
               marks={blockMarks}
             />
             )}
+          </div>
+        )}
+        {active.kind === 'mempool' && active.query && (
+          <div className="max-w-5xl mx-auto flex flex-col gap-6 px-5 pt-6 pb-8">
+            <ExplorerPendingBlockTab
+              index={Number(active.query)}
+              provider={provider}
+              onOpenTx={openTx}
+              onSignals={publishTabContext}
+            />
           </div>
         )}
         {active.kind === 'address' && active.query && (

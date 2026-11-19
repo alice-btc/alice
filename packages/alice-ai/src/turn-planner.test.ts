@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { directDisabledPersonalContextResponse, directWalletActionResponse, directWalletStateResponse, isContextualFollowUp, isExplicitContinuationRequest, planAliceTurn, turnResponseDirective } from './turn-planner.ts';
+import { registerKnownTopicNames } from './learn-context.ts';
 
 test('a response preference is remembered without invoking the RAG', () => {
   const plan = planAliceTurn('I prefer concise answers.');
@@ -714,4 +715,38 @@ test('comparison imperatives request information while personal comparisons rema
   const p=planAliceTurn(q);assert.equal(p.kind,'question',q);assert.ok(p.retrievalQuery,q);
  }
  for(const q of ['Je compare les frais tous les jours.', 'I compare Bitcoin fees every day.'])assert.notEqual(planAliceTurn(q).kind,'question',q);
+});
+
+test('a subject named on its own is searched and answered briefly', () => {
+  for (const message of ['UTXO', 'Lightning']) {
+    const plan = planAliceTurn(message);
+    assert.deepEqual([plan.kind, plan.retrievalQuery, plan.bareTopic], ['question', message, true], message);
+    assert.match(turnResponseDirective(plan, 'fr'), /2 à 4 phrases/);
+    assert.match(turnResponseDirective(plan, 'en'), /2 to 4 sentences/);
+  }
+  for (const message of ['UTXO ?', 'What is a UTXO?', 'Explain Lightning', 'Comment fonctionne Lightning ?']) {
+    const plan = planAliceTurn(message);
+    assert.equal(plan.bareTopic, undefined, message);
+    assert.equal(turnResponseDirective(plan, 'en'), '', message);
+  }
+});
+
+test('the app extends the subjects known by name, and nothing else becomes a question', () => {
+  assert.equal(planAliceTurn('Ledger').kind, 'conversation');
+  registerKnownTopicNames(message => /^(?:ledger|sparrow wallet)$/i.test(message));
+  try {
+    for (const message of ['Ledger', 'Sparrow Wallet']) {
+      const plan = planAliceTurn(message);
+      assert.deepEqual([plan.kind, plan.retrievalQuery, plan.bareTopic], ['question', message, true], message);
+    }
+    for (const message of ['ok', 'merci', 'cool', 'Parfait merci']) {
+      const plan = planAliceTurn(message);
+      assert.deepEqual([plan.kind, plan.retrievalQuery, plan.bareTopic], ['conversation', null, undefined], message);
+    }
+    assert.equal(planAliceTurn('Je préfère Ledger').bareTopic, undefined);
+    registerKnownTopicNames(() => { throw new Error('index unavailable'); });
+    assert.equal(planAliceTurn('Ledger').kind, 'conversation');
+  } finally {
+    registerKnownTopicNames(() => false);
+  }
 });

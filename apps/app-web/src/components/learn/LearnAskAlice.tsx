@@ -9,7 +9,7 @@ import { SideChatConversation } from '@/components/SideChatConversation';
 import { SendMessageButton } from '@/components/SendMessageButton';
 import { SvgIcon } from '@/components/SvgIcon';
 import { PLUS_ICON, CLOSE_ICON, ATTACHMENT_ICON } from '@/lib/atelier-icons';
-import { LEARN_ASK_EVENT, consumeLearnAsk, type LearnAskRequest } from '@/lib/learn/ask';
+import { LEARN_ASK_EVENT, consumeLearnAsk, learnAskPageKey, type LearnAskRequest } from '@/lib/learn/ask';
 import { findCourse, findTutorial } from '@/lib/learn/catalog';
 import type { LearnLang } from '@/lib/learn/language';
 import { fetchCoursePack } from '@/lib/learn/packs';
@@ -160,15 +160,15 @@ export function LearnAskAlice({
   // drops a stale quiz/selection override. Guarded by comparing the previous
   // key (not a first-run flag): the panel may have just been opened BY such
   // an override, and dev StrictMode re-runs effects on the same key.
-  const contextKey = pageContext?.label ?? '';
-  const prevContextKey = useRef(contextKey);
+  const pageKey = learnAskPageKey(view, lang);
+  const prevPageKey = useRef(pageKey);
   useEffect(() => {
-    if (prevContextKey.current === contextKey) return;
-    prevContextKey.current = contextKey;
+    if (prevPageKey.current === pageKey) return;
+    prevPageKey.current = pageKey;
     setOverride(null);
     setAttached(true);
     setPayloadOpen(false);
-  }, [contextKey]);
+  }, [pageKey]);
 
   const questionChips = [t('learn.ask.chip.differently'), t('learn.ask.chip.example'), t('learn.ask.chip.why')];
 

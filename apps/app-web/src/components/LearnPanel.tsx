@@ -107,7 +107,8 @@ function LearnWorkspace() {
   const t = useLearnT(lang);
 
   useEffect(() => {
-    setView(parseLearnView(window.location.search));
+    const opened = parseLearnView(window.location.search);
+    setView(opened);
     setLang(loadLearnLanguage() ?? defaultLearnLanguage(navigator.language));
     setInstalled(installedLanguages());
     setProgress(loadProgress());

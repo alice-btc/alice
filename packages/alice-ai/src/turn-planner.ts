@@ -12,6 +12,7 @@ import {
 } from './alice-memory-core.ts';
 import type { AliceCapabilityId } from './alice-capabilities.ts';
 import type { SupportedLanguage } from './languages.ts';
+import { namesKnownLearnTopic } from './learn-context.ts';
 
 /** One text per supported language: a new language fails the type check until it has its own. */
 function localized(language: SupportedLanguage, texts: Record<SupportedLanguage, string>): string {
@@ -85,7 +86,21 @@ export type AliceTurnPlan = {
   walletTroubleshootingReason?: WalletTroubleshootingReason | null;
   liveNetworkReason?: AliceLiveNetworkReason | null;
   requestedNote?: AliceRequestedNote | null;
+  /**
+   * The whole message is the name of a subject ("Ledger", "UTXO"), with no
+   * question around it. It is searched like a question and answered in a few
+   * sentences.
+   */
+  bareTopic?: boolean;
 };
+
+// The planner knows a handful of subjects by name (SHORT_TOPIC). The Learn
+// library knows many more, so "Ledger" is searched like "UTXO" and "ok" stays
+// conversation.
+function isShortTopic(message: string): boolean {
+  if (cleanClause(message).split(/\s+/).length > 4 || PERSONAL_STATEMENT.test(message) || LEARNING_DECLARATION.test(message)) return false;
+  return SHORT_TOPIC.test(message) || namesKnownLearnTopic(message);
+}
 
 export function directPersonalAcknowledgement(language: SupportedLanguage): string {
   return localized(language, {
@@ -317,7 +332,7 @@ function questionClause(message: string): string | null {
   const declaration = message.replace(/[.!]\s*$/, '');
   if (!/[.!?]/.test(declaration) && explicitMemoryCandidates(declaration).some(candidate =>
     candidate.category === 'background' || candidate.category === 'experience')) return null;
-  const opener = /^(?:please )?(?:walk me through|talk me through|guide me through|compare|describe|decris|décris|detaille|détaille|(?:re)?calculate|(?:re)?compute|(?:re|ré)?calcule|refais(?=\s+(?:les? |ces? )?(?:deux )?calculs?\b))\b/i.exec(message) ?? QUESTION_START.exec(message);
+  const opener = questionOpener(message);
   if (opener) {
     const prefix = message.slice(0, opener.index);
     const isConditionalPrefix = CONDITIONAL_OPENER.test(prefix.replace(/^[\s,;:.-]+/, ''));
@@ -330,11 +345,16 @@ function questionClause(message: string): string | null {
     return cleanClause(isPersonalPrefix ? message.slice(opener.index) : message);
   }
   if (message.includes('?')) return cleanClause(message);
-  const words = cleanClause(message).split(/\s+/);
-  if (words.length <= 4 && SHORT_TOPIC.test(message) && !PERSONAL_STATEMENT.test(message) && !LEARNING_DECLARATION.test(message)) {
-    return cleanClause(message);
-  }
-  return null;
+  return isShortTopic(message) ? cleanClause(message) : null;
+}
+
+function questionOpener(message: string): RegExpExecArray | null {
+  return /^(?:please )?(?:walk me through|talk me through|guide me through|compare|describe|decris|décris|detaille|détaille|(?:re)?calculate|(?:re)?compute|(?:re|ré)?calcule|refais(?=\s+(?:les? |ces? )?(?:deux )?calculs?\b))\b/i.exec(message) ?? QUESTION_START.exec(message);
+}
+
+/** A subject named on its own: no question mark, no "what is", no "explain". */
+function isBareTopicClause(message: string): boolean {
+  return !message.includes('?') && !questionOpener(message) && isShortTopic(message);
 }
 
 function boundedSubject(value: string): string {
@@ -513,6 +533,7 @@ export function planAliceTurn(message: string): AliceTurnPlan {
     walletTroubleshootingReason: troubleshootingReason,
     liveNetworkReason,
     requestedNote: guarded ? null : requestedNote,
+    ...(retrievalQuery && !personal && knowledgeClauses.length === 1 && questions.length === 1 && isBareTopicClause(knowledgeClauses[0]) ? { bareTopic: true } : {}),
   };
 }
 
@@ -533,6 +554,12 @@ export function turnResponseDirective(plan: AliceTurnPlan, language: SupportedLa
     return localized(language, {
       fr: "Tiens compte de la déclaration personnelle, puis réponds uniquement à la question explicite.",
       en: 'Honor the personal statement, then answer only the explicit question.',
+    });
+  }
+  if (plan.bareTopic) {
+    return localized(language, {
+      fr: "Le message est seulement le nom d'un sujet. Réponds en 2 à 4 phrases : ce que c'est et à quoi ça sert. Termine par 1 phrase qui propose 2 ou 3 points que tu peux détailler. N'ajoute rien que le contexte fourni ne soutient pas.",
+      en: 'The message is only the name of a subject. Answer in 2 to 4 sentences: what it is and what it is for. End with one sentence offering 2 or 3 points you can detail. Add nothing the provided context does not support.',
     });
   }
   return '';

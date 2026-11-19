@@ -5,6 +5,8 @@
 // friction only, and Alice explains and points back to the source instead of
 // replacing it (CC BY-SA pushes the same way).
 
+import { learnViewToSearch, type LearnView } from './route.ts';
+
 const clip = (text: string, max: number) =>
   text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 
@@ -21,6 +23,17 @@ export interface LearnAskRequest {
   text: string;
   /** Prefilled composer draft the user can edit before sending. */
   draft: string;
+}
+
+/**
+ * The page an Ask-Alice attachment belongs to. A quiz or selection request is
+ * dropped when this changes, that is when the reader moves to another page or
+ * language. The attachment label cannot serve: it gains the chapter or
+ * definition title once the pack loads, which happens right after a selection
+ * opens the panel and would drop the passage.
+ */
+export function learnAskPageKey(view: LearnView, lang: string): string {
+  return `${lang}${learnViewToSearch(view)}`;
 }
 
 export const LEARN_ASK_EVENT = 'alice-learn-ask';

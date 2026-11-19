@@ -45,6 +45,7 @@ const ONCHAIN_NOUN: Record<TabKind, string> = {
   tx: 'transaction',
   address: 'address',
   block: 'block',
+  mempool: 'projected block (transactions waiting in the mempool, not mined yet)',
   xpub: 'extended public key (a whole wallet)',
   vtxo: 'VTXO',
 };
@@ -73,6 +74,7 @@ export function askContextLabel(kind: TabKind, query: string | undefined, networ
   if (kind === 'tx' && query) return t(networkKind === 'spark' && !/^[0-9a-f]{64}$/i.test(query) ? 'explorer.ask.chip.sparkTransfer' : 'explorer.ask.chip.transaction', { end: query.slice(-5) });
   if (kind === 'address' && query) return t('explorer.ask.chip.address', { end: query.slice(-5) });
   if (kind === 'block' && query) return t('explorer.ask.chip.block', { block: query });
+  if (kind === 'mempool') return t('explorer.ask.chip.pendingBlock');
   if (kind === 'vtxo') return t(networkKind === 'arkade' ? 'explorer.ask.chip.arkadeVtxo' : networkKind === 'spark' ? 'explorer.ask.chip.sparkLeaf' : 'explorer.ask.chip.barkVtxo');
   return t('explorer.ask.chip.page');
 }

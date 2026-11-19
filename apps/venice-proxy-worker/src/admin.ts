@@ -21,8 +21,6 @@ import {
   getAccountSnapshot,
   hmac,
   normalizeEmail,
-  parseAppVersion,
-  parsePlatform,
   rateLimit,
   requestIpBucket,
   uuid,
@@ -49,9 +47,12 @@ type AdminAction =
   | 'promote_admin'
   | 'demote_admin'
   | 'create_promo'
-  | 'disable_promo';
+  | 'disable_promo'
+  | 'unlock_writes'
+  | 'create_annotation'
+  | 'delete_annotation';
 
-async function parseJsonBody(request: Request): Promise<Record<string, unknown>> {
+export async function parseJsonBody(request: Request): Promise<Record<string, unknown>> {
   const length = Number(request.headers.get('content-length') ?? '0');
   if (Number.isFinite(length) && length > 8_192) {
     throw new AccountHttpError(413, 'body_too_large', 'Request body is too large.');
@@ -138,7 +139,7 @@ async function recordAccessDenial(
   }
 }
 
-type AdminUser = AuthenticatedUser & { role: 'admin' | 'support' };
+export type AdminUser = AuthenticatedUser & { role: 'admin' | 'support' };
 
 /**
  * Requires a valid Alice session AND a row in admin_users.
@@ -163,7 +164,7 @@ function envAdminAllowlist(env: Env): Set<string> | null {
   return names.length > 0 ? new Set(names) : null;
 }
 
-async function requireAdmin(
+export async function requireAdmin(
   request: Request,
   env: Env,
   minimumRole: 'support' | 'admin' = 'support',
@@ -196,21 +197,37 @@ async function requireAdmin(
   return { ...user, role: row.role };
 }
 
+/** How long one password entry keeps the console's write controls open. */
+const WRITE_UNLOCK_MS = 10 * 60 * 1_000;
+
 /**
- * Re-confirm an admin's password before an irreversible action, so a stolen
- * or forgotten-open session alone cannot delete an account or change who is
- * an admin. Rate-limited per admin so it cannot be used as a password
- * oracle.
+ * The console opens read-only. Writing takes the admin password, once, and
+ * that buys ten minutes: this token is the proof, signed for one admin and one
+ * expiry, held by the page in memory only. It is not a session; it only says
+ * "this session's owner typed the password recently".
  */
-async function requireRecentPassword(
+async function unlockSignature(env: Env, userId: string, expiresAt: number): Promise<string> {
+  return hmac(env, `admin-unlock:${userId}:${expiresAt}`);
+}
+
+async function hasWriteUnlock(request: Request, env: Env, admin: AdminUser): Promise<boolean> {
+  const [rawExpiry, signature] = (request.headers.get('x-admin-unlock') ?? '').split('.');
+  const expiresAt = Number(rawExpiry);
+  const now = Date.now();
+  if (!signature || !Number.isInteger(expiresAt)) return false;
+  if (expiresAt <= now || expiresAt > now + WRITE_UNLOCK_MS) return false;
+  return constantTimeEqual(signature, await unlockSignature(env, admin.userId, expiresAt));
+}
+
+async function checkAdminPassword(
   request: Request,
   env: Env,
   admin: AdminUser,
-  body: Record<string, unknown>,
+  password: unknown,
 ): Promise<void> {
   const now = Date.now();
   await rateLimit(env, await hmac(env, `admin-reauth:${admin.userId}`), 'admin_reauth', 10, now);
-  const ok = await verifyPasswordFor(env, admin.userId, body.admin_password);
+  const ok = await verifyPasswordFor(env, admin.userId, password);
   if (!ok) {
     await recordAccessDenial(env, admin.userId, 'reauth_failed', new URL(request.url).pathname);
     throw new AccountHttpError(
@@ -219,6 +236,38 @@ async function requireRecentPassword(
       'Re-enter your admin password to confirm this action.',
     );
   }
+}
+
+/**
+ * The gate in front of every state-changing action, so a stolen or
+ * forgotten-open session alone changes nothing. A password sent with the
+ * request always works. The ten-minute unlock works too, except where
+ * `passwordOnly` is set: deleting an account and changing who is an admin
+ * cannot be undone or are the keys themselves, so they ask every time.
+ * Rate-limited per admin so it cannot be used as a password oracle.
+ */
+async function requireRecentPassword(
+  request: Request,
+  env: Env,
+  admin: AdminUser,
+  body: Record<string, unknown>,
+  options: { passwordOnly?: boolean } = {},
+): Promise<void> {
+  const typed = typeof body.admin_password === 'string' && body.admin_password.length > 0;
+  if (!typed && !options.passwordOnly && await hasWriteUnlock(request, env, admin)) return;
+  await checkAdminPassword(request, env, admin, body.admin_password);
+}
+
+export async function adminUnlockWrites(request: Request, env: Env) {
+  const admin = await requireAdmin(request, env, 'admin');
+  const body = await parseJsonBody(request);
+  await checkAdminPassword(request, env, admin, body.admin_password);
+  const expiresAt = Date.now() + WRITE_UNLOCK_MS;
+  await writeAuditLog(env, admin.userId, 'unlock_writes');
+  return {
+    unlock_token: `${expiresAt}.${await unlockSignature(env, admin.userId, expiresAt)}`,
+    expires_at: expiresAt,
+  };
 }
 
 async function supportIdFor(env: Env, userId: string): Promise<string | null> {
@@ -470,7 +519,7 @@ export async function adminOverview(request: Request, env: Env) {
   };
 }
 
-const DAY_MS = 24 * 60 * 60 * 1_000;
+export const DAY_MS = 24 * 60 * 60 * 1_000;
 
 /**
  * Everything here is a COUNT or a SUM over rows Alice already stores. No
@@ -614,6 +663,7 @@ type AccountListRow = {
   email_masked: string | null;
   status: string;
   plan: string;
+  plan_expires_at: number | null;
   created_at: number;
   free_cloud_requests_limit: number;
   free_cloud_requests_used: number;
@@ -624,6 +674,23 @@ export async function adminListAccounts(request: Request, env: Env) {
   const url = new URL(request.url);
   const rawQuery = (url.searchParams.get('q') ?? '').trim();
   const offset = Math.max(0, Number(url.searchParams.get('offset') ?? '0') || 0);
+
+  // Filters are closed lists and a number, never free text, so they can be
+  // written into the statement without a binding.
+  const planFilter = url.searchParams.get('plan');
+  const statusFilter = url.searchParams.get('status');
+  const createdWithinDays = Number(url.searchParams.get('created_within_days') ?? '');
+  const filters: string[] = [];
+  if (planFilter === 'free' || planFilter === 'cloud') {
+    filters.push(`entitlements.plan = '${planFilter}'`);
+  }
+  if (statusFilter === 'active' || statusFilter === 'suspended') {
+    filters.push(`users.status = '${statusFilter}'`);
+  }
+  if (Number.isInteger(createdWithinDays) && createdWithinDays > 0 && createdWithinDays <= 3650) {
+    filters.push(`users.created_at > ${Date.now() - createdWithinDays * 24 * 60 * 60 * 1_000}`);
+  }
+  const filterSql = filters.map(filter => `AND ${filter}`).join(' ');
 
   const baseSelect = `
     SELECT
@@ -637,6 +704,7 @@ export async function adminListAccounts(request: Request, env: Env) {
       ) AS email_masked,
       users.status AS status,
       entitlements.plan AS plan,
+      entitlements.plan_expires_at AS plan_expires_at,
       users.created_at AS created_at,
       entitlements.free_cloud_requests_limit AS free_cloud_requests_limit,
       usage_counters.free_cloud_requests_used AS free_cloud_requests_used
@@ -646,6 +714,7 @@ export async function adminListAccounts(request: Request, env: Env) {
     WHERE EXISTS (
       SELECT 1 FROM user_identities WHERE user_identities.user_id = users.id
     )
+    ${filterSql}
   `;
 
   let rows: { results: AccountListRow[] };
@@ -690,6 +759,7 @@ export async function adminListAccounts(request: Request, env: Env) {
       email_masked: row.email_masked,
       status: row.status,
       plan: row.plan,
+      plan_expires_at: row.plan_expires_at,
       created_at: row.created_at,
       cloud_requests_limit: row.free_cloud_requests_limit,
       cloud_requests_used: row.free_cloud_requests_used,
@@ -849,7 +919,7 @@ export async function adminAdjustCredits(request: Request, env: Env, idOrUsernam
 export async function adminDeleteAccount(request: Request, env: Env, idOrUsername: string) {
   const admin = await requireAdmin(request, env, 'admin');
   const body = await parseJsonBody(request);
-  await requireRecentPassword(request, env, admin, body);
+  await requireRecentPassword(request, env, admin, body, { passwordOnly: true });
   const userId = await resolveAccountId(env, idOrUsername);
   const row = await env.ACCOUNT_DB.prepare(`
     SELECT username FROM users WHERE id = ?
@@ -941,7 +1011,7 @@ export async function adminListAccessDenials(request: Request, env: Env) {
 export async function adminPromote(request: Request, env: Env) {
   const admin = await requireAdmin(request, env, 'admin');
   const body = await parseJsonBody(request);
-  await requireRecentPassword(request, env, admin, body);
+  await requireRecentPassword(request, env, admin, body, { passwordOnly: true });
   const target = typeof body.account === 'string' ? body.account.trim() : '';
   if (!target) {
     throw new AccountHttpError(400, 'invalid_account', 'account is required.');
@@ -960,7 +1030,7 @@ export async function adminPromote(request: Request, env: Env) {
 
 export async function adminDemote(request: Request, env: Env, idOrUsername: string) {
   const admin = await requireAdmin(request, env, 'admin');
-  await requireRecentPassword(request, env, admin, await parseJsonBody(request));
+  await requireRecentPassword(request, env, admin, await parseJsonBody(request), { passwordOnly: true });
   const userId = await resolveAccountId(env, idOrUsername);
   // Support rows do not count: demoting the last *full* admin would lock
   // the team out of every state-changing action even if read-only
@@ -1047,6 +1117,7 @@ export async function adminListPromoCodes(request: Request, env: Env) {
 export async function adminCreatePromoCode(request: Request, env: Env) {
   const admin = await requireAdmin(request, env, 'admin');
   const body = await parseJsonBody(request);
+  await requireRecentPassword(request, env, admin, body);
   const credits = Number(body.credits);
   const maxRedemptions = Number(body.max_redemptions ?? 1);
   const expiresInDays = body.expires_in_days === undefined
@@ -1085,6 +1156,7 @@ export async function adminCreatePromoCode(request: Request, env: Env) {
 
 export async function adminDisablePromoCode(request: Request, env: Env, code: string) {
   const admin = await requireAdmin(request, env, 'admin');
+  await requireRecentPassword(request, env, admin, await parseJsonBody(request));
   const normalized = code.trim().toUpperCase();
   const updated = await env.ACCOUNT_DB.prepare(`
     UPDATE promo_codes SET disabled_at = ? WHERE code = ? AND disabled_at IS NULL
@@ -1097,66 +1169,40 @@ export async function adminDisablePromoCode(request: Request, env: Env, code: st
 }
 
 /**
- * The complete set of product events Alice will store. This allowlist is
- * the control that keeps `events_daily` safe: a client can only increment
- * one of these fixed counters, so no client-supplied string — and
- * therefore no user content, no search query, no file name — can ever
- * reach storage through this path.
- *
- * Nothing wallet-related belongs here. The server has no business knowing
- * a wallet exists.
+ * The one counter the site sends: a click on a Download button, by platform.
+ * It is the only usage counter Alice receives: the apps send none, and the
+ * site cannot send anything else.
  */
-const ALLOWED_EVENT_NAMES = new Set([
-  'app_opened',
-  'app_installed',
-  'download_started',
-  'download_completed',
-  'chat_opened',
-  'settings_opened',
-  'learning_profile_opened',
-  'onboarding_started',
-  'onboarding_completed',
-  'account_screen_opened',
-  'promo_redeemed',
-  'cloud_quota_banner_shown',
+const SITE_DOWNLOAD_EVENT = 'site_download_clicked';
+const SITE_DOWNLOAD_PLATFORMS = new Set([
+  'ios', 'android', 'desktop-macos', 'desktop-windows', 'desktop-linux',
 ]);
 
 /**
- * User-facing analytics ingest. Requires a session (anonymous sessions
- * count) purely so the endpoint cannot be spammed by unauthenticated
- * traffic — the session identity is deliberately NOT stored with the
- * event. Only a day-resolution counter is incremented.
+ * Public, no session: the site has no account to speak of. The body is one
+ * platform from a closed list, and what is stored is one day-level
+ * counter per platform, with no version and nothing about the visitor. The caller limits it per network.
  */
-export async function recordProductEvents(request: Request, env: Env) {
-  const { userId } = await authenticate(request, env);
-  const now = Date.now();
-  await rateLimit(env, await hmac(env, `events:${userId}`), 'product_events', 240, now);
-
+export async function recordSiteDownloadClick(request: Request, env: Env) {
   const body = await parseJsonBody(request);
-  const names = Array.isArray(body.events) ? body.events : [];
-  if (names.length === 0 || names.length > 32) {
-    throw new AccountHttpError(400, 'invalid_events', 'Send between 1 and 32 event names.');
-  }
-  const platform = parsePlatform(request) ?? '';
-  const appVersion = parseAppVersion(request) ?? '';
-  const day = Math.floor(now / (24 * 60 * 60 * 1_000));
+  const platform = typeof body.platform === 'string' ? body.platform : '';
+  if (!SITE_DOWNLOAD_PLATFORMS.has(platform)) return { accepted: 0 };
+  await env.ACCOUNT_DB.prepare(`
+    INSERT INTO events_daily (day, event_name, platform, app_version, count)
+    VALUES (?, ?, ?, '', 1)
+    ON CONFLICT (day, event_name, platform, app_version)
+    DO UPDATE SET count = count + 1
+  `).bind(Math.floor(Date.now() / DAY_MS), SITE_DOWNLOAD_EVENT, platform).run();
+  return { accepted: 1 };
+}
 
-  const counts = new Map<string, number>();
-  for (const name of names) {
-    if (typeof name !== 'string' || !ALLOWED_EVENT_NAMES.has(name)) continue;
-    counts.set(name, (counts.get(name) ?? 0) + 1);
-  }
-  if (counts.size === 0) return { accepted: 0 };
-
-  await env.ACCOUNT_DB.batch(
-    [...counts].map(([name, count]) => env.ACCOUNT_DB.prepare(`
-      INSERT INTO events_daily (day, event_name, platform, app_version, count)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT (day, event_name, platform, app_version)
-      DO UPDATE SET count = count + excluded.count
-    `).bind(day, name, platform, appVersion, count)),
-  );
-  return { accepted: counts.size };
+/**
+ * Apps up to 0.2.9 post usage counters here. Alice keeps none: the request
+ * is answered so those apps see no error, and nothing in it is read or
+ * stored.
+ */
+export function discardProductEvents() {
+  return { accepted: 0 };
 }
 
 /**
@@ -1182,24 +1228,22 @@ export async function adminListEvents(request: Request, env: Env) {
 
   const [totals, byDay] = await Promise.all([
     env.ACCOUNT_DB.prepare(`
-      SELECT event_name, platform, app_version, SUM(count) AS count
+      SELECT platform, SUM(count) AS count
       FROM events_daily
-      WHERE day >= ?
-      GROUP BY event_name, platform, app_version
+      WHERE event_name = ? AND day >= ?
+      GROUP BY platform
       ORDER BY count DESC
-      LIMIT 200
-    `).bind(sinceDay).all<{ event_name: string; platform: string; app_version: string; count: number }>(),
+    `).bind(SITE_DOWNLOAD_EVENT, sinceDay).all<{ platform: string; count: number }>(),
     env.ACCOUNT_DB.prepare(`
-      SELECT day, event_name, SUM(count) AS count
+      SELECT day, platform, SUM(count) AS count
       FROM events_daily
-      WHERE day >= ?
-      GROUP BY day, event_name
+      WHERE event_name = ? AND day >= ?
+      GROUP BY day, platform
       ORDER BY day ASC
-    `).bind(sinceDay).all<{ day: number; event_name: string; count: number }>(),
+    `).bind(SITE_DOWNLOAD_EVENT, sinceDay).all<{ day: number; platform: string; count: number }>(),
   ]);
 
   return {
-    known_event_names: [...ALLOWED_EVENT_NAMES],
     totals: totals.results ?? [],
     by_day: byDay.results ?? [],
   };
@@ -1267,7 +1311,7 @@ export async function redeemPromoCode(request: Request, env: Env) {
   return { account: await getAccountSnapshot(env, userId) };
 }
 
-const HOUR_MS = 60 * 60 * 1_000;
+export const HOUR_MS = 60 * 60 * 1_000;
 
 /** Like densify, by the hour: every hour of the window, quiet ones as 0. */
 function densifyHours(
@@ -1289,18 +1333,16 @@ function densifyHours(
  * hourly curve over 48 hours. Rolling windows rather than calendar days, so
  * the comparison is as fair at 9 in the morning as it is at midnight.
  *
- * Same aggregates as the overview, nothing per person. Product events are
- * stored by day only, so they compare today and yesterday in UTC instead.
+ * Same aggregates as the overview, nothing per person.
  */
 export async function adminLaunch(request: Request, env: Env) {
   await requireAdmin(request, env);
   const now = Date.now();
   const mid = now - 24 * HOUR_MS;
   const start = now - 48 * HOUR_MS;
-  const today = Math.floor(now / DAY_MS);
   const currentHour = Math.floor(now / HOUR_MS);
 
-  const [counts, events, requestSeries, installSeries] = await Promise.all([
+  const [counts, requestSeries, installSeries] = await Promise.all([
     env.ACCOUNT_DB.prepare(`
       SELECT
         (SELECT COUNT(*) FROM installations WHERE first_seen_at > ?) AS installs_now,
@@ -1331,18 +1373,6 @@ export async function adminLaunch(request: Request, env: Env) {
       mid,
       start, mid,
     ).first<Record<string, number>>(),
-
-    env.ACCOUNT_DB.prepare(`
-      SELECT
-        event_name,
-        SUM(CASE WHEN day = ? THEN count ELSE 0 END) AS today,
-        SUM(CASE WHEN day = ? THEN count ELSE 0 END) AS yesterday
-      FROM events_daily
-      WHERE day >= ?
-      GROUP BY event_name
-      ORDER BY today DESC, yesterday DESC
-    `).bind(today, today - 1, today - 1)
-      .all<{ event_name: string; today: number; yesterday: number }>(),
 
     // Literal divisor with a CAST: a bound divisor reaches SQLite as a real
     // and turns this into a float division that matches no hour.
@@ -1375,7 +1405,6 @@ export async function adminLaunch(request: Request, env: Env) {
     // Only "now" exists: last_seen_at is overwritten on every visit, so how
     // many were active the day before is not something the table remembers.
     active_installations_24h: counts?.active_now ?? 0,
-    events: events.results ?? [],
     series: {
       requests: densifyHours(requestSeries.results ?? [], 48, currentHour),
       installations: densifyHours(installSeries.results ?? [], 48, currentHour),
@@ -1392,7 +1421,7 @@ type SiteAnalyticsRow = {
   dimensions: Record<string, string>;
 };
 
-async function cloudflareJson(env: Env, path: string, init: RequestInit = {}) {
+export async function cloudflareJson(env: Env, path: string, init: RequestInit = {}) {
   const res = await fetch(`${CLOUDFLARE_API}${path}`, {
     ...init,
     headers: {
@@ -1456,8 +1485,12 @@ export async function adminSiteAnalytics(request: Request, env: Env) {
     const siteTag = await siteAnalyticsTag(env);
     const now = Date.now();
     const until = new Date(now).toISOString();
-    const since30 = new Date(now - 30 * DAY_MS).toISOString();
-    const since7 = new Date(now - 7 * DAY_MS).toISOString();
+    // The console's period selector: 24 hours, 7, 30 or 90 days. The daily
+    // curve never shows fewer than 2 days, a single bar says nothing.
+    const asked = Number(new URL(request.url).searchParams.get('days') ?? '30');
+    const days = [1, 7, 30, 90].includes(asked) ? asked : 30;
+    const sinceDaily = new Date(now - Math.max(days, 2) * DAY_MS).toISOString();
+    const sinceTop = new Date(now - days * DAY_MS).toISOString();
     const group = (alias: string, since: string, dimension: string, order: string, limit: number) => `
       ${alias}: rumPageloadEventsAdaptiveGroups(
         limit: ${limit}
@@ -1468,10 +1501,10 @@ export async function adminSiteAnalytics(request: Request, env: Env) {
       ) { count sum { visits } dimensions { ${dimension} } }`;
     const query = `query ($account: String!, $site: String!) {
       viewer { accounts(filter: { accountTag: $account }) {
-        ${group('daily', since30, 'date', 'date_ASC', 40)}
-        ${group('paths', since7, 'requestPath', 'count_DESC', 15)}
-        ${group('countries', since7, 'countryName', 'count_DESC', 15)}
-        ${group('referers', since7, 'refererHost', 'count_DESC', 15)}
+        ${group('daily', sinceDaily, 'date', 'date_ASC', 100)}
+        ${group('paths', sinceTop, 'requestPath', 'count_DESC', 15)}
+        ${group('countries', sinceTop, 'countryName', 'count_DESC', 15)}
+        ${group('referers', sinceTop, 'refererHost', 'count_DESC', 15)}
       } }
     }`;
     const body = await cloudflareJson(env, '/graphql', {
@@ -1494,10 +1527,11 @@ export async function adminSiteAnalytics(request: Request, env: Env) {
     }));
     return {
       configured: true,
+      period_days: days,
       daily: rows('daily', 'date'),
-      top_paths_7d: rows('paths', 'requestPath'),
-      countries_7d: rows('countries', 'countryName'),
-      referers_7d: rows('referers', 'refererHost'),
+      top_paths: rows('paths', 'requestPath'),
+      countries: rows('countries', 'countryName'),
+      referers: rows('referers', 'refererHost'),
     };
   } catch (error) {
     return {
@@ -1505,4 +1539,58 @@ export async function adminSiteAnalytics(request: Request, env: Env) {
       error: error instanceof Error ? error.message : 'Cloudflare request failed',
     };
   }
+}
+
+const ANNOTATION_KINDS = ['release', 'post', 'article', 'other'] as const;
+
+/**
+ * The operator's notes on the calendar: a day and a few words, drawn on the
+ * console's curves. Free text written by the admin about Alice's own
+ * doings, never about a user.
+ */
+export async function adminListAnnotations(request: Request, env: Env) {
+  await requireAdmin(request, env);
+  const rows = await env.ACCOUNT_DB.prepare(`
+    SELECT id, day, label, kind, created_at FROM admin_annotations
+    ORDER BY day DESC, created_at DESC LIMIT 500
+  `).all<{ id: string; day: number; label: string; kind: string; created_at: number }>();
+  return { annotations: rows.results ?? [] };
+}
+
+export async function adminCreateAnnotation(request: Request, env: Env) {
+  const admin = await requireAdmin(request, env, 'admin');
+  const body = await parseJsonBody(request);
+  await requireRecentPassword(request, env, admin, body);
+  const label = typeof body.label === 'string' ? body.label.replace(/\s+/g, ' ').trim() : '';
+  if (!label || label.length > 80) {
+    throw new AccountHttpError(400, 'invalid_label', 'A note needs 1 to 80 characters.');
+  }
+  const kind = ANNOTATION_KINDS.find(value => value === body.kind) ?? 'other';
+  const date = typeof body.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date)
+    ? Date.parse(`${body.date}T00:00:00Z`)
+    : NaN;
+  if (!Number.isFinite(date)) {
+    throw new AccountHttpError(400, 'invalid_date', 'The date must be YYYY-MM-DD.');
+  }
+  const id = uuid();
+  const day = Math.floor(date / DAY_MS);
+  await env.ACCOUNT_DB.prepare(`
+    INSERT INTO admin_annotations (id, day, label, kind, created_at) VALUES (?, ?, ?, ?, ?)
+  `).bind(id, day, label, kind, Date.now()).run();
+  await writeAuditLog(env, admin.userId, 'create_annotation', {}, { label, kind, date: body.date });
+  return { id, day, label, kind };
+}
+
+export async function adminDeleteAnnotation(request: Request, env: Env, id: string) {
+  const admin = await requireAdmin(request, env, 'admin');
+  await requireRecentPassword(request, env, admin, await parseJsonBody(request));
+  const existing = await env.ACCOUNT_DB.prepare(`
+    SELECT label FROM admin_annotations WHERE id = ?
+  `).bind(id).first<{ label: string }>();
+  if (!existing) {
+    throw new AccountHttpError(404, 'annotation_not_found', 'That note does not exist.');
+  }
+  await env.ACCOUNT_DB.prepare('DELETE FROM admin_annotations WHERE id = ?').bind(id).run();
+  await writeAuditLog(env, admin.userId, 'delete_annotation', {}, { label: existing.label });
+  return { ok: true };
 }

@@ -90,17 +90,34 @@ would call `/account`.
 
 | Role | Can do |
 | --- | --- |
-| `support` | Read-only: overview, analytics, events, account search, account sheet, audit log. |
+| `support` | Read-only: every page, account search, account sheet, audit log. Cannot unlock writes. |
 | `admin` | Everything, including suspend/reactivate, credit adjustment, promo codes, role changes, and permanent deletion. |
 
-### Re-authentication for sensitive actions
+### The write lock and re-authentication
 
-Permanently deleting an account, suspending or reactivating one, changing its
-credits, granting dashboard access, and revoking it all require the acting admin to re-enter their **own** password in the same
-request (`admin_password` in the body). A stolen or left-open session is
-therefore not enough on its own to destroy data or grant itself company. The
-check is rate-limited per admin so it cannot be used as a password oracle,
-and every failure is recorded.
+The console opens read-only, and it writes to production: a click on the
+wrong row suspends a real account. Every control that changes something is
+disabled until the admin unlocks writes with their **own** password
+(`POST /admin/api/unlock`). The answer is a token signed for that admin and
+one expiry, 10 minutes later, which the page keeps in memory only and sends
+as `x-admin-unlock`. Reloading the tab, closing it, the 10 minutes running
+out or the Lock button all return the console to read-only. The token is not
+a session: without a valid admin session it opens nothing, and one admin's
+token is refused for another.
+
+The server is what enforces this, not the disabled buttons. Suspending or
+reactivating an account, changing its credits and creating or disabling a
+promo code are refused unless the request carries a valid unlock or the
+password itself (`admin_password` in the body).
+
+Three actions never accept the unlock and ask for the password in the same
+request every time: permanently deleting an account, granting console
+access, and revoking it. The first cannot be undone and the other two are
+the keys themselves.
+
+A stolen or left-open session is therefore not enough on its own to destroy
+data or grant itself company. The password check is rate-limited per admin
+so it cannot be used as a password oracle, and every failure is recorded.
 
 Denied attempts, not an admin, insufficient role, or a failed re-auth, are
 written to `admin_access_denials` and surfaced at
@@ -233,65 +250,190 @@ Demoting the last remaining full admin is refused server-side
 
 ## What the dashboard shows
 
-**Launch** (`GET /admin/api/launch`), the tab the console opens on: new
-installations, confirmed AI requests, new accounts and technical errors over
-the last 24 hours against the 24 before (rolling windows, fair at any hour),
-installations active in the last 24 hours, hourly curves over 48 hours, and
-the product events of today and yesterday in UTC, since `events_daily` keeps
-days only. Downloads and site visits are added on the page from the two
-sources below.
+Four sections, each with a few pages. A period selector in the header
+(24 hours, 7, 30 or 90 days) applies to every page that reads a period and is
+dimmed on the others. Each period figure is shown against the same span just
+before it. A Refresh button reads the page again, and each page ends with the
+source of its figures and the time they were read. Tables sort on a click of
+a heading and export what they show as CSV.
 
-**Downloads** (no Alice API): the page asks GitHub's public releases API for
-`alice-btc/alice` and `alice-btc/alice-wallet` and counts every installer
-(`.dmg`, `.msi`, `.exe`, `.AppImage`, `.deb`, `.rpm`, `.apk`) by platform and
-version. Checksums and signatures are left out: they are fetched to verify
-an installer, not to install Alice. GitHub only gives running totals, so the
-page keeps one snapshot of counts per file per day in this browser's
-`localStorage` and shows what is new since the last earlier day it was
-opened, naming that day. GitHub counts repeats and knows nothing Alice could
-use about who downloaded.
+Every reading route is in `src/admin-insights.ts` or `src/admin.ts`, asks for
+an admin session, and returns counts and sums only.
 
-**Site** (`GET /admin/api/site-analytics`): visits and page views per day
-over 30 days, top pages, countries and referrers over 7 days, read from
-Cloudflare Web Analytics (`rumPageloadEventsAdaptiveGroups` on the GraphQL
-API). The site already loads that cookie-free beacon, so this collects
-nothing new. It needs `CF_ANALYTICS_API_TOKEN` and `CF_ACCOUNT_ID` in the
-local `.dev.vars`; without them the endpoint answers `configured: false` and
-the tab explains the setup. The site tag is looked up by exact host
-(`alicebtc.com`, or `CF_WEB_ANALYTICS_HOST`) unless
-`CF_WEB_ANALYTICS_SITE_TAG` is set; with no exact match the tab says so
-rather than show another site of the account. A Cloudflare error is shown on the card
-instead of failing the page.
+### Today
 
-**Overview** (`GET /admin/api/overview`): accounts created vs. anonymous
-installations (distinguished by the existing `anon_<hash>` user id prefix, no new table), confirmed Private Cloud requests over 24h/7d/30d (from the
-existing `cloud_request_ledger`), free-quota consumption and accounts at
-quota, plan breakdown, and auth/email/venice error counts over 24h.
+**At a glance**, the page the console opens on: one tile per key figure for
+the chosen period, in four groups (people, money, reach, quality), each with
+its change against the period before, the shape of the period as a row of
+bars, and a click through to the page that explains it. Above them, one line
+with a light per dependency. It adds no route: it asks the growth, money,
+errors, health, site, Venice and GitHub sources at once, and a source that
+fails leaves its own tiles saying so without blanking the page.
 
-**Analytics** (`GET /admin/api/analytics`): everything here is a COUNT or a
-SUM over rows Alice already stores, collapsed to totals before it leaves the
-database.
+**Pulse** (`GET /admin/api/health`, `GET /admin/api/launch`).
+
+- *Since your last visit*: installations, accounts, AI requests, paid
+  invoices and server-side errors since the previous console sign-in. The
+  sign-in is the `admin_login` audit entry, written once per half hour of
+  use, so no new table is involved. Capped at 30 days.
+- *One light per dependency*, each with the sentence that explains its
+  colour: the database, Private Cloud (share of requests refunded after an
+  upstream failure), sign-in, login emails, BTCPay, the Worker's exception
+  rate, the Venice balance and the test wallet faucet. A light is red only
+  for something that needs a person. Too little traffic to judge reads as
+  fine with the reason given. A service that cannot be read is "not
+  connected", never a false green.
+- *Scheduled tasks*: when each cron last ran, how long it took, whether it
+  worked and its last technical line. The deployed Worker writes one row per
+  task in `cron_runs` at each run (`src/cron-runs.ts`); recording never
+  changes what the task returns or throws, and a database without the table
+  leaves the cron as it was. A task is late after two and a half intervals
+  without a run, which turns the light red: a cron that stops fails in
+  silence otherwise.
+- Whatever is orange or red is repeated in a strip under the header on every
+  page.
+- The last 24 hours against the 24 before for installations, AI requests and
+  accounts, hourly curves over 48 hours, downloads and site visits.
+
+**Errors** (`GET /admin/api/errors`): server-side failures (status 500 and
+above) apart from refusals that worked as designed, a curve by kind, and
+every code with what it means and what to do about it. BTCPay going down and
+coming back are stored in `technical_events` under the `venice` category,
+the only one the table's CHECK left room for; they are kept out of every
+error count and shown as a list of outages with their length.
+
+**Infrastructure** (`GET /admin/api/platform`): the Worker's requests,
+exceptions and CPU time, how requests ended, and for the database its size,
+queries, rows read and written, query time and the statements that cost the
+most time. All of it is read from Cloudflare's GraphQL Analytics API
+(`workersInvocationsAdaptive`, `d1AnalyticsAdaptiveGroups`,
+`d1StorageAdaptiveGroups`, `d1QueriesAdaptiveGroups`) with the same token as
+the Site page, so it adds no collection. The Worker dataset is asked a week
+at a time. D1 keeps 31 days. A statement is shown as D1 logs it: the SQL with
+its placeholders, never the bound values.
+
+**Versions** (`GET /admin/api/versions`): the branch and commit the console
+runs from, the migrations applied to the database against the ones the
+checkout holds, the Worker versions that served traffic in the last 7 days,
+the site's last Vercel deployment when a token is set, and the latest public
+releases. The branch, the commit and the list of migration files come from
+the operator's launcher script, which passes them to
+`wrangler dev` as variables: the Worker cannot see its own checkout.
+
+**Notes** (`GET`, `POST /admin/api/annotations`,
+`DELETE /admin/api/annotations/:id`): a day, a kind and up to 80 characters,
+for a tweet, an article or an announcement. Notes and Alice's public
+releases (read from GitHub) are drawn as flags on every daily curve, so a
+spike can be read against what caused it. It is free text about Alice's own
+doings, never about a user. Adding and removing sit behind the
+write lock and are audited.
+
+### Growth
+
+**Overview** (`GET /admin/api/growth`, `GET /admin/api/overview`): new
+installations, AI requests and new accounts over the period against the one
+before, the three as curves, installations stacked by platform, and the
+free-quota figures.
+
+**Activation** (`GET /admin/api/analytics`, `GET /admin/api/growth`):
+everything here is a COUNT or a SUM over rows Alice already stores, collapsed
+to totals before it leaves the database.
 
 - *Retention*, share of installations still seen 1/7/30 days after first
   contact, from `installations.first_seen_at` / `last_seen_at`. Cohort
   eligibility is applied per horizon, so a two-day-old install never drags
   down D30.
+- *Retention by week of first use*, the same measure for each of the last 12
+  weeks, so a release that made Alice stickier shows in the weeks after it.
 - *Activation funnel*, installations → 1st cloud request → 10th → quota
   exhausted → account created, from the write-once milestone columns below.
 - *Free quota histogram*, how far into their 21 requests users actually
   get. This is the number that tells you whether 21 is the right number.
-- *Venice reliability*, confirmed vs. refunded ledger entries. A refund
-  means the upstream call failed and the user was **not** charged.
-- *Errors by code* and *requests per day*.
-- *Platforms and versions*, installation counts per platform/version.
+- *Versions still in use*, installations seen in the last 30 days by
+  platform and version.
 
-**Events** (`GET /admin/api/events`): aggregate product analytics, see
-[Product events](#product-events).
+**Download clicks** (`GET /admin/api/events`): clicks on the site's Download
+buttons, by platform and by day, see [Usage counters](#usage-counters).
+
+**Downloads** (`GET /admin/api/github`): every installer of
+`alice-btc/alice` and `alice-btc/alice-wallet` (`.dmg`, `.msi`, `.exe`,
+`.AppImage`, `.deb`, `.rpm`, `.apk`) by platform and version, downloads per
+day, and the repositories' traffic. Checksums and signatures are left out:
+they are fetched to verify an installer, not to install Alice.
+
+GitHub gives a running total per file and keeps traffic for 14 days. Each
+read therefore also files the day's figures in `github_daily`, which is what
+turns totals into downloads per day and two weeks into months. It is the one
+reading route that writes, and it writes counters about Alice's public
+repositories. The history only knows the days the console was opened: after
+a gap, the downloads of those days land on the day of the next read, and the
+page says so. A file first seen after its repository was already tracked is
+a new release, so all its downloads count as new. The very first read counts
+nothing as new.
+
+The Worker asks GitHub, not the page, so the page's CSP allows no outside
+host at all. The download counters are public and need no token. Traffic
+(page views, clones, referring sites) needs `GITHUB_TRAFFIC_TOKEN`. GitHub
+counts repeats and knows nothing Alice could use about who downloaded.
+
+**Site** (`GET /admin/api/site-analytics`): visits and page views per day,
+top pages, countries and referrers over the period, read from Cloudflare Web
+Analytics (`rumPageloadEventsAdaptiveGroups` on the GraphQL API). The site
+already loads that cookie-free beacon, so this collects nothing new. It needs
+`CF_ANALYTICS_API_TOKEN` and `CF_ACCOUNT_ID` in the local `.dev.vars`;
+without them the endpoint answers `configured: false` and the page explains
+the setup. The site tag is looked up by exact host (`alicebtc.com`, or
+`CF_WEB_ANALYTICS_HOST`) unless `CF_WEB_ANALYTICS_SITE_TAG` is set; with no
+exact match the page says so rather than show another site of the account. A
+Cloudflare error is shown on the card instead of failing the page.
+
+### Money
+
+All three pages below read `GET /admin/api/money`: what the billing tables
+hold, as totals. No invoice is listed with its account and no payer is named.
+
+**Revenue**: sats received, invoiced value and invoices paid over the period
+against the one before, a curve, the last 12 months, invoices by status (an
+expired invoice is a checkout nobody paid in time), the share of invoices
+opened in the period that were paid, and the number of months people buy.
+Revenue is shown beside the Venice spend for the same period and not
+subtracted from it: one is in the invoice currency, the other in USD, and
+the console does not invent an exchange rate.
+
+**Subscriptions**: active paid plans, those running out within 7 and 30 days
+(dates only), plans past their date that the hourly sweep has not returned
+to free yet, and the renewal reminders sent. A button opens the account list
+filtered on the paid plan, which is where a name appears.
+
+**Usage**: requests answered, bytes sent to Venice and received, the same as
+curves, free against paid, how much of their allowance the paid plans use,
+and how requests ended. Free and paid are told apart by the plan each
+account holds today, because the ledger does not record the plan a request
+was served under.
+
+**Venice cost** (`GET /admin/api/venice`): the USD, DIEM and bundled-credit
+balances, what was spent over the period by day and by product, the daily
+average and how long the balance lasts at that pace. Read from Venice's
+`/api_keys/rate_limits` and `/billing/usage-history` (beta). Venice's ledger
+has one line per request; the lines are added up in the Worker and dropped,
+so only sums leave it: no request id, no token count, nothing finer than the
+day, and nothing is stored. Cost is units times Venice's list price in USD,
+whichever balance paid. It needs `VENICE_BILLING_API_KEY` in `.dev.vars`.
+
+**Faucet** (`GET /admin/api/test-wallet-faucet`): see
+[docs/test-wallet-faucet.md](../test-wallet-faucet.md).
+
+**Promos** (`GET /admin/api/promo-codes`): the manual codes that grant extra
+free requests.
+
+### Accounts
 
 **Accounts** (`GET /admin/api/accounts?q=`): search by username, exact email
 (hashed the same way login does: the stored address is encrypted, so there
-is no substring search over it), or support id. Anonymous
-installations are excluded from this list; they are not accounts.
+is no substring search over it), or support id, and filter by plan, status
+and creation date. The three filters are closed lists and a number, never
+free text. Anonymous installations are excluded from this list; they are not
+accounts.
 
 **Account detail** (`GET /admin/api/accounts/:id`): username, display name,
 creation date, login methods with their labels and timestamps (never a
@@ -302,13 +444,18 @@ code + timestamp only).
 **Operator tools**: suspend/reactivate (reason required, both audited),
 credit adjustment (`delta` + reason, clamped so a reduction can never drop
 the limit below what is already used), permanent deletion (see below), and
-promo code management.
+promo code management. All of them sit behind [the write
+lock](#the-write-lock-and-re-authentication).
 
-**Audit log** (`GET /admin/api/audit-log`): every state-changing admin
-action, newest first, with the acting admin's support id, the action, the
-target's support id (kept even after a deletion), and a small metadata blob
-(the reason string, before/after numbers, never a secret or free-text
-content).
+**Audit** (`GET /admin/api/audit-log`, `GET /admin/api/access-denials`):
+every state-changing admin action, newest first, with the acting admin's
+support id, the action, the target's support id (kept even after a
+deletion), and a small metadata blob (the reason string, before/after
+numbers, never a secret or free-text content). Under it, the refused
+attempts to reach the console.
+
+**Admins** (`GET /admin/api/admins`): who has console access and with which
+role.
 
 ## Look and feel
 
@@ -321,35 +468,65 @@ borrowed from a generic admin tool.
   already declares in `globals.css`. Accent tones for status come from the
   other Alice palettes rather than arbitrary colours: `flame` for danger,
   `green` for OK, `bitcoin` for warnings.
-- **Type**: PressStart2P for display/labels and terminal-grotesque for body
-  and numbers, matching `typography.pixel` / `typography.numbers`. Both are
-  embedded as WOFF2 data URIs, converted from the TTFs in
-  `apps/app-web/public/fonts` (115KB + 49KB of TTF → 29KB + 12KB). The
-  page's CSP is `default-src 'none'`, so nothing can be fetched from a CDN, the bytes have to travel with the Worker.
+- **Type**, three faces with one job each. PressStart2P, the pixel face,
+  names places: the title, the four sections, a card's heading.
+  terminal-grotesque carries figures, as `typography.numbers` does in the
+  wallet. Everything meant to be read (labels, table headings, axes,
+  sentences) is in the system face at 12px or more. The pixel face is
+  unreadable at 7 and 8px. The two brand faces are embedded as WOFF2 data URIs,
+  converted from the TTFs in `apps/app-web/public/fonts` (115KB + 49KB of
+  TTF → 29KB + 12KB). The page's CSP is `default-src 'none'`, so nothing can
+  be fetched from a CDN, the bytes have to travel with the Worker.
+- **Colour of text**: running text is near-white (`#e6edf3`), secondary text
+  a grey-blue (`#9aa9c0`). The primary blue is an accent, kept for headings,
+  figures and the open tab: a page set entirely in it has no hierarchy.
 - **Pixel treatment**: 2px borders and a 2px radius everywhere, matching
-  `getPixel()`. Charts are drawn as discrete cells (horizontal strips for
-  bars, stacked segments for the per-day series) rather than smooth
-  rectangles, so they read as part of the same pixel language as the
-  app's toggles.
+  `getPixel()`. Chart bars keep the pixel look through a banded fill, so
+  they read as part of the same language as the app's toggles.
+- **Charts**: one bar per hour on the 24-hour view and per day otherwise, a
+  labelled axis, the period's average as a dotted line, and under the plot
+  the total, the average, the lowest and the highest bucket. A stacked chart
+  has one colour per key and a legend.
 - **Themes**: dark by default like the app, with a light toggle for
   screenshots on a white page.
 
 Two deliberate deviations from the palette, both because this page carries
 far denser text than an app screen:
 
-- In light mode, `muted` (`#b8d0ff`) falls to ~1.5:1 on `#fafafa`. It is an
-  accent tone in the app, not body text. Light mode reuses the dark
-  palette's `muted` (`#4a6a9a`) instead → 5.3:1.
-- `--alice-ink` carries prominent text. In dark mode it is the primary; in
-  light mode the primary is a pale accent (1.9:1) that cannot carry a
-  headline number, so it falls back to the palette's own dark ink
-  (`#1c2533`) → 14.8:1. Backgrounds and borders keep using the primary in
-  both themes.
+- The palette's own `muted` (`#4a6a9a` dark, `#b8d0ff` light) is an accent
+  tone in the app and too faint for a sentence. Secondary text uses
+  `--alice-dim` instead: `#9aa9c0` on dark, `#51627c` on light. `muted` is
+  kept for borders and decoration.
+- `--alice-ink` carries headings and figures. In dark mode it is the
+  primary; in light mode the primary is a pale accent (1.9:1) that cannot
+  carry a headline number, so it falls back to a dark blue (`#1f4f9c`).
 
-Measured contrast: headline numbers 9.4:1 dark / 14.8:1 light; secondary
-text 3.4:1 dark / 5.3:1 light. The dark secondary figure is the app's own
-`muted` on its own background, kept as-is for brand fidelity rather than
-nudged to clear AA.
+### The page's source
+
+`admin-dashboard-html.ts` assembles the page from the stylesheet
+(`admin-dashboard-css.ts`) and the client script in three parts that share
+one closure: `admin-dashboard-client-core.ts` (state, API, write lock,
+charts, tables), `-today.ts` (Today and Growth) and `-money.ts` (Money,
+Accounts, sign-in, router).
+
+Those parts are `String.raw` templates. In an ordinary template
+literal a lone backslash disappears at compile time, which can turn a regex
+into a comment and leave the page blank. Raw text
+reaches the browser as written. Two things still cannot appear in those
+files: a backtick, and a dollar sign followed by a brace.
+
+### Looking at it without production
+
+```bash
+node apps/venice-proxy-worker/scripts/console-preview.ts
+```
+
+serves the real page and the real API on `http://localhost:8799/admin` over
+an in-memory database built from the migrations and filled with made-up
+activity. It prints its sign-in. Nothing in it is production and it all
+disappears when the process stops. `PREVIEW_DEV_VARS=/path/to/.dev.vars`
+lends it the `CF_*` values of that file, so the Infrastructure and Site
+pages show Cloudflare's real counters.
 
 ## Installation milestones
 
@@ -380,53 +557,29 @@ know that a wallet exists, when it was created, or that it was used. Cloud
 request milestones exist only because those requests already pass through
 this proxy on their way to Venice.
 
-## Product events
+## Usage counters
 
-`POST /account/events` accepts `{ "events": ["app_opened", ...] }` and
-increments day-resolution counters in `events_daily`, keyed by
-`(day, event_name, platform, app_version)`.
+The apps send no usage counter: nothing in the client counts what is opened
+or how many answers are given, and there is no setting for it because there
+is nothing to switch off.
 
-There is **no `user_id`, no session id, no install id, no timestamp finer
-than a day, and no ordering between events**. A row says "on day D, event E
-happened N times on platform P at version V" and nothing more, so no
-individual behavioural profile can be reconstructed from this table even in
-principle. A session is required to post, purely so the endpoint cannot be
-spammed by unauthenticated traffic, the identity is deliberately not stored
-with the event.
+Up to 0.2.9 the apps posted daily totals to `POST /account/events` (Alice or
+one of its screens opened, a local model downloaded). The route still answers
+`{ "accepted": 0 }`, so those versions see no error. It reads nothing from
+the request and stores nothing. Migration `0022_drop_app_usage_counters.sql`
+deletes the totals that were stored.
 
-`event_name` is checked against `ALLOWED_EVENT_NAMES` in `src/admin.ts`
-before anything is written. **That allowlist is the control that makes this
-table safe**: without it a client could send arbitrary strings, and an
-event label is exactly the kind of field that ends up carrying a search
-query or a file name. Unknown names are silently dropped. Adding a new event
-means adding it to that set in the Worker, a deliberate, reviewable step.
+### The site's Download buttons
 
-What you give up with this design is the per-individual funnel ("this user
-clicked A then B"). What you keep is the per-cohort funnel, which is what
-almost every product decision actually needs.
+`POST /site/events` takes `{ "platform": "desktop-macos" }` and adds 1 to
+`site_download_clicked` for that platform and day. No session: the site has
+no account. The platform comes from a closed list of the five the site has a
+button for, anything else is ignored, and the route is limited to 60 requests
+an hour per network. The request carries no cookie and no identifier
+(`apps/site/src/lib/download-click.ts`).
 
-### Client side
-
-`packages/alice-ai/src/product-events.ts` batches events and flushes at most
-every 10s, on tab hide. Failures are
-swallowed, a counter is never worth a retry queue or a broken user action.
-`setProductEventsEnabled(false)` stops collection at the source, so a
-user-facing opt-out does not have to trust the server to discard data.
-
-Route-based tracking uses a **fixed route→event map**, never "track whatever
-route we are on": a route name is a string that could carry an address or an
-id, and the counters must never receive one.
-
-`packages/alice-ai/src/client-info.ts` attaches `X-Alice-Platform` and
-`X-Alice-App-Version` to authenticated proxy requests. Platform resolution
-reports `web`, or sniffs the Tauri webview on desktop; the pure
-formatting logic lives in `client-info-format.ts` so it is unit tested as a
-leaf module.
-
-`ALICE_PRODUCT_EVENTS` in the client mirrors `ALLOWED_EVENT_NAMES` in the
-Worker. If they drift, the server silently drops the unknown name, benign,
-but the event stops counting. The dashboard's Events tab lists the server's
-current allowlist so drift is visible to an operator.
+It is the only counter kept in `events_daily`: a row says "on day D, the
+button for platform P was clicked N times" and nothing more.
 
 ## What is deliberately never collected or shown
 
@@ -435,8 +588,8 @@ current allowlist so drift is visible to an operator.
 - Wallet seeds, wallet private keys, wallet transactions, or even *the fact
   that a wallet exists*, this Worker has no wallet data at all, Alice
   never sends it here, and no milestone or event records wallet activity.
-- Per-user click streams, page-view timelines, or session replay. Product
-  analytics are aggregate counters only.
+- Per-user click streams, page-view timelines, or session replay, and no
+  usage counter from the apps.
 - Passwords, password hashes and session tokens.
 - Raw IP addresses. `technical_events` (auth/email/venice error telemetry)
   stores only a category, a code, a status, and, only when the request was
@@ -504,10 +657,16 @@ nothing on the device changes.
 | `ADMIN_BOOTSTRAP_SECRET` | secret | new, admin-only | ≥32 bytes. Only used by `POST /admin/api/bootstrap`. Safe to rotate/remove after the first admin exists. |
 | `ADMIN_ALLOWED_USERNAMES` | var | optional | Comma-separated usernames. When set, a session must match one of these **and** have an `admin_users` row. See below. |
 | `ADMIN_DASHBOARD_PATH` | secret | optional | Secret path for the dashboard, e.g. `/console-7fq2xk`. When set, `/admin` stops existing. Set it as a secret, not a `[vars]` entry, so it does not sit in git. |
-| `CF_ANALYTICS_API_TOKEN` | local `.dev.vars` only | optional | Cloudflare API token with only *Account Analytics: Read*. Lets the Site tab read Web Analytics. Never set it on the deployed Worker. |
+| `CF_ANALYTICS_API_TOKEN` | local `.dev.vars` only | optional | Cloudflare API token with only *Account Analytics: Read*. Lets the Site and Infrastructure pages read Cloudflare's analytics. Never set it on the deployed Worker. |
 | `CF_ACCOUNT_ID` | local `.dev.vars` only | optional | The Cloudflare account the token reads. |
 | `CF_WEB_ANALYTICS_SITE_TAG` | local `.dev.vars` only | optional | Web Analytics site tag, when the lookup by host does not find the site. |
 | `CF_WEB_ANALYTICS_HOST` | local `.dev.vars` only | optional | Host to find the site by. Defaults to `alicebtc.com`. |
+| `VENICE_BILLING_API_KEY` | local `.dev.vars` only | optional | A Venice key of the account Alice is billed on, for the Venice cost page and the balance light. Falls back to `VENICE_API_KEY`, which in `.dev.vars` is usually a placeholder Venice refuses. Never set it on the deployed Worker. |
+| `ADMIN_ALERT_VENICE_USD` | local `.dev.vars` only | optional | Below this many USD of Venice credit the console warns. Defaults to 10. |
+| `GITHUB_TRAFFIC_TOKEN` | local `.dev.vars` only | optional | A fine-grained GitHub token limited to the two public repositories with the Administration permission in read-only, which GitHub requires to read traffic. Without it the Downloads page shows the public counters only. |
+| `VERCEL_API_TOKEN`, `VERCEL_PROJECT_ID`, `VERCEL_TEAM_ID` | local `.dev.vars` only | optional | Lets the Versions page show the site's last deployment. |
+| `CF_WORKER_SCRIPT_NAME`, `CF_D1_DATABASE_ID` | set by the launcher | optional | Which Worker and database the Infrastructure page reads. Read from `wrangler.toml` by the launcher. Without the database id the D1 figures cover every database of the account, and the page says so. |
+| `CONSOLE_GIT_BRANCH`, `CONSOLE_GIT_COMMIT`, `CONSOLE_MIGRATION_FILES` | set by the launcher | optional | The checkout the console runs from, for the Versions page. |
 | `EXPO_PUBLIC_ALICE_APP_VERSION` | client build var | optional | `x.y.z`. Inlined into the app builds so they can report their version. Malformed values are simply not reported. |
 
 ### Locking the dashboard to specific people
@@ -583,9 +742,38 @@ redemption, double-redemption and disabling, plus:
 - analytics returning aggregates that contain no `user_id` or `install_id`;
 - platform/version recorded when valid, **dropped when not on the
   allowlist**;
-- product events counting allowlisted names, silently dropping a smuggled
-  content-bearing string, storing exactly five columns and no identifier,
-  and requiring a session.
+- the console reporting the site's download clicks and nothing an app
+  posted to the old counters route.
+
+`apps/venice-proxy-worker/src/admin-insights.test.ts` covers the reading
+pages and the write lock, each against rows put in a database built from the
+migrations:
+
+- the unlock refused on a wrong password and to a `support` operator, a
+  write refused with neither password nor unlock, accepted with the unlock,
+  and a forged, expired, over-long or borrowed unlock refused;
+- deletion and role changes refused on the unlock alone;
+- account filters, and a filter value outside the closed lists ignored;
+- money totals, and that the page carries no account, invoice id or
+  provider reference;
+- the period falling back to 30 days on a value it does not offer;
+- errors counted without the BTCPay events;
+- health answering with every outside service down, turning red on a BTCPay
+  outage and on refunded requests, and reporting the previous visit;
+- the Venice lines added up, paginated by cursor, with no request id, key id
+  or token count in the answer;
+- Cloudflare rows mapped to buckets, and a script name unable to close the
+  GraphQL string it is written into;
+- pending migrations listed, and not guessed when the table is missing;
+- every reading route refused to a signed-in non-admin;
+- a cron run recorded when it works, when it throws and when it recovers,
+  the recording unable to break the task, and the light turning red for a
+  task that stopped;
+- two download snapshots turned into downloads per day, a second read in a
+  day not counted twice, nothing new on the first day, traffic kept by day
+  with a token and never asked for without one;
+- a note added, listed and removed behind the write lock, each audited, and
+  the audit log intact after its table was rebuilt.
 
 Run with:
 ```bash

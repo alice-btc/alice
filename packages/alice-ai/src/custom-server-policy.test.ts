@@ -60,6 +60,11 @@ describe('custom server: thinking', () => {
     });
     assert.deepEqual(customThinkingSwitch('smollm3-3b', 'ollama'), { promptSuffix: ' /no_think', payload: { think: false } });
     assert.deepEqual(customThinkingSwitch('llama-3.1-8b', 'openai'), { promptSuffix: '', payload: {} });
+    assert.deepEqual(customThinkingSwitch('gemma-4-E4B-it-Q4_K_M.gguf', 'openai'), {
+      promptSuffix: ' /no_think',
+      payload: { chat_template_kwargs: { enable_thinking: false } },
+    });
+    assert.deepEqual(customThinkingSwitch('gemma4:e4b', 'ollama'), { promptSuffix: '', payload: {} });
   });
 
   it('strips a thinking block, empty, filled, or left open', () => {

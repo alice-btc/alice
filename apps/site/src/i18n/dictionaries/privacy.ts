@@ -75,9 +75,9 @@ const en: PrivacyCopy = {
       ],
     },
     {
-      title: 'Product analytics',
+      title: 'Usage counters',
       detail: [
-        'Day-level aggregate counters only: an event, a platform, a version. No user id, no session id, no timeline. An individual profile cannot be reconstructed from what we store, even in principle.',
+        'The app sends no usage counter: Alice counts neither how often it is opened, nor which parts you visit, nor your answers. Versions up to 0.2.9 still send daily totals, and the server discards them without keeping them. The only usage counter kept is a click on one of this site’s Download buttons: a platform and a day, with no cookie and nothing about the visitor.',
       ],
     },
   ],
@@ -91,7 +91,7 @@ const en: PrivacyCopy = {
   ],
   analyticsTitle: 'On this site’s analytics',
   analytics:
-    'This site counts page views with Cloudflare Web Analytics. It sets no cookie, writes nothing to your browser’s storage, and builds no fingerprint, so nothing follows you between sessions or across sites. It tells us which pages get read, from which country, and nothing that identifies you. The app itself is a separate matter, described above.',
+    'This site counts page views with Cloudflare Web Analytics. It sets no cookie, writes nothing to your browser’s storage, and builds no fingerprint, so nothing follows you between sessions or across sites. It tells us which pages get read, from which country, and nothing that identifies you. A click on a Download button also adds 1 to that platform’s total for the day on our own server, with nothing about you attached. The app itself is a separate matter, described above.',
 };
 
 const fr: PrivacyCopy = {
@@ -150,9 +150,9 @@ const fr: PrivacyCopy = {
       ],
     },
     {
-      title: 'Statistiques du produit',
+      title: 'Compteurs d’usage',
       detail: [
-        'Uniquement des compteurs agrégés à la journée : un événement, une plateforme, une version. Pas d’identifiant d’utilisateur, pas d’identifiant de session, pas de chronologie. Un profil individuel ne peut pas être reconstitué à partir de ce que nous stockons, même en principe.',
+        'L’app n’envoie aucun compteur d’usage : Alice ne compte ni ses ouvertures, ni les rubriques consultées, ni vos réponses. Les versions jusqu’à la 0.2.9 envoient encore des totaux par jour, et le serveur les écarte sans les garder. Le seul compteur d’usage conservé est le clic sur l’un des boutons de téléchargement de ce site : une plateforme et un jour, sans cookie et sans rien sur le visiteur.',
       ],
     },
   ],
@@ -166,7 +166,7 @@ const fr: PrivacyCopy = {
   ],
   analyticsTitle: 'À propos des statistiques de ce site',
   analytics:
-    'Ce site compte les pages vues avec Cloudflare Web Analytics. Il ne dépose aucun cookie, n’écrit rien dans le stockage de votre navigateur et ne crée aucune empreinte : rien ne vous suit d’une session à l’autre ni d’un site à l’autre. Il nous indique quelles pages sont lues, depuis quel pays, et rien qui vous identifie. L’app elle-même est une autre affaire, décrite plus haut.',
+    'Ce site compte les pages vues avec Cloudflare Web Analytics. Il ne dépose aucun cookie, n’écrit rien dans le stockage de votre navigateur et ne crée aucune empreinte : rien ne vous suit d’une session à l’autre ni d’un site à l’autre. Il nous indique quelles pages sont lues, depuis quel pays, et rien qui vous identifie. Un clic sur un bouton de téléchargement ajoute aussi 1 au total du jour de cette plateforme sur notre propre serveur, sans rien qui vous concerne. L’app elle-même est une autre affaire, décrite plus haut.',
 };
 
 export const privacyCopy: Record<Locale, PrivacyCopy> = { en, fr };

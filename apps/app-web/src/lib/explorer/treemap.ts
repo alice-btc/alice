@@ -99,3 +99,24 @@ export function packBlockGrid(vsizes: number[], resolution = 80, capacityVsize?:
 
   return { gridWidth: R, rows: maxRows, squares };
 }
+
+/** How far the grid may be refined to hold a crowded block. */
+const MAX_RESOLUTION = 240;
+
+/**
+ * The same packing, kept inside a SQUARE grid. A transaction never takes less
+ * than one cell, so a block of several thousand small transactions needs more
+ * cells than the default grid has and would run past its last row. The grid is
+ * then refined until the block fits: smaller cells, the same square.
+ */
+export function packBlockSquare(vsizes: number[], resolution = 80, capacityVsize?: number): BlockGrid {
+  let grid = packBlockGrid(vsizes, resolution, capacityVsize);
+  let R = resolution;
+  while (grid.rows > grid.gridWidth && R < MAX_RESOLUTION) {
+    // The overflow gives the area still missing; a margin covers the gaps
+    // the packing leaves.
+    R = Math.min(MAX_RESOLUTION, Math.max(R + 4, Math.ceil(R * Math.sqrt(grid.rows / grid.gridWidth) * 1.03)));
+    grid = packBlockGrid(vsizes, R, capacityVsize);
+  }
+  return grid;
+}

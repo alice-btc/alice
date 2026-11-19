@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { annotateAnchors, normalizeLinkHref, parseInline, parseMarkdown, parseYouTubeUrl, resolveAssetUrl } from './markdown.ts';
+import { annotateAnchors, attachPunctuation, leadingClosingMarks, normalizeLinkHref, parseInline, parseMarkdown, parseYouTubeUrl, resolveAssetUrl } from './markdown.ts';
 
 describe('parseInline', () => {
   it('parses bold, italic, code and links', () => {
@@ -198,5 +198,21 @@ describe('parseYouTubeUrl', () => {
     ]) {
       assert.equal(parseYouTubeUrl(url), null, url);
     }
+  });
+});
+
+describe('punctuation that must not start a line', () => {
+  it('turns the French space before a double mark into a no-break space', () => {
+    assert.equal(attachPunctuation('Quel est le rôle de l\'argent ?'), 'Quel est le rôle de l\'argent ?');
+    assert.equal(attachPunctuation('les suivantes : « un », puis ; fin !'), 'les suivantes : « un », puis ; fin !');
+    assert.equal(attachPunctuation('What is money? See: this.'), 'What is money? See: this.');
+  });
+
+  it('reads the closing marks that follow a link', () => {
+    assert.equal(leadingClosingMarks('. La suite'), '.');
+    assert.equal(leadingClosingMarks(') il n\'est pas'), ')');
+    assert.equal(leadingClosingMarks('», dit-il'), '»,');
+    assert.equal(leadingClosingMarks(' et la suite'), '');
+    assert.equal(leadingClosingMarks(''), '');
   });
 });

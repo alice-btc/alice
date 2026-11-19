@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { packBlockGrid } from './treemap.ts';
+import { packBlockGrid, packBlockSquare } from './treemap.ts';
 
 describe('packBlockGrid', () => {
   it('returns nothing for no input', () => {
@@ -49,5 +49,29 @@ describe('packBlockGrid', () => {
     // 16*16 unit squares of equal size on a 16-wide grid should fill 16 rows exactly.
     const g = packBlockGrid(Array.from({ length: 256 }, () => 100), 16);
     assert.equal(g.rows, 16);
+  });
+});
+
+describe('packBlockSquare', () => {
+  it('leaves a block that fits on the default grid', () => {
+    const sizes = Array.from({ length: 1200 }, (_, i) => 140 + (i % 7) * 60);
+    assert.deepEqual(packBlockSquare(sizes, 80, 1_000_000), packBlockGrid(sizes, 80, 1_000_000));
+  });
+
+  it('refines the grid until a crowded block fits in the square', () => {
+    // 8,000 small transactions: each takes a whole cell of the 80 x 80 grid,
+    // which only has 6,400.
+    const sizes = Array.from({ length: 8000 }, () => 125);
+    assert.ok(packBlockGrid(sizes, 80, 1_000_000).rows > 80, 'the default grid overflows');
+    const g = packBlockSquare(sizes, 80, 1_000_000);
+    assert.ok(g.gridWidth > 80);
+    assert.ok(g.rows <= g.gridWidth, `${g.rows} rows on a ${g.gridWidth}-wide grid`);
+    assert.equal(g.squares.length, 8000);
+  });
+
+  it('fits a block of mixed sizes too', () => {
+    const sizes = Array.from({ length: 7000 }, (_, i) => (i % 50 === 0 ? 4000 : 110));
+    const g = packBlockSquare(sizes, 80, 1_000_000);
+    assert.ok(g.rows <= g.gridWidth);
   });
 });

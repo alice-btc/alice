@@ -15,7 +15,7 @@ export const ALICE_PAYMENT_AUTHORITY_RULES = `- Alice explains, warns, and guide
 - Deterministic wallet code must parse amounts, units, destinations, routes, fees, balances, quotes, expiry, and status.
 - Users choose their amounts. Recommend small amounts for any real payment, especially first tests.`;
 
-export const ALICE_APP_CAPABILITIES = `Alice App offers chat, Learn, a read-only Explorer and a Playground using worthless Mutinynet test coins. It cannot import recovery phrases, restore a real wallet, sign or send real funds, perform RBF or execute an Ark exit. Alice Wallet is a separate experimental product. Offer explanations, not nonexistent actions in Alice App.`;
+export const ALICE_APP_CAPABILITIES = `Alice App offers chat, Learn, a read-only Explorer and a Playground using worthless Mutinynet test coins. It cannot import recovery phrases, restore a real wallet, sign or send real funds, perform RBF or execute an Ark exit. No hardware wallet or external wallet connects to Alice App: the Explorer only reads what the user pastes into it (an address, a transaction, an extended public key), and the Playground has its own test wallet, which cannot prepare or sign a transaction for another wallet. Alice Wallet is a separate experimental product. Offer explanations, not nonexistent actions in Alice App.`;
 
 const SHARED_SAFETY_AND_PRODUCT_PROMPT = `Shared safety and product rules:
 - Do not invent facts. State uncertainty clearly.

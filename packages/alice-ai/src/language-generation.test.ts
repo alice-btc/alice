@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { AIBackend, SendMessageOptions } from './ai-backend.ts';
 import { generateLanguageChecked, visibleStreamingText, WrongResponseLanguageError } from './language-generation.ts';
+import { markSecurityNotice } from './learn-context.ts';
 
 function backendWithAnswers(answers: string[], seen: SendMessageOptions[]): AIBackend {
   let index = 0;
@@ -117,4 +118,30 @@ test('a never-claim correction follows a retrieved note only when the user raise
 test('holds a split private-memory marker out of the visible stream', () => {
   assert.equal(visibleStreamingText('Visible answer.<alice_mem'), 'Visible answer.');
   assert.equal(visibleStreamingText('Visible answer.<alice_memory>{"items":[]}'), 'Visible answer.');
+});
+
+test('leads the answer with the security warning of the tutorial the turn quotes, and samples it conservatively', async () => {
+  const seen: SendMessageOptions[] = [];
+  const streamed: string[] = [];
+  const notice = '**⚠️ AVIS DE SÉCURITÉ** Les seeds générées sur cet appareil sont compromises. Déplacez vos fonds.';
+  const context = `[Learn excerpt, quoted from Plan ₿ Network, CC BY-SA 4.0. Ground your answer in it when relevant.]\nCOLDCARD (Plan ₿ Academy tutorial)\n${markSecurityNotice(notice)}\n\n## Choix du code PIN\n\nSaisissez un préfixe.`;
+  const answer = 'Pour configurer ton appareil, tu choisis un code PIN, puis tu crées le portefeuille en suivant les étapes du tutoriel.';
+  const result = await generateLanguageChecked({
+    backend: backendWithAnswers([answer], seen),
+    history: [{ role: 'user', content: context }, { role: 'user', content: 'Comment configurer mon Coldcard ?' }],
+    allowContinuation: false,
+    targetLanguage: 'fr',
+    onText: text => streamed.push(text),
+  });
+  assert.equal(result.text, `> ${notice}\n\n${answer}`);
+  assert.ok(streamed.every(text => text.startsWith(`> ${notice}`)), 'the warning is on screen from the first words');
+  assert.equal(seen[0].temperatureCap, 0.3);
+
+  const plain = await generateLanguageChecked({
+    backend: backendWithAnswers([answer], []),
+    history: [{ role: 'user', content: 'Comment configurer mon Coldcard ?' }],
+    allowContinuation: false,
+    targetLanguage: 'fr',
+  });
+  assert.equal(plain.text, answer);
 });
